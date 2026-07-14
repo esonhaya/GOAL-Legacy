@@ -1,0 +1,389 @@
+# GOAL: Legacy
+# Technical Bible
+
+Document ID: TB-003
+Title: Database Architecture
+
+Version: 1.0
+Status: Draft
+Author: Jaime Haya
+Last Updated: 2026-07-14
+
+---
+
+# Purpose
+
+This document defines the database architecture of GOAL: Legacy.
+
+Its objective is to ensure that every gameplay system stores, retrieves, and updates information consistently.
+
+The database is designed to support long-term saves spanning multiple generations while remaining lightweight enough for mobile devices.
+
+---
+
+# Design Philosophy
+
+The database exists to represent a living football world.
+
+Data should never exist without purpose.
+
+Whenever possible:
+
+- Store facts.
+- Calculate values when needed.
+- Avoid duplicated information.
+- Preserve historical records instead of deleting them.
+
+---
+
+# Database Engine
+
+Phase 1 uses SQLite.
+
+Reasons:
+
+- Offline by default.
+- No server required.
+- Excellent PHP support.
+- Reliable save file portability.
+- Fast enough for thousands of simulated players.
+
+Future versions may support additional database engines through adapters.
+
+---
+
+# Architecture
+
+The database is divided into logical domains.
+
+Examples:
+
+Player
+
+Club
+
+Competition
+
+Career
+
+World
+
+Economy
+
+Relationships
+
+Media
+
+Legacy
+
+Developer
+
+Each domain owns its own tables.
+
+---
+
+# Core Principles
+
+## Single Source of Truth
+
+Every piece of information has exactly one authoritative location.
+
+Example:
+
+Player Age
+
+Stored once.
+
+Never duplicated elsewhere.
+
+---
+
+## Historical Preservation
+
+Records are never overwritten if historical value exists.
+
+Instead:
+
+Current Contract
+
+↓
+
+Contract History
+
+↓
+
+Career History
+
+↓
+
+Legacy Records
+
+---
+
+## Stable IDs
+
+Every generated object receives a permanent unique ID.
+
+Examples:
+
+Player ID
+
+Club ID
+
+Match ID
+
+Season ID
+
+News ID
+
+Universe ID
+
+IDs never change.
+
+---
+
+# Data Categories
+
+## Permanent Data
+
+Never changes after generation.
+
+Examples:
+
+Birth Date
+
+Birth Nation
+
+Generated DNA
+
+Universe Seed
+
+---
+
+## Dynamic Data
+
+Changes throughout gameplay.
+
+Examples:
+
+Fitness
+
+Morale
+
+Contract
+
+Transfer Value
+
+Club Reputation
+
+Manager Reputation
+
+---
+
+## Historical Data
+
+Preserved forever.
+
+Examples:
+
+League Winners
+
+Award Winners
+
+Transfers
+
+Career Statistics
+
+Retired Players
+
+Season Records
+
+---
+
+# Database Domains
+
+## Player Domain
+
+Stores:
+
+- Identity
+- Attributes
+- Personality
+- Relationships
+- Career
+- Injuries
+- Statistics
+
+---
+
+## Club Domain
+
+Stores:
+
+- Identity
+- Finances
+- Reputation
+- Facilities
+- Staff
+- Squad
+
+---
+
+## Competition Domain
+
+Stores:
+
+- Fixtures
+- Results
+- Standings
+- Awards
+
+---
+
+## World Domain
+
+Stores:
+
+- Countries
+- Regions
+- Football Culture
+- Calendar
+- Universe Score
+
+---
+
+## Media Domain
+
+Stores:
+
+- News
+- Pulse
+- Headlines
+- Social Feed
+
+---
+
+## Legacy Domain
+
+Stores:
+
+- Hall of Fame
+- Career Records
+- Bloodlines
+- Historical Achievements
+
+---
+
+# Relationships
+
+Tables should communicate through IDs.
+
+Never duplicate complete objects.
+
+Example:
+
+Player
+
+↓
+
+Club ID
+
+↓
+
+Club Table
+
+Not
+
+Player
+
+↓
+
+Entire Club Information
+
+---
+
+# Save Files
+
+One save equals one SQLite database.
+
+Everything required for the career exists inside the save.
+
+No online dependency.
+
+---
+
+# Performance Rules
+
+Large queries should be avoided during weekly simulation.
+
+Frequently accessed values should be indexed.
+
+Historical archives should be separated from active gameplay when appropriate.
+
+Simulation should prioritize speed over unnecessary precision.
+
+---
+
+# Future Database Bible
+
+This document defines architecture only.
+
+Individual tables will be documented separately inside:
+
+DatabaseBible/
+
+Examples:
+
+DB-001 Player Table
+
+DB-002 Club Table
+
+DB-003 Match Table
+
+DB-004 Contract Table
+
+DB-005 News Table
+
+Each table receives:
+
+Purpose
+
+Columns
+
+Relationships
+
+Indexes
+
+Validation Rules
+
+Developer Notes
+
+---
+
+# Locked Decisions
+
+✓ SQLite for Phase 1
+
+✓ One Save = One Database
+
+✓ Stable Permanent IDs
+
+✓ Historical Preservation
+
+✓ Single Source of Truth
+
+✓ Domain-Based Architecture
+
+✓ Data-Driven Design
+
+---
+
+## Revision History
+
+| Version | Date | Notes |
+|---------|------|-------|
+| 1.0 | 2026-07-14 | Initial draft |
+
+---
+
+END OF DOCUMENT

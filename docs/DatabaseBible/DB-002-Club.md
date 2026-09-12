@@ -4,10 +4,10 @@
 Document ID: DB-002
 Title: Club Database
 
-Version: 1.0
+Version: 1.1
 Status: Draft
 Author: Jaime Haya
-Last Updated: 2026-07-14
+Last Updated: 2026-09-12
 
 ---
 
@@ -90,8 +90,8 @@ Fields include:
 - Club Name
 - Short Name
 - Nickname
-- Country
-- Region
+- Nation ID
+- Local Region
 - City
 - Year Founded
 - Home Stadium
@@ -99,6 +99,10 @@ Fields include:
 - Club Badge ID
 
 Identity rarely changes.
+
+Nation ID is a stable reference to the canonical Nation record defined by
+DB-014. Local Region describes the club's locality and does not duplicate
+Nation geography or identity.
 
 ---
 
@@ -205,6 +209,7 @@ References:
 
 - Player IDs
 - Staff IDs
+- Nation ID
 - Competition IDs
 - Stadium ID (future)
 - Owner ID (future)
@@ -219,7 +224,8 @@ Club ID cannot change.
 
 Founded year cannot change.
 
-Country may only change through official relocation mechanics (future phases).
+Nation ID may only change through an explicit official relocation mechanic in
+future phases. The referenced Nation must exist in the same world/save.
 
 Financial values cannot become invalid through direct modification.
 
@@ -264,7 +270,7 @@ Historical records only
 Frequently indexed fields include:
 
 - Club ID
-- Country
+- Nation ID
 - Current League
 - Reputation
 
@@ -303,6 +309,8 @@ These additions should extend the existing structure without breaking compatibil
 
 ✓ Separate Historical Records
 
+✓ Nation affiliation is a stable Nation ID reference
+
 ---
 
 ## Revision History
@@ -310,6 +318,7 @@ These additions should extend the existing structure without breaking compatibil
 | Version | Date | Notes |
 |---------|------|-------|
 | 1.0 | 2026-07-14 | Initial draft |
+| 1.1 | 2026-09-12 | Replaced Country ownership implication with Nation ID reference |
 
 ---
 

@@ -4,10 +4,10 @@
 Document ID: TB-003
 Title: Database Architecture
 
-Version: 1.0
+Version: 1.1
 Status: Draft
 Author: Jaime Haya
-Last Updated: 2026-07-14
+Last Updated: 2026-09-12
 
 ---
 
@@ -244,11 +244,14 @@ Stores:
 
 Stores:
 
-- Countries
-- Regions
-- Football Culture
+- Nation IDs and global geography indexes
 - Calendar
 - Universe Score
+
+The World domain owns global/root state and references. Nation identity and
+Nation-specific state are owned by the Nation domain defined in DB-014; they
+are not duplicated in World. Club, Player, and Competition domains likewise
+reference Nation IDs rather than copying Nation records.
 
 ---
 
@@ -338,6 +341,8 @@ DB-001 Player Table
 
 DB-002 Club Table
 
+DB-014 Nation Table
+
 DB-003 Match Table
 
 DB-004 Contract Table
@@ -383,6 +388,7 @@ Developer Notes
 | Version | Date | Notes |
 |---------|------|-------|
 | 1.0 | 2026-07-14 | Initial draft |
+| 1.1 | 2026-09-12 | Added Nation domain ownership and clarified World references |
 
 ---
 

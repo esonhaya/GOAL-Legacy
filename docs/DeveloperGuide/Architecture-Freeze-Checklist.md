@@ -57,7 +57,7 @@ Affected Documents:
 
 # AF-002 — Nation Architecture
 
-Status: ✅ Locked
+Status: ✔ Complete
 
 Decision:
 
@@ -507,7 +507,7 @@ Affected Documents:
 
 # Remaining Integration Tasks
 
-☐ Create DB-014 Nation
+✔ Create DB-014 Nation
 
 ☐ Create TB-007 Data Lifecycle
 

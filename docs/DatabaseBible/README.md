@@ -38,6 +38,7 @@ The Database Bible does not define gameplay logic. Instead, it defines **what da
 | DB-011 | Economy | ✅ |
 | DB-012 | Legacy | ✅ |
 | DB-013 | World | ✅ |
+| DB-014 | Nation | ✅ |
 
 ---
 

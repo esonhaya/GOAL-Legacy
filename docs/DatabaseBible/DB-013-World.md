@@ -4,20 +4,23 @@
 Document ID: DB-013
 Title: World Database
 
-Version: 1.0
+Version: 1.1
 Status: Draft
 Author: Jaime Haya
-Last Updated: 2026-07-14
+Last Updated: 2026-09-12
 
 ---
 
 # Purpose
 
-The World table stores the global simulation state of GOAL: Legacy.
+The World table stores the global/root simulation state of GOAL: Legacy.
 
-It coordinates time progression, seasonal transitions, calendar management, procedural generation, and world-level settings shared across every module.
+It coordinates the global simulation timeline, world-level configuration,
+content references, and indexes shared across modules.
 
-Unlike other tables, the World table represents the universe itself rather than an individual football entity.
+Unlike other tables, the World table represents the universe itself rather
+than an individual football entity. It references Nation records; it does not
+own Nation identity or Nation-specific state. See DB-014.
 
 ---
 
@@ -29,6 +32,7 @@ World Module
 
 Supporting Modules
 
+- Nation
 - Player
 - Club
 - Staff
@@ -39,7 +43,8 @@ Supporting Modules
 - Pulse
 - Legacy
 
-Only the World Module may directly modify world state.
+Only the World Module may directly modify World-owned state. Nation-owned
+records remain under the Nation Module.
 
 ---
 
@@ -60,6 +65,9 @@ A World record is created when a new save is generated.
 The record persists for the lifetime of the save.
 
 A World record is never deleted unless the save itself is removed.
+
+World state is save-scoped. Runtime objects, event listeners, scheduler
+callbacks, and derived caches are not canonical World persistence.
 
 ---
 
@@ -92,34 +100,32 @@ The Universe Seed never changes after creation.
 
 ---
 
-# Calendar
+# Global Simulation Timeline
 
-Stores current simulation time.
+Stores or references the current global simulation time.
 
 Examples:
 
-- Current Date
-- Current Week
-- Current Month
-- Current Year
-- Current Season
-- Day of Week
+- Simulation Time
+- Calendar ID or timeline reference
+- Current year/season reference where a domain defines one
 
-The calendar drives every scheduled event.
+The Core clock and scheduler advance simulation time. World owns the global
+timeline reference; calendar policy and competition scheduling remain with
+their owning modules.
 
 ---
 
-# Season State
+# Global Cycle References
 
-Stores the current football season.
+World may store references to global cycles needed to coordinate a save.
+Detailed season and competition state is owned by the relevant domain.
 
 Examples:
 
-- Season ID
-- Transfer Window Status
-- Registration Period
-- Competition Phase
-- International Break Status
+- Current Season ID
+- Current Year ID
+- Global timeline phase reference
 
 ---
 
@@ -138,17 +144,19 @@ Used internally by the simulation engine.
 
 ---
 
-# World Statistics
+# Global Indexes and Statistics
+
+World may maintain non-authoritative indexes or derived counts for global
+lookup and diagnostics.
 
 Examples:
 
-- Total Players
-- Total Clubs
-- Total Staff
-- Total Matches
-- Total Competitions
+- Nation IDs present in the world
+- Installed and selected content package IDs/versions
+- Derived counts of domain records
 
-These values are generated automatically.
+These values are generated automatically and must not become duplicate
+canonical records. The owning domain remains the source of truth.
 
 ---
 
@@ -156,15 +164,14 @@ These values are generated automatically.
 
 Stores save-specific settings.
 
-Examples:
+Examples of generic world-level profiles:
 
-- Difficulty
-- Simulation Speed
-- Injury Frequency
-- Youth Generation Level
-- Financial Difficulty
+- Difficulty profile
+- Simulation profile
+- Generation profile
 
-Only gameplay settings are stored here.
+Only global/save configuration is stored here. Domain-specific settings are
+owned by their respective domains.
 
 ---
 
@@ -174,13 +181,12 @@ Stores references to scheduled future events.
 
 Examples:
 
-- Fixtures
-- Contract Expirations
-- Youth Intake
-- Awards
-- Transfer Window Events
+- Serializable references to future world work
+- Global timeline work identifiers
 
-Detailed event processing remains inside individual modules.
+The Core scheduler owns runtime execution. Scheduled callbacks and event
+listeners are not stored as World data. Detailed event processing remains
+inside individual modules.
 
 ---
 
@@ -190,7 +196,9 @@ References:
 
 - Current Season ID
 - Active Competition IDs
-- Calendar ID (future)
+- Nation IDs
+- Installed/selected content package IDs and versions
+- Calendar or global timeline ID
 
 Only IDs are stored.
 
@@ -204,7 +212,8 @@ Only one active World record exists per save.
 
 Simulation date cannot move backwards through normal gameplay.
 
-Referenced seasons must exist.
+Referenced seasons, competitions, Nations, and content packages must exist in
+the applicable world/save context.
 
 ---
 
@@ -218,7 +227,11 @@ Readable by all gameplay modules.
 
 World Module
 
-Full Access
+Full Access to World-owned state and global references.
+
+Nation Module
+
+Nation records only; it does not own the World record.
 
 League Module
 
@@ -239,8 +252,9 @@ Historical season references only
 Frequently indexed fields include:
 
 - World ID
-- Current Date
-- Current Season
+- Current simulation time
+- Current Season ID
+- Nation IDs
 - Simulation State
 
 Only one active World record exists, making lookups efficient.
@@ -254,7 +268,6 @@ Future versions may include:
 - Dynamic rule changes
 - Climate effects
 - Global economic trends
-- International football politics
 - Fictional universes
 - Women's football integration
 - Parallel timelines
@@ -278,6 +291,8 @@ These additions extend the architecture without breaking compatibility.
 
 ✓ Historical Preservation
 
+✓ Nation records are owned by the Nation Module and referenced by World
+
 ---
 
 ## Revision History
@@ -285,8 +300,8 @@ These additions extend the architecture without breaking compatibility.
 | Version | Date | Notes |
 |---------|------|-------|
 | 1.0 | 2026-07-14 | Initial draft |
+| 1.1 | 2026-09-12 | Moved Nation ownership to DB-014; clarified global references and lifetimes |
 
 ---
 
 END OF DOCUMENT
-

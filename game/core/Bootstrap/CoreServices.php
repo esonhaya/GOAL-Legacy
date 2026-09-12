@@ -8,6 +8,7 @@ use Goal\Legacy\Core\Configuration\ConfigurationInterface;
 use Goal\Legacy\Core\Events\EventDispatcherInterface;
 use Goal\Legacy\Core\Logging\LoggerInterface;
 use Goal\Legacy\Core\Modules\ModuleRegistry;
+use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Core\Time\Scheduler;
 use Goal\Legacy\Core\Time\SimulationClock;
 
@@ -20,6 +21,7 @@ final class CoreServices
         private readonly ModuleRegistry $moduleRegistry,
         private readonly SimulationClock $clock,
         private readonly Scheduler $scheduler,
+        private readonly SaveStore $saveStore,
     ) {
     }
 
@@ -34,4 +36,6 @@ final class CoreServices
     public function clock(): SimulationClock { return $this->clock; }
 
     public function scheduler(): Scheduler { return $this->scheduler; }
+
+    public function saveStore(): SaveStore { return $this->saveStore; }
 }

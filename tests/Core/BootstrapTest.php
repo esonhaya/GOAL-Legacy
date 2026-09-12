@@ -23,6 +23,7 @@ final class BootstrapTest extends TestCase
         self::assertNotNull($services->moduleRegistry());
         self::assertSame(0, $services->clock()->now()->ticks());
         self::assertFalse($services->scheduler()->hasPendingTasks());
+        self::assertNotNull($services->saveStore());
         self::assertFileExists(dirname(__DIR__, 2) . '/game/logs/core.log');
 
         $received = false;

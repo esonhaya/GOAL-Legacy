@@ -9,6 +9,8 @@ use Goal\Legacy\Core\Events\EventDispatcher;
 use Goal\Legacy\Core\Logging\FileLogger;
 use Goal\Legacy\Core\Logging\LogLevel;
 use Goal\Legacy\Core\Modules\ModuleRegistry;
+use Goal\Legacy\Core\Persistence\JsonSerializer;
+use Goal\Legacy\Core\Persistence\SqliteSaveStore;
 use Goal\Legacy\Core\Time\Scheduler;
 use Goal\Legacy\Core\Time\SimulationClock;
 use Goal\Legacy\Core\Time\SimulationTime;
@@ -40,12 +42,13 @@ final class Bootstrap
         $registry = new ModuleRegistry($configuration, $dispatcher, $logger);
         $clock = new SimulationClock(new SimulationTime(0));
         $scheduler = new Scheduler($clock);
+        $saveStore = new SqliteSaveStore($projectRoot . '/game/saves', new JsonSerializer());
 
         $logger->info('core.bootstrap', 'Core services initialized.', [
             'environment' => $configuration->string('app.environment'),
         ]);
 
-        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler);
+        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore);
     }
 
     /** @return array<string, string> */

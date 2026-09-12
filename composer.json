@@ -37,6 +37,7 @@
         "doctor": "@php game/devtools/console.php doctor",
         "core:self-check": "@php game/devtools/console.php core:self-check",
         "time:self-check": "@php game/devtools/console.php time:self-check",
+        "persistence:self-check": "@php game/devtools/console.php persistence:self-check",
         "modules:list": "@php game/devtools/console.php modules:list",
         "config:inspect": "@php game/devtools/console.php config:inspect",
         "logs:recent": "@php game/devtools/console.php logs:recent"

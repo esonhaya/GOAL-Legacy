@@ -18,6 +18,8 @@ use Goal\Legacy\Devtools\Commands\PersistenceSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\TimeSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\NationListCommand;
 use Goal\Legacy\Devtools\Commands\NationSelfCheckCommand;
+use Goal\Legacy\Devtools\Commands\CompetitionListCommand;
+use Goal\Legacy\Devtools\Commands\WorldSelfCheckCommand;
 
 $projectRoot = dirname(__DIR__, 2);
 $services = (new Bootstrap())->create($projectRoot);
@@ -32,6 +34,8 @@ $commands->register(new PersistenceSelfCheckCommand($services));
 $commands->register(new ContentListCommand($services));
 $commands->register(new NationListCommand($services));
 $commands->register(new NationSelfCheckCommand($services));
+$commands->register(new CompetitionListCommand($services));
+$commands->register(new WorldSelfCheckCommand($services));
 
 $application = new ConsoleApplication($commands);
 exit($application->run($argv, new StreamConsoleOutput(STDOUT, STDERR)));

@@ -233,9 +233,9 @@ Nation Module
 
 Nation records only; it does not own the World record.
 
-League Module
+Competition Module
 
-Season references only
+Season references and global Competition references only
 
 Match Module
 

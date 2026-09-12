@@ -34,4 +34,10 @@ final class NationService
     {
         return (new NationMaterializer($database))->materialize($this->loadSelected());
     }
+
+    /** @param list<Nation> $nations */
+    public function materializeInTransaction(DatabaseInterface $database, array $nations): int
+    {
+        return (new NationMaterializer($database))->materializeInTransaction($nations);
+    }
 }

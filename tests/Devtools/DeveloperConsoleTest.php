@@ -18,6 +18,8 @@ use Goal\Legacy\Devtools\Commands\ContentListCommand;
 use Goal\Legacy\Devtools\Commands\TimeSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\NationListCommand;
 use Goal\Legacy\Devtools\Commands\NationSelfCheckCommand;
+use Goal\Legacy\Devtools\Commands\CompetitionListCommand;
+use Goal\Legacy\Devtools\Commands\WorldSelfCheckCommand;
 use PHPUnit\Framework\TestCase;
 use Tools\Doctor\Contracts\CheckIdentityInterface;
 use Tools\Doctor\Contracts\CheckInterface;
@@ -57,6 +59,8 @@ final class DeveloperConsoleTest extends TestCase
             new ContentListCommand($services),
             new NationListCommand($services),
             new NationSelfCheckCommand($services),
+            new CompetitionListCommand($services),
+            new WorldSelfCheckCommand($services),
         ] as $command) {
             $commands->register($command);
         }
@@ -103,7 +107,10 @@ final class DeveloperConsoleTest extends TestCase
         $output = new BufferedConsoleOutput();
 
         self::assertSame(0, (new ContentListCommand($services))->execute([], $output));
-        self::assertSame(['core-nations Core Nations version=1.0.0 schema=1 selected=yes dependencies=-'], $output->messages());
+        self::assertSame([
+            'core-competitions Core Competitions version=1.0.0 schema=1 selected=yes dependencies=core-nations',
+            'core-nations Core Nations version=1.0.0 schema=1 selected=yes dependencies=-',
+        ], $output->messages());
     }
 
     public function testDoctorUsesHayaExitCodeOneForCheckFailure(): void

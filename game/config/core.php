@@ -17,6 +17,6 @@ return [
     'features' => [],
     'content' => [
         'path' => 'game/data/packages',
-        'selected' => ['core-nations'],
+        'selected' => ['core-nations', 'core-competitions'],
     ],
 ];

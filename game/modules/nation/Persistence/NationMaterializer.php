@@ -17,6 +17,12 @@ final class NationMaterializer
     /** @param list<Nation> $nations */
     public function materialize(array $nations): int
     {
+        return $this->database->transaction(fn (): int => $this->materializeInTransaction($nations));
+    }
+
+    /** @param list<Nation> $nations */
+    public function materializeInTransaction(array $nations): int
+    {
         $ordered = [];
         foreach ($nations as $nation) {
             $id = $nation->id()->value();
@@ -27,13 +33,10 @@ final class NationMaterializer
         }
         ksort($ordered, SORT_STRING);
         $repository = new NationRepository($this->database);
+        foreach ($ordered as $nation) {
+            $repository->save($nation);
+        }
 
-        return $this->database->transaction(function () use ($ordered, $repository): int {
-            foreach ($ordered as $nation) {
-                $repository->save($nation);
-            }
-
-            return count($ordered);
-        });
+        return count($ordered);
     }
 }

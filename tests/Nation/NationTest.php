@@ -132,7 +132,12 @@ final class NationTest extends TestCase
         self::assertSame('started', $services->moduleRegistry()->statuses()[0]->state()->value);
         $services->moduleRegistry()->shutdown();
 
-        $disabled = (new Bootstrap())->create($root, ['APP_ENV' => 'test', 'APP_MODULE_NATION_ENABLED' => 'false']);
+        $disabled = (new Bootstrap())->create($root, [
+            'APP_ENV' => 'test',
+            'APP_MODULE_NATION_ENABLED' => 'false',
+            'APP_MODULE_COMPETITION_ENABLED' => 'false',
+            'APP_MODULE_WORLD_ENABLED' => 'false',
+        ]);
         self::assertFalse($disabled->moduleRegistry()->isEnabled('nation'));
         $disabled->moduleRegistry()->start();
         self::assertSame('registered', $disabled->moduleRegistry()->statuses()[0]->state()->value);

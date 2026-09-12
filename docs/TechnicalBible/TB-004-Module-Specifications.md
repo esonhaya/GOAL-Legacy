@@ -161,31 +161,33 @@ Never Owns
 
 ---
 
-## League Module
+## Competition Module
 
 Purpose
 
-Manages competitions.
+Manages competition definitions and persistent competition state. Fixture,
+standings, promotion, relegation, and detailed rules engines remain future
+phases built on this foundation.
 
 Owns
 
-- Fixtures
-- Standings
-- Promotion
-- Relegation
-- League Awards
-- Seasonal Records
+- Competition identity and definition
+- Competition lifecycle state
+- Competition content validation and materialization
+- Stable Nation and Season references
 
 Provides
 
-- Schedule
-- Rankings
-- Qualification
+- Validated competition definitions
+- Stable competition lookup
+- Persistent competition state
 
 Never Owns
 
-- Player Attributes
-- Club Budgets
+- Nation records
+- Club records or membership
+- Match fixtures or results
+- Standings, promotion, relegation, or transfers
 
 ---
 
@@ -278,6 +280,7 @@ Owns
 - Seasons
 - Global simulation state
 - Nation references and global indexes
+- Competition references and global indexes
 - Rule Changes
 - Universe Score
 
@@ -289,6 +292,7 @@ Never Owns
 
 - Individual Careers
 - Nation identity or Nation-specific state
+- Competition domain records
 
 ---
 

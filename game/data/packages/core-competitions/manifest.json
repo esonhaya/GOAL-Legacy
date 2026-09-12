@@ -1,0 +1,11 @@
+{
+  "id": "core-competitions",
+  "name": "Core Competitions",
+  "version": "1.0.0",
+  "schema_version": 1,
+  "dependencies": ["core-nations"],
+  "files": ["competitions.json"],
+  "metadata": {
+    "content_domain": "competition"
+  }
+}

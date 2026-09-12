@@ -24,6 +24,8 @@
             "Goal\\Legacy\\Core\\": "game/core/",
             "Goal\\Legacy\\Devtools\\": "game/devtools/",
             "Goal\\Legacy\\Modules\\Nation\\": "game/modules/nation/",
+            "Goal\\Legacy\\Modules\\World\\": "game/modules/world/",
+            "Goal\\Legacy\\Modules\\Competition\\": "game/modules/competition/",
             "Goal\\Legacy\\": "game/"
         }
     },
@@ -42,6 +44,8 @@
         "content:list": "@php game/devtools/console.php content:list",
         "nation:list": "@php game/devtools/console.php nation:list",
         "nation:self-check": "@php game/devtools/console.php nation:self-check",
+        "competition:list": "@php game/devtools/console.php competition:list",
+        "world:self-check": "@php game/devtools/console.php world:self-check",
         "modules:list": "@php game/devtools/console.php modules:list",
         "config:inspect": "@php game/devtools/console.php config:inspect",
         "logs:recent": "@php game/devtools/console.php logs:recent"

@@ -25,7 +25,7 @@ The Competition table acts as the central authority for competition configuratio
 
 Primary Module
 
-League Module
+Competition Module
 
 Supporting Modules
 
@@ -87,7 +87,7 @@ Fields include:
 - Official Name
 - Short Name
 - Competition Type
-- Country
+- Nation ID reference
 - Confederation
 - Tier Level
 - Founded Year
@@ -172,7 +172,8 @@ Examples:
 - Winter Break
 - Registration Windows
 
-The World Module coordinates the overall calendar.
+The World Module coordinates the overall calendar and stores only stable
+Competition IDs as global references. It does not own Competition records.
 
 ---
 
@@ -255,7 +256,7 @@ Readable by all gameplay modules.
 
 # Write Permissions
 
-League Module
+Competition Module
 
 Full Access
 
@@ -326,4 +327,3 @@ These additions should extend the existing architecture without breaking compati
 ---
 
 END OF DOCUMENT
-

@@ -4,6 +4,10 @@
         <testsuite name="core">
             <directory>tests/Core</directory>
             <directory>tests/Devtools</directory>
+            <directory>tests/Nation</directory>
+            <directory>tests/World</directory>
+            <directory>tests/Competition</directory>
+            <directory>tests/Integration</directory>
         </testsuite>
     </testsuites>
 </phpunit>

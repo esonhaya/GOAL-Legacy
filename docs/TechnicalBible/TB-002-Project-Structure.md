@@ -273,6 +273,28 @@ Every module must include a README describing:
 - Database Tables
 - Developer Notes
 
+The first implemented domain module follows this layout:
+
+```
+modules/nation/
+
+README.md
+
+NationModule.php
+
+NationService.php
+
+Domain/
+
+Content/
+
+Persistence/
+```
+
+Domain modules may own domain-specific loaders and repositories here, while
+generic persistence and content-package infrastructure remains under
+`game/core/`.
+
 ---
 
 ## data/

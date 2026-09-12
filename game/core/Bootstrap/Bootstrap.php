@@ -16,6 +16,8 @@ use Goal\Legacy\Core\Persistence\SqliteSaveStore;
 use Goal\Legacy\Core\Time\Scheduler;
 use Goal\Legacy\Core\Time\SimulationClock;
 use Goal\Legacy\Core\Time\SimulationTime;
+use Goal\Legacy\Modules\Nation\NationModule;
+use Goal\Legacy\Modules\Nation\NationService;
 use InvalidArgumentException;
 
 final class Bootstrap
@@ -57,12 +59,14 @@ final class Bootstrap
             (new ContentPackageDiscovery($contentPath))->discover(),
             array_values($selectedPackages),
         );
+        $nationModule = new NationModule(new NationService($contentPackages));
+        $registry->register($nationModule);
 
         $logger->info('core.bootstrap', 'Core services initialized.', [
             'environment' => $configuration->string('app.environment'),
         ]);
 
-        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages);
+        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule);
     }
 
     /** @return array<string, string> */

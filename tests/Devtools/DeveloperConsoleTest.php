@@ -16,6 +16,8 @@ use Goal\Legacy\Devtools\Commands\ListModulesCommand;
 use Goal\Legacy\Devtools\Commands\PersistenceSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\ContentListCommand;
 use Goal\Legacy\Devtools\Commands\TimeSelfCheckCommand;
+use Goal\Legacy\Devtools\Commands\NationListCommand;
+use Goal\Legacy\Devtools\Commands\NationSelfCheckCommand;
 use PHPUnit\Framework\TestCase;
 use Tools\Doctor\Contracts\CheckIdentityInterface;
 use Tools\Doctor\Contracts\CheckInterface;
@@ -53,13 +55,15 @@ final class DeveloperConsoleTest extends TestCase
             new TimeSelfCheckCommand($services),
             new PersistenceSelfCheckCommand($services),
             new ContentListCommand($services),
+            new NationListCommand($services),
+            new NationSelfCheckCommand($services),
         ] as $command) {
             $commands->register($command);
         }
 
         $output = new BufferedConsoleOutput();
         self::assertSame(0, (new ConsoleApplication($commands))->run(['console.php', 'modules:list'], $output));
-        self::assertContains('No modules registered.', $output->messages());
+        self::assertContains('nation Nation (1.0.0) enabled=yes state=registered', $output->messages());
         $doctorOutput = new BufferedConsoleOutput();
         self::assertSame(0, (new ConsoleApplication($commands))->run(['console.php', 'doctor'], $doctorOutput));
         self::assertStringContainsString('Haya Doctor', implode(PHP_EOL, $doctorOutput->messages()));
@@ -67,6 +71,8 @@ final class DeveloperConsoleTest extends TestCase
         self::assertNotNull($commands->get('time:self-check'));
         self::assertNotNull($commands->get('persistence:self-check'));
         self::assertNotNull($commands->get('content:list'));
+        self::assertNotNull($commands->get('nation:list'));
+        self::assertNotNull($commands->get('nation:self-check'));
     }
 
     public function testTimingSelfCheckUsesBootstrappedClockAndScheduler(): void
@@ -97,7 +103,7 @@ final class DeveloperConsoleTest extends TestCase
         $output = new BufferedConsoleOutput();
 
         self::assertSame(0, (new ContentListCommand($services))->execute([], $output));
-        self::assertSame(['No content packages discovered.'], $output->messages());
+        self::assertSame(['core-nations Core Nations version=1.0.0 schema=1 selected=yes dependencies=-'], $output->messages());
     }
 
     public function testDoctorUsesHayaExitCodeOneForCheckFailure(): void

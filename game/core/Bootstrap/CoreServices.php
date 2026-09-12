@@ -12,6 +12,7 @@ use Goal\Legacy\Core\Modules\ModuleRegistry;
 use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Core\Time\Scheduler;
 use Goal\Legacy\Core\Time\SimulationClock;
+use Goal\Legacy\Modules\Nation\NationModule;
 
 final class CoreServices
 {
@@ -24,6 +25,7 @@ final class CoreServices
         private readonly Scheduler $scheduler,
         private readonly SaveStore $saveStore,
         private readonly ContentPackageCatalog $contentPackages,
+        private readonly NationModule $nationModule,
     ) {
     }
 
@@ -42,4 +44,6 @@ final class CoreServices
     public function saveStore(): SaveStore { return $this->saveStore; }
 
     public function contentPackages(): ContentPackageCatalog { return $this->contentPackages; }
+
+    public function nationModule(): NationModule { return $this->nationModule; }
 }

@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 
 final class BootstrapTest extends TestCase
 {
-    public function testBootstrapCreatesAllCoreServicesWithoutFootballContent(): void
+    public function testBootstrapCreatesAllCoreServicesWithSelectedNationContent(): void
     {
         $services = (new Bootstrap())->create(
             dirname(__DIR__, 2),
@@ -24,7 +24,9 @@ final class BootstrapTest extends TestCase
         self::assertSame(0, $services->clock()->now()->ticks());
         self::assertFalse($services->scheduler()->hasPendingTasks());
         self::assertNotNull($services->saveStore());
-        self::assertCount(0, $services->contentPackages()->packages());
+        self::assertCount(1, $services->contentPackages()->packages());
+        self::assertTrue($services->contentPackages()->isSelected('core-nations'));
+        self::assertSame('nation', $services->nationModule()->descriptor()->id());
         self::assertFileExists(dirname(__DIR__, 2) . '/game/logs/core.log');
 
         $received = false;

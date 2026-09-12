@@ -16,6 +16,8 @@ use Goal\Legacy\Devtools\Commands\InspectLogsCommand;
 use Goal\Legacy\Devtools\Commands\ListModulesCommand;
 use Goal\Legacy\Devtools\Commands\PersistenceSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\TimeSelfCheckCommand;
+use Goal\Legacy\Devtools\Commands\NationListCommand;
+use Goal\Legacy\Devtools\Commands\NationSelfCheckCommand;
 
 $projectRoot = dirname(__DIR__, 2);
 $services = (new Bootstrap())->create($projectRoot);
@@ -28,6 +30,8 @@ $commands->register(new InspectLogsCommand($services, $projectRoot));
 $commands->register(new TimeSelfCheckCommand($services));
 $commands->register(new PersistenceSelfCheckCommand($services));
 $commands->register(new ContentListCommand($services));
+$commands->register(new NationListCommand($services));
+$commands->register(new NationSelfCheckCommand($services));
 
 $application = new ConsoleApplication($commands);
 exit($application->run($argv, new StreamConsoleOutput(STDOUT, STDERR)));

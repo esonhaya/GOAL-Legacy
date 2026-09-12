@@ -276,8 +276,8 @@ Owns
 
 - Calendar
 - Seasons
-- Countries
-- Football Culture
+- Global simulation state
+- Nation references and global indexes
 - Rule Changes
 - Universe Score
 
@@ -288,6 +288,34 @@ Provides
 Never Owns
 
 - Individual Careers
+- Nation identity or Nation-specific state
+
+---
+
+## Nation Module
+
+Purpose
+
+Represents the persistent Nation domain described by DB-014.
+
+Owns
+
+- Nation identity
+- Nation-specific state
+- Nation content validation and loading
+- Nation persistence through its repository
+
+Provides
+
+- Validated Nation records
+- Stable Nation ID lookup
+- Nation references for other modules
+
+Never Owns
+
+- World state or global indexes
+- Clubs, players, matches, competitions, contracts, or transfers
+- Executable content-package behavior
 
 ---
 
@@ -453,6 +481,8 @@ The following modules are mandatory for the first playable version.
 ✓ Staff
 
 ✓ World
+
+✓ Nation
 
 ✓ News
 

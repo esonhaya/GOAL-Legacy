@@ -1,0 +1,68 @@
+{
+    "schema_version": 1,
+    "nations": [
+        {
+            "id": "england",
+            "canonical_name": "England",
+            "display_name": "England",
+            "code": "ENG",
+            "region_id": "europe",
+            "geography_reference_id": "england",
+            "association_id": "the-fa"
+        },
+        {
+            "id": "france",
+            "canonical_name": "France",
+            "display_name": "France",
+            "code": "FRA",
+            "region_id": "europe",
+            "geography_reference_id": "france",
+            "association_id": "fff"
+        },
+        {
+            "id": "germany",
+            "canonical_name": "Germany",
+            "display_name": "Germany",
+            "code": "GER",
+            "region_id": "europe",
+            "geography_reference_id": "germany",
+            "association_id": "dfb"
+        },
+        {
+            "id": "italy",
+            "canonical_name": "Italy",
+            "display_name": "Italy",
+            "code": "ITA",
+            "region_id": "europe",
+            "geography_reference_id": "italy",
+            "association_id": "figc"
+        },
+        {
+            "id": "scotland",
+            "canonical_name": "Scotland",
+            "display_name": "Scotland",
+            "code": "SCO",
+            "region_id": "europe",
+            "geography_reference_id": "scotland",
+            "association_id": "scottish-fa"
+        },
+        {
+            "id": "spain",
+            "canonical_name": "Spain",
+            "display_name": "Spain",
+            "code": "ESP",
+            "region_id": "europe",
+            "geography_reference_id": "spain",
+            "association_id": "rfef"
+        },
+        {
+            "id": "wales",
+            "canonical_name": "Wales",
+            "display_name": "Wales",
+            "code": "WAL",
+            "region_id": "europe",
+            "geography_reference_id": "wales",
+            "association_id": "faw"
+        }
+    ]
+}

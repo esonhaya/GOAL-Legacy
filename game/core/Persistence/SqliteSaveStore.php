@@ -60,14 +60,19 @@ final class SqliteSaveStore implements SaveStore
         return is_file($this->pathFor($saveId));
     }
 
-    public function open(string $saveId): SaveMetadata
+    public function openDatabase(string $saveId): DatabaseInterface
     {
         $path = $this->pathFor($saveId);
         if (!is_file($path)) {
             throw new PersistenceException(sprintf('Save "%s" does not exist.', $saveId));
         }
 
-        $database = new SqliteDatabase($path);
+        return new SqliteDatabase($path);
+    }
+
+    public function open(string $saveId): SaveMetadata
+    {
+        $database = $this->openDatabase($saveId);
         $statement = $database->connection()->prepare('SELECT payload FROM ' . self::TABLE . ' WHERE id = :id');
         $statement->execute(['id' => $saveId]);
         $row = $statement->fetch();

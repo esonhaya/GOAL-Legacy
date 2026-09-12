@@ -1,0 +1,12 @@
+{
+    "id": "core-nations",
+    "name": "Core Nations",
+    "version": "1.0.0",
+    "schema_version": 1,
+    "files": [
+        "nations.json"
+    ],
+    "metadata": {
+        "content_domain": "nation"
+    }
+}

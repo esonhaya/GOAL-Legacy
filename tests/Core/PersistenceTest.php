@@ -61,6 +61,7 @@ final class PersistenceTest extends TestCase
         $store->create($metadata);
 
         self::assertTrue($store->exists('career_one'));
+        self::assertInstanceOf(SqliteDatabase::class, $store->openDatabase('career_one'));
         self::assertSame($metadata->toArray(), $store->open('career_one')->toArray());
         self::assertCount(1, $store->list());
 

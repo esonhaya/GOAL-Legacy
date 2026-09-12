@@ -140,6 +140,18 @@ Universe ID
 
 IDs never change.
 
+## Persistence Ownership
+
+Core provides database connections, transaction boundaries, serialization,
+and save lifecycle primitives. Each domain repository owns persistence of its
+own records and uses those Core contracts; Core does not define a generic
+football repository framework.
+
+Content packages provide declarative baseline data. A save database stores
+mutable career/world state and any source package/version provenance required
+for reconstruction. Runtime services, listeners, callbacks, and caches are
+not canonical database records. TB-007 defines the lifecycle categories.
+
 ---
 
 # Data Categories
@@ -312,6 +324,10 @@ One save equals one SQLite database.
 Everything required for the career exists inside the save.
 
 No online dependency.
+
+Installed content is not a substitute for save state. Selected package data is
+validated and materialized through its owning domain before mutable state is
+persisted in the save database.
 
 ---
 

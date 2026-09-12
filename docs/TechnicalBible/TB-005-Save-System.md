@@ -66,6 +66,17 @@ Advantages:
 - No internet required
 - Easy version upgrades
 
+## Content Package and Save State
+
+Installed content packages are declarative sources for baseline data. They
+remain separate from mutable career state. A domain validates and materializes
+selected content into the save database, retaining source package/version
+provenance when required.
+
+Changing installed content does not automatically rewrite an existing career.
+Runtime services, event listeners, scheduler callbacks, and caches are not
+serialized as save state; see TB-007.
+
 ---
 
 # Save Metadata

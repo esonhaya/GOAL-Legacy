@@ -171,6 +171,21 @@ Each system communicates through shared interfaces coordinated by the Pulse Engi
 
 The Pulse Engine is responsible for determining execution order.
 
+### Layer Boundaries
+
+Core contains reusable infrastructure only: bootstrapping, event dispatch,
+simulation time, persistence primitives, and content-package mechanics. Core
+does not contain football logic or own football-domain records.
+
+Modules contain executable domain systems and own their domain behavior and
+persistence through stable interfaces. Content packages contain declarative
+data only. A save database contains the mutable career/world state required to
+reconstruct the selected simulation.
+
+For Nation, the Nation Module owns Nation records and references are expressed
+through stable Nation IDs. World may coordinate global state and indexes but
+does not duplicate Nation identity or state.
+
 ---
 
 ## 5. Simulation Philosophy

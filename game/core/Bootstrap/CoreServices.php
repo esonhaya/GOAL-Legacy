@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Goal\Legacy\Core\Bootstrap;
+
+use Goal\Legacy\Core\Configuration\ConfigurationInterface;
+use Goal\Legacy\Core\Events\EventDispatcherInterface;
+use Goal\Legacy\Core\Logging\LoggerInterface;
+use Goal\Legacy\Core\Modules\ModuleRegistry;
+
+final class CoreServices
+{
+    public function __construct(
+        private readonly ConfigurationInterface $configuration,
+        private readonly LoggerInterface $logger,
+        private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly ModuleRegistry $moduleRegistry,
+    ) {
+    }
+
+    public function configuration(): ConfigurationInterface { return $this->configuration; }
+
+    public function logger(): LoggerInterface { return $this->logger; }
+
+    public function eventDispatcher(): EventDispatcherInterface { return $this->eventDispatcher; }
+
+    public function moduleRegistry(): ModuleRegistry { return $this->moduleRegistry; }
+}

@@ -1,0 +1,36 @@
+{
+    "name": "goal-legacy/core",
+    "description": "GOAL: Legacy reusable simulation framework foundation",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Goal\\Legacy\\Core\\": "game/core/",
+            "Goal\\Legacy\\Devtools\\": "game/devtools/",
+            "Goal\\Legacy\\": "game/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Goal\\Legacy\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "@php vendor/bin/phpunit",
+        "test:core": "@php vendor/bin/phpunit --testsuite core",
+        "doctor": "@php game/devtools/console.php doctor",
+        "core:self-check": "@php game/devtools/console.php core:self-check",
+        "modules:list": "@php game/devtools/console.php modules:list",
+        "config:inspect": "@php game/devtools/console.php config:inspect",
+        "logs:recent": "@php game/devtools/console.php logs:recent"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

@@ -1,0 +1,8 @@
+/vendor/
+/.phpunit.result.cache
+/game/cache/*
+/game/logs/*
+/game/saves/*
+!/game/cache/.gitkeep
+!/game/logs/.gitkeep
+!/game/saves/.gitkeep

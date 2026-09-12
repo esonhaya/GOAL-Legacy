@@ -10,6 +10,7 @@ composer config:inspect
 composer logs:recent
 composer time:self-check
 composer persistence:self-check
+composer content:list
 ```
 
 The console registers commands through `CommandRegistry`, so future isolated simulation and inspection commands can be added without changing the console runner.

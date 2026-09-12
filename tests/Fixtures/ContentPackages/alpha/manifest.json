@@ -1,0 +1,7 @@
+{
+    "id": "alpha",
+    "name": "Alpha Fixture",
+    "version": "1.0.0",
+    "schema_version": 1,
+    "files": ["data.json"]
+}

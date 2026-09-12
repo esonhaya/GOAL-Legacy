@@ -15,4 +15,8 @@ return [
     ],
     'modules' => [],
     'features' => [],
+    'content' => [
+        'path' => 'game/data/packages',
+        'selected' => [],
+    ],
 ];

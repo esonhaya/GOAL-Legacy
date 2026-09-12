@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Goal\Legacy\Core\Bootstrap;
 
 use Goal\Legacy\Core\Configuration\ConfigurationLoader;
+use Goal\Legacy\Core\Content\ContentPackageCatalog;
+use Goal\Legacy\Core\Content\ContentPackageDiscovery;
 use Goal\Legacy\Core\Events\EventDispatcher;
 use Goal\Legacy\Core\Logging\FileLogger;
 use Goal\Legacy\Core\Logging\LogLevel;
@@ -43,12 +45,24 @@ final class Bootstrap
         $clock = new SimulationClock(new SimulationTime(0));
         $scheduler = new Scheduler($clock);
         $saveStore = new SqliteSaveStore($projectRoot . '/game/saves', new JsonSerializer());
+        $contentPath = $configuration->string('content.path');
+        if (!str_starts_with($contentPath, '/')) {
+            $contentPath = $projectRoot . '/' . $contentPath;
+        }
+        $selectedPackages = $configuration->get('content.selected', []);
+        if (!is_array($selectedPackages)) {
+            throw new InvalidArgumentException('Configuration "content.selected" must be an array.');
+        }
+        $contentPackages = new ContentPackageCatalog(
+            (new ContentPackageDiscovery($contentPath))->discover(),
+            array_values($selectedPackages),
+        );
 
         $logger->info('core.bootstrap', 'Core services initialized.', [
             'environment' => $configuration->string('app.environment'),
         ]);
 
-        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore);
+        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages);
     }
 
     /** @return array<string, string> */

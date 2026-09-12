@@ -14,6 +14,7 @@ use Goal\Legacy\Devtools\Commands\InspectConfigurationCommand;
 use Goal\Legacy\Devtools\Commands\InspectLogsCommand;
 use Goal\Legacy\Devtools\Commands\ListModulesCommand;
 use Goal\Legacy\Devtools\Commands\PersistenceSelfCheckCommand;
+use Goal\Legacy\Devtools\Commands\ContentListCommand;
 use Goal\Legacy\Devtools\Commands\TimeSelfCheckCommand;
 use PHPUnit\Framework\TestCase;
 use Tools\Doctor\Contracts\CheckIdentityInterface;
@@ -51,6 +52,7 @@ final class DeveloperConsoleTest extends TestCase
             new InspectLogsCommand($services, $root),
             new TimeSelfCheckCommand($services),
             new PersistenceSelfCheckCommand($services),
+            new ContentListCommand($services),
         ] as $command) {
             $commands->register($command);
         }
@@ -64,6 +66,7 @@ final class DeveloperConsoleTest extends TestCase
         self::assertNotNull($commands->get('core:self-check'));
         self::assertNotNull($commands->get('time:self-check'));
         self::assertNotNull($commands->get('persistence:self-check'));
+        self::assertNotNull($commands->get('content:list'));
     }
 
     public function testTimingSelfCheckUsesBootstrappedClockAndScheduler(): void
@@ -85,6 +88,16 @@ final class DeveloperConsoleTest extends TestCase
 
         self::assertSame(0, (new PersistenceSelfCheckCommand($services))->execute([], $output));
         self::assertSame(['Persistence self-check passed with isolated SQLite storage.'], $output->messages());
+    }
+
+    public function testContentListUsesBootstrappedPackageCatalog(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $services = (new Bootstrap())->create($root, ['APP_ENV' => 'test']);
+        $output = new BufferedConsoleOutput();
+
+        self::assertSame(0, (new ContentListCommand($services))->execute([], $output));
+        self::assertSame(['No content packages discovered.'], $output->messages());
     }
 
     public function testDoctorUsesHayaExitCodeOneForCheckFailure(): void

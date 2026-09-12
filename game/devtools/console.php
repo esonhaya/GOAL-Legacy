@@ -9,6 +9,7 @@ use Goal\Legacy\Devtools\CommandRegistry;
 use Goal\Legacy\Devtools\ConsoleApplication;
 use Goal\Legacy\Devtools\StreamConsoleOutput;
 use Goal\Legacy\Devtools\Commands\CoreSelfCheckCommand;
+use Goal\Legacy\Devtools\Commands\ContentListCommand;
 use Goal\Legacy\Devtools\Commands\DoctorCommand;
 use Goal\Legacy\Devtools\Commands\InspectConfigurationCommand;
 use Goal\Legacy\Devtools\Commands\InspectLogsCommand;
@@ -26,6 +27,7 @@ $commands->register(new InspectConfigurationCommand($services));
 $commands->register(new InspectLogsCommand($services, $projectRoot));
 $commands->register(new TimeSelfCheckCommand($services));
 $commands->register(new PersistenceSelfCheckCommand($services));
+$commands->register(new ContentListCommand($services));
 
 $application = new ConsoleApplication($commands);
 exit($application->run($argv, new StreamConsoleOutput(STDOUT, STDERR)));

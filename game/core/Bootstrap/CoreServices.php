@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Goal\Legacy\Core\Bootstrap;
 
 use Goal\Legacy\Core\Configuration\ConfigurationInterface;
+use Goal\Legacy\Core\Content\ContentPackageCatalog;
 use Goal\Legacy\Core\Events\EventDispatcherInterface;
 use Goal\Legacy\Core\Logging\LoggerInterface;
 use Goal\Legacy\Core\Modules\ModuleRegistry;
@@ -22,6 +23,7 @@ final class CoreServices
         private readonly SimulationClock $clock,
         private readonly Scheduler $scheduler,
         private readonly SaveStore $saveStore,
+        private readonly ContentPackageCatalog $contentPackages,
     ) {
     }
 
@@ -38,4 +40,6 @@ final class CoreServices
     public function scheduler(): Scheduler { return $this->scheduler; }
 
     public function saveStore(): SaveStore { return $this->saveStore; }
+
+    public function contentPackages(): ContentPackageCatalog { return $this->contentPackages; }
 }

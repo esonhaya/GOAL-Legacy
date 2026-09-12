@@ -8,6 +8,8 @@ use Goal\Legacy\Core\Configuration\ConfigurationInterface;
 use Goal\Legacy\Core\Events\EventDispatcherInterface;
 use Goal\Legacy\Core\Logging\LoggerInterface;
 use Goal\Legacy\Core\Modules\ModuleRegistry;
+use Goal\Legacy\Core\Time\Scheduler;
+use Goal\Legacy\Core\Time\SimulationClock;
 
 final class CoreServices
 {
@@ -16,6 +18,8 @@ final class CoreServices
         private readonly LoggerInterface $logger,
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly ModuleRegistry $moduleRegistry,
+        private readonly SimulationClock $clock,
+        private readonly Scheduler $scheduler,
     ) {
     }
 
@@ -26,4 +30,8 @@ final class CoreServices
     public function eventDispatcher(): EventDispatcherInterface { return $this->eventDispatcher; }
 
     public function moduleRegistry(): ModuleRegistry { return $this->moduleRegistry; }
+
+    public function clock(): SimulationClock { return $this->clock; }
+
+    public function scheduler(): Scheduler { return $this->scheduler; }
 }

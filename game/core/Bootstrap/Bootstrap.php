@@ -9,6 +9,9 @@ use Goal\Legacy\Core\Events\EventDispatcher;
 use Goal\Legacy\Core\Logging\FileLogger;
 use Goal\Legacy\Core\Logging\LogLevel;
 use Goal\Legacy\Core\Modules\ModuleRegistry;
+use Goal\Legacy\Core\Time\Scheduler;
+use Goal\Legacy\Core\Time\SimulationClock;
+use Goal\Legacy\Core\Time\SimulationTime;
 use InvalidArgumentException;
 
 final class Bootstrap
@@ -35,12 +38,14 @@ final class Bootstrap
         $logger = new FileLogger($logPath, $logLevel);
         $dispatcher = new EventDispatcher($logger);
         $registry = new ModuleRegistry($configuration, $dispatcher, $logger);
+        $clock = new SimulationClock(new SimulationTime(0));
+        $scheduler = new Scheduler($clock);
 
         $logger->info('core.bootstrap', 'Core services initialized.', [
             'environment' => $configuration->string('app.environment'),
         ]);
 
-        return new CoreServices($configuration, $logger, $dispatcher, $registry);
+        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler);
     }
 
     /** @return array<string, string> */

@@ -13,6 +13,7 @@ use Goal\Legacy\Devtools\Commands\DoctorCommand;
 use Goal\Legacy\Devtools\Commands\InspectConfigurationCommand;
 use Goal\Legacy\Devtools\Commands\InspectLogsCommand;
 use Goal\Legacy\Devtools\Commands\ListModulesCommand;
+use Goal\Legacy\Devtools\Commands\TimeSelfCheckCommand;
 
 $projectRoot = dirname(__DIR__, 2);
 $services = (new Bootstrap())->create($projectRoot);
@@ -22,6 +23,7 @@ $commands->register(new ListModulesCommand($services));
 $commands->register(new CoreSelfCheckCommand($services));
 $commands->register(new InspectConfigurationCommand($services));
 $commands->register(new InspectLogsCommand($services, $projectRoot));
+$commands->register(new TimeSelfCheckCommand($services));
 
 $application = new ConsoleApplication($commands);
 exit($application->run($argv, new StreamConsoleOutput(STDOUT, STDERR)));

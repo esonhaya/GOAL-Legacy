@@ -14,6 +14,10 @@ use Goal\Legacy\Devtools\Commands\InspectConfigurationCommand;
 use Goal\Legacy\Devtools\Commands\InspectLogsCommand;
 use Goal\Legacy\Devtools\Commands\ListModulesCommand;
 use PHPUnit\Framework\TestCase;
+use Tools\Doctor\Contracts\CheckIdentityInterface;
+use Tools\Doctor\Contracts\CheckInterface;
+use Tools\Doctor\DTO\CheckResult;
+use Tools\Doctor\DTO\CheckStatus;
 
 final class DeveloperConsoleTest extends TestCase
 {
@@ -50,7 +54,39 @@ final class DeveloperConsoleTest extends TestCase
         $output = new BufferedConsoleOutput();
         self::assertSame(0, (new ConsoleApplication($commands))->run(['console.php', 'modules:list'], $output));
         self::assertContains('No modules registered.', $output->messages());
-        self::assertSame(0, (new ConsoleApplication($commands))->run(['console.php', 'doctor'], new BufferedConsoleOutput()));
+        $doctorOutput = new BufferedConsoleOutput();
+        self::assertSame(0, (new ConsoleApplication($commands))->run(['console.php', 'doctor'], $doctorOutput));
+        self::assertStringContainsString('Haya Doctor', implode(PHP_EOL, $doctorOutput->messages()));
         self::assertNotNull($commands->get('core:self-check'));
+    }
+
+    public function testDoctorUsesHayaExitCodeOneForCheckFailure(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $services = (new Bootstrap())->create($root, ['APP_ENV' => 'test']);
+        $check = new class implements CheckInterface, CheckIdentityInterface {
+            public function id(): string { return 'fixture.failure'; }
+            public function run(): CheckResult { return new CheckResult('Fixture failure', CheckStatus::FAIL, scope: 'DOCTOR'); }
+            public function category(): string { return 'fixture'; }
+            public function priority(): int { return 1; }
+        };
+
+        $output = new BufferedConsoleOutput();
+        $exitCode = (new DoctorCommand($services, $root, [$check]))->execute([], $output);
+
+        self::assertSame(1, $exitCode);
+        self::assertSame([], $output->errors());
+    }
+
+    public function testDoctorUsesExitCodeTwoForInfrastructureFailure(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $services = (new Bootstrap())->create($root, ['APP_ENV' => 'test']);
+        $output = new BufferedConsoleOutput();
+
+        $exitCode = (new DoctorCommand($services, $root, [new \stdClass()]))->execute([], $output);
+
+        self::assertSame(2, $exitCode);
+        self::assertNotEmpty($output->errors());
     }
 }

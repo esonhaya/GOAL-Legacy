@@ -4,8 +4,49 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e404c8e60c475c76ed7818a344baf0c6",
-    "packages": [],
+    "content-hash": "a075cbb33c508f79d1d4a0761ed9c073",
+    "packages": [
+        {
+            "name": "esonhaya/haya-doctor",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../BoardPrep-Doctor",
+                "reference": "10ed9d1192f33c75bcfff2d4cf0539f8a2843b86"
+            },
+            "require": {
+                "php": ">=8.2"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^11.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Tools\\Doctor\\": "tools/Doctor/"
+                }
+            },
+            "scripts": {
+                "test:core": [
+                    "php tools/Doctor/Tests/DiagnosticCoreTest.php"
+                ],
+                "test:registry": [
+                    "php tools/Doctor/Tests/CheckRegistryTest.php"
+                ],
+                "test:contracts": [
+                    "php tools/Doctor/Tests/StaticContractScannerTest.php"
+                ],
+                "doctor": [
+                    "php bin/doctor-self.php"
+                ]
+            },
+            "description": "Reusable, read-only project diagnostics.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        }
+    ],
     "packages-dev": [
         {
             "name": "myclabs/deep-copy",
@@ -1773,9 +1814,11 @@
         }
     ],
     "aliases": [],
-    "minimum-stability": "stable",
-    "stability-flags": {},
-    "prefer-stable": false,
+    "minimum-stability": "dev",
+    "stability-flags": {
+        "esonhaya/haya-doctor": 20
+    },
+    "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
         "php": ">=8.2"

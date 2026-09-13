@@ -107,6 +107,17 @@ Module
 ✓ A controlled career Player is a Player-ID reference, not a duplicate Player
 record
 
+✓ Employment Contracts are durable Career-state records owned by the Contract
+Module and retain terminated historical rows where practical
+
+✓ Player registration is Season-bound relationship state owned by the
+Competition Module; it is distinct from Club squad membership and Contract
+employment
+
+✓ Transfers are durable historical transaction records owned by the Transfer
+Module; execution coordinates Contract, squad, and registration transitions
+inside one database transaction
+
 ---
 
 ## Revision History

@@ -16,7 +16,7 @@ final class WorldModule implements ModuleInterface
 
     public function descriptor(): ModuleDescriptor
     {
-        return new ModuleDescriptor('world', 'World', '1.0.0', ['nation', 'competition', 'club'], critical: true);
+        return new ModuleDescriptor('world', 'World', '1.0.0', ['nation', 'competition', 'club', 'contract'], critical: true);
     }
 
     public function boot(ModuleContext $context): void

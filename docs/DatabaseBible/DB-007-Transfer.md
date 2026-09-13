@@ -92,6 +92,10 @@ Fields include:
 
 Only IDs are stored.
 
+DOMAIN-005 Phase 1 supports agreed permanent Player transfers. A Transfer
+stores Player ID, source Club ID, destination Club ID, Season ID, effective
+date, and a non-negative integer fee in the smallest currency unit.
+
 ---
 
 # Transfer Type
@@ -125,6 +129,9 @@ Supported values:
 
 These values drive News and Pulse generation.
 
+The Phase 1 lifecycle is `proposed`, `agreed`, `completed`, or `cancelled`.
+An agreed Transfer may execute without a negotiation engine.
+
 ---
 
 # Financial Information
@@ -142,6 +149,10 @@ Examples:
 
 Contract wages and bonuses are stored in the Contract table.
 
+Phase 1 persists only the agreed fee as an integer minor-unit value. It does
+not mutate Club finances, create a ledger, or implement installments,
+bonuses, or clauses.
+
 ---
 
 # Contract References
@@ -152,6 +163,9 @@ Stores:
 - New Contract ID
 
 Transfers reference contracts rather than duplicating contract information.
+
+Transfer execution coordinates old and new Contract IDs, but Contract rows
+remain owned by the Contract Module.
 
 ---
 
@@ -164,6 +178,9 @@ Stores:
 - Registration Status
 
 Transfers outside registration windows are validated by gameplay rules.
+
+Transfer-window enforcement is deferred in Phase 1; the effective date is
+validated against the simulation timeline only.
 
 ---
 
@@ -235,6 +252,10 @@ References:
 - Window ID
 
 Only IDs are stored.
+
+Squad membership and Competition/Season Player registration remain owned by
+their relationship domains. Transfer execution coordinates their transition
+transactionally and does not duplicate their records.
 
 ---
 

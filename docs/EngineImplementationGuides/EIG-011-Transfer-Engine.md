@@ -28,6 +28,13 @@ It coordinates scouting, transfer interest, negotiations, contract agreements, l
 
 The Transfer Engine owns transfer behaviour.
 
+DOMAIN-005 implementation boundary: the current production slice supports
+deterministic agreed permanent Player transfers only. Contract rows remain
+owned by the Contract Module, registration rows remain owned by the
+Competition Module, and Transfer coordinates their transactional transition.
+Negotiation AI, transfer windows, loans, scouting, agents, releases, and Club
+finance are deferred.
+
 ---
 
 # Responsibilities
@@ -41,8 +48,9 @@ The Transfer Engine is responsible for:
 - Loan agreements
 - Permanent transfers
 - Free transfers
-- Contract expiration transitions
-- Squad registration updates
+- Transfer-time Contract transitions coordinated with the Contract Module;
+  World lifecycle owns date-driven expiry evaluation
+- Transfer-time squad and Competition registration coordination
 - Transfer window enforcement
 
 ---

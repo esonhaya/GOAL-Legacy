@@ -15,6 +15,8 @@ use Goal\Legacy\Modules\Competition\CompetitionService;
 use Goal\Legacy\Modules\Competition\Domain\Competition;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionStatus;
 use Goal\Legacy\Modules\Competition\Persistence\CompetitionRepository;
+use Goal\Legacy\Modules\Contract\ContractService;
+use Goal\Legacy\Modules\Contract\Domain\ContractEventNames;
 use Goal\Legacy\Modules\Nation\NationService;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonLifecycleService;
@@ -39,6 +41,7 @@ final class WorldService
         private readonly CompetitionService $competitionService,
         private readonly ClubService $clubService,
         private readonly SeasonLifecycleService $seasonLifecycle = new SeasonLifecycleService(),
+        private readonly ?ContractService $contractService = null,
     ) {
     }
 
@@ -136,8 +139,12 @@ final class WorldService
             }
         }
         $newWorld = $world->withTimeline($targetTime, $transition?->season()->id() ?? $world->currentSeasonId());
+        $contractChanges = [];
 
-        $database->transaction(function () use ($seasonRepository, $competitionRepository, $worldRepository, $transition, $competitionChanges, $newWorld): void {
+        $database->transaction(function () use ($database, $seasonRepository, $competitionRepository, $worldRepository, $transition, $competitionChanges, $newWorld, $date, &$contractChanges): void {
+            if ($this->contractService !== null) {
+                $contractChanges = $this->contractService->evaluateInTransaction($database, $date);
+            }
             if ($transition !== null) {
                 $seasonRepository->save($transition->season());
             }
@@ -179,6 +186,17 @@ final class WorldService
                 'nation_id' => $after->nationId()->value(),
                 'season_id' => $after->seasonId()?->value(),
                 'world_id' => $world->id()->value(),
+            ], timestamp: $timestamp));
+        }
+        foreach ($contractChanges as $change) {
+            if ($change['after']->status()->value !== 'expired') {
+                continue;
+            }
+            $this->events->dispatch(new GenericEvent(ContractEventNames::EXPIRED, [
+                'contract_id' => $change['after']->id()->value(),
+                'player_id' => $change['after']->playerId()->value(),
+                'club_id' => $change['after']->clubId()->value(),
+                'date' => $date->toIsoString(),
             ], timestamp: $timestamp));
         }
 

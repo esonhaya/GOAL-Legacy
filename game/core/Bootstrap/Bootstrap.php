@@ -20,6 +20,8 @@ use Goal\Legacy\Modules\Club\ClubModule;
 use Goal\Legacy\Modules\Club\ClubService;
 use Goal\Legacy\Modules\Competition\CompetitionModule;
 use Goal\Legacy\Modules\Competition\CompetitionService;
+use Goal\Legacy\Modules\Contract\ContractModule;
+use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Nation\NationModule;
 use Goal\Legacy\Modules\Nation\NationService;
 use Goal\Legacy\Modules\Player\PlayerModule;
@@ -27,6 +29,8 @@ use Goal\Legacy\Modules\Player\PlayerService;
 use Goal\Legacy\Modules\World\Domain\SimulationCalendar;
 use Goal\Legacy\Modules\World\WorldModule;
 use Goal\Legacy\Modules\World\WorldService;
+use Goal\Legacy\Modules\Transfer\TransferModule;
+use Goal\Legacy\Modules\Transfer\TransferService;
 use InvalidArgumentException;
 
 final class Bootstrap
@@ -72,6 +76,8 @@ final class Bootstrap
         $competitionModule = new CompetitionModule(new CompetitionService($contentPackages, $nationModule->service()));
         $clubModule = new ClubModule(new ClubService($contentPackages, $nationModule->service(), $competitionModule->service()));
         $playerModule = new PlayerModule(new PlayerService($nationModule->service(), $clubModule->service()));
+        $contractModule = new ContractModule(new ContractService());
+        $transferModule = new TransferModule(new TransferService($contractModule->service(), $clubModule->service(), $competitionModule->service(), $dispatcher));
         $worldModule = new WorldModule(new WorldService(
             $clock,
             new SimulationCalendar(),
@@ -79,18 +85,30 @@ final class Bootstrap
             $nationModule->service(),
             $competitionModule->service(),
             $clubModule->service(),
+            contractService: $contractModule->service(),
         ));
         $registry->register($nationModule);
         $registry->register($competitionModule);
         $registry->register($clubModule);
         $registry->register($playerModule);
+        $registry->register($contractModule);
+        $registry->register($transferModule);
         $registry->register($worldModule);
+        if (!$registry->isEnabled('player') || !$registry->isEnabled('club')) {
+            $registry->setEnabled('contract', false);
+        }
+        if (!$registry->isEnabled('player') || !$registry->isEnabled('club') || !$registry->isEnabled('competition') || !$registry->isEnabled('contract')) {
+            $registry->setEnabled('transfer', false);
+        }
+        if (!$registry->isEnabled('nation') || !$registry->isEnabled('competition') || !$registry->isEnabled('club') || !$registry->isEnabled('contract')) {
+            $registry->setEnabled('world', false);
+        }
 
         $logger->info('core.bootstrap', 'Core services initialized.', [
             'environment' => $configuration->string('app.environment'),
         ]);
 
-        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule, $competitionModule, $clubModule, $playerModule, $worldModule);
+        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule, $competitionModule, $clubModule, $playerModule, $contractModule, $transferModule, $worldModule);
     }
 
     /** @return array<string, string> */

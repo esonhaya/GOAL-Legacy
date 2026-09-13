@@ -10,6 +10,7 @@ use Goal\Legacy\Modules\Competition\Content\CompetitionContentLoader;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionDefinition;
 use Goal\Legacy\Modules\Competition\Persistence\CompetitionMaterializer;
 use Goal\Legacy\Modules\Competition\Persistence\CompetitionRepository;
+use Goal\Legacy\Modules\Competition\Persistence\PlayerRegistrationRepository;
 use Goal\Legacy\Modules\Nation\NationService;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 
@@ -31,6 +32,11 @@ final class CompetitionService
     public function repository(DatabaseInterface $database): CompetitionRepository
     {
         return new CompetitionRepository($database);
+    }
+
+    public function registrationRepository(DatabaseInterface $database): PlayerRegistrationRepository
+    {
+        return new PlayerRegistrationRepository($database);
     }
 
     public function materialize(DatabaseInterface $database, SeasonId $seasonId): int

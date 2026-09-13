@@ -115,6 +115,7 @@ Owns
 - Youth Academy
 - Staff
 - Squad Registration
+- Season-bound Player squad membership
 - Season-bound Competition participation references
 
 DOMAIN-003 implements the Club identity/content/persistence foundation and
@@ -202,6 +203,40 @@ Never Owns
 - Club records or membership
 - Match fixtures or results
 - Standings, promotion, relegation, or transfers
+
+The Competition Module also owns the normalized Player registration
+relationship for a Competition, Club, and Season. It does not own Player,
+Club, Contract, or Transfer records.
+
+## Contract Module
+
+Purpose
+
+Owns Player employment Contract identity, terms, date lifecycle, and
+persistence.
+
+Never Owns
+
+- Player or Club records
+- Squad membership
+- Competition registration
+- Transfer transactions
+
+## Transfer Module
+
+Purpose
+
+Coordinates and persists Player movement transactions. It validates and
+executes coherent transitions across Contract, squad membership, and
+Competition registration services.
+
+Never Owns
+
+- Player or Club records
+- Contract canonical rows
+- Squad membership canonical rows
+- Competition registration canonical rows
+- Club financial balances in DOMAIN-005
 
 ---
 

@@ -25,7 +25,7 @@ Transfers, renewals, loans, and free agency are all governed through contracts.
 
 Primary Module
 
-Transfer Module
+Contract Module
 
 Supporting Modules
 
@@ -36,7 +36,9 @@ Supporting Modules
 - Legacy
 - News
 
-Only the Transfer Module may create, terminate, or modify contracts unless explicitly authorized.
+Only the Contract Module may create, terminate, or modify Contract records.
+The Transfer Module may request coordinated Contract transitions through the
+Contract service but does not own Contract persistence.
 
 ---
 
@@ -185,6 +187,9 @@ Supported values:
 - Suspended
 - Terminated
 
+DOMAIN-005 Phase 1 uses `pending`, `active`, `expired`, and `terminated`.
+Loan, suspension, staff, and detailed clause behavior remain deferred.
+
 ---
 
 # Relationships
@@ -197,6 +202,14 @@ References:
 - Transfer ID (if applicable)
 
 Only IDs are stored.
+
+Contract records do not contain Player or Club snapshots, squad membership,
+competition registration, or Transfer state. A Player has at most one active
+permanent Contract at a time.
+
+Phase 1 wage is a non-negative integer in the project's smallest currency
+unit. It is a Contract term only; no Club balance or finance ledger is
+modified.
 
 ---
 

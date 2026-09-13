@@ -248,6 +248,13 @@ Structural changes occur only between seasons.
 
 Qualification paths must reference valid competitions.
 
+Competition registration is a normalized seasonal relationship containing
+Season ID, Competition ID, Club ID, and Player ID. The Competition Module
+owns registration persistence and validates Competition participation,
+Player squad membership, and required Contract state. It does not duplicate
+Player or Club records; Transfer execution only coordinates registration
+changes.
+
 ---
 
 # Read Permissions

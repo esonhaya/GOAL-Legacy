@@ -55,6 +55,14 @@ final class ClubSquadRepository
         return $statement->fetchColumn() !== false;
     }
 
+    public function remove(ClubSquadMembership $membership): void
+    {
+        $statement = $this->database->connection()->prepare(
+            'DELETE FROM ' . self::TABLE . ' WHERE club_id = :club_id AND player_id = :player_id AND season_id = :season_id'
+        );
+        $statement->execute($membership->toArray());
+    }
+
     /** @return list<ClubSquadMembership> */
     public function all(): array
     {

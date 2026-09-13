@@ -50,6 +50,10 @@ Each save contains:
 - Relationships
 - Legacy
 
+DOMAIN-005 also persists Contract employment rows, Season-bound Player
+registrations, and historical Transfer transaction rows in the same save
+database. Runtime services and event listeners remain non-persistent.
+
 Everything required to continue the career exists inside the save.
 
 ---

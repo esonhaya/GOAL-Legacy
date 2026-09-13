@@ -183,4 +183,14 @@ replace existing Players. Name pools and generation rules are static/runtime
 configuration; generated Contracts are normal Career history and
 Competition registrations remain Season-bound.
 
+## CAREER-003 Season Boundary Finding
+
+The current production World lifecycle completes the active Season and keeps
+its durable history, but does not automatically create the next Season or
+rebuild next-season Competition memberships, registrations, fixtures, and
+squad state. This is an explicit missing lifecycle capability, not permission
+to copy Season-bound rows into a new Season during an audit. Future rollover
+work must preserve historical Match and Contract records while creating new
+Season-scoped projections through their owning services.
+
 END OF DOCUMENT

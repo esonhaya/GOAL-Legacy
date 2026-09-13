@@ -213,6 +213,14 @@ Examples:
 - Legacy updates
 - World archive snapshot
 
+The current implementation evaluates and completes the active Season when
+SimulationDate crosses its end boundary. It does not yet provide the full
+follow-on orchestration implied by this conceptual flow: creating the next
+Season record, activating it, materializing Competition/Club memberships,
+registering eligible Players, and generating the next fixture set. Those
+operations remain a future World lifecycle milestone and must not be faked by
+long-horizon audit tooling.
+
 ---
 
 # Failure Handling

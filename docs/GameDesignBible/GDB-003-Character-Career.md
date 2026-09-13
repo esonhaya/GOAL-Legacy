@@ -105,6 +105,18 @@ or NPC-to-NPC market simulation; transfer fees and proposed wages are
 structured offer metadata while Contract and Transfer records remain owned by
 their existing modules.
 
+## CAREER-003 Multi-Season Boundary
+
+The current Phase-1 World can complete the active Season and retain its
+historical Matches, standings, Player development, availability, Contracts,
+and transfer records. It does not yet create or activate a following Season,
+rebuild that Season's Competition memberships and registrations, or generate
+its fixtures. Contract expiration is evaluated at the existing Season
+boundary, but automatic renewal, Club replacement recruitment, retirement,
+and new Player generation remain future lifecycle systems. A multi-season
+career must therefore treat the first completed Season as the current
+playable horizon until a subsequent World lifecycle milestone is implemented.
+
 ---
 
 END OF DOCUMENT

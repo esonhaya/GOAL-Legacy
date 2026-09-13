@@ -12,6 +12,7 @@ use Goal\Legacy\Core\Modules\ModuleRegistry;
 use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Core\Time\Scheduler;
 use Goal\Legacy\Core\Time\SimulationClock;
+use Goal\Legacy\Modules\Club\ClubModule;
 use Goal\Legacy\Modules\Competition\CompetitionModule;
 use Goal\Legacy\Modules\Nation\NationModule;
 use Goal\Legacy\Modules\World\WorldModule;
@@ -29,6 +30,7 @@ final class CoreServices
         private readonly ContentPackageCatalog $contentPackages,
         private readonly NationModule $nationModule,
         private readonly CompetitionModule $competitionModule,
+        private readonly ClubModule $clubModule,
         private readonly WorldModule $worldModule,
     ) {
     }
@@ -52,6 +54,8 @@ final class CoreServices
     public function nationModule(): NationModule { return $this->nationModule; }
 
     public function competitionModule(): CompetitionModule { return $this->competitionModule; }
+
+    public function clubModule(): ClubModule { return $this->clubModule; }
 
     public function worldModule(): WorldModule { return $this->worldModule; }
 }

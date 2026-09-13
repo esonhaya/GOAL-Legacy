@@ -16,6 +16,8 @@ use Goal\Legacy\Core\Persistence\SqliteSaveStore;
 use Goal\Legacy\Core\Time\Scheduler;
 use Goal\Legacy\Core\Time\SimulationClock;
 use Goal\Legacy\Core\Time\SimulationTime;
+use Goal\Legacy\Modules\Club\ClubModule;
+use Goal\Legacy\Modules\Club\ClubService;
 use Goal\Legacy\Modules\Competition\CompetitionModule;
 use Goal\Legacy\Modules\Competition\CompetitionService;
 use Goal\Legacy\Modules\Nation\NationModule;
@@ -66,22 +68,25 @@ final class Bootstrap
         );
         $nationModule = new NationModule(new NationService($contentPackages));
         $competitionModule = new CompetitionModule(new CompetitionService($contentPackages, $nationModule->service()));
+        $clubModule = new ClubModule(new ClubService($contentPackages, $nationModule->service(), $competitionModule->service()));
         $worldModule = new WorldModule(new WorldService(
             $clock,
             new SimulationCalendar(),
             $dispatcher,
             $nationModule->service(),
             $competitionModule->service(),
+            $clubModule->service(),
         ));
         $registry->register($nationModule);
         $registry->register($competitionModule);
+        $registry->register($clubModule);
         $registry->register($worldModule);
 
         $logger->info('core.bootstrap', 'Core services initialized.', [
             'environment' => $configuration->string('app.environment'),
         ]);
 
-        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule, $competitionModule, $worldModule);
+        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule, $competitionModule, $clubModule, $worldModule);
     }
 
     /** @return array<string, string> */

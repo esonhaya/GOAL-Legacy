@@ -10,6 +10,7 @@ use Goal\Legacy\Core\Events\GenericEvent;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Core\Time\SimulationClock;
 use Goal\Legacy\Core\Time\SimulationTime;
+use Goal\Legacy\Modules\Club\ClubService;
 use Goal\Legacy\Modules\Competition\CompetitionService;
 use Goal\Legacy\Modules\Competition\Domain\Competition;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionStatus;
@@ -36,6 +37,7 @@ final class WorldService
         private readonly EventDispatcherInterface $events,
         private readonly NationService $nationService,
         private readonly CompetitionService $competitionService,
+        private readonly ClubService $clubService,
         private readonly SeasonLifecycleService $seasonLifecycle = new SeasonLifecycleService(),
     ) {
     }
@@ -63,14 +65,16 @@ final class WorldService
 
         $nations = $this->nationService->loadSelected();
         $competitions = $this->competitionService->loadSelected();
-        $this->assertReferences($world, $nations, $competitions);
+        $clubs = $this->clubService->loadSelected();
+        $this->assertReferences($world, $season, $nations, $competitions, $clubs);
 
         $worldRepository = new WorldRepository($database);
         $seasonRepository = new SeasonRepository($database);
-        $database->transaction(function () use ($database, $world, $season, $nations, $competitions, $worldRepository, $seasonRepository): void {
+        $database->transaction(function () use ($database, $world, $season, $nations, $competitions, $clubs, $worldRepository, $seasonRepository): void {
             $this->nationService->materializeInTransaction($database, $nations);
             $seasonRepository->save($season);
             $this->competitionService->materializeInTransaction($database, $competitions, $season->id());
+            $this->clubService->materializeInTransaction($database, $clubs);
             $worldRepository->save($world);
         });
 
@@ -181,8 +185,8 @@ final class WorldService
         return $newWorld;
     }
 
-    /** @param list<\Goal\Legacy\Modules\Nation\Domain\Nation> $nations @param list<\Goal\Legacy\Modules\Competition\Domain\CompetitionDefinition> $competitions */
-    private function assertReferences(World $world, array $nations, array $competitions): void
+    /** @param list<\Goal\Legacy\Modules\Nation\Domain\Nation> $nations @param list<\Goal\Legacy\Modules\Competition\Domain\CompetitionDefinition> $competitions @param list<\Goal\Legacy\Modules\Club\Domain\ClubContentDefinition> $clubs */
+    private function assertReferences(World $world, Season $season, array $nations, array $competitions, array $clubs): void
     {
         $nationIds = array_map(static fn ($nation): string => $nation->id()->value(), $nations);
         $competitionIds = array_map(static fn ($competition): string => $competition->id()->value(), $competitions);
@@ -190,6 +194,13 @@ final class WorldService
         sort($competitionIds, SORT_STRING);
         if ($world->nationIds() !== $nationIds || $world->competitionIds() !== $competitionIds) {
             throw new WorldException('World references must match selected Nation and Competition content.');
+        }
+        foreach ($clubs as $definition) {
+            foreach ($definition->memberships() as $membership) {
+                if ($membership->seasonId()->value() !== $season->id()->value()) {
+                    throw new WorldException(sprintf('Club "%s" membership baseline Season must match the World current Season.', $definition->club()->id()->value()));
+                }
+            }
         }
     }
 

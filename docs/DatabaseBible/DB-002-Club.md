@@ -30,7 +30,7 @@ Club Module
 Supporting Modules
 
 - Match
-- League
+- Competition
 - Transfer
 - Staff
 - Economy
@@ -106,9 +106,27 @@ Nation geography or identity.
 
 ---
 
-# Football Profile
+# Club Identity Model
 
-Stores football identity.
+Club identity is represented through three related layers. These layers must
+not be collapsed into one permanent universal DNA field.
+
+## Core Philosophy
+
+Long-lived institutional tendencies and values that influence decisions over
+multiple generations.
+
+## Football Identity
+
+The club's established sporting approach and football profile.
+
+## Current Style
+
+The current manager/team expression. It may change more readily than the
+Core Philosophy or Football Identity.
+
+The three layers are declarative baseline data in content and become mutable
+Club state after materialization.
 
 Fields include:
 
@@ -191,7 +209,9 @@ Squad lists are generated through relationships rather than duplicated.
 
 # Competition Data
 
-Stores references to competitions.
+Stores season-bound participation references to competitions. The Club Module
+may materialize these references into normalized relationship records; it
+does not copy Competition or Season records.
 
 Examples:
 
@@ -199,7 +219,8 @@ Examples:
 - Domestic Cup
 - Continental Competition
 
-Historical participation is stored separately.
+Historical participation is stored separately. Participation records contain
+only Club ID, Competition ID, and Season ID.
 
 ---
 
@@ -247,7 +268,7 @@ Economy Module
 
 Financial fields only
 
-League Module
+Competition Module
 
 Competition references only
 
@@ -310,6 +331,8 @@ These additions should extend the existing structure without breaking compatibil
 ✓ Separate Historical Records
 
 ✓ Nation affiliation is a stable Nation ID reference
+
+✓ Competition participation is a Season-bound ID relationship
 
 ---
 

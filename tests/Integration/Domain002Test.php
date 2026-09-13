@@ -45,13 +45,13 @@ final class Domain002Test extends TestCase
         $calendar = $services->worldModule()->service()->calendar();
         $nations = $services->nationModule()->service()->loadSelected();
         $competitions = $services->competitionModule()->service()->loadSelected();
-        $season = new Season(new SeasonId('season-2026-27'), '2026/27', SimulationDate::fromIsoString('2026-08-01'), SimulationDate::fromIsoString('2027-05-31'));
+        $season = new Season(new SeasonId('season-2024-25'), '2024/25', SimulationDate::fromIsoString('2024-08-01'), SimulationDate::fromIsoString('2025-05-31'));
         $world = new World(
             new WorldId('domain-002-world'),
             'DOMAIN-002 test world',
             2026002,
             new DateTimeImmutable('@0'),
-            $calendar->timeAt(SimulationDate::fromIsoString('2026-07-31')),
+            $calendar->timeAt(SimulationDate::fromIsoString('2024-07-31')),
             $season->id(),
             array_map(static fn ($nation): string => $nation->id()->value(), $nations),
             array_map(static fn ($competition): string => $competition->id()->value(), $competitions),
@@ -78,7 +78,7 @@ final class Domain002Test extends TestCase
         self::assertSame(SeasonStatus::Active, $worldService->seasonRepository($database)->get($season->id())->status());
         self::assertCount(5, array_filter($services->competitionModule()->service()->repository($database)->all(), static fn ($competition): bool => $competition->status()->value === 'active'));
 
-        $completed = $worldService->advanceToDate($database, 'domain-002-world', SimulationDate::fromIsoString('2027-06-01'));
+        $completed = $worldService->advanceToDate($database, 'domain-002-world', SimulationDate::fromIsoString('2025-06-01'));
         $restored = $worldService->load($database, 'domain-002-world');
         self::assertSame($completed->toArray(), $restored->toArray());
         self::assertSame(SeasonStatus::Completed, $worldService->seasonRepository($database)->get($season->id())->status());

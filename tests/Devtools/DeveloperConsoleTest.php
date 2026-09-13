@@ -19,6 +19,7 @@ use Goal\Legacy\Devtools\Commands\TimeSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\NationListCommand;
 use Goal\Legacy\Devtools\Commands\NationSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\CompetitionListCommand;
+use Goal\Legacy\Devtools\Commands\ClubListCommand;
 use Goal\Legacy\Devtools\Commands\WorldSelfCheckCommand;
 use PHPUnit\Framework\TestCase;
 use Tools\Doctor\Contracts\CheckIdentityInterface;
@@ -60,6 +61,7 @@ final class DeveloperConsoleTest extends TestCase
             new NationListCommand($services),
             new NationSelfCheckCommand($services),
             new CompetitionListCommand($services),
+            new ClubListCommand($services),
             new WorldSelfCheckCommand($services),
         ] as $command) {
             $commands->register($command);
@@ -77,6 +79,7 @@ final class DeveloperConsoleTest extends TestCase
         self::assertNotNull($commands->get('content:list'));
         self::assertNotNull($commands->get('nation:list'));
         self::assertNotNull($commands->get('nation:self-check'));
+        self::assertNotNull($commands->get('club:list'));
     }
 
     public function testTimingSelfCheckUsesBootstrappedClockAndScheduler(): void
@@ -108,6 +111,7 @@ final class DeveloperConsoleTest extends TestCase
 
         self::assertSame(0, (new ContentListCommand($services))->execute([], $output));
         self::assertSame([
+            'core-clubs Core Clubs version=1.0.0 schema=1 selected=yes dependencies=core-nations,core-competitions',
             'core-competitions Core Competitions version=1.0.0 schema=1 selected=yes dependencies=core-nations',
             'core-nations Core Nations version=1.0.0 schema=1 selected=yes dependencies=-',
         ], $output->messages());

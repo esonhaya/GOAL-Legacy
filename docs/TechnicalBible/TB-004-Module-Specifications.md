@@ -106,6 +106,11 @@ Owns
 - Youth Academy
 - Staff
 - Squad Registration
+- Season-bound Competition participation references
+
+DOMAIN-003 implements the Club identity/content/persistence foundation and
+normalized Competition participation. Player, staff, finance, facilities,
+and squad systems remain future domain slices unless separately implemented.
 
 Receives
 

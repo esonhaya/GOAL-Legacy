@@ -46,9 +46,13 @@ Identity evolves gradually over time.
 
 ---
 
-# Club DNA
+# Club Identity Layers
 
-Club DNA represents the football principles traditionally associated with the club.
+Club identity is represented by three layers: Core Philosophy, Football
+Identity, and Current Style. Core Philosophy contains the football principles
+traditionally associated with the club; Football Identity describes the
+established sporting profile; Current Style describes the more changeable
+manager/team expression.
 
 Examples include:
 
@@ -61,7 +65,12 @@ Examples include:
 - Buying established stars
 - Financial sustainability
 
-Club DNA influences long-term decision making but never completely restricts it.
+These layers influence long-term decision making but never completely
+restrict it. They must not be reduced to one permanent universal DNA field.
+
+The DOMAIN-003 core Club package uses the 2024-25 top-flight season as its
+single deterministic membership baseline. Later seasonal changes belong in
+season-bound participation state rather than in Club identity content.
 
 ---
 
@@ -199,7 +208,7 @@ These additions should deepen club identity without replacing its core principle
 
 ✓ Every club has a unique identity.
 
-✓ Club DNA influences long-term behaviour.
+✓ Club identity layers influence long-term behaviour.
 
 ✓ Culture evolves slowly.
 

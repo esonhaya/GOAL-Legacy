@@ -24,11 +24,13 @@ final class BootstrapTest extends TestCase
         self::assertSame(0, $services->clock()->now()->ticks());
         self::assertFalse($services->scheduler()->hasPendingTasks());
         self::assertNotNull($services->saveStore());
-        self::assertCount(2, $services->contentPackages()->packages());
+        self::assertCount(3, $services->contentPackages()->packages());
         self::assertTrue($services->contentPackages()->isSelected('core-nations'));
         self::assertTrue($services->contentPackages()->isSelected('core-competitions'));
+        self::assertTrue($services->contentPackages()->isSelected('core-clubs'));
         self::assertSame('nation', $services->nationModule()->descriptor()->id());
         self::assertSame('competition', $services->competitionModule()->descriptor()->id());
+        self::assertSame('club', $services->clubModule()->descriptor()->id());
         self::assertSame('world', $services->worldModule()->descriptor()->id());
         self::assertFileExists(dirname(__DIR__, 2) . '/game/logs/core.log');
 

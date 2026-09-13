@@ -36,7 +36,9 @@ Supporting Modules
 - News
 - Pulse
 
-Only the League Module may directly modify competition-specific information unless explicitly authorized.
+Only the Competition Module may directly modify competition-specific
+information unless explicitly authorized. Season-bound Club participation is
+stored as a normalized relationship and does not duplicate Club records.
 
 ---
 

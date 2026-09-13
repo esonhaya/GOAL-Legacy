@@ -11,6 +11,8 @@ use Goal\Legacy\Core\Persistence\SaveMetadata;
 use Goal\Legacy\Core\Persistence\SqliteSaveStore;
 use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
+use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
+use Goal\Legacy\Modules\Club\Persistence\ClubRepository;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SeasonStatus;
@@ -44,18 +46,22 @@ final class WorldSelfCheckCommand implements CommandInterface
                 throw new RuntimeException('Selected Nation and Competition content are required.');
             }
 
+            $clubs = $this->services->clubModule()->service()->loadSelected();
+            if ($clubs === []) {
+                throw new RuntimeException('Selected Club content is required.');
+            }
             $season = new Season(
-                new SeasonId('season-2026-27'),
-                '2026/27',
-                SimulationDate::fromIsoString('2026-08-01'),
-                SimulationDate::fromIsoString('2027-05-31'),
+                new SeasonId('season-2024-25'),
+                '2024/25',
+                SimulationDate::fromIsoString('2024-08-01'),
+                SimulationDate::fromIsoString('2025-05-31'),
             );
             $world = new World(
                 new WorldId('world-self-check'),
                 'World self-check',
                 2026001,
                 new DateTimeImmutable('@0'),
-                $calendar->timeAt(SimulationDate::fromIsoString('2026-07-31')),
+                $calendar->timeAt(SimulationDate::fromIsoString('2024-07-31')),
                 $season->id(),
                 array_map(static fn ($nation): string => $nation->id()->value(), $nations),
                 array_map(static fn ($competition): string => $competition->id()->value(), $competitions),
@@ -69,21 +75,25 @@ final class WorldSelfCheckCommand implements CommandInterface
             $worldService->initialize($database, $world, $season);
             $active = $worldService->advanceByDays($database, 'world-self-check', 1);
             $reloaded = $worldService->load($database, 'world-self-check');
-            if ($active->toArray() !== $reloaded->toArray() || $reloaded->currentDate($calendar)->toIsoString() !== '2026-08-01') {
+            $clubRepository = new ClubRepository($database);
+            $membershipRepository = new ClubMembershipRepository($database);
+            if ($active->toArray() !== $reloaded->toArray() || $reloaded->currentDate($calendar)->toIsoString() !== '2024-08-01') {
                 throw new RuntimeException('World active-state reload was not deterministic.');
             }
             $activeCompetitions = $this->services->competitionModule()->service()->repository($database)->all();
             if ($reloaded->currentSeasonId()?->value() !== $season->id()->value()
                 || $season->status() !== SeasonStatus::Upcoming
                 || count($activeCompetitions) !== count($competitions)
-                || count(array_filter($activeCompetitions, static fn ($competition): bool => $competition->status()->value === 'active')) !== count($competitions)) {
+                || count(array_filter($activeCompetitions, static fn ($competition): bool => $competition->status()->value === 'active')) !== count($competitions)
+                || count($clubRepository->all()) !== count($clubs)
+                || count($membershipRepository->all()) !== count($clubs)) {
                 throw new RuntimeException('World active lifecycle state is incomplete.');
             }
 
-            $completed = $worldService->advanceToDate($database, 'world-self-check', SimulationDate::fromIsoString('2027-06-01'));
+            $completed = $worldService->advanceToDate($database, 'world-self-check', SimulationDate::fromIsoString('2025-06-01'));
             $completedSeason = $worldService->seasonRepository($database)->get($season->id());
             $completedCompetitions = $this->services->competitionModule()->service()->repository($database)->all();
-            if ($completed->currentDate($calendar)->toIsoString() !== '2027-06-01'
+            if ($completed->currentDate($calendar)->toIsoString() !== '2025-06-01'
                 || $completedSeason->status() !== SeasonStatus::Completed
                 || count(array_filter($completedCompetitions, static fn ($competition): bool => $competition->status()->value === 'completed')) !== count($competitions)) {
                 throw new RuntimeException('World completion lifecycle state is incomplete.');
@@ -91,9 +101,10 @@ final class WorldSelfCheckCommand implements CommandInterface
 
             unset($database);
             $output->write(sprintf(
-                'World self-check passed with %d Nations, %d Competitions, and deterministic Season lifecycle.',
+                'World self-check passed with %d Nations, %d Competitions, %d Clubs, and deterministic Season lifecycle.',
                 count($nations),
                 count($competitions),
+                count($clubs),
             ));
 
             return 0;

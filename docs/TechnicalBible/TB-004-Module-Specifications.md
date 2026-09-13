@@ -155,6 +155,11 @@ Owns
 - Ratings
 - Injuries During Matches
 
+DOMAIN-006 Phase 1 narrows this to scheduled-to-completed Match lifecycle,
+deterministic league fixture generation, bounded simulation, minimal Player
+stat lines, structured highlights, and Match persistence. Interactive flow,
+injuries, tactics, and ratings beyond participation are deferred.
+
 Receives
 
 - Team Selection
@@ -250,7 +255,6 @@ Owns
 
 - Offers
 - Negotiations
-- Contracts
 - Loans
 - Transfer Windows
 

@@ -118,6 +118,15 @@ employment
 Module; execution coordinates Contract, squad, and registration transitions
 inside one database transaction
 
+✓ Fixtures and completed Matches are Career-durable records owned by the Match
+Module; completed Match results are immutable
+
+✓ Match Player stat lines and user-visible structured highlights are Career
+state and reference stable Player/Club IDs without duplicating their records
+
+✓ Standings are a Seasonal projection deterministically rebuilt from durable
+completed Match results
+
 ---
 
 ## Revision History

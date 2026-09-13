@@ -174,6 +174,11 @@ Examples:
 - Winter Break
 - Registration Windows
 
+DOMAIN-006 adds deterministic domestic-league Match scheduling through the
+Match Module. Match records remain Match-owned. Completed Match results are
+the canonical input for the Competition standings projection, which is
+rebuildable and is not duplicated mutable Club state.
+
 The World Module coordinates the overall calendar and stores only stable
 Competition IDs as global references. It does not own Competition records.
 

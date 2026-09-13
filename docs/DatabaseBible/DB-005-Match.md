@@ -66,9 +66,12 @@ Status = Live
 
 After completion:
 
-Status = Finished
+Status = Completed
 
-Finished matches are never deleted.
+Completed matches are never deleted or rewritten in Phase 1.
+
+DOMAIN-006 uses one Match record for both the scheduled fixture and its
+completed result. A separate parallel Fixture record is not created.
 
 ---
 
@@ -102,6 +105,11 @@ Fields include:
 - Away Club ID
 
 ---
+
+# Phase-1 Match Status
+
+Phase 1 supports `scheduled` and `completed`. Live, postponed, abandoned,
+cancelled, and in-match controls remain future extensions.
 
 # Match Status
 
@@ -214,6 +222,29 @@ Examples
 - Cards
 
 Season totals are updated separately.
+
+Phase 1 persists only appeared, started, minutes, and goals for real Player
+records that participate. A Club without a persisted roster uses its
+aggregate Club strength for simulation and does not receive synthetic Player
+records.
+
+---
+
+# Fixtures, Results, and Standings
+
+League fixture generation creates deterministic home-and-away Match records
+inside the Season dates. Match results are the canonical source for standings;
+the Competition table is rebuilt from completed Matches rather than maintained
+as an independent mutable copy. Phase 1 uses three points for a win, one for
+a draw, and zero for a loss, ordered by points, goal difference, goals for,
+then stable Club ID.
+
+Goals produce structured durable highlights referencing Match, Club, and a
+real Player when one participated. Highlight prose is a presentation concern.
+
+World date advancement does not silently simulate Matches. The Match service
+explicitly processes scheduled Matches due on or before a requested
+SimulationDate.
 
 ---
 

@@ -29,6 +29,11 @@ initialization flow is defined yet.
 Player is the Phase 1 human football entity. A generic Person abstraction is
 deferred until Staff or another domain requires a shared canonical record.
 
+When the controlled Player is season-registered and in a Club squad, Match
+simulation uses the same eligibility path as every other Player. Participation
+and Match stat lines reference the existing Player ID; career summaries do not
+duplicate Player state.
+
 Phase 1 creates career Players through the PlayerCreationService rather than
 loading a real-world Player content package. Declarative player content can
 be added later without changing the persistent Player ownership boundary.

@@ -26,6 +26,8 @@ use Goal\Legacy\Modules\Nation\NationModule;
 use Goal\Legacy\Modules\Nation\NationService;
 use Goal\Legacy\Modules\Player\PlayerModule;
 use Goal\Legacy\Modules\Player\PlayerService;
+use Goal\Legacy\Modules\Match\MatchModule;
+use Goal\Legacy\Modules\Match\MatchService;
 use Goal\Legacy\Modules\World\Domain\SimulationCalendar;
 use Goal\Legacy\Modules\World\WorldModule;
 use Goal\Legacy\Modules\World\WorldService;
@@ -78,6 +80,7 @@ final class Bootstrap
         $playerModule = new PlayerModule(new PlayerService($nationModule->service(), $clubModule->service()));
         $contractModule = new ContractModule(new ContractService());
         $transferModule = new TransferModule(new TransferService($contractModule->service(), $clubModule->service(), $competitionModule->service(), $dispatcher));
+        $matchModule = new MatchModule(new MatchService($clubModule->service(), $dispatcher));
         $worldModule = new WorldModule(new WorldService(
             $clock,
             new SimulationCalendar(),
@@ -93,12 +96,16 @@ final class Bootstrap
         $registry->register($playerModule);
         $registry->register($contractModule);
         $registry->register($transferModule);
+        $registry->register($matchModule);
         $registry->register($worldModule);
         if (!$registry->isEnabled('player') || !$registry->isEnabled('club')) {
             $registry->setEnabled('contract', false);
         }
         if (!$registry->isEnabled('player') || !$registry->isEnabled('club') || !$registry->isEnabled('competition') || !$registry->isEnabled('contract')) {
             $registry->setEnabled('transfer', false);
+        }
+        if (!$registry->isEnabled('player') || !$registry->isEnabled('club') || !$registry->isEnabled('competition')) {
+            $registry->setEnabled('match', false);
         }
         if (!$registry->isEnabled('nation') || !$registry->isEnabled('competition') || !$registry->isEnabled('club') || !$registry->isEnabled('contract')) {
             $registry->setEnabled('world', false);
@@ -108,7 +115,7 @@ final class Bootstrap
             'environment' => $configuration->string('app.environment'),
         ]);
 
-        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule, $competitionModule, $clubModule, $playerModule, $contractModule, $transferModule, $worldModule);
+        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule, $competitionModule, $clubModule, $playerModule, $contractModule, $transferModule, $matchModule, $worldModule);
     }
 
     /** @return array<string, string> */

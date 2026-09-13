@@ -8,6 +8,7 @@
             <directory>tests/World</directory>
             <directory>tests/Competition</directory>
             <directory>tests/Club</directory>
+            <directory>tests/Player</directory>
             <directory>tests/Integration</directory>
         </testsuite>
     </testsuites>

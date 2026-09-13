@@ -205,6 +205,11 @@ Players are referenced through Player IDs.
 
 Squad lists are generated through relationships rather than duplicated.
 
+DOMAIN-004 represents the squad list as a normalized, season-bound
+Club–Player relationship containing IDs only. The Club Module owns that
+relationship; Player identity and football state remain owned by the Player
+Module. Squad membership is not a Contract.
+
 ---
 
 # Competition Data

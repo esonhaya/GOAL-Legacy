@@ -20,6 +20,7 @@ use Goal\Legacy\Devtools\Commands\NationListCommand;
 use Goal\Legacy\Devtools\Commands\NationSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\CompetitionListCommand;
 use Goal\Legacy\Devtools\Commands\ClubListCommand;
+use Goal\Legacy\Devtools\Commands\PlayerCreateDemoCommand;
 use Goal\Legacy\Devtools\Commands\WorldSelfCheckCommand;
 use PHPUnit\Framework\TestCase;
 use Tools\Doctor\Contracts\CheckIdentityInterface;
@@ -62,6 +63,7 @@ final class DeveloperConsoleTest extends TestCase
             new NationSelfCheckCommand($services),
             new CompetitionListCommand($services),
             new ClubListCommand($services),
+            new PlayerCreateDemoCommand($services),
             new WorldSelfCheckCommand($services),
         ] as $command) {
             $commands->register($command);
@@ -80,6 +82,7 @@ final class DeveloperConsoleTest extends TestCase
         self::assertNotNull($commands->get('nation:list'));
         self::assertNotNull($commands->get('nation:self-check'));
         self::assertNotNull($commands->get('club:list'));
+        self::assertNotNull($commands->get('player:create-demo'));
     }
 
     public function testTimingSelfCheckUsesBootstrappedClockAndScheduler(): void

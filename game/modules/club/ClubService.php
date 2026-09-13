@@ -13,6 +13,7 @@ use Goal\Legacy\Modules\Club\Domain\ClubCompetitionMembership;
 use Goal\Legacy\Modules\Club\Persistence\ClubMaterializer;
 use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
 use Goal\Legacy\Modules\Club\Persistence\ClubRepository;
+use Goal\Legacy\Modules\Club\Persistence\ClubSquadRepository;
 use Goal\Legacy\Modules\Competition\CompetitionService;
 use Goal\Legacy\Modules\Nation\NationService;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
@@ -45,6 +46,11 @@ final class ClubService
     public function membershipRepository(DatabaseInterface $database): ClubMembershipRepository
     {
         return new ClubMembershipRepository($database);
+    }
+
+    public function squadRepository(DatabaseInterface $database): ClubSquadRepository
+    {
+        return new ClubSquadRepository($database);
     }
 
     /** @param list<ClubContentDefinition> $definitions */

@@ -31,6 +31,7 @@ final class BootstrapTest extends TestCase
         self::assertSame('nation', $services->nationModule()->descriptor()->id());
         self::assertSame('competition', $services->competitionModule()->descriptor()->id());
         self::assertSame('club', $services->clubModule()->descriptor()->id());
+        self::assertSame('player', $services->playerModule()->descriptor()->id());
         self::assertSame('world', $services->worldModule()->descriptor()->id());
         self::assertFileExists(dirname(__DIR__, 2) . '/game/logs/core.log');
 

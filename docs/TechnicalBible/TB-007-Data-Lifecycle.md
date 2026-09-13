@@ -98,6 +98,15 @@ football-domain records.
 
 ✓ Stable IDs survive compatible references and migrations
 
+✓ Player identity, attributes, potential, and development profile are Career
+state owned by the Player Module
+
+✓ Season-bound Club squad membership is relationship state owned by the Club
+Module
+
+✓ A controlled career Player is a Player-ID reference, not a duplicate Player
+record
+
 ---
 
 ## Revision History

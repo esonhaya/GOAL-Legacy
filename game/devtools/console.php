@@ -20,6 +20,7 @@ use Goal\Legacy\Devtools\Commands\NationListCommand;
 use Goal\Legacy\Devtools\Commands\NationSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\CompetitionListCommand;
 use Goal\Legacy\Devtools\Commands\ClubListCommand;
+use Goal\Legacy\Devtools\Commands\PlayerCreateDemoCommand;
 use Goal\Legacy\Devtools\Commands\WorldSelfCheckCommand;
 
 $projectRoot = dirname(__DIR__, 2);
@@ -37,6 +38,7 @@ $commands->register(new NationListCommand($services));
 $commands->register(new NationSelfCheckCommand($services));
 $commands->register(new CompetitionListCommand($services));
 $commands->register(new ClubListCommand($services));
+$commands->register(new PlayerCreateDemoCommand($services));
 $commands->register(new WorldSelfCheckCommand($services));
 
 $application = new ConsoleApplication($commands);

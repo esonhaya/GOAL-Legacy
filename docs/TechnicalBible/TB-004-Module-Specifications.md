@@ -62,6 +62,10 @@ Owns
 
 - Identity
 - Attributes
+- Nationality and eligibility references
+- Physical football profile and primary position
+- Potential and development profile
+- Career-controlled Player references
 - Personality
 - Morale
 - Confidence
@@ -82,6 +86,11 @@ Provides
 - Player Data
 - Development
 - Career Status
+
+DOMAIN-004 implements Player creation, persistent identity/attributes, and
+career-player references. It does not implement contracts, transfers,
+training, injuries, matches, or staff. The Club Module owns the normalized
+season-bound squad relationship and validates Club/Player/Season references.
 
 Never Owns
 

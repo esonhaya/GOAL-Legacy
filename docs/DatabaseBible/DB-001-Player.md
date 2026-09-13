@@ -52,6 +52,10 @@ Only the Player Module may directly modify player-specific data unless explicitl
 - Minimal duplication.
 - Modular ownership.
 
+DOMAIN-004 Phase 1 treats Player as the human football entity. It does not
+introduce a generic Person table or inheritance hierarchy before Staff has a
+separate canonical identity requirement.
+
 ---
 
 # Lifecycle
@@ -104,6 +108,10 @@ Fields include:
 
 Identity values rarely change.
 
+Phase 1 stores a full name, preferred name, birth date, birth Nation ID,
+primary Nation ID, optional secondary Nation IDs, height, and weight. Nation
+names are never copied into Player records.
+
 ---
 
 # Football Profile
@@ -119,6 +127,10 @@ Fields include:
 - Dominant Foot
 - Weak Foot Rating
 - Skill Move Rating
+
+DOMAIN-004 implements only a stable primary position. Secondary positions,
+preferred foot, and deeper role taxonomies remain deferred until their
+canonical rules are defined.
 
 ---
 
@@ -141,6 +153,16 @@ Examples
 - Goalkeeping
 
 Attribute balancing is defined separately by the Player Module.
+
+The Phase 1 headline set is Pace, Shooting, Passing, Dribbling, Defending,
+and Physicality, each bounded from 0 through 99. Overall rating is derived
+from their arithmetic mean, rounded down; it is not stored as a second
+authoritative value.
+
+Potential is Player-owned and bounded from 1 through 99. A newly created
+Player's derived overall rating cannot exceed potential. Development profile
+is one of `late_bloomer`, `regular`, or `prodigy`; this milestone stores the
+profile but does not run a training or growth engine.
 
 ---
 
@@ -195,6 +217,12 @@ Includes
 - Salary
 - Career Stage
 
+The current Club is not duplicated on the Player record in Phase 1. A
+season-bound squad relationship is the canonical assignment. The controlled
+career Player is represented by a Career Player reference containing a
+Career ID, Player ID, and deterministic career start date; it does not copy
+Player identity or attributes.
+
 ---
 
 # Relationships
@@ -211,6 +239,15 @@ Examples
 - Child ID (future)
 
 Only IDs are stored.
+
+Squad membership is a normalized Club-owned relationship containing Club ID,
+Player ID, and Season ID. It is not a Contract and does not imply wages,
+transfer rights, or employment terms. A Player has at most one squad
+membership per Season in this phase.
+
+Nationality and international eligibility are distinct Player-owned ID
+relationships. Eligibility is a minimal explicit Nation-ID set; it is not a
+full national-team selection or FIFA-law engine.
 
 ---
 
@@ -258,6 +295,10 @@ Current club may only change through:
 - Transfers
 - Loans
 - Free agency
+
+Player creation rejects missing or duplicate Nation references, invalid
+physical ranges, unsupported positions or development profiles, and
+attributes or potential outside their bounded ranges.
 
 ---
 

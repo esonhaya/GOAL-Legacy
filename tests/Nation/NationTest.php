@@ -137,6 +137,7 @@ final class NationTest extends TestCase
             'APP_MODULE_NATION_ENABLED' => 'false',
             'APP_MODULE_COMPETITION_ENABLED' => 'false',
             'APP_MODULE_CLUB_ENABLED' => 'false',
+            'APP_MODULE_PLAYER_ENABLED' => 'false',
             'APP_MODULE_WORLD_ENABLED' => 'false',
         ]);
         self::assertFalse($disabled->moduleRegistry()->isEnabled('nation'));

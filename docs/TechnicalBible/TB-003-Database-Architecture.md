@@ -395,6 +395,10 @@ Developer Notes
 
 ✓ Domain-Based Architecture
 
+✓ Player development state and immutable progression history are Player-owned
+Career records. Match Player stat lines remain Match-owned; season and career
+statistics are rebuildable projections over those durable records.
+
 ✓ Data-Driven Design
 
 ---

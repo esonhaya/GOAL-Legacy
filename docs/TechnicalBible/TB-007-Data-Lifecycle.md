@@ -127,6 +127,18 @@ state and reference stable Player/Club IDs without duplicating their records
 ✓ Standings are a Seasonal projection deterministically rebuilt from durable
 completed Match results
 
+✓ Player development state and immutable development history are Career data
+owned by the Player Module.
+
+✓ Training blocks are explicit durable source references for idempotency; the
+training service itself is Runtime state.
+
+✓ Match development is applied once per stable Match/Player source key inside
+the existing Match persistence transaction.
+
+✓ Season and career Player statistics are derived from durable Match Player
+stat lines and remain rebuildable after reload.
+
 ---
 
 ## Revision History

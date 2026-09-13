@@ -291,6 +291,15 @@ These additions should extend the Player Engine without changing its core respon
 
 ✓ Retirement is managed centrally.
 
+✓ DOMAIN-007 Player development applies deterministic training and Match
+experience through one authoritative service.
+
+✓ Player age is derived from birth date and SimulationDate; development state
+and immutable progression history are Career data.
+
+✓ Season and career statistics are derived from Match Player stat lines rather
+than duplicated mutable counters.
+
 ---
 
 ## Revision History

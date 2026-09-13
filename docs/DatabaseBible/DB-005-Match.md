@@ -246,6 +246,9 @@ World date advancement does not silently simulate Matches. The Match service
 explicitly processes scheduled Matches due on or before a requested
 SimulationDate.
 
+DOMAIN-007 consumes completed Match Player stat lines as development input;
+this does not transfer ownership of Match statistics to the Player Module.
+
 ---
 
 # Staff References

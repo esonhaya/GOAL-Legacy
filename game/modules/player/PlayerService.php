@@ -21,6 +21,7 @@ final class PlayerService
     public function __construct(
         private readonly NationService $nationService,
         private readonly ClubService $clubService,
+        private readonly ?PlayerDevelopmentService $developmentService = null,
     ) {
     }
 
@@ -37,6 +38,16 @@ final class PlayerService
     public function careerRepository(DatabaseInterface $database): CareerPlayerRepository
     {
         return new CareerPlayerRepository($database);
+    }
+
+    public function developmentService(): PlayerDevelopmentService
+    {
+        return $this->developmentService ?? new PlayerDevelopmentService();
+    }
+
+    public function trainingService(): TrainingService
+    {
+        return new TrainingService($this->developmentService());
     }
 
     /** @return list<Player> */

@@ -24,6 +24,7 @@ use Goal\Legacy\Devtools\Commands\PlayerCreateDemoCommand;
 use Goal\Legacy\Devtools\Commands\WorldSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\TransferSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\MatchSelfCheckCommand;
+use Goal\Legacy\Devtools\Commands\CareerSelfCheckCommand;
 
 $projectRoot = dirname(__DIR__, 2);
 $services = (new Bootstrap())->create($projectRoot);
@@ -44,6 +45,7 @@ $commands->register(new PlayerCreateDemoCommand($services));
 $commands->register(new WorldSelfCheckCommand($services));
 $commands->register(new TransferSelfCheckCommand($services));
 $commands->register(new MatchSelfCheckCommand($services));
+$commands->register(new CareerSelfCheckCommand($services));
 
 $application = new ConsoleApplication($commands);
 exit($application->run($argv, new StreamConsoleOutput(STDOUT, STDERR)));

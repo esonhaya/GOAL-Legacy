@@ -161,8 +161,10 @@ authoritative value.
 
 Potential is Player-owned and bounded from 1 through 99. A newly created
 Player's derived overall rating cannot exceed potential. Development profile
-is one of `late_bloomer`, `regular`, or `prodigy`; this milestone stores the
-profile but does not run a training or growth engine.
+is one of `late_bloomer`, `regular`, or `prodigy`. The Player Module owns
+durable development state and immutable progression history; its development
+service is the only path that applies training or Match experience to Player
+attributes. Overall rating remains derived and cannot exceed potential.
 
 ---
 
@@ -265,7 +267,8 @@ Examples
 - Cards
 - Average Rating
 
-Season-by-season breakdowns are stored separately.
+Phase-1 season and career totals are projections from Match Player stat lines.
+They are not a competing mutable counter source of truth.
 
 ---
 

@@ -280,6 +280,13 @@ These additions should extend the Training Engine without changing its core resp
 
 ✓ Schedules are data-driven.
 
+✓ DOMAIN-007 Phase 1 exposes explicit deterministic training blocks with a
+small focus vocabulary. The Player development service consumes the resulting
+stimulus and remains the only component that mutates Player attributes.
+
+✓ Coach, workload, fatigue, and recurring daily schedules remain deferred;
+Phase 1 does not create per-Player scheduler callbacks.
+
 ---
 
 ## Revision History

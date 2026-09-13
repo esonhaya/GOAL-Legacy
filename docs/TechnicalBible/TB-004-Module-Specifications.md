@@ -586,6 +586,10 @@ These are outside the scope of Phase 1.
 
 ✓ Phase-Based Feature Rollout
 
+✓ The Player Module owns development state and progression history. Training
+stimulus is explicit and deterministic, while Match completion supplies
+idempotent experience stimulus through the existing Match path.
+
 ---
 
 ## Revision History

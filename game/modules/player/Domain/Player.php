@@ -94,6 +94,42 @@ final readonly class Player
 
     public function creationSeed(): int { return $this->creationSeed; }
 
+    public function ageAt(SimulationDate $date): int
+    {
+        if ($date->isBefore($this->birthDate)) {
+            throw new InvalidArgumentException('Player age cannot be calculated before the birth date.');
+        }
+        $age = $date->year() - $this->birthDate->year();
+        if ($date->month() < $this->birthDate->month()
+            || ($date->month() === $this->birthDate->month() && $date->day() < $this->birthDate->day())) {
+            --$age;
+        }
+
+        return $age;
+    }
+
+    public function withAttributes(PlayerAttributeSet $attributes): self
+    {
+        return new self(
+            $this->id,
+            $this->firstName,
+            $this->lastName,
+            $this->preferredName,
+            $this->birthDate,
+            $this->primaryNationId,
+            $this->secondaryNationIds,
+            $this->birthNationId,
+            $this->eligibilityNationIds,
+            $this->heightCm,
+            $this->weightKg,
+            $this->primaryPosition,
+            $attributes,
+            $this->potential,
+            $this->developmentProfile,
+            $this->creationSeed,
+        );
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {

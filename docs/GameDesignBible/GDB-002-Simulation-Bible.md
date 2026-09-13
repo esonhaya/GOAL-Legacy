@@ -17,7 +17,12 @@ Poisson-like scores, structured goal highlights, and minimal real-Player stat
 lines. Repeating the same Match context produces the same result.
 
 Completed Match results are the source of truth for the seasonal standings
-projection. Interactive controls, tactics, substitutions, injuries, weather,
+projection. DOMAIN-011 uses broad position groups to build a minimal
+structural XI and seven-Player bench, then applies a deterministic one-to-three
+substitution policy between minutes 55 and 89. Substitutes receive real Match
+minutes and therefore use the existing fatigue, development, form, and
+expectation paths; no formation or tactical role engine is implied.
+Interactive controls, tactics, discipline, in-match injury chains, weather,
 and minute-by-minute simulation remain deferred.
 
 ## DOMAIN-008 Career Pressure Boundary
@@ -26,8 +31,12 @@ Before simulation, the Match Module reuses the existing eligibility path and
 deterministically ranks real eligible squad Players using OVR, Club-scoped
 squad role, recent derived form, and stable Match/Player tie-breaking. Up to
 eleven become starters, the next seven are bench selections, and remaining
-eligible Players are not selected. Clubs without persisted rosters continue to
-use aggregate Club strength and do not receive synthetic Players.
+eligible Players are not selected. DOMAIN-011 satisfies available goalkeeper,
+defensive, midfield, and attacking quotas before filling shortages by ranking
+the remaining eligible Players. Clubs without persisted rosters continue to
+use aggregate Club strength and do not receive synthetic Players. An available
+Player who is unused or not selected creates no performance evaluation;
+expectations are based on actual Match appearances.
 
 Completed Match evidence produces a bounded Player evaluation. Club
 expectations and role transitions are evaluated after Match persistence, using

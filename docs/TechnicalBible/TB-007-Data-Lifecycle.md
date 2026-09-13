@@ -124,6 +124,9 @@ Module; completed Match results are immutable
 ✓ Match Player stat lines and user-visible structured highlights are Career
 state and reference stable Player/Club IDs without duplicating their records
 
+✓ Matchday selections and substitution records are Career-durable Match state;
+substitute minutes remain Match-owned facts and are not copied to Player
+
 ✓ Standings are a Seasonal projection deterministically rebuilt from durable
 completed Match results
 

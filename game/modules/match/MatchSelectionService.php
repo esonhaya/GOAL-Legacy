@@ -40,11 +40,17 @@ final class MatchSelectionService
                 $membership = $this->clubService->squadRepository($database)->byPlayer($player->id(), $match->seasonId());
                 $role = array_values(array_filter($membership, static fn ($value): bool => $value->clubId()->value() === $clubId))[0]?->role() ?? SquadRole::Prospect;
                 $fatiguePenalty = $assessment->fatigue() * 4;
-                $ranked[] = ['player' => $player, 'score' => $role->weight() + ($player->overallRating() * 10) + $this->formBonus($database, $player->id()->value(), $match) - $fatiguePenalty, 'tie' => hash('sha256', $match->id()->value() . '|' . $player->id()->value())];
+                $ranked[] = ['player' => $player, 'score' => $role->weight() + ($player->overallRating() * 10) + $this->formBonus($database, $player->id()->value(), $match) - $fatiguePenalty, 'tie' => hash('sha256', $match->id()->value() . '|' . $player->id()->value()), 'group' => $this->positionGroup($player)];
             }
             usort($ranked, static fn (array $a, array $b): int => ($b['score'] <=> $a['score']) ?: strcmp($a['tie'], $b['tie']));
-            foreach ($ranked as $index => $entry) {
-                $status = $index < 11 ? SelectionStatus::Starter : ($index < 18 ? SelectionStatus::Bench : SelectionStatus::NotSelected);
+            $starters = $this->positionAwareStarters($ranked);
+            $starterIds = array_fill_keys(array_map(static fn (array $entry): string => $entry['player']->id()->value(), $starters), true);
+            $remaining = array_values(array_filter($ranked, static fn (array $entry): bool => !isset($starterIds[$entry['player']->id()->value()])));
+            $bench = $this->positionAwareBench($remaining);
+            $benchIds = array_fill_keys(array_map(static fn (array $entry): string => $entry['player']->id()->value(), $bench), true);
+            foreach ($ranked as $entry) {
+                $playerId = $entry['player']->id()->value();
+                $status = isset($starterIds[$playerId]) ? SelectionStatus::Starter : (isset($benchIds[$playerId]) ? SelectionStatus::Bench : SelectionStatus::NotSelected);
                 $selections[] = new PlayerSelection($match->id(), $entry['player']->id(), new \Goal\Legacy\Modules\Club\Domain\ClubId($clubId), $status);
             }
         }
@@ -52,6 +58,79 @@ final class MatchSelectionService
         usort($selections, static fn (PlayerSelection $a, PlayerSelection $b): int => ($a->clubId()->value() <=> $b->clubId()->value()) ?: strcmp($a->playerId()->value(), $b->playerId()->value()));
 
         return $selections;
+    }
+
+    /** @param list<array{player:Player,score:int,tie:string,group:string}> $ranked @return list<array{player:Player,score:int,tie:string,group:string}> */
+    private function positionAwareStarters(array $ranked): array
+    {
+        $quotas = ['goalkeeper' => 1, 'defensive' => 4, 'midfield' => 3, 'attacking' => 3];
+        $selected = [];
+        $selectedIds = [];
+        foreach ($quotas as $group => $quota) {
+            $groupCount = 0;
+            foreach ($ranked as $entry) {
+                $playerId = $entry['player']->id()->value();
+                if ($entry['group'] !== $group || isset($selectedIds[$playerId])) {
+                    continue;
+                }
+                $selected[] = $entry;
+                $selectedIds[$playerId] = true;
+                ++$groupCount;
+                if ($groupCount >= $quota) {
+                    break;
+                }
+            }
+        }
+        foreach ($ranked as $entry) {
+            if (count($selected) >= 11) {
+                break;
+            }
+            if (!isset($selectedIds[$entry['player']->id()->value()])) {
+                $selected[] = $entry;
+                $selectedIds[$entry['player']->id()->value()] = true;
+            }
+        }
+
+        return $selected;
+    }
+
+    /** @param list<array{player:Player,score:int,tie:string,group:string}> $remaining @return list<array{player:Player,score:int,tie:string,group:string}> */
+    private function positionAwareBench(array $remaining): array
+    {
+        $selected = [];
+        $selectedIds = [];
+        foreach (['goalkeeper', 'defensive', 'midfield', 'attacking'] as $group) {
+            foreach ($remaining as $entry) {
+                $playerId = $entry['player']->id()->value();
+                if ($entry['group'] === $group && !isset($selectedIds[$playerId])) {
+                    $selected[] = $entry;
+                    $selectedIds[$playerId] = true;
+                    break;
+                }
+            }
+        }
+        foreach ($remaining as $entry) {
+            if (count($selected) >= 7) {
+                break;
+            }
+            if (!isset($selectedIds[$entry['player']->id()->value()])) {
+                $selected[] = $entry;
+                $selectedIds[$entry['player']->id()->value()] = true;
+            }
+        }
+
+        return $selected;
+    }
+
+    private function positionGroup(Player $player): string
+    {
+        return match ($player->primaryPosition()->value) {
+            'GK' => 'goalkeeper',
+            'CB', 'LB', 'RB' => 'defensive',
+            'DM', 'CM', 'AM' => 'midfield',
+            'LW', 'RW', 'ST' => 'attacking',
+            default => 'midfield',
+        };
     }
 
     /** @return list<Player> */

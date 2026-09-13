@@ -121,7 +121,10 @@ final class Domain010Test extends TestCase
         $stats = (new PlayerMatchStatRepository($database))->byMatch($first->id());
         $players = new PlayerRepository($database);
 
-        self::assertSame(22, count($stats));
+        self::assertGreaterThan(22, count($stats));
+        self::assertCount(11, array_filter($stats, static fn ($stat): bool => $stat->clubId()->value() === 'arsenal' && $stat->started()));
+        self::assertNotEmpty(array_filter($stats, static fn ($stat): bool => $stat->clubId()->value() === 'arsenal' && !$stat->started()));
+        self::assertSame(990, array_sum(array_map(static fn ($stat): int => $stat->clubId()->value() === 'arsenal' ? $stat->minutes() : 0, $stats)));
         self::assertCount(11, $firstStarters);
         self::assertCount(11, $secondStarters);
         self::assertNotSame($firstStarters, $secondStarters);

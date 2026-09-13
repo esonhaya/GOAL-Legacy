@@ -52,11 +52,10 @@ final class ClubExpectationService
                 if ($membership === null) { continue; }
                 if ($selection->status() === SelectionStatus::Unavailable) { continue; }
                 $stat = $stats[$selection->playerId()->value()] ?? null;
-                $evaluation = $stat === null ? new \Goal\Legacy\Modules\Player\Domain\PerformanceEvaluation(0, 'not_played') : (new PlayerPerformanceEvaluator())->evaluate($stat, $match);
+                if ($stat === null || !$stat->appeared()) { continue; }
+                $evaluation = (new PlayerPerformanceEvaluator())->evaluate($stat, $match);
                 $expected = $membership->role()->expectationScore();
-                $status = $selection->status() === SelectionStatus::NotSelected || !$stat?->appeared()
-                    ? 'significantly_below'
-                    : ($evaluation->score() >= $expected + 10 ? 'exceeding' : ($evaluation->score() >= $expected - 5 ? 'meeting' : ($evaluation->score() >= $expected - 15 ? 'below' : 'significantly_below')));
+                $status = $evaluation->score() >= $expected + 10 ? 'exceeding' : ($evaluation->score() >= $expected - 5 ? 'meeting' : ($evaluation->score() >= $expected - 15 ? 'below' : 'significantly_below'));
                 $evaluationRepository->saveInTransaction(['match_id' => $match->id()->value(), 'player_id' => $selection->playerId()->value(), 'club_id' => $selection->clubId()->value(), 'occurred_date' => $match->scheduledDate()->toIsoString(), 'evaluation_score' => $evaluation->score(), 'expectation_status' => $status]);
                 $row = ['player_id' => $selection->playerId()->value(), 'club_id' => $selection->clubId()->value(), 'score' => $evaluation->score(), 'status' => $status, 'role' => $membership->role()->value];
                 $roleChange = $this->transitionRole($database, $match, $membership, $opportunities);

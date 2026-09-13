@@ -30,9 +30,9 @@ final class Career001AuditTest extends TestCase
         self::assertStringContainsString('profile=late_bloomer', $text);
         self::assertStringContainsString('SQUAD club=arsenal size=25', $text);
         self::assertStringContainsString('PARTICIPATION expected_starter_slots=418 actual_starter_slots=418 consistent=yes', $text);
-        self::assertStringContainsString('SELECTION position_aware=no aggregate_fallback_used=no real_player_match_path=yes', $text);
+        self::assertStringContainsString('SELECTION position_aware=yes aggregate_fallback_used=no real_player_match_path=yes', $text);
         self::assertStringContainsString('LEAGUE_POPULATION competition=premier-league players=500', $text);
         self::assertStringContainsString('CAREER_PLAYER id=audit-prodigy', $text);
-        self::assertStringContainsString('bench_appearances=0', $text);
+        self::assertStringContainsString('bench_appearances=75', $text);
     }
 }

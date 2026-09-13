@@ -27,12 +27,15 @@ It coordinates every stage of a match, from kickoff to the final whistle, while 
 
 The Match Engine owns match behaviour.
 
-DOMAIN-006 implements only the deterministic foundation: scheduled Match
-records, synthetic round-robin league fixtures, aggregate Club strength with
-optional eligible Player OVR contribution, bounded score generation, minimal
-Player stat lines, structured goal highlights, and standings rebuilt from
-completed results. Interactive matches, tactics, substitutions, discipline,
-injuries, weather, and minute-by-minute systems are deferred.
+DOMAIN-006 implements the deterministic foundation: scheduled Match records,
+synthetic round-robin league fixtures, aggregate Club strength with optional
+eligible Player OVR contribution, bounded score generation, minimal Player
+stat lines, structured goal highlights, and standings rebuilt from completed
+results. DOMAIN-011 adds a minimal broad-position Matchday XI, positional-cover
+bench, and deterministic up-to-three substitution records/minutes without
+introducing formations, tactics, or a minute-by-minute engine. Interactive
+matches, tactical instructions, discipline, in-match injury chains, weather,
+and live controls remain deferred.
 
 ---
 

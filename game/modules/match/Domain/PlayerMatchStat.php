@@ -13,7 +13,9 @@ final readonly class PlayerMatchStat
     public function __construct(private MatchId $matchId, private PlayerId $playerId, private ClubId $clubId, private bool $appeared, private bool $started, private int $minutes, private int $goals)
     {
         if (!$appeared && ($started || $minutes !== 0 || $goals !== 0)) { throw new InvalidArgumentException('A non-appearing Player cannot have Match statistics.'); }
-        if ($minutes < 0 || $minutes > 120 || $goals < 0) { throw new InvalidArgumentException('Player Match statistics are outside the Phase-1 bounds.'); }
+        if ($appeared && $minutes < 1) { throw new InvalidArgumentException('An appearing Player must have positive Match minutes.'); }
+        if ($started && !$appeared) { throw new InvalidArgumentException('A starting Player must appear in the Match.'); }
+        if ($minutes < 0 || $minutes > 90 || $goals < 0) { throw new InvalidArgumentException('Player Match statistics are outside the Phase-1 bounds.'); }
         if ($goals > $minutes) { throw new InvalidArgumentException('Player goals cannot exceed minutes played.'); }
     }
     public function matchId(): MatchId { return $this->matchId; }

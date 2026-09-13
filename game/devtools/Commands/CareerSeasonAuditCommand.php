@@ -36,9 +36,11 @@ use Goal\Legacy\Modules\Player\Domain\PlayerAttributeSet;
 use Goal\Legacy\Modules\Player\Domain\PlayerCreationRequest;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\TrainingRequest;
+use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
 use Goal\Legacy\Modules\Player\Persistence\CareerEvaluationRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerDevelopmentRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerAvailabilityRepository;
+use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -72,6 +74,34 @@ final class CareerSeasonAuditCommand implements CommandInterface
             $output->write(sprintf('AUDIT seed=%d horizon=full-season competition=%s fixtures=%d big5_fixtures=%d', $seed, self::COMPETITION_ID, $continuous['fixture_count'], $continuous['big5_fixture_count']));
             $output->write(sprintf('SAVE_RELOAD equivalent=%s midpoint=%s', $equivalent ? 'yes' : 'no', $reloaded['reloaded_midpoint'] ? 'yes' : 'no'));
             $output->write(sprintf('POPULATION clubs=%d players=%d avg_squad=%.1f min_squad=%d max_squad=%d ovr_avg=%.1f age_avg=%.1f', $continuous['population']['clubs_populated'], $continuous['population']['players_total'], $continuous['population']['avg_squad_size'], $continuous['population']['min_squad_size'], $continuous['population']['max_squad_size'], $continuous['population']['ovr_avg'], $continuous['population']['age_avg']));
+            $squad = $continuous['squad'];
+            $squadSummary = $squad['summary'];
+            $output->write(sprintf('SQUAD club=%s size=%d matches=%d ovr=%d-%d/%.1f median=%.1f age=%d-%d/%.1f positions=%s roles=%s', self::CLUB_ID, $squadSummary['squad_size'], $squadSummary['matches'], $squadSummary['ovr_min'], $squadSummary['ovr_max'], $squadSummary['ovr_avg'], $squadSummary['ovr_median'], $squadSummary['age_min'], $squadSummary['age_max'], $squadSummary['age_avg'], $this->formatCounts($squadSummary['position_counts']), $this->formatCounts($squadSummary['role_counts'])));
+            foreach ($squad['players'] as $player) {
+                $output->write(sprintf('SQUAD_PLAYER id=%s position=%s age=%d ovr=%d->%d potential=%d profile=%s role=%s->%s eligible=%d starts=%d bench=%d appearances=%d minutes=%d non_selections=%d limited=%d unavailable=%d goals=%d avg_evaluation=%.1f fatigue_absences=%d injury_missed=%d', $player['player_id'], $player['position'], $player['age'], $player['initial_ovr'], $player['end_ovr'], $player['potential'], $player['profile'], $player['initial_role'], $player['final_role'], $player['eligible_matches'], $player['starts'], $player['bench_selections'], $player['appearances'], $player['minutes'], $player['non_selections'], $player['limited'], $player['unavailable'], $player['goals'], $player['average_evaluation'], $player['fatigue_absences'], $player['injury_matches_missed']));
+            }
+            $starts = $squadSummary['starts_distribution'];
+            $output->write(sprintf('PARTICIPATION expected_starter_slots=%d actual_starter_slots=%d consistent=%s unique_starters=%d players_with_starts=%d players_with_appearances=%d never_selected=%d never_appeared=%d distinct_bench_players=%d bench_selections=%d bench_appearances=%d total_minutes=%d top11_start_share=%.1f rotation_events=%d fatigue_rotation_players=%d injury_replacement_players=%d', $squadSummary['expected_starter_slots'], $squadSummary['actual_starter_slots'], $squadSummary['expected_starter_slots'] === $squadSummary['actual_starter_slots'] ? 'yes' : 'no', $squadSummary['unique_starters'], $squadSummary['players_with_starts'], $squadSummary['players_with_appearances'], $squadSummary['players_never_selected'], $squadSummary['players_never_appeared'], $squadSummary['distinct_bench_players'], $squadSummary['bench_selections'], $squadSummary['bench_appearances'], $squadSummary['total_player_minutes'], $squadSummary['top11_start_share'], $squadSummary['rotation_events'], count($squadSummary['fatigue_rotation_players']), count($squadSummary['injury_replacement_players'])));
+            $rankValues = [1, 11, 12, 13, 15, 20, 25];
+            $rankOutput = [];
+            foreach ($rankValues as $rank) {
+                $rankOutput[] = 'rank' . $rank . '=' . ($starts[$rank - 1] ?? 0);
+            }
+            $output->write('START_DISTRIBUTION ' . implode(' ', $rankOutput));
+            foreach ($squadSummary['role_groups'] as $role => $group) {
+                $output->write(sprintf('ROLE role=%s players=%d avg_ovr=%.1f avg_starts=%.1f avg_bench=%.1f avg_minutes=%.1f', $role, $group['players'], $group['avg_ovr'], $group['avg_starts'], $group['avg_bench_selections'], $group['avg_minutes']));
+            }
+            $output->write(sprintf('DEVELOPMENT squad_ovr_gain=%d-%d/%.2f starter_gain_avg=%.2f fringe_gain_avg=%.2f profile_gains=%s', $squadSummary['ovr_gain_min'], $squadSummary['ovr_gain_max'], $squadSummary['ovr_gain_avg'], $squadSummary['starter_gain_avg'], $squadSummary['fringe_gain_avg'], $this->formatCounts($squadSummary['profile_gain_avg'])));
+            $output->write(sprintf('QUALITY ovr_stddev=%.2f top5=%s bottom5=%s', $squadSummary['ovr_stddev'], $this->formatQuality($squadSummary['quality_top5']), $this->formatQuality($squadSummary['quality_bottom5'])));
+            $career = $squadSummary['career_player'];
+            $careerRootCause = $career['bench_selections'] > 0 ? 'bench_without_substitutions' : 'depth_role_ability_selection';
+            $output->write(sprintf('CAREER_PLAYER id=%s ovr=%d position=%s role=%s overall_depth_rank=%d position_depth_rank=%d selection_score=%d starter_cutoff=%d bench_cutoff=%d score_range=%d-%d eligible=%d limited=%d starts=%d bench=%d appearances=%d unavailable=%d non_selections=%d root_cause=%s', self::CAREER_PLAYER_ID, $career['initial_ovr'], $career['position'], $career['initial_role'], $squadSummary['career_depth_rank_overall'], $squadSummary['career_depth_rank_position'], $squadSummary['career_selection_score'], $squadSummary['starter_cutoff'], $squadSummary['bench_cutoff'], $squadSummary['selection_score_range'][0], $squadSummary['selection_score_range'][1], $career['eligible_matches'], $career['limited'], $career['starts'], $career['bench_selections'], $career['appearances'], $career['unavailable'], $career['non_selections'], $careerRootCause));
+            foreach ($continuous['sample_clubs'] as $clubId => $sample) {
+                $output->write(sprintf('CROSS_CLUB club=%s squad=%d avg_ovr=%.1f unique_starters=%d appearances=%d', $clubId, $sample['squad_size'], $sample['ovr_avg'], $sample['unique_starters'], $sample['players_with_appearances']));
+            }
+            $league = $continuous['league_population'];
+            $output->write(sprintf('LEAGUE_POPULATION competition=%s players=%d players_with_starts=%d players_with_appearances=%d ovr=%d-%d/%.1f median=%.1f age=%d-%d/%.1f positions=%s roles=%s', self::COMPETITION_ID, $league['players'], $league['players_with_starts'], $league['players_with_appearances'], $league['ovr_min'], $league['ovr_max'], $league['ovr_avg'], $league['ovr_median'], $league['age_min'], $league['age_max'], $league['age_avg'], $this->formatCounts($league['position_distribution']), $this->formatCounts($league['role_distribution'])));
+            $output->write(sprintf('SELECTION position_aware=no aggregate_fallback_used=%s real_player_match_path=%s', $squadSummary['aggregate_fallback_used'] ? 'yes' : 'no', $squadSummary['real_player_match_path'] ? 'yes' : 'no'));
             foreach ($continuous['players'] as $player) {
                 $output->write(sprintf(
                     'PLAYER profile=%s role_context=%s start_ovr=%d end_ovr=%d potential=%d starts=%d bench=%d non_selections=%d unavailable=%d appearances=%d selection_pct=%.1f longest_start=%d longest_non_start=%d goals=%d avg_evaluation=%.1f best_evaluation=%d worst_evaluation=%d recent_form=%.1f initial_role=%s final_role=%s role_changes=%d training_events=%d match_development_events=%d training_gain=%d match_gain=%d attribute_gain=%d open_opportunities=%d',
@@ -105,9 +135,9 @@ final class CareerSeasonAuditCommand implements CommandInterface
                 ));
             }
             $output->write(sprintf('LEAGUE completed=%d goals=%d goals_per_match=%.2f home_wins=%d draws=%d away_wins=%d extreme_scores=%d standings_spread=%d', $continuous['completed_matches'], $continuous['goals'], $continuous['goals_per_match'], $continuous['home_wins'], $continuous['draws'], $continuous['away_wins'], $continuous['extreme_scores'], $continuous['standings_spread']));
-            $output->write(sprintf('AVAILABILITY unique_starters=%d rotation_events=%d injuries=%d minor=%d moderate=%d major=%d injury_matches_missed=%d recoveries=%d', $continuous['unique_starters'], $continuous['rotation_events'], $continuous['injuries_total'], $continuous['minor_injuries'], $continuous['moderate_injuries'], $continuous['major_injuries'], $continuous['injury_matches_missed'], $continuous['recoveries']));
+            $output->write(sprintf('AVAILABILITY unique_starters=%d rotation_events=%d fatigue_rotation_players=%d injury_replacement_players=%d injuries=%d minor=%d moderate=%d major=%d injury_matches_missed=%d recoveries=%d', $squadSummary['unique_starters'], $squadSummary['rotation_events'], count($squadSummary['fatigue_rotation_players']), count($squadSummary['injury_replacement_players']), $squadSummary['injuries_total'], $squadSummary['minor_injuries'], $squadSummary['moderate_injuries'], $squadSummary['major_injuries'], $squadSummary['injury_matches_missed'], $squadSummary['recoveries']));
             $output->write(sprintf('CONSISTENCY match_double_processing=%s development_duplication=%s role_idempotency=%s standings_rebuild=%s selection_stats=%s contract_coherence=%s career_reference=%s completed_fixture_count=%d', $continuous['match_double_processing'] ? 'pass' : 'fail', $continuous['development_unique'] ? 'pass' : 'fail', $continuous['role_idempotent'] ? 'pass' : 'fail', $continuous['standings_rebuild'] ? 'pass' : 'fail', $continuous['selection_stat_consistency'] ? 'pass' : 'fail', $continuous['contract_coherent'] ? 'pass' : 'fail', $continuous['career_reference'] ? 'pass' : 'fail', $continuous['completed_matches']));
-            $output->write(sprintf('PRESSURE selection_variance=%s role_changes=%d opportunities=%d availability_gap=evident transfer_market_gap=unresolved', $this->selectionVariance($continuous['players']) ? 'present' : 'low', $continuous['role_changes'], $continuous['opportunities']));
+            $output->write(sprintf('PRESSURE selection_variance=%s full_squad_start_distribution=%s role_changes=%d opportunities=%d availability_gap=evident transfer_market_gap=unresolved', $squadSummary['unique_starters'] > 11 ? 'present' : 'low', $squadSummary['unique_starters'] > 11 ? 'present' : 'low', $continuous['role_changes'], $continuous['opportunities']));
             if (!$equivalent) {
                 throw new RuntimeException('Continuous and midpoint-reload audit results diverged.');
             }
@@ -138,6 +168,16 @@ final class CareerSeasonAuditCommand implements CommandInterface
 
             $players = $this->installPlayers($database, $season, $seed);
             $population = $this->services->playerModule()->service()->populationService()->populate($database, $season, $seed);
+            $squadSnapshot = $this->captureSquad($database, self::CLUB_ID, $season);
+            $sampleClubs = $this->samplePremierLeagueClubs($database, $season);
+            $sampleSnapshots = [];
+            foreach ($sampleClubs as $sampleClubId) {
+                $sampleSnapshots[$sampleClubId] = $this->captureSquad($database, $sampleClubId, $season);
+            }
+            $leagueSnapshots = [];
+            foreach ($this->services->clubModule()->service()->byCompetition($database, self::COMPETITION_ID, $season->id()) as $club) {
+                $leagueSnapshots[$club->id()->value()] = $this->captureSquad($database, $club->id()->value(), $season);
+            }
             $matchService = $this->services->matchModule()->service();
             $fixtureCounts = [];
             foreach (['premier-league', 'la-liga', 'bundesliga', 'serie-a', 'ligue-1'] as $competitionId) {
@@ -180,6 +220,11 @@ final class CareerSeasonAuditCommand implements CommandInterface
             $standings = $matchService->standings($database, self::COMPETITION_ID, $season->id());
             $standingsRebuilt = $standings === $matchService->standings($database, self::COMPETITION_ID, $season->id());
             $metrics = $this->playerMetrics($database, $players, $season, $matches);
+            $squadMetrics = $this->fullSquadMetrics($database, self::CLUB_ID, $season, $matches, $squadSnapshot);
+            $sampleMetrics = [];
+            foreach ($sampleSnapshots as $sampleClubId => $sampleSnapshot) {
+                $sampleMetrics[$sampleClubId] = $this->squadSummary($this->fullSquadMetrics($database, $sampleClubId, $season, $matches, $sampleSnapshot));
+            }
             $resultMetrics = $this->leagueMetrics($completed, $standings);
             $availabilityMetrics = $this->availabilityMetrics($database, $completed, $players);
             $consistency = $this->consistency($database, $matchService, $completed, $players, $season, $standingsRebuilt);
@@ -194,6 +239,9 @@ final class CareerSeasonAuditCommand implements CommandInterface
                 'opportunities' => array_sum(array_column($metrics, 'open_opportunities')),
                 'reloaded_midpoint' => $reloadMidpoint,
                 'population' => $population,
+                'squad' => $squadMetrics,
+                'sample_clubs' => $sampleMetrics,
+                'league_population' => $this->leaguePopulationSummary($leagueSnapshots, $database, $season),
                 ...$resultMetrics,
                 ...$availabilityMetrics,
                 ...$consistency,
@@ -202,6 +250,373 @@ final class CareerSeasonAuditCommand implements CommandInterface
             unset($database);
             $this->removeIsolatedStorage($directory);
         }
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function captureSquad(DatabaseInterface $database, string $clubId, Season $season): array
+    {
+        $players = new PlayerRepository($database);
+        $squad = $this->services->clubModule()->service()->squadRepository($database);
+        $result = [];
+        foreach ($squad->byClub($clubId, $season->id()) as $membership) {
+            $player = $players->get($membership->playerId());
+            $history = $squad->roleHistory($membership->playerId(), $season->id());
+            $result[$player->id()->value()] = [
+                'player_id' => $player->id()->value(),
+                'position' => $player->primaryPosition()->value,
+                'age' => $player->ageAt($season->startDate()),
+                'initial_ovr' => $player->overallRating(),
+                'potential' => $player->potential(),
+                'profile' => $player->developmentProfile()->value,
+                'initial_role' => $history[0]['role'] ?? $membership->role()->value,
+                'initial_attributes' => $player->attributes()->toArray(),
+            ];
+        }
+        ksort($result, SORT_STRING);
+
+        return $result;
+    }
+
+    /** @return list<string> */
+    private function samplePremierLeagueClubs(DatabaseInterface $database, Season $season): array
+    {
+        $clubs = $this->services->clubModule()->service()->byCompetition($database, self::COMPETITION_ID, $season->id());
+        usort($clubs, static fn ($left, $right): int => ($right->reputation() <=> $left->reputation()) ?: strcmp($left->id()->value(), $right->id()->value()));
+        $ids = [$clubs[0]->id()->value(), $clubs[intdiv(count($clubs) - 1, 2)]->id()->value(), $clubs[count($clubs) - 1]->id()->value()];
+
+        return array_values(array_unique($ids));
+    }
+
+    /** @param list<GameMatch> $matches @param array<string, array<string, mixed>> $snapshot @return array<string, mixed> */
+    private function fullSquadMetrics(DatabaseInterface $database, string $clubId, Season $season, array $matches, array $snapshot): array
+    {
+        $clubMatches = array_values(array_filter($matches, static fn (GameMatch $match): bool => $match->homeClubId()->value() === $clubId || $match->awayClubId()->value() === $clubId));
+        usort($clubMatches, static fn (GameMatch $left, GameMatch $right): int => ($left->scheduledDate()->compareTo($right->scheduledDate())) ?: strcmp($left->id()->value(), $right->id()->value()));
+        $selectionRepository = new MatchSelectionRepository($database);
+        $statsRepository = new PlayerMatchStatRepository($database);
+        $availabilityRepository = new PlayerAvailabilityRepository($database);
+        $availability = new PlayerAvailabilityService();
+        $developmentRepository = new PlayerDevelopmentRepository($database);
+        $evaluationRepository = new CareerEvaluationRepository($database);
+        $squadRepository = $this->services->clubModule()->service()->squadRepository($database);
+        $playerRepository = new PlayerRepository($database);
+        $metrics = [];
+        foreach ($snapshot as $playerId => $initial) {
+            $metrics[$playerId] = $initial + [
+                'eligible_matches' => 0, 'starts' => 0, 'bench_selections' => 0, 'appearances' => 0, 'limited' => 0,
+                'minutes' => 0, 'non_selections' => 0, 'goals' => 0, 'unavailable' => 0,
+                'fatigue_absences' => 0, 'injury_matches_missed' => 0, 'bench_appearances' => 0,
+            ];
+        }
+        $previousStarters = [];
+        $rotationEvents = 0;
+        $injuryReplacementPlayers = [];
+        $fatigueRotationPlayers = [];
+        $actualStarterSlots = 0;
+        $benchSelections = 0;
+        $benchAppearances = 0;
+        $allStatsUsePersistedPlayers = true;
+        foreach ($clubMatches as $match) {
+            $selections = array_values(array_filter($selectionRepository->byMatch($match->id()), static fn ($selection): bool => $selection->clubId()->value() === $clubId));
+            $starters = [];
+            foreach ($selections as $selection) {
+                $playerId = $selection->playerId()->value();
+                if (!isset($metrics[$playerId])) {
+                    continue;
+                }
+                ++$metrics[$playerId]['eligible_matches'];
+                if ($selection->status()->value === 'starter') {
+                    ++$metrics[$playerId]['starts'];
+                    ++$actualStarterSlots;
+                    $starters[$playerId] = true;
+                } elseif ($selection->status()->value === 'bench') {
+                    ++$metrics[$playerId]['bench_selections'];
+                    ++$benchSelections;
+                } elseif ($selection->status()->value === 'unavailable') {
+                    ++$metrics[$playerId]['unavailable'];
+                } else {
+                    ++$metrics[$playerId]['non_selections'];
+                }
+                $assessment = $availability->assess($database, $selection->playerId(), $match->scheduledDate());
+                $injury = $assessment->injury();
+                if ($assessment->status()->value === 'limited') {
+                    ++$metrics[$playerId]['limited'];
+                }
+                if ($selection->status()->value !== 'starter' && $injury === null && $assessment->fatigue() >= 50) {
+                    ++$metrics[$playerId]['fatigue_absences'];
+                    $fatigueRotationPlayers[$playerId] = true;
+                }
+                if ($selection->status()->value === 'unavailable' && $this->hasActiveInjury($availabilityRepository->byPlayer($selection->playerId()), $match->scheduledDate())) {
+                    ++$metrics[$playerId]['injury_matches_missed'];
+                }
+            }
+            $currentStarterIds = array_keys($starters);
+            sort($currentStarterIds, SORT_STRING);
+            if ($previousStarters !== [] && $previousStarters !== $currentStarterIds) {
+                ++$rotationEvents;
+                foreach (array_diff($previousStarters, $currentStarterIds) as $previousPlayerId) {
+                    foreach ($availabilityRepository->byPlayer(new PlayerId($previousPlayerId)) as $injury) {
+                        if ($injury->isActiveAt($match->scheduledDate())) {
+                            foreach (array_diff($currentStarterIds, $previousStarters) as $replacementPlayerId) {
+                                $injuryReplacementPlayers[$replacementPlayerId] = true;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            $previousStarters = $currentStarterIds;
+            foreach ($statsRepository->byMatch($match->id()) as $stat) {
+                if ($stat->clubId()->value() !== $clubId) {
+                    continue;
+                }
+                if (!isset($metrics[$stat->playerId()->value()])) {
+                    $allStatsUsePersistedPlayers = false;
+                    continue;
+                }
+                if ($stat->appeared()) {
+                    ++$metrics[$stat->playerId()->value()]['appearances'];
+                    $metrics[$stat->playerId()->value()]['minutes'] += $stat->minutes();
+                    $metrics[$stat->playerId()->value()]['goals'] += $stat->goals();
+                    if (isset($metrics[$stat->playerId()->value()]) && $metrics[$stat->playerId()->value()]['bench_selections'] > 0 && !$stat->started()) {
+                        ++$metrics[$stat->playerId()->value()]['bench_appearances'];
+                        ++$benchAppearances;
+                    }
+                }
+            }
+        }
+        $injuryCounts = ['minor' => 0, 'moderate' => 0, 'major' => 0];
+        $injuriesTotal = 0;
+        $recoveries = 0;
+        $injuryMatchesMissed = 0;
+        foreach ($metrics as $playerId => &$metric) {
+            $player = $playerRepository->get($playerId);
+            $metric['end_ovr'] = $player->overallRating();
+            $metric['role_changes'] = count(array_filter($squadRepository->roleHistory($player->id(), $season->id()), static fn (array $row): bool => $row['source'] === 'evaluation'));
+            $membership = $squadRepository->byPlayer($player->id(), $season->id())[0] ?? null;
+            $metric['final_role'] = $membership?->role()->value;
+            $scores = array_values(array_filter(array_map(static fn (array $row): int => (int) $row['evaluation_score'], $evaluationRepository->byPlayer($player->id(), new ClubId($clubId))), static fn (int $score): bool => $score > 0));
+            $metric['average_evaluation'] = $scores === [] ? 0.0 : round(array_sum($scores) / count($scores), 1);
+            $metric['injuries'] = count($availabilityRepository->byPlayer($player->id()));
+            $injuriesTotal += $metric['injuries'];
+            foreach ($availabilityRepository->byPlayer($player->id()) as $injury) {
+                ++$injuryCounts[$injury->severity()->value];
+                if ($injury->status()->value === 'recovered') {
+                    ++$recoveries;
+                }
+            }
+            $injuryMatchesMissed += $metric['injury_matches_missed'];
+            $metric['fatigue'] = $availability->assess($database, $player->id(), $season->endDate())->fatigue();
+            $metric['training_events'] = count(array_filter($developmentRepository->byPlayer($player->id()), static fn ($entry): bool => $entry->source() === 'training'));
+            $metric['match_development_events'] = count(array_filter($developmentRepository->byPlayer($player->id()), static fn ($entry): bool => $entry->source() === 'match'));
+            $metric['total_attribute_gain'] = array_sum($player->attributes()->toArray()) - array_sum($metric['initial_attributes']);
+        }
+        unset($metric);
+        uasort($metrics, static fn (array $left, array $right): int => ($right['starts'] <=> $left['starts']) ?: (($right['minutes'] <=> $left['minutes']) ?: strcmp($left['player_id'], $right['player_id'])));
+        $initialScores = $this->initialSelectionScores($snapshot);
+        $career = $metrics[self::CAREER_PLAYER_ID] ?? null;
+        $ovrValues = array_map(static fn (array $metric): int => $metric['end_ovr'], array_values($metrics));
+        sort($ovrValues, SORT_NUMERIC);
+        $gains = array_map(static fn (array $metric): int => $metric['end_ovr'] - $metric['initial_ovr'], array_values($metrics));
+        sort($gains, SORT_NUMERIC);
+        $starterMetrics = array_values(array_filter($metrics, static fn (array $metric): bool => $metric['starts'] > 0));
+        $fringeMetrics = array_values(array_filter($metrics, static fn (array $metric): bool => $metric['starts'] === 0));
+        $profileGains = [];
+        foreach ($metrics as $metric) {
+            $profile = $metric['profile'];
+            $profileGains[$profile][] = $metric['end_ovr'] - $metric['initial_ovr'];
+        }
+        foreach ($profileGains as $profile => $profileValues) {
+            $profileGains[$profile] = round(array_sum($profileValues) / count($profileValues), 2);
+        }
+        $meanOvr = $ovrValues === [] ? 0.0 : array_sum($ovrValues) / count($ovrValues);
+        $variance = $ovrValues === [] ? 0.0 : array_sum(array_map(static fn (int $ovr): float => ($ovr - $meanOvr) ** 2, $ovrValues)) / count($ovrValues);
+        $quality = array_values($metrics);
+        usort($quality, static fn (array $left, array $right): int => ($right['end_ovr'] <=> $left['end_ovr']) ?: strcmp($left['player_id'], $right['player_id']));
+        $topQuality = array_slice($quality, 0, 5);
+        $bottomQuality = array_slice(array_reverse($quality), 0, 5);
+        $summary = [
+            'club_id' => $clubId,
+            'matches' => count($clubMatches),
+            'squad_size' => count($metrics),
+            'expected_starter_slots' => count($clubMatches) * 11,
+            'actual_starter_slots' => $actualStarterSlots,
+            'unique_starters' => count(array_filter($metrics, static fn (array $metric): bool => $metric['starts'] > 0)),
+            'players_with_starts' => count(array_filter($metrics, static fn (array $metric): bool => $metric['starts'] > 0)),
+            'players_with_appearances' => count(array_filter($metrics, static fn (array $metric): bool => $metric['appearances'] > 0)),
+            'players_never_selected' => count(array_filter($metrics, static fn (array $metric): bool => $metric['starts'] === 0 && $metric['bench_selections'] === 0)),
+            'players_never_appeared' => count(array_filter($metrics, static fn (array $metric): bool => $metric['appearances'] === 0)),
+            'distinct_bench_players' => count(array_filter($metrics, static fn (array $metric): bool => $metric['bench_selections'] > 0)),
+            'bench_selections' => $benchSelections,
+            'bench_appearances' => $benchAppearances,
+            'total_player_minutes' => array_sum(array_column($metrics, 'minutes')),
+            'rotation_events' => $rotationEvents,
+            'fatigue_rotation_players' => array_keys($fatigueRotationPlayers),
+            'injury_replacement_players' => array_keys($injuryReplacementPlayers),
+            'injuries_total' => $injuriesTotal,
+            'minor_injuries' => $injuryCounts['minor'],
+            'moderate_injuries' => $injuryCounts['moderate'],
+            'major_injuries' => $injuryCounts['major'],
+            'injury_matches_missed' => $injuryMatchesMissed,
+            'recoveries' => $recoveries,
+            'top11_start_share' => $actualStarterSlots === 0 ? 0.0 : round(array_sum(array_column(array_slice(array_values($metrics), 0, 11), 'starts')) / $actualStarterSlots * 100, 1),
+            'ovr_min' => $ovrValues[0] ?? 0,
+            'ovr_max' => $ovrValues === [] ? 0 : $ovrValues[count($ovrValues) - 1],
+            'ovr_avg' => $ovrValues === [] ? 0.0 : round(array_sum($ovrValues) / count($ovrValues), 1),
+            'ovr_median' => $this->median($ovrValues),
+            'ovr_stddev' => round(sqrt($variance), 2),
+            'ovr_gain_min' => $gains[0] ?? 0,
+            'ovr_gain_max' => $gains === [] ? 0 : $gains[count($gains) - 1],
+            'ovr_gain_avg' => $gains === [] ? 0.0 : round(array_sum($gains) / count($gains), 2),
+            'starter_gain_avg' => $starterMetrics === [] ? 0.0 : round(array_sum(array_map(static fn (array $metric): int => $metric['end_ovr'] - $metric['initial_ovr'], $starterMetrics)) / count($starterMetrics), 2),
+            'fringe_gain_avg' => $fringeMetrics === [] ? 0.0 : round(array_sum(array_map(static fn (array $metric): int => $metric['end_ovr'] - $metric['initial_ovr'], $fringeMetrics)) / count($fringeMetrics), 2),
+            'profile_gain_avg' => $profileGains,
+            'quality_top5' => array_values(array_map(static fn (array $metric): array => ['id' => $metric['player_id'], 'ovr' => $metric['end_ovr']], $topQuality)),
+            'quality_bottom5' => array_values(array_map(static fn (array $metric): array => ['id' => $metric['player_id'], 'ovr' => $metric['end_ovr']], $bottomQuality)),
+            'real_player_match_path' => $allStatsUsePersistedPlayers && $actualStarterSlots === count($clubMatches) * 11,
+            'aggregate_fallback_used' => !$allStatsUsePersistedPlayers || $actualStarterSlots !== count($clubMatches) * 11,
+            'age_min' => min(array_column($snapshot, 'age')),
+            'age_max' => max(array_column($snapshot, 'age')),
+            'age_avg' => round(array_sum(array_column($snapshot, 'age')) / count($snapshot), 1),
+            'position_counts' => $this->countField($snapshot, 'position'),
+            'role_counts' => $this->countField($snapshot, 'initial_role'),
+            'role_groups' => $this->roleGroups($metrics),
+            'starts_distribution' => array_values(array_map(static fn (array $metric): int => $metric['starts'], array_values($metrics))),
+            'selection_score_range' => [$initialScores['min'], $initialScores['max']],
+            'career_selection_score' => $initialScores['career'],
+            'starter_cutoff' => $initialScores['starter_cutoff'],
+            'bench_cutoff' => $initialScores['bench_cutoff'],
+            'career_depth_rank_overall' => $this->depthRank($snapshot, self::CAREER_PLAYER_ID, null),
+            'career_depth_rank_position' => $this->depthRank($snapshot, self::CAREER_PLAYER_ID, $snapshot[self::CAREER_PLAYER_ID]['position'] ?? null),
+            'career_player' => $career,
+        ];
+
+        return ['summary' => $summary, 'players' => array_values($metrics)];
+    }
+
+    /** @param array<string, array<string, mixed>> $snapshot @return array{min:int,max:int,career:int,starter_cutoff:int,bench_cutoff:int} */
+    private function initialSelectionScores(array $snapshot): array
+    {
+        $scores = [];
+        foreach ($snapshot as $playerId => $player) {
+            $scores[$playerId] = SquadRole::from($player['initial_role'])->weight() + ($player['initial_ovr'] * 10);
+        }
+        arsort($scores, SORT_NUMERIC);
+        $ordered = array_values($scores);
+
+        return ['min' => min($ordered), 'max' => max($ordered), 'career' => $scores[self::CAREER_PLAYER_ID] ?? 0, 'starter_cutoff' => $ordered[10] ?? 0, 'bench_cutoff' => $ordered[17] ?? 0];
+    }
+
+    /** @param array<string, array<string, mixed>> $snapshot */
+    private function depthRank(array $snapshot, string $playerId, ?string $position): int
+    {
+        $players = array_filter($snapshot, static fn (array $player): bool => $position === null || $player['position'] === $position);
+        uasort($players, static fn (array $left, array $right): int => ($right['initial_ovr'] <=> $left['initial_ovr']) ?: strcmp($left['player_id'], $right['player_id']));
+        $rank = 1;
+        foreach ($players as $id => $_) {
+            if ($id === $playerId) {
+                return $rank;
+            }
+            ++$rank;
+        }
+
+        return 0;
+    }
+
+    /** @param array<string, array<string, mixed>> $metrics @return array<string, array<string, float|int>> */
+    private function roleGroups(array $metrics): array
+    {
+        $groups = [];
+        foreach ($metrics as $metric) {
+            $role = $metric['initial_role'];
+            $groups[$role]['players'] = ($groups[$role]['players'] ?? 0) + 1;
+            $groups[$role]['ovr'] = ($groups[$role]['ovr'] ?? 0) + $metric['end_ovr'];
+            $groups[$role]['starts'] = ($groups[$role]['starts'] ?? 0) + $metric['starts'];
+            $groups[$role]['bench_selections'] = ($groups[$role]['bench_selections'] ?? 0) + $metric['bench_selections'];
+            $groups[$role]['minutes'] = ($groups[$role]['minutes'] ?? 0) + $metric['minutes'];
+        }
+        foreach ($groups as $role => $group) {
+            $groups[$role]['avg_ovr'] = round($group['ovr'] / $group['players'], 1);
+            $groups[$role]['avg_starts'] = round($group['starts'] / $group['players'], 1);
+            $groups[$role]['avg_bench_selections'] = round($group['bench_selections'] / $group['players'], 1);
+            $groups[$role]['avg_minutes'] = round($group['minutes'] / $group['players'], 1);
+            unset($groups[$role]['ovr'], $groups[$role]['starts'], $groups[$role]['bench_selections'], $groups[$role]['minutes']);
+        }
+
+        ksort($groups, SORT_STRING);
+
+        return $groups;
+    }
+
+    /** @param array<string, array<string, mixed>> $snapshot @return array<string, int> */
+    private function countField(array $snapshot, string $field): array
+    {
+        $counts = [];
+        foreach ($snapshot as $player) {
+            $value = (string) $player[$field];
+            $counts[$value] = ($counts[$value] ?? 0) + 1;
+        }
+        ksort($counts, SORT_STRING);
+
+        return $counts;
+    }
+
+    /** @param list<int> $values */
+    private function median(array $values): float
+    {
+        if ($values === []) {
+            return 0.0;
+        }
+        $middle = intdiv(count($values), 2);
+
+        return count($values) % 2 === 0 ? ($values[$middle - 1] + $values[$middle]) / 2 : (float) $values[$middle];
+    }
+
+    /** @param list<\Goal\Legacy\Modules\Player\Domain\Injury> $injuries */
+    private function hasActiveInjury(array $injuries, SimulationDate $date): bool
+    {
+        foreach ($injuries as $injury) {
+            if ($injury->isActiveAt($date)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param array<string, array<string, mixed>> $metrics @return array<string, mixed> */
+    private function squadSummary(array $metrics): array
+    {
+        $summary = $metrics['summary'];
+        unset($summary['career_player']);
+
+        return $summary;
+    }
+
+    /** @param array<string, array<string, mixed>> $snapshots @return array<string, mixed> */
+    private function leaguePopulationSummary(array $snapshots, DatabaseInterface $database, Season $season): array
+    {
+        $players = [];
+        $roles = [];
+        $positions = [];
+        $ovrs = [];
+        $ages = [];
+        foreach ($snapshots as $snapshot) {
+            foreach ($snapshot as $player) {
+                $players[$player['player_id']] = true;
+                $roles[$player['initial_role']] = ($roles[$player['initial_role']] ?? 0) + 1;
+                $positions[$player['position']] = ($positions[$player['position']] ?? 0) + 1;
+                $ovrs[] = $player['initial_ovr'];
+                $ages[] = $player['age'];
+            }
+        }
+        $starts = (int) $database->connection()->query("SELECT COUNT(DISTINCT player_id) FROM match_player_stats WHERE started = 1")->fetchColumn();
+        $appearances = (int) $database->connection()->query("SELECT COUNT(DISTINCT player_id) FROM match_player_stats WHERE appeared = 1")->fetchColumn();
+        sort($ovrs, SORT_NUMERIC);
+        ksort($roles, SORT_STRING);
+        ksort($positions, SORT_STRING);
+
+        return ['players' => count($players), 'players_with_starts' => $starts, 'players_with_appearances' => $appearances, 'role_distribution' => $roles, 'position_distribution' => $positions, 'ovr_min' => $ovrs[0] ?? 0, 'ovr_max' => $ovrs === [] ? 0 : $ovrs[count($ovrs) - 1], 'ovr_avg' => $ovrs === [] ? 0.0 : round(array_sum($ovrs) / count($ovrs), 1), 'ovr_median' => $this->median($ovrs), 'age_min' => $ages === [] ? 0 : min($ages), 'age_max' => $ages === [] ? 0 : max($ages), 'age_avg' => $ages === [] ? 0.0 : round(array_sum($ages) / count($ages), 1)];
     }
 
     /** @return list<array<string, mixed>> */
@@ -389,6 +804,23 @@ final class CareerSeasonAuditCommand implements CommandInterface
         $rates = array_map(static fn (array $player): float => (float) $player['selection_percentage'], $players);
 
         return $rates !== [] && (max($rates) - min($rates)) >= 20.0;
+    }
+
+    /** @param array<string, int|float> $counts */
+    private function formatCounts(array $counts): string
+    {
+        $parts = [];
+        foreach ($counts as $key => $count) {
+            $parts[] = $key . ':' . $count;
+        }
+
+        return implode(',', $parts);
+    }
+
+    /** @param list<array{id:string,ovr:int}> $players */
+    private function formatQuality(array $players): string
+    {
+        return implode(',', array_map(static fn (array $player): string => $player['id'] . ':' . $player['ovr'], $players));
     }
 
     /** @param list<string> $arguments */

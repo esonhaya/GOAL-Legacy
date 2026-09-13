@@ -110,6 +110,7 @@ final class CompetitionContentLoader
                 $package->manifest()->id(),
                 $package->manifest()->version(),
                 $schemaVersion,
+                isset($record['maximum_substitutions']) ? (int) $record['maximum_substitutions'] : 5,
             );
         } catch (\Throwable $exception) {
             throw new CompetitionException(sprintf('Competition record %d in package "%s" is invalid: %s', $index, $package->manifest()->id(), $exception->getMessage()), 0, $exception);

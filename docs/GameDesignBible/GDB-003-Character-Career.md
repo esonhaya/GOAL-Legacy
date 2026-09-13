@@ -74,9 +74,13 @@ required for ordinary role promotion or demotion, preventing one Match from
 flapping a role.
 
 Career opportunities are durable structured records referencing Player and
-Club IDs. Phase 1 supports role and playing-time opportunities; accepting or
-declining an opportunity does not execute a Transfer. The controlled career
-Player receives no selection, ability, or opportunity bonus.
+Club IDs. Phase 1 supports role and playing-time opportunities plus a bounded
+transfer-offer path for the controlled career Player. Interest is evaluated at
+an explicit monthly checkpoint across the Player's current competition, and
+only a small deterministic shortlist is persisted as actionable offers.
+Accepting an offer hands the agreed transaction to the existing Transfer
+Service; declining or expiring one leaves the current Club state unchanged.
+The controlled career Player receives no selection, ability, or market bonus.
 
 ## DOMAIN-009 Availability and Recovery
 
@@ -95,7 +99,11 @@ Players in the same Club squad and uses the same selection, availability,
 development, and Match paths. Generated Players are mutable save state, not
 static licensed content, and the controlled Player receives no population
 or selection bonus. The initial population phase does not include reserves,
-youth academies, retirement, or transfer-market behavior.
+youth academies, retirement, or autonomous NPC market behavior. Phase-1
+career movement does not implement scouting, negotiation, Club budgets, loans,
+or NPC-to-NPC market simulation; transfer fees and proposed wages are
+structured offer metadata while Contract and Transfer records remain owned by
+their existing modules.
 
 ---
 

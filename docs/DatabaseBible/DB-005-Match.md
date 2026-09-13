@@ -228,8 +228,9 @@ records that participate. Matchday selection uses broad position groups for a
 minimal structural XI (one goalkeeper, four defensive, three midfield, and
 three attacking slots where coverage exists, with best-available fallback),
 then constructs a seven-Player positional-cover bench. A bounded deterministic
-substitution policy may replace up to three starters between minutes 55 and
-89; starter plus incoming Player minutes reconcile to 990 team minutes for a
+substitution policy may replace one to three starters between minutes 55 and
+89 under the Competition default maximum of five substitutions per team;
+starter plus incoming Player minutes reconcile to 990 team minutes for a
 standard full XI. Substitution records are Match-owned historical records.
 A Club without a persisted roster uses its aggregate Club strength for
 simulation and does not receive synthetic Player records.

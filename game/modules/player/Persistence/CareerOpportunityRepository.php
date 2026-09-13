@@ -56,7 +56,7 @@ final class CareerOpportunityRepository
 
     public function updateStatusInTransaction(CareerOpportunity $opportunity, CareerOpportunityStatus $status): void
     {
-        $this->database->connection()->prepare('UPDATE ' . self::TABLE . ' SET status = :status WHERE id = :id')->execute(['status' => $status->value, 'id' => $opportunity->id()]);
+        $this->database->connection()->prepare('UPDATE ' . self::TABLE . ' SET status = :status, context_json = :context_json WHERE id = :id')->execute(['status' => $status->value, 'context_json' => json_encode($opportunity->context(), JSON_THROW_ON_ERROR), 'id' => $opportunity->id()]);
     }
 
     /** @param array<string, mixed> $row */

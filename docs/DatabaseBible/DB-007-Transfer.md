@@ -96,6 +96,16 @@ DOMAIN-005 Phase 1 supports agreed permanent Player transfers. A Transfer
 stores Player ID, source Club ID, destination Club ID, Season ID, effective
 date, and a non-negative integer fee in the smallest currency unit.
 
+DOMAIN-012 adds a bounded career-facing offer projection without changing
+Transfer ownership. The career movement service evaluates the controlled
+Player at explicit SimulationDate checkpoints, persists only deterministic
+structured offers as CareerOpportunity records, and hands an accepted agreed
+transfer to TransferService. Offer context may include proposed fee, wage,
+Contract end date, destination role, positional fit, and reason codes; these
+are descriptive decision data, not Club balances or negotiation state. NPC
+market-wide generation, scouting, negotiation, loans, and transfer windows
+remain deferred.
+
 ---
 
 # Transfer Type

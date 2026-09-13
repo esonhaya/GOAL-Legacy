@@ -243,6 +243,10 @@ Coordinates and persists Player movement transactions. It validates and
 executes coherent transitions across Contract, squad membership, and
 Competition registration services.
 
+DOMAIN-012's bounded CareerMovementService is a Player-career decision layer
+over this module: it evaluates checkpointed interest and stores offer metadata
+through CareerOpportunity, while this module remains the only execution path.
+
 Never Owns
 
 - Player or Club records

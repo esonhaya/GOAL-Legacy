@@ -144,6 +144,10 @@ Competition rules include:
 
 Rules are configurable.
 
+The Phase-1 modern league default permits up to five substitutions per team.
+The Match simulator may use a smaller deterministic number in an individual
+Match; this is a simulation policy, not a lower Competition rule maximum.
+
 ---
 
 # Qualification

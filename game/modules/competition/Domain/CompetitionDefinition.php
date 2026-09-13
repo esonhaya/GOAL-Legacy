@@ -18,6 +18,7 @@ final readonly class CompetitionDefinition
         private string $sourcePackageId,
         private string $sourcePackageVersion,
         private int $sourceSchemaVersion,
+        private int $maximumSubstitutions = 5,
     ) {
         if (trim($name) === '' || trim($shortName) === '') {
             throw new InvalidArgumentException('Competition names cannot be empty.');
@@ -30,6 +31,9 @@ final readonly class CompetitionDefinition
         }
         if ($sourceSchemaVersion < 1) {
             throw new InvalidArgumentException('Competition content schema version must be positive.');
+        }
+        if ($maximumSubstitutions < 1 || $maximumSubstitutions > 5) {
+            throw new InvalidArgumentException('Competition maximum substitutions must be between 1 and 5.');
         }
     }
 
@@ -48,4 +52,6 @@ final readonly class CompetitionDefinition
     public function sourcePackageVersion(): string { return $this->sourcePackageVersion; }
 
     public function sourceSchemaVersion(): int { return $this->sourceSchemaVersion; }
+
+    public function maximumSubstitutions(): int { return $this->maximumSubstitutions; }
 }

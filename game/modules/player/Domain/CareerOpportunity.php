@@ -9,7 +9,7 @@ use Goal\Legacy\Modules\World\Domain\SimulationDate;
 
 final readonly class CareerOpportunity
 {
-    /** @param array<string, scalar|null> $context */
+    /** @param array<string, mixed> $context */
     public function __construct(private string $id, private PlayerId $playerId, private CareerOpportunityType $type, private ClubId $sourceClubId, private ?ClubId $targetClubId, private SimulationDate $createdDate, private ?SimulationDate $expiryDate, private CareerOpportunityStatus $status, private array $context, private string $sourceKey)
     {
     }
@@ -22,13 +22,19 @@ final readonly class CareerOpportunity
     public function createdDate(): SimulationDate { return $this->createdDate; }
     public function expiryDate(): ?SimulationDate { return $this->expiryDate; }
     public function status(): CareerOpportunityStatus { return $this->status; }
-    /** @return array<string, scalar|null> */
+    /** @return array<string, mixed> */
     public function context(): array { return $this->context; }
     public function sourceKey(): string { return $this->sourceKey; }
 
     public function withStatus(CareerOpportunityStatus $status): self
     {
         return new self($this->id, $this->playerId, $this->type, $this->sourceClubId, $this->targetClubId, $this->createdDate, $this->expiryDate, $status, $this->context, $this->sourceKey);
+    }
+
+    /** @param array<string, mixed> $context */
+    public function withStatusAndContext(CareerOpportunityStatus $status, array $context): self
+    {
+        return new self($this->id, $this->playerId, $this->type, $this->sourceClubId, $this->targetClubId, $this->createdDate, $this->expiryDate, $status, $context, $this->sourceKey);
     }
 
     /** @return array<string, mixed> */

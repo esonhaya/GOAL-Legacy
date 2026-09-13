@@ -35,6 +35,16 @@ Competition Module, and Transfer coordinates their transactional transition.
 Negotiation AI, transfer windows, loans, scouting, agents, releases, and Club
 finance are deferred.
 
+DOMAIN-012 implementation boundary: CareerMovementService is a bounded
+Player-decision layer over this existing TransferService. It evaluates only
+the controlled career Player at explicit checkpoints within the current
+competition, persists transfer offers as structured CareerOpportunity records,
+and never auto-accepts an offer. Accepting an open offer creates the agreed
+Transfer and calls TransferService; that service remains the only owner of
+Contract, squad, registration, and Transfer state transitions. Offer expiry,
+stale-state validation, and source-key idempotency are handled without a
+global market scan or negotiation engine.
+
 ---
 
 # Responsibilities

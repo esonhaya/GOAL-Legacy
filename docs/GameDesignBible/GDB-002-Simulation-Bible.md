@@ -19,7 +19,8 @@ lines. Repeating the same Match context produces the same result.
 Completed Match results are the source of truth for the seasonal standings
 projection. DOMAIN-011 uses broad position groups to build a minimal
 structural XI and seven-Player bench, then applies a deterministic one-to-three
-substitution policy between minutes 55 and 89. Substitutes receive real Match
+substitution policy between minutes 55 and 89 within the modern Competition
+maximum of five substitutions per team. Substitutes receive real Match
 minutes and therefore use the existing fatigue, development, form, and
 expectation paths; no formation or tactical role engine is implied.
 Interactive controls, tactics, discipline, in-match injury chains, weather,

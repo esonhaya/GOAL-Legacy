@@ -28,6 +28,11 @@ final class TransferService
     public function repository(DatabaseInterface $database): TransferRepository { return new TransferRepository($database); }
     public function save(DatabaseInterface $database, Transfer $transfer): void { $this->repository($database)->save($transfer); }
 
+    public function careerMovement(): CareerMovementService
+    {
+        return new CareerMovementService($this, $this->contractService, $this->clubService, $this->competitionService, $this->events);
+    }
+
     public function execute(DatabaseInterface $database, Transfer $transfer, TransferExecutionTerms $terms): Transfer
     {
         if ($transfer->status()->value !== 'agreed') { throw new TransferException('Only agreed Transfers can be executed.'); }
@@ -54,7 +59,7 @@ final class TransferService
             $destinationContract = Contract::forDate($terms->destinationContractId, $transfer->playerId(), $transfer->destinationClubId(), $transfer->effectiveDate(), $terms->contractEndDate, $terms->wage, $transfer->effectiveDate());
             if ($destinationContract->status() !== ContractStatus::Active) { throw new TransferException('Destination Contract must be active at the transfer effective date.'); }
             $contractRepository->saveInTransaction($destinationContract);
-            $destinationSquad = new ClubSquadMembership($transfer->destinationClubId(), $transfer->playerId(), $transfer->seasonId());
+            $destinationSquad = new ClubSquadMembership($transfer->destinationClubId(), $transfer->playerId(), $transfer->seasonId(), $terms->destinationRole);
             $squadRepository->save($destinationSquad);
             foreach ($clubMembershipRepository->byClub($transfer->destinationClubId()) as $membership) {
                 if ($membership->seasonId()->value() !== $transfer->seasonId()->value()) { continue; }

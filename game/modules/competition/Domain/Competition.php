@@ -29,6 +29,8 @@ final readonly class Competition
 
     public function type(): CompetitionType { return $this->definition->type(); }
 
+    public function maximumSubstitutions(): int { return $this->definition->maximumSubstitutions(); }
+
     public function nationId(): \Goal\Legacy\Modules\Nation\Domain\NationId { return $this->definition->nationId(); }
 
     public function status(): CompetitionStatus { return $this->status; }
@@ -76,6 +78,7 @@ final readonly class Competition
             'source_schema_version' => $this->definition->sourceSchemaVersion(),
             'status' => $this->status->value,
             'type' => $this->type()->value,
+            'maximum_substitutions' => $this->maximumSubstitutions(),
         ];
     }
 }

@@ -32,7 +32,8 @@ synthetic round-robin league fixtures, aggregate Club strength with optional
 eligible Player OVR contribution, bounded score generation, minimal Player
 stat lines, structured goal highlights, and standings rebuilt from completed
 results. DOMAIN-011 adds a minimal broad-position Matchday XI, positional-cover
-bench, and deterministic up-to-three substitution records/minutes without
+bench, and deterministic substitution records/minutes within the Competition
+maximum of five (the current policy selects up to three) without
 introducing formations, tactics, or a minute-by-minute engine. Interactive
 matches, tactical instructions, discipline, in-match injury chains, weather,
 and live controls remain deferred.

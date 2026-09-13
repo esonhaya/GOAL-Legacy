@@ -9,6 +9,7 @@ use Goal\Legacy\Modules\Club\ClubService;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
+use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 
@@ -34,6 +35,7 @@ final class PlayerCareerProgressionQuery
             'development_profile' => $player->developmentProfile()->value,
             'training_focus' => $development->state($database, $id)->currentFocus()?->value,
             'career_stats' => $statistics->career($database, $id),
+            'transfer_history' => array_map(static fn ($transfer): array => $transfer->toArray(), (new TransferRepository($database))->byPlayer($id)),
             'recent_development' => array_map(static fn ($entry): array => $entry->toArray(), array_slice(array_reverse($development->history($database, $id)), 0, 5)),
             'availability' => $availability->status()->value,
             'fatigue' => $availability->fatigue(),

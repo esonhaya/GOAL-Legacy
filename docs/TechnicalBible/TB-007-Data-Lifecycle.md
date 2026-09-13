@@ -151,6 +151,11 @@ recent form, and expectations are rebuildable projections.
 ✓ Career opportunities are Career-durable structured records owned by the
 Player career boundary and reference Player/Club IDs without embedding them.
 
+✓ DOMAIN-012 transfer offers reuse those CareerOpportunity records. Offer
+context is durable decision metadata until decline, expiry, or completion;
+accepted movement becomes a normal Transfer record owned by the Transfer
+Module. Transfer fees and proposed wages do not create a finance ledger.
+
 ✓ Player fatigue/load state is Career-durable current state and is recovered
 from its last processed SimulationDate on demand. Match and training source
 keys make load application idempotent.

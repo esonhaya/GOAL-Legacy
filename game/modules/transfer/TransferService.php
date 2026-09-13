@@ -15,6 +15,7 @@ use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Contract\Domain\Contract;
 use Goal\Legacy\Modules\Contract\Domain\ContractStatus;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
+use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Transfer\Domain\Transfer;
 use Goal\Legacy\Modules\Transfer\Domain\TransferEventNames;
 use Goal\Legacy\Modules\Transfer\Domain\TransferExecutionTerms;
@@ -36,6 +37,7 @@ final class TransferService
     public function execute(DatabaseInterface $database, Transfer $transfer, TransferExecutionTerms $terms): Transfer
     {
         if ($transfer->status()->value !== 'agreed') { throw new TransferException('Only agreed Transfers can be executed.'); }
+        if ((new PlayerRepository($database))->get($transfer->playerId())->isRetired()) { throw new TransferException('Retired Players cannot be transferred.'); }
         if ($terms->contractEndDate->isBefore($transfer->effectiveDate())) { throw new TransferException('Destination Contract must end on or after the transfer effective date.'); }
         $contractRepository = $this->contractService->repository($database);
         $squadRepository = $this->clubService->squadRepository($database);

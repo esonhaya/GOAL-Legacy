@@ -310,7 +310,11 @@ registers Players with active Contracts, and generates fixtures through the
 Competition and Match services. This coordination is bounded by the World
 competition scope and is retry-safe through existing repository identities.
 
-The service does not own Match simulation, Player development, finance,
-promotion/relegation, retirement, newgens, or autonomous recruitment.
+The service does not own Match simulation, finance, promotion/relegation, or
+autonomous recruitment. At the same boundary it invokes the Player lifecycle
+owner for once-per-Season age/decline and retirement, then invokes the existing
+population owner for deterministic newgen vacancies. Retired historical
+Players are preserved; newgens are normal Player entities rather than a
+parallel type.
 
 END OF DOCUMENT

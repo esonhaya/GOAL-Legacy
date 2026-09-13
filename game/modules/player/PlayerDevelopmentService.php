@@ -128,6 +128,50 @@ final class PlayerDevelopmentService
         return (new PlayerDevelopmentRepository($database))->byPlayer($id);
     }
 
+    /**
+     * Apply the once-per-Season age lifecycle adjustment. This deliberately
+     * shares the normal development history so a rollover retry is harmless.
+     */
+    public function applySeasonLifecycleInTransaction(DatabaseInterface $database, PlayerId $playerId, SimulationDate $date, string $seasonSourceId): DevelopmentApplicationResult
+    {
+        $development = new PlayerDevelopmentRepository($database);
+        if ($development->hasSource($playerId, 'season_lifecycle', $seasonSourceId)) {
+            $entry = $development->bySource($playerId, 'season_lifecycle', $seasonSourceId);
+            if ($entry === null) {
+                throw new \RuntimeException('Lifecycle source was reported as processed but could not be loaded.');
+            }
+
+            return new DevelopmentApplicationResult($playerId, 'season_lifecycle', $seasonSourceId, $entry->attributeDeltas(), $entry->beforeOverall(), $entry->afterOverall(), false);
+        }
+        $players = new PlayerRepository($database);
+        $player = $players->get($playerId);
+        $before = $player->overallRating();
+        $deltas = $this->seasonalDecline($player, $date);
+        if ($deltas !== []) {
+            $attributes = $player->attributes()->toArray();
+            foreach ($deltas as $attribute => $delta) {
+                $attributes[$attribute] = max(0, $attributes[$attribute] + $delta);
+            }
+            $players->saveInTransaction($player->withAttributes(new PlayerAttributeSet(...array_values($attributes))));
+        }
+        $state = $development->state($playerId);
+        $development->saveStateInTransaction($state->withProgress($state->progress(), $date, $state->currentFocus()));
+        $after = $deltas === [] ? $before : $players->get($playerId)->overallRating();
+        $entry = new DevelopmentHistoryEntry(
+            hash('sha256', $playerId->value() . '|season_lifecycle|' . $seasonSourceId),
+            $playerId,
+            $date,
+            'season_lifecycle',
+            $seasonSourceId,
+            $deltas,
+            $before,
+            $after,
+        );
+        $development->saveHistoryInTransaction($entry);
+
+        return new DevelopmentApplicationResult($playerId, 'season_lifecycle', $seasonSourceId, $deltas, $before, $after, true);
+    }
+
     private function trainingStimulus(DatabaseInterface $database, TrainingRequest $request): int
     {
         $player = (new PlayerRepository($database))->get($request->playerId());
@@ -225,10 +269,53 @@ final class PlayerDevelopmentService
     {
         $age = $player->ageAt($date);
         return match ($player->developmentProfile()) {
-            DevelopmentProfile::LateBloomer => $age < 18 ? 35 : ($age <= 20 ? 55 : ($age <= 24 ? 75 : ($age <= 28 ? 100 : ($age <= 32 ? 65 : 0)))),
-            DevelopmentProfile::Prodigy => $age < 18 ? 100 : ($age <= 20 ? 125 : ($age <= 24 ? 90 : ($age <= 28 ? 45 : ($age <= 32 ? 15 : 0)))),
-            DevelopmentProfile::Regular => $age < 18 ? 70 : ($age <= 20 ? 100 : ($age <= 24 ? 100 : ($age <= 28 ? 65 : ($age <= 32 ? 25 : 0)))),
+            DevelopmentProfile::LateBloomer => match (true) {
+                $age < 18 => 35,
+                $age <= 20 => 55,
+                $age <= 24 => 75,
+                $age <= 28 => 100,
+                $age <= 32 => 65,
+                $age <= 34 => 20,
+                default => 0,
+            },
+            DevelopmentProfile::Prodigy => match (true) {
+                $age < 18 => 100,
+                $age <= 20 => 125,
+                $age <= 24 => 90,
+                $age <= 28 => 45,
+                $age <= 31 => 15,
+                default => 0,
+            },
+            DevelopmentProfile::Regular => match (true) {
+                $age < 18 => 70,
+                $age <= 20 => 100,
+                $age <= 24 => 100,
+                $age <= 28 => 65,
+                $age <= 31 => 25,
+                default => 0,
+            },
         };
+    }
+
+    /** @return array<string, int> */
+    private function seasonalDecline(Player $player, SimulationDate $date): array
+    {
+        $age = $player->ageAt($date);
+        if ($age < 31) {
+            return [];
+        }
+        $pace = $age >= 36 ? -2 : -1;
+        $physicality = $age >= 35 ? -2 : -1;
+        $technical = $age >= 38 ? -1 : 0;
+        $deltas = ['pace' => $pace, 'physicality' => $physicality];
+        if ($technical !== 0) {
+            $deltas['shooting'] = $technical;
+            $deltas['passing'] = $technical;
+            $deltas['dribbling'] = $technical;
+            $deltas['defending'] = $technical;
+        }
+
+        return $deltas;
     }
 
     private function potentialPercent(Player $player): int

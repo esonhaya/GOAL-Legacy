@@ -28,6 +28,7 @@ final readonly class Player
         private int $potential,
         private DevelopmentProfile $developmentProfile,
         private int $creationSeed,
+        private PlayerCareerState $careerState = PlayerCareerState::Active,
     ) {
         foreach (['first name' => $firstName, 'last name' => $lastName, 'preferred name' => $preferredName] as $label => $value) {
             if (trim($value) === '') {
@@ -94,6 +95,10 @@ final readonly class Player
 
     public function creationSeed(): int { return $this->creationSeed; }
 
+    public function careerState(): PlayerCareerState { return $this->careerState; }
+
+    public function isRetired(): bool { return $this->careerState === PlayerCareerState::Retired; }
+
     public function ageAt(SimulationDate $date): int
     {
         if ($date->isBefore($this->birthDate)) {
@@ -127,6 +132,30 @@ final readonly class Player
             $this->potential,
             $this->developmentProfile,
             $this->creationSeed,
+            $this->careerState,
+        );
+    }
+
+    public function withCareerState(PlayerCareerState $careerState): self
+    {
+        return new self(
+            $this->id,
+            $this->firstName,
+            $this->lastName,
+            $this->preferredName,
+            $this->birthDate,
+            $this->primaryNationId,
+            $this->secondaryNationIds,
+            $this->birthNationId,
+            $this->eligibilityNationIds,
+            $this->heightCm,
+            $this->weightKg,
+            $this->primaryPosition,
+            $this->attributes,
+            $this->potential,
+            $this->developmentProfile,
+            $this->creationSeed,
+            $careerState,
         );
     }
 
@@ -138,6 +167,7 @@ final readonly class Player
             'birth_date' => $this->birthDate->toIsoString(),
             'birth_nation_id' => $this->birthNationId->value(),
             'creation_seed' => $this->creationSeed,
+            'career_state' => $this->careerState->value,
             'development_profile' => $this->developmentProfile->value,
             'eligibility_nation_ids' => array_map(static fn (NationId $id): string => $id->value(), $this->eligibilityNationIds),
             'first_name' => $this->firstName,

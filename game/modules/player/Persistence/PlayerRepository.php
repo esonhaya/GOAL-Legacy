@@ -14,6 +14,7 @@ use Goal\Legacy\Modules\Player\Domain\PlayerException;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\PlayerNotFoundException;
 use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
+use Goal\Legacy\Modules\Player\Domain\PlayerCareerState;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use PDO;
 
@@ -43,9 +44,14 @@ final class PlayerRepository
             . 'physicality INTEGER NOT NULL, '
             . 'potential INTEGER NOT NULL, '
             . 'development_profile TEXT NOT NULL, '
-            . 'creation_seed INTEGER NOT NULL'
+            . 'creation_seed INTEGER NOT NULL, '
+            . "career_state TEXT NOT NULL DEFAULT 'active'"
             . ')'
         );
+        $columns = $this->database->connection()->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(PDO::FETCH_ASSOC);
+        if (!in_array('career_state', array_column($columns, 'name'), true)) {
+            $this->database->connection()->exec("ALTER TABLE " . self::TABLE . " ADD COLUMN career_state TEXT NOT NULL DEFAULT 'active'");
+        }
         $this->database->connection()->exec(
             'CREATE TABLE IF NOT EXISTS player_nationalities ('
             . 'player_id TEXT NOT NULL, '
@@ -85,15 +91,15 @@ final class PlayerRepository
         $values['physicality'] = $player->attributes()->physicality();
         $statement = $this->database->connection()->prepare(
             'INSERT INTO ' . self::TABLE . ' '
-            . '(id, first_name, last_name, preferred_name, birth_date, birth_nation_id, primary_nation_id, height_cm, weight_kg, primary_position, pace, shooting, passing, dribbling, defending, physicality, potential, development_profile, creation_seed) '
-            . 'VALUES (:id, :first_name, :last_name, :preferred_name, :birth_date, :birth_nation_id, :primary_nation_id, :height_cm, :weight_kg, :primary_position, :pace, :shooting, :passing, :dribbling, :defending, :physicality, :potential, :development_profile, :creation_seed) '
+            . '(id, first_name, last_name, preferred_name, birth_date, birth_nation_id, primary_nation_id, height_cm, weight_kg, primary_position, pace, shooting, passing, dribbling, defending, physicality, potential, development_profile, creation_seed, career_state) '
+            . 'VALUES (:id, :first_name, :last_name, :preferred_name, :birth_date, :birth_nation_id, :primary_nation_id, :height_cm, :weight_kg, :primary_position, :pace, :shooting, :passing, :dribbling, :defending, :physicality, :potential, :development_profile, :creation_seed, :career_state) '
             . 'ON CONFLICT(id) DO UPDATE SET '
             . 'first_name = excluded.first_name, last_name = excluded.last_name, preferred_name = excluded.preferred_name, '
             . 'birth_date = excluded.birth_date, birth_nation_id = excluded.birth_nation_id, primary_nation_id = excluded.primary_nation_id, '
             . 'height_cm = excluded.height_cm, weight_kg = excluded.weight_kg, primary_position = excluded.primary_position, '
             . 'pace = excluded.pace, shooting = excluded.shooting, passing = excluded.passing, dribbling = excluded.dribbling, '
             . 'defending = excluded.defending, physicality = excluded.physicality, potential = excluded.potential, '
-            . 'development_profile = excluded.development_profile, creation_seed = excluded.creation_seed'
+            . 'development_profile = excluded.development_profile, creation_seed = excluded.creation_seed, career_state = excluded.career_state'
         );
         $statement->execute([
             'id' => $values['id'],
@@ -115,6 +121,7 @@ final class PlayerRepository
             'potential' => $values['potential'],
             'development_profile' => $values['development_profile'],
             'creation_seed' => $values['creation_seed'],
+            'career_state' => $values['career_state'],
         ]);
 
         $this->database->connection()->prepare('DELETE FROM player_nationalities WHERE player_id = :player_id')->execute(['player_id' => $player->id()->value()]);
@@ -170,6 +177,7 @@ final class PlayerRepository
             (int) $row['potential'],
             DevelopmentProfile::from((string) $row['development_profile']),
             (int) $row['creation_seed'],
+            PlayerCareerState::from((string) ($row['career_state'] ?? PlayerCareerState::Active->value)),
         );
     }
 

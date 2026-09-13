@@ -170,5 +170,10 @@ final class ClubSquadRepository
                 throw new SquadMembershipException(sprintf('Squad membership references missing %s "%s".', $label, $value));
             }
         }
+        $careerState = $this->database->connection()->prepare("SELECT career_state FROM player_records WHERE id = :player_id");
+        $careerState->execute(['player_id' => $membership->playerId()->value()]);
+        if ((string) $careerState->fetchColumn() === 'retired') {
+            throw new SquadMembershipException('Retired Players cannot join an active squad.');
+        }
     }
 }

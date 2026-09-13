@@ -46,7 +46,8 @@ final class ContractRepository
         if ($contract->status() === ContractStatus::Active) {
             $statement = $this->database->connection()->prepare('SELECT id FROM ' . self::TABLE . ' WHERE player_id = :player_id AND status = :status AND id <> :id LIMIT 1');
             $statement->execute(['player_id' => $contract->playerId()->value(), 'status' => ContractStatus::Active->value, 'id' => $contract->id()->value()]);
-            if ($statement->fetchColumn() !== false) {
+            $conflictingId = $statement->fetchColumn();
+            if ($conflictingId !== false) {
                 throw new ContractException(sprintf('Player "%s" already has another active Contract.', $contract->playerId()->value()));
             }
         }
@@ -136,6 +137,13 @@ final class ContractRepository
 
     private function assertReferences(Contract $contract): void
     {
+        if ($contract->status() === ContractStatus::Active) {
+            $careerState = $this->database->connection()->prepare("SELECT career_state FROM player_records WHERE id = :player_id");
+            $careerState->execute(['player_id' => $contract->playerId()->value()]);
+            if ((string) $careerState->fetchColumn() === 'retired') {
+                throw new ContractException('Retired Players cannot receive active Contracts.');
+            }
+        }
         foreach ([['player_records', 'id', $contract->playerId()->value(), 'Player'], ['club_records', 'id', $contract->clubId()->value(), 'Club']] as [$table, $column, $value, $label]) {
             $statement = $this->database->connection()->prepare('SELECT 1 FROM ' . $table . ' WHERE ' . $column . ' = :value');
             $statement->execute(['value' => $value]);

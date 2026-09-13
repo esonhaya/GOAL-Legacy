@@ -22,6 +22,7 @@ use Goal\Legacy\Modules\Contract\Domain\ContractId;
 use Goal\Legacy\Modules\Match\MatchService;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Player\PlayerPopulationService;
+use Goal\Legacy\Modules\Player\PlayerLifecycleService;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\World\Domain\Season;
@@ -40,6 +41,7 @@ final class SeasonRolloverService
         private readonly ClubService $clubService,
         private readonly ContractService $contractService,
         private readonly PlayerPopulationService $populationService,
+        private readonly PlayerLifecycleService $playerLifecycle,
         private readonly MatchService $matchService,
         private readonly EventDispatcherInterface $events,
     ) {
@@ -71,6 +73,7 @@ final class SeasonRolloverService
         $database->transaction(function () use ($seasonRepository, $next): void {
             $seasonRepository->save($next);
         });
+        $this->playerLifecycle->processSeasonBoundaryInTransaction($database, $next);
 
         $currentSquads = $this->clubService->squadRepository($database)->all();
         $currentSquads = array_values(array_filter($currentSquads, static fn (ClubSquadMembership $membership): bool => $membership->seasonId()->value() === $current->id()->value()));
@@ -119,7 +122,12 @@ final class SeasonRolloverService
         });
 
         $previousSquads = array_filter($this->clubService->squadRepository($database)->all(), static fn (ClubSquadMembership $membership): bool => $membership->seasonId()->value() === $previous->id()->value());
-        $population = $previousSquads === [] ? ['players_generated' => 0] : $this->populationService->replenish($database, $next, $world->universeSeed(), $asOfDate);
+        $population = ['players_generated' => 0];
+        if ($previousSquads !== []) {
+            $newgens = $this->populationService->generateNewgens($database, $next, $world->universeSeed(), $asOfDate);
+            $fallback = $this->populationService->replenish($database, $next, $world->universeSeed(), $asOfDate);
+            $population['players_generated'] = (int) ($newgens['players_generated'] ?? 0) + (int) ($fallback['players_generated'] ?? 0);
+        }
         $fixtures = 0;
         $matches = new MatchRepository($database);
         foreach ($world->competitionIds() as $competitionId) {
@@ -148,6 +156,9 @@ final class SeasonRolloverService
                 continue;
             }
             $contract = $contracts->activeForPlayer($squad->playerId());
+            if ((new PlayerRepository($database))->get($squad->playerId())->isRetired()) {
+                continue;
+            }
             if ($contract === null || $contract->clubId()->value() !== $squad->clubId()->value()) {
                 continue;
             }
@@ -190,6 +201,10 @@ final class SeasonRolloverService
         $carried = 0;
         foreach ($memberships as $membership) {
             $player = $players->get($membership->playerId());
+            if ($player->isRetired()) {
+                ++$released;
+                continue;
+            }
             $active = $contracts->activeForPlayer($player->id());
             if ($active !== null && $active->clubId()->value() !== $club->id()->value()) {
                 ++$released;
@@ -213,6 +228,9 @@ final class SeasonRolloverService
                 $renewalId = new ContractId('renewal-' . $next->id()->value() . '-' . substr(hash('sha256', $player->id()->value() . '|' . $club->id()->value()), 0, 24));
                 if (!$contracts->exists($renewalId)) {
                     $oldWage = $candidate?->wage() ?? 0;
+                    if ($candidate !== null && $candidate->status()->value === 'active') {
+                        $contracts->saveInTransaction($candidate->terminate());
+                    }
                     $wage = max($oldWage, ($club->reputation() * 10) + ($player->overallRating() * 5));
                     $renewal = $this->contractService->create(new ContractCreationRequest($renewalId, $player->id(), $club->id(), $next->startDate(), $next->endDate()->addDays(365), $wage, $asOfDate));
                     $contracts->saveInTransaction($renewal);

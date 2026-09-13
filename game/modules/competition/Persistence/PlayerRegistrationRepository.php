@@ -106,6 +106,9 @@ final class PlayerRegistrationRepository
         $squad = $this->database->connection()->prepare('SELECT 1 FROM club_squad_memberships WHERE season_id = :season_id AND club_id = :club_id AND player_id = :player_id');
         $squad->execute(['season_id' => $registration->seasonId()->value(), 'club_id' => $registration->clubId()->value(), 'player_id' => $registration->playerId()->value()]);
         if ($squad->fetchColumn() === false) { throw new PlayerRegistrationException('Player must belong to the Club squad before registration.'); }
+        $careerState = $this->database->connection()->prepare("SELECT career_state FROM player_records WHERE id = :player_id");
+        $careerState->execute(['player_id' => $registration->playerId()->value()]);
+        if ((string) $careerState->fetchColumn() === 'retired') { throw new PlayerRegistrationException('Retired Players cannot be registered.'); }
         $contract = $this->database->connection()->prepare('SELECT 1 FROM contract_records WHERE player_id = :player_id AND club_id = :club_id AND status = :status LIMIT 1');
         $contract->execute(['player_id' => $registration->playerId()->value(), 'club_id' => $registration->clubId()->value(), 'status' => 'active']);
         if ($contract->fetchColumn() === false) { throw new PlayerRegistrationException('Player must have an active Contract with the Club before registration.'); }

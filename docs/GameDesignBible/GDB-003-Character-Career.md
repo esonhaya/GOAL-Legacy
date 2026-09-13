@@ -54,10 +54,12 @@ stimulus idempotent across retries and reloads. Match Player statistics remain
 owned by Match; season and career appearances, starts, minutes, and goals are
 derived read models over those records. Transfer does not reset development.
 
-Phase 1 does not use Club facilities, coaches, decline, or a daily per-Player
-tick. DOMAIN-009 adds bounded fatigue and Injury availability, but development
-is still processed only at explicit training boundaries and for real Player
-appearances in completed Matches.
+Phase 1 does not use Club facilities, coaches, or a daily per-Player tick.
+DOMAIN-009 adds bounded fatigue and Injury availability, while DOMAIN-014
+adds a once-per-Season age lifecycle source to the same development history.
+Young/profile timing remains bounded by potential; prime Players stabilize and
+older Players receive deterministic attribute decline. Development still runs
+at explicit training, Match, and Season-boundary lifecycle checkpoints.
 
 ## DOMAIN-008 Selection Pressure
 
@@ -117,11 +119,15 @@ not silently registered without an active Contract.
 
 This is continuity infrastructure rather than full Club management. The
 Phase-1 world has stable league membership and bounded deterministic
-renewal/replenishment. Player aging/decline, retirement, true newgens,
-promotion/relegation, finance, and autonomous NPC transfer recruitment are
-future systems. A career transfer remains continuous because Player identity,
-development, availability, and historical Matches survive while the new
-Club-scoped role and seasonal registration are rebuilt.
+renewal/replenishment. DOMAIN-014 adds Player-owned active/retired state,
+season-boundary retirement, and true deterministic newgens to replace
+retirements and restore senior-squad viability. Newgens enter as ordinary
+young senior Players with existing positions, profiles, potential, Contracts,
+roles, and registrations; this is not a youth academy. Promotion/relegation,
+finance, and autonomous NPC transfer recruitment remain future systems. A
+career transfer remains continuous because Player identity, development,
+availability, and historical Matches survive while the new Club-scoped role
+and seasonal registration are rebuilt.
 
 ---
 

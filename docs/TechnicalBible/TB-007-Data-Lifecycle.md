@@ -124,6 +124,13 @@ Module; completed Match results are immutable
 ✓ Match Player stat lines and user-visible structured highlights are Career
 state and reference stable Player/Club IDs without duplicating their records
 
+✓ Player career state is Career durable; age is derived from Birth Date and
+SimulationDate, and retirement is a permanent historical Player transition
+
+✓ Newgens are ordinary Career-durable Player records generated at Season
+boundaries for squad vacancies; they are not static content or a second Player
+entity
+
 ✓ Matchday selections and substitution records are Career-durable Match state;
 substitute minutes remain Match-owned facts and are not copied to Player
 

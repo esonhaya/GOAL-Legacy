@@ -70,6 +70,19 @@ A player record is never deleted.
 
 When a player retires, the record becomes historical.
 
+DOMAIN-014 adds a durable `career_state` (`active` or `retired`) to this
+same Player record. Age remains derived from birth date and SimulationDate;
+season-boundary lifecycle processing reuses PlayerDevelopmentService for
+age-sensitive progression and bounded decline. Retired Players remain
+queryable with all historical Match, development, Contract, registration,
+injury, and transfer records, but cannot receive an active Contract, join a
+future squad, register, transfer, or be selected.
+
+Long-term replacement Players are deterministic newgens, but they are
+ordinary Player records immediately. They are save-state entities rather
+than static content and receive the normal Contract, squad, registration,
+selection, availability, and development treatment.
+
 ---
 
 # Primary Key

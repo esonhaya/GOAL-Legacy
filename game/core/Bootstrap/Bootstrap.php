@@ -29,6 +29,7 @@ use Goal\Legacy\Modules\Player\PlayerService;
 use Goal\Legacy\Modules\Player\PlayerDevelopmentService;
 use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
 use Goal\Legacy\Modules\Player\PlayerPopulationService;
+use Goal\Legacy\Modules\Player\PlayerLifecycleService;
 use Goal\Legacy\Modules\Player\ClubExpectationService;
 use Goal\Legacy\Modules\Match\MatchModule;
 use Goal\Legacy\Modules\Match\MatchService;
@@ -86,11 +87,12 @@ final class Bootstrap
         $availabilityService = new PlayerAvailabilityService($dispatcher);
         $contractModule = new ContractModule(new ContractService());
         $populationService = new PlayerPopulationService($nationModule->service(), $clubModule->service(), $contractModule->service());
+        $playerLifecycleService = new PlayerLifecycleService($developmentService, $contractModule->service());
         $playerModule = new PlayerModule(new PlayerService($nationModule->service(), $clubModule->service(), $developmentService, $availabilityService, $populationService));
         $transferModule = new TransferModule(new TransferService($contractModule->service(), $clubModule->service(), $competitionModule->service(), $dispatcher));
         $expectationService = new ClubExpectationService($clubModule->service(), $dispatcher);
         $matchModule = new MatchModule(new MatchService($clubModule->service(), $dispatcher, $developmentService, $expectationService, $availabilityService));
-        $seasonRollover = new SeasonRolloverService($competitionModule->service(), $clubModule->service(), $contractModule->service(), $populationService, $matchModule->service(), $dispatcher);
+        $seasonRollover = new SeasonRolloverService($competitionModule->service(), $clubModule->service(), $contractModule->service(), $populationService, $playerLifecycleService, $matchModule->service(), $dispatcher);
         $worldModule = new WorldModule(new WorldService(
             $clock,
             new SimulationCalendar(),

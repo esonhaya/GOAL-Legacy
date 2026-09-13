@@ -106,11 +106,52 @@ final class PlayerPopulationService
                 $nations,
                 $byClub[$club->id()->value()] ?? [],
                 $populationRepository,
+                false,
             ));
         }
 
         $summary = $this->summarize($database, $clubs, $season, $reports);
         $summary['replenishment'] = true;
+
+        return $summary;
+    }
+
+    /**
+     * Fill vacancies with true long-term newgens. They are ordinary Players;
+     * the newgen context only gives their identity, entry age, and modest
+     * entry ability a stable lifecycle meaning.
+     *
+     * @return array<string, mixed>
+     */
+    public function generateNewgens(DatabaseInterface $database, Season $season, int $worldSeed, SimulationDate $asOfDate): array
+    {
+        if ($worldSeed < 0) {
+            throw new PlayerException('Population world seeds cannot be negative.');
+        }
+        $nations = $this->nationService->loadSelected();
+        $clubs = $this->clubService->repository($database)->all();
+        $memberships = $this->clubService->membershipRepository($database)->bySeason($season->id());
+        $byClub = [];
+        foreach ($memberships as $membership) {
+            $byClub[$membership->clubId()->value()][] = $membership;
+        }
+        $populationRepository = new PlayerPopulationRepository($database);
+        $reports = [];
+        foreach ($clubs as $club) {
+            $reports[] = $database->transaction(fn (): array => $this->replenishClubInTransaction(
+                $database,
+                $club,
+                $season,
+                $worldSeed,
+                $asOfDate,
+                $nations,
+                $byClub[$club->id()->value()] ?? [],
+                $populationRepository,
+                true,
+            ));
+        }
+        $summary = $this->summarize($database, $clubs, $season, $reports);
+        $summary['newgens'] = true;
 
         return $summary;
     }
@@ -153,17 +194,25 @@ final class PlayerPopulationService
                 continue;
             }
             $player = $this->generatePlayer($club, $season->startDate(), $nations, $worldSeed, $ordinal - 1);
-            if (!$playerRepository->exists($player->id())) {
-                $playerRepository->saveInTransaction($player);
+            if ($playerRepository->exists($player->id())) {
+                $existing = $playerRepository->get($player->id());
+                $existingContract = $contractRepository->activeForPlayer($existing->id());
+                if ($existingContract !== null && $existingContract->clubId()->value() !== $clubId->value()) {
+                    continue;
+                }
+                $player = $existing;
             } else {
-                $player = $playerRepository->get($player->id());
+                $playerRepository->saveInTransaction($player);
             }
             $role = $this->roleForOrdinal($ordinal - 1);
             $membership = new ClubSquadMembership($clubId, $player->id(), $seasonId, $role);
             if (!$squadRepository->exists($membership)) {
                 $squadRepository->save($membership);
             }
-            $this->ensureContractInTransaction($contractRepository, $player, $club, $season);
+            if (!$this->ensureContractInTransaction($contractRepository, $player, $club, $season)) {
+                $squadRepository->remove($membership);
+                continue;
+            }
             $this->ensureRegistrationsInTransaction($registrationRepository, $competitionMemberships, $player);
             $existingIds[$playerId] = true;
             ++$created;
@@ -179,7 +228,7 @@ final class PlayerPopulationService
     }
 
     /** @param list<Nation> $nations @param list<\Goal\Legacy\Modules\Club\Domain\ClubCompetitionMembership> $competitionMemberships */
-    private function replenishClubInTransaction(DatabaseInterface $database, Club $club, Season $season, int $worldSeed, SimulationDate $asOfDate, array $nations, array $competitionMemberships, PlayerPopulationRepository $populationRepository): array
+    private function replenishClubInTransaction(DatabaseInterface $database, Club $club, Season $season, int $worldSeed, SimulationDate $asOfDate, array $nations, array $competitionMemberships, PlayerPopulationRepository $populationRepository, bool $newgen): array
     {
         if ($competitionMemberships === []) {
             return ['club_id' => $club->id()->value(), 'generated' => 0, 'total' => 0];
@@ -200,7 +249,9 @@ final class PlayerPopulationService
             $existingIds[$membership->playerId()->value()] = true;
             $currentPlayers[] = $playerRepository->get($membership->playerId());
         }
-        $generatedPrefix = 'npc-v' . self::GENERATION_VERSION . '-replenishment-' . $seasonId->value() . '-' . $clubId->value() . '-';
+        $generatedPrefix = $newgen
+            ? 'npc-v' . self::GENERATION_VERSION . '-newgen-' . $seasonId->value() . '-' . $clubId->value() . '-'
+            : 'npc-v' . self::GENERATION_VERSION . '-replenishment-' . $seasonId->value() . '-' . $clubId->value() . '-';
         $generatedCount = 0;
         foreach (array_keys($existingIds) as $playerId) {
             if (str_starts_with($playerId, $generatedPrefix)) {
@@ -209,43 +260,46 @@ final class PlayerPopulationService
         }
         $needed = max(0, self::TARGET_SQUAD_SIZE - count($currentMemberships));
         $created = 0;
+        $filled = 0;
         $ordinal = 1;
-        while ($created < $needed) {
+        while ($filled < $needed) {
             $playerId = $generatedPrefix . str_pad((string) $ordinal, 2, '0', STR_PAD_LEFT);
             ++$ordinal;
             if (isset($existingIds[$playerId])) {
                 continue;
             }
             $position = $this->replenishmentPosition($currentPlayers, $ordinal);
-            $player = $this->generatePlayer($club, $season->startDate(), $nations, $worldSeed, $ordinal, $position, $generatedPrefix, 'replenishment');
-            if (!$playerRepository->exists($player->id())) {
-                $playerRepository->saveInTransaction($player);
-            } else {
-                $player = $playerRepository->get($player->id());
+            $player = $this->generatePlayer($club, $season->startDate(), $nations, $worldSeed, $ordinal, $position, $generatedPrefix, $newgen ? 'newgen' : 'replenishment', $newgen ? 18 + $this->index('newgen-age|' . $worldSeed . '|' . $seasonId->value() . '|' . $clubId->value() . '|' . $ordinal, 5) : null);
+            if ($playerRepository->exists($player->id())) {
+                continue;
+            }
+            $playerRepository->saveInTransaction($player);
+            if (!$this->ensureContractInTransaction($contractRepository, $player, $club, $season, $asOfDate, 'repl-' . $seasonId->value() . '-')) {
+                continue;
             }
             $membership = new ClubSquadMembership($clubId, $player->id(), $seasonId, $this->roleForOrdinal(count($currentMemberships) + $ordinal - 1));
             if (!$squadRepository->exists($membership)) {
                 $squadRepository->save($membership);
             }
-            $this->ensureContractInTransaction($contractRepository, $player, $club, $season, $asOfDate, 'repl-' . $seasonId->value() . '-');
             $existingIds[$playerId] = true;
             $currentPlayers[] = $player;
             ++$created;
             ++$generatedCount;
+            ++$filled;
         }
         $populationRepository->saveInTransaction($seasonId, $clubId, self::GENERATION_VERSION, $worldSeed, self::TARGET_SQUAD_SIZE, $generatedCount);
 
         return ['club_id' => $clubId->value(), 'generated' => $created, 'total' => count($currentMemberships) + $created];
     }
 
-    private function ensureContractInTransaction(ContractRepository $contracts, Player $player, Club $club, Season $season, ?SimulationDate $asOfDate = null, ?string $contractPrefix = null): void
+    private function ensureContractInTransaction(ContractRepository $contracts, Player $player, Club $club, Season $season, ?SimulationDate $asOfDate = null, ?string $contractPrefix = null): bool
     {
-        $active = $contracts->activeForPlayer($player->id());
-        if ($active !== null) {
-            if ($active->clubId()->value() !== $club->id()->value()) {
-                throw new PlayerException(sprintf('Generated Player "%s" already has an active Contract with another Club.', $player->id()->value()));
+        $activeContracts = array_values(array_filter($contracts->byPlayer($player->id()), static fn ($contract): bool => $contract->status()->value === 'active'));
+        if ($activeContracts !== []) {
+            if (count(array_filter($activeContracts, static fn ($contract): bool => $contract->clubId()->value() !== $club->id()->value())) > 0) {
+                return false;
             }
-            return;
+            return true;
         }
         $ordinalSeed = $this->integer('contract|' . $player->id()->value());
         $end = $season->endDate()->addDays(90 + ($ordinalSeed % 640));
@@ -259,6 +313,7 @@ final class PlayerPopulationService
             $asOfDate ?? $season->startDate(),
         ));
         $contracts->saveInTransaction($contract);
+        return true;
     }
 
     /** @param list<\Goal\Legacy\Modules\Club\Domain\ClubCompetitionMembership> $competitionMemberships */
@@ -273,7 +328,7 @@ final class PlayerPopulationService
     }
 
     /** @param list<Nation> $nations */
-    private function generatePlayer(Club $club, SimulationDate $seasonStart, array $nations, int $worldSeed, int $ordinal, ?PlayerPosition $requestedPosition = null, ?string $idPrefix = null, string $generationContext = 'initial'): Player
+    private function generatePlayer(Club $club, SimulationDate $seasonStart, array $nations, int $worldSeed, int $ordinal, ?PlayerPosition $requestedPosition = null, ?string $idPrefix = null, string $generationContext = 'initial', ?int $ageOverride = null): Player
     {
         $keyParts = ['population', self::GENERATION_VERSION, $worldSeed, $club->id()->value(), $ordinal];
         if ($generationContext !== 'initial') {
@@ -281,10 +336,10 @@ final class PlayerPopulationService
             $keyParts[] = $seasonStart->toIsoString();
         }
         $key = implode('|', $keyParts);
-        $age = 18 + (int) floor($this->unit($key . '|age') * 17);
+        $age = $ageOverride ?? (18 + (int) floor($this->unit($key . '|age') * 17));
         $profile = $this->profile($key, $age);
         $position = $requestedPosition ?? PlayerPosition::fromInput(self::POSITIONS[($ordinal - 1) % count(self::POSITIONS)]);
-        $base = (int) round(35 + ($club->reputation() * 0.5) + ($age < 22 ? -3 : ($age > 30 ? -2 : 2)));
+        $base = (int) round(35 + ($club->reputation() * 0.5) + ($age < 22 ? -3 : ($age > 30 ? -2 : 2)) + ($generationContext === 'newgen' ? -5 : 0));
         $bias = $this->positionBias($position);
         $values = [];
         foreach (['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physicality'] as $index => $attribute) {

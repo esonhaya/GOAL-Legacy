@@ -138,7 +138,7 @@ final class MatchSelectionService
     {
         new PlayerRegistrationRepository($database);
         new ContractRepository($database);
-        $registeredStatement = $database->connection()->prepare('SELECT r.player_id FROM player_competition_registrations r INNER JOIN contract_records c ON c.player_id = r.player_id AND c.club_id = r.club_id WHERE r.season_id = :season_id AND r.competition_id = :competition_id AND r.club_id = :club_id AND c.status = :status ORDER BY r.player_id ASC');
+        $registeredStatement = $database->connection()->prepare("SELECT r.player_id FROM player_competition_registrations r INNER JOIN contract_records c ON c.player_id = r.player_id AND c.club_id = r.club_id INNER JOIN player_records p ON p.id = r.player_id WHERE r.season_id = :season_id AND r.competition_id = :competition_id AND r.club_id = :club_id AND c.status = :status AND p.career_state = 'active' ORDER BY r.player_id ASC");
         $registeredStatement->execute(['season_id' => $match->seasonId()->value(), 'competition_id' => $match->competitionId()->value(), 'club_id' => $clubId, 'status' => 'active']);
         $registered = array_fill_keys(array_map('strval', $registeredStatement->fetchAll(\PDO::FETCH_COLUMN)), true);
         $result = [];

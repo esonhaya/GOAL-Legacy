@@ -31,6 +31,7 @@ final class PlayerCareerProgressionQuery
             'player' => $player->toArray(),
             'age' => $player->ageAt($date),
             'current_ovr' => $player->overallRating(),
+            'career_state' => $player->careerState()->value,
             'potential' => $player->potential(),
             'development_profile' => $player->developmentProfile()->value,
             'training_focus' => $development->state($database, $id)->currentFocus()?->value,

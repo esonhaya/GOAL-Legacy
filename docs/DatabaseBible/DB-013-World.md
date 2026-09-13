@@ -129,8 +129,11 @@ Season, applies bounded Club Contract renewal/release, and at activation
 materializes seasonal Competition memberships, replenishes viable squads,
 creates registrations, and generates fixtures through their owning modules.
 Completed Season rows remain historical and are never reused as current
-registration or fixture state. Promotion/relegation, retirement, newgens,
-and autonomous NPC recruitment remain deferred.
+registration or fixture state. DOMAIN-014 extends this boundary with
+season-boundary Player age/decline and retirement processing, followed by
+deterministic newgen generation for vacancies. Newgens use the ordinary
+Player/Contract/squad/registration path. Promotion/relegation and autonomous
+NPC recruitment remain deferred.
 
 Examples:
 

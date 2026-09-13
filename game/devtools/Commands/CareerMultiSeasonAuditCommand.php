@@ -27,6 +27,7 @@ use Goal\Legacy\Modules\Player\Domain\CareerId;
 use Goal\Legacy\Modules\Player\Domain\CareerPlayerReference;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerAttributeSet;
+use Goal\Legacy\Modules\Player\Domain\PlayerCareerState;
 use Goal\Legacy\Modules\Player\Domain\PlayerCreationRequest;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
@@ -55,8 +56,9 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
     {
         $requested = $this->argumentInt($arguments, '--seasons=', 3);
         $seed = $this->argumentInt($arguments, '--seed=', 13003);
-        if ($requested < 3 || $requested > 5) {
-            $output->error('Multi-season audit requires --seasons between 3 and 5.');
+        $lifecycleOnly = in_array('--lifecycle-only', $arguments, true);
+        if ($requested < 3 || $requested > ($lifecycleOnly ? 10 : 5)) {
+            $output->error($lifecycleOnly ? 'Lifecycle audit requires --seasons between 3 and 10.' : 'Multi-season audit requires --seasons between 3 and 5.');
             return 1;
         }
 
@@ -65,7 +67,10 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         try {
             [$store, $database, $season, $world] = $this->initialize($directory, $seed);
             $population = $this->services->playerModule()->service()->populationService()->populate($database, $season, $seed);
-            $players = $this->installControlledPlayers($database, $season);
+            $players = $lifecycleOnly ? [] : $this->installControlledPlayers($database, $season);
+            if ($lifecycleOnly) {
+                return $this->executeLifecycleOnly($store, $database, $world, $season, $requested, $seed, $directory, $output);
+            }
             // Keep the long-horizon audit comparable to CAREER-003 and
             // Termux-feasible. The World still contains all selected
             // competitions and all 96 Clubs; this harness drives one full
@@ -120,6 +125,42 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
             unset($database);
             $this->removeStorage($directory);
         }
+    }
+
+    private function executeLifecycleOnly($store, $database, World $world, Season $season, int $requested, int $seed, string $directory, ConsoleOutputInterface $output): int
+    {
+        $reports = [];
+        $reloadChecks = [];
+        for ($number = 1; $number <= $requested; ++$number) {
+            $this->services->worldModule()->service()->advanceToDate($database, self::SAVE_ID, $season->endDate()->addDays(1));
+            $nextId = new SeasonId(sprintf('season-%04d-%02d', $season->startDate()->year() + 1, ($season->startDate()->year() + 2) % 100));
+            $next = $this->services->worldModule()->service()->seasonRepository($database)->get($nextId);
+            $database = $this->advanceAndReload($store, $database, $next->startDate(), $reloadChecks, 'lifecycle-season-' . $number);
+            $season = $this->services->worldModule()->service()->seasonRepository($database)->get($nextId);
+            $reports[] = $this->lifecycleMetrics($database, $season, $directory);
+        }
+        $last = $reports[count($reports) - 1];
+        $output->write(sprintf('LIFECYCLE_AUDIT seed=%d requested=%d completed=%d start=%s end=%s active_start=%d active_final=%d retired_final=%d newgens_final=%d records_final=%d avg_age_final=%.1f oldest_final=%d squad_min=%d squad_max=%d reload_failures=%s', $seed, $requested, count($reports), $reports[0]['season']->startDate()->toIsoString(), $last['season']->startDate()->toIsoString(), $reports[0]['active'], $last['active'], $last['retired'], $last['newgens'], $last['records'], $last['age_avg'], $last['oldest'], $last['squad_min'], $last['squad_max'], $reloadChecks === [] || count(array_filter($reloadChecks, static fn (bool $value): bool => !$value)) === 0 ? 'none' : 'present'));
+        foreach ($reports as $index => $report) {
+            $output->write(sprintf('LIFECYCLE_SEASON_%d season=%s active=%d retired=%d newgens=%d records=%d unclubbed_active=%d avg_age=%.1f oldest=%d squad_avg=%.1f squad_min=%d squad_max=%d save_size=%d', $index + 1, $report['season']->id()->value(), $report['active'], $report['retired'], $report['newgens'], $report['records'], $report['unclubbed_active'], $report['age_avg'], $report['oldest'], $report['squad_avg'], $report['squad_min'], $report['squad_max'], $report['save_size']));
+        }
+
+        return 0;
+    }
+
+    private function lifecycleMetrics($database, Season $season, string $directory): array
+    {
+        $players = (new PlayerRepository($database))->all();
+        $active = array_values(array_filter($players, static fn (Player $player): bool => $player->careerState() === PlayerCareerState::Active));
+        $retired = count($players) - count($active);
+        $newgens = count(array_filter($players, static fn (Player $player): bool => str_contains($player->id()->value(), '-newgen-')));
+        $squads = $this->squadsBySeason($database, $season);
+        $sizes = [];
+        foreach ($squads as $membership) { $sizes[$membership->clubId()->value()] = ($sizes[$membership->clubId()->value()] ?? 0) + 1; }
+        $squadPlayerIds = array_fill_keys(array_map(static fn (ClubSquadMembership $membership): string => $membership->playerId()->value(), $squads), true);
+        $ages = array_map(static fn (Player $player): int => $player->ageAt($season->startDate()), $active);
+
+        return ['season' => $season, 'active' => count($active), 'retired' => $retired, 'newgens' => $newgens, 'records' => count($players), 'unclubbed_active' => count(array_filter($active, static fn (Player $player): bool => !isset($squadPlayerIds[$player->id()->value()]))), 'age_avg' => $ages === [] ? 0.0 : round(array_sum($ages) / count($ages), 1), 'oldest' => $ages === [] ? 0 : max($ages), 'squad_avg' => $sizes === [] ? 0.0 : round(array_sum($sizes) / count($sizes), 1), 'squad_min' => $sizes === [] ? 0 : min($sizes), 'squad_max' => $sizes === [] ? 0 : max($sizes), 'save_size' => filesize($directory . '/' . self::SAVE_ID . '.sqlite') ?: 0];
     }
 
     /** @return array{0: SqliteSaveStore, 1: \Goal\Legacy\Core\Persistence\DatabaseInterface, 2: Season, 3: World} */
@@ -223,7 +264,12 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         $players = (new PlayerRepository($database))->all();
         $ages = array_map(static fn (Player $player): int => $player->ageAt($season->endDate()), $players);
         $ovrs = array_map(static fn (Player $player): int => $player->overallRating(), $players);
-        return ['season' => $season, 'matches' => count($matches), 'completed' => count($completed), 'goals' => $goals, 'champion' => $standings[0]['club_id'] ?? 'none', 'bottom' => $standings[count($standings) - 1]['club_id'] ?? 'none', 'spread' => ((int) ($standings[0]['points'] ?? 0)) - ((int) ($standings[count($standings) - 1]['points'] ?? 0)), 'home_wins' => $homeWins, 'draws' => $draws, 'away_wins' => $awayWins, 'squad_avg' => $sizes === [] ? 0.0 : round(array_sum($sizes) / count($sizes), 1), 'squad_min' => $sizes === [] ? 0 : min($sizes), 'squad_max' => $sizes === [] ? 0 : max($sizes), 'clubs_below_25' => count(array_filter($sizes, static fn (int $size): bool => $size < 25)), 'registrations' => count($this->services->competitionModule()->service()->registrationRepository($database)->byCompetition(self::CAREER_COMPETITION, $season->id())), 'players' => count($players), 'ovr_avg' => $ovrs === [] ? 0.0 : round(array_sum($ovrs) / count($ovrs), 1), 'ovr_90_plus' => count(array_filter($ovrs, static fn (int $ovr): bool => $ovr >= 90)), 'age_avg' => $ages === [] ? 0.0 : round(array_sum($ages) / count($ages), 1), 'oldest' => $ages === [] ? 0 : max($ages), 'age_35_plus' => count(array_filter($ages, static fn (int $age): bool => $age >= 35)), 'contracts_active' => count(array_filter($contracts, static fn ($contract): bool => $contract->status() === ContractStatus::Active)), 'save_size' => filesize($directory . '/' . self::SAVE_ID . '.sqlite') ?: 0];
+        $squadPlayerIds = array_fill_keys(array_map(static fn (ClubSquadMembership $membership): string => $membership->playerId()->value(), $squads), true);
+        $active = array_values(array_filter($players, static fn (Player $player): bool => $player->careerState() === PlayerCareerState::Active));
+        $retired = array_values(array_filter($players, static fn (Player $player): bool => $player->careerState() === PlayerCareerState::Retired));
+        $newgens = array_values(array_filter($players, static fn (Player $player): bool => str_contains($player->id()->value(), '-newgen-')));
+        $unclubbedActive = count(array_filter($active, static fn (Player $player): bool => !isset($squadPlayerIds[$player->id()->value()])));
+        return ['season' => $season, 'matches' => count($matches), 'completed' => count($completed), 'goals' => $goals, 'champion' => $standings[0]['club_id'] ?? 'none', 'bottom' => $standings[count($standings) - 1]['club_id'] ?? 'none', 'spread' => ((int) ($standings[0]['points'] ?? 0)) - ((int) ($standings[count($standings) - 1]['points'] ?? 0)), 'home_wins' => $homeWins, 'draws' => $draws, 'away_wins' => $awayWins, 'squad_avg' => $sizes === [] ? 0.0 : round(array_sum($sizes) / count($sizes), 1), 'squad_min' => $sizes === [] ? 0 : min($sizes), 'squad_max' => $sizes === [] ? 0 : max($sizes), 'clubs_below_25' => count(array_filter($sizes, static fn (int $size): bool => $size < 25)), 'registrations' => count($this->services->competitionModule()->service()->registrationRepository($database)->byCompetition(self::CAREER_COMPETITION, $season->id())), 'players' => count($players), 'active_players' => count($active), 'retired_players' => count($retired), 'newgens' => count($newgens), 'unclubbed_active' => $unclubbedActive, 'ovr_avg' => $ovrs === [] ? 0.0 : round(array_sum($ovrs) / count($ovrs), 1), 'ovr_90_plus' => count(array_filter($ovrs, static fn (int $ovr): bool => $ovr >= 90)), 'age_avg' => $ages === [] ? 0.0 : round(array_sum($ages) / count($ages), 1), 'oldest' => $ages === [] ? 0 : max($ages), 'age_35_plus' => count(array_filter($ages, static fn (int $age): bool => $age >= 35)), 'contracts_active' => count(array_filter($contracts, static fn ($contract): bool => $contract->status() === ContractStatus::Active)), 'save_size' => filesize($directory . '/' . self::SAVE_ID . '.sqlite') ?: 0];
     }
 
     private function populationMetrics($database, Season $season, array $initialPopulation, string $directory): array
@@ -237,7 +283,8 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         foreach ($players as $player) { if (array_filter($byPlayer[$player->id()->value()] ?? [], static fn ($contract): bool => $contract->status() === ContractStatus::Active) === []) { ++$withoutContract; } }
         $clubbed = array_unique(array_map(static fn ($membership): string => $membership->playerId()->value(), $squads));
         $clubbedWithoutContract = count(array_filter($clubbed, static fn (string $playerId): bool => array_filter($byPlayer[$playerId] ?? [], static fn ($contract): bool => $contract->status() === ContractStatus::Active) === []));
-        return ['initial' => (int) ($initialPopulation['players_total'] ?? 0), 'final' => count($players), 'created' => count($players) - (int) ($initialPopulation['players_total'] ?? 0), 'unclubbed' => count($players) - count($clubbed), 'without_contract' => $withoutContract, 'clubbed_without_contract' => $clubbedWithoutContract, 'active_contracts' => count(array_filter($contracts, static fn ($contract): bool => $contract->status() === ContractStatus::Active)), 'expired_contracts' => count(array_filter($contracts, static fn ($contract): bool => $contract->status() === ContractStatus::Expired)), 'save_size' => filesize($directory . '/' . self::SAVE_ID . '.sqlite') ?: 0];
+        $active = array_values(array_filter($players, static fn (Player $player): bool => $player->careerState() === PlayerCareerState::Active));
+        return ['initial' => (int) ($initialPopulation['players_total'] ?? 0), 'final' => count($players), 'active' => count($active), 'retired' => count($players) - count($active), 'created' => count($players) - (int) ($initialPopulation['players_total'] ?? 0), 'unclubbed' => count($players) - count($clubbed), 'unclubbed_active' => count(array_filter($active, static fn (Player $player): bool => !in_array($player->id()->value(), $clubbed, true))), 'without_contract' => $withoutContract, 'clubbed_without_contract' => $clubbedWithoutContract, 'active_contracts' => count(array_filter($contracts, static fn ($contract): bool => $contract->status() === ContractStatus::Active)), 'expired_contracts' => count(array_filter($contracts, static fn ($contract): bool => $contract->status() === ContractStatus::Expired)), 'save_size' => filesize($directory . '/' . self::SAVE_ID . '.sqlite') ?: 0];
     }
 
     /** @param array<string, Player> $players */
@@ -273,8 +320,8 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
     {
         $first = $seasons[0]['season']; $last = $seasons[count($seasons) - 1]['season']; $completedMatches = array_sum(array_map(static fn (array $row): int => $row['completed'], $seasons)); $endDate = $last->endDate()->addDays(1);
         $output->write(sprintf('MULTI_SEASON seed=%d requested=%d completed=%d scope=%s start=%s end=%s simulation_days=%d matches=%d', $seed, $requested, count($seasons), self::CAREER_COMPETITION, $first->startDate()->toIsoString(), $endDate->toIsoString(), $first->startDate()->daysUntil($endDate), $completedMatches));
-        foreach ($seasons as $index => $metrics) { $number = $index + 1; $output->write(sprintf('SEASON_%d status=%s fixtures=%d completed=%d players=%d squad_avg=%.1f squad_min=%d squad_max=%d below25=%d contracts_active=%d registrations=%d goals=%d goals_per_match=%.2f ovr_avg=%.1f age_avg=%.1f oldest=%d save_size=%d', $number, $metrics['season']->status()->value, $metrics['matches'], $metrics['completed'], $metrics['players'], $metrics['squad_avg'], $metrics['squad_min'], $metrics['squad_max'], $metrics['clubs_below_25'], $metrics['contracts_active'], $metrics['registrations'], $metrics['goals'], $metrics['completed'] === 0 ? 0.0 : $metrics['goals'] / $metrics['completed'], $metrics['ovr_avg'], $metrics['age_avg'], $metrics['oldest'], $metrics['save_size'])); $output->write(sprintf('LEAGUE_%d champion=%s bottom=%s points_spread=%d home_wins=%d draws=%d away_wins=%d', $number, $metrics['champion'], $metrics['bottom'], $metrics['spread'], $metrics['home_wins'], $metrics['draws'], $metrics['away_wins'])); }
-        $output->write(sprintf('POPULATION initial=%d final=%d created_replenishment=%d unclubbed=%d without_active_contract=%d clubbed_without_active_contract=%d active_contracts=%d expired_contracts=%d', $population['initial'], $population['final'], $population['created'], $population['unclubbed'], $population['without_contract'], $population['clubbed_without_contract'], $population['active_contracts'], $population['expired_contracts']));
+        foreach ($seasons as $index => $metrics) { $number = $index + 1; $output->write(sprintf('SEASON_%d status=%s fixtures=%d completed=%d players=%d active=%d retired=%d newgens=%d unclubbed_active=%d squad_avg=%.1f squad_min=%d squad_max=%d below25=%d contracts_active=%d registrations=%d goals=%d goals_per_match=%.2f ovr_avg=%.1f age_avg=%.1f oldest=%d save_size=%d', $number, $metrics['season']->status()->value, $metrics['matches'], $metrics['completed'], $metrics['players'], $metrics['active_players'], $metrics['retired_players'], $metrics['newgens'], $metrics['unclubbed_active'], $metrics['squad_avg'], $metrics['squad_min'], $metrics['squad_max'], $metrics['clubs_below_25'], $metrics['contracts_active'], $metrics['registrations'], $metrics['goals'], $metrics['completed'] === 0 ? 0.0 : $metrics['goals'] / $metrics['completed'], $metrics['ovr_avg'], $metrics['age_avg'], $metrics['oldest'], $metrics['save_size'])); $output->write(sprintf('LEAGUE_%d champion=%s bottom=%s points_spread=%d home_wins=%d draws=%d away_wins=%d', $number, $metrics['champion'], $metrics['bottom'], $metrics['spread'], $metrics['home_wins'], $metrics['draws'], $metrics['away_wins'])); }
+        $output->write(sprintf('POPULATION initial=%d final=%d active=%d retired=%d created=%d unclubbed=%d unclubbed_active=%d without_active_contract=%d clubbed_without_active_contract=%d active_contracts=%d expired_contracts=%d', $population['initial'], $population['final'], $population['active'], $population['retired'], $population['created'], $population['unclubbed'], $population['unclubbed_active'], $population['without_contract'], $population['clubbed_without_contract'], $population['active_contracts'], $population['expired_contracts']));
         $output->write(sprintf('MOVEMENT checkpoints=%d offers=%d accepted=%d completed=%d destination=%s duplicates=%d', $movement['checkpoints'], $movement['generated'], $movement['accepted'], $movement['completed'], $movement['destination'] ?? 'none', $movement['duplicates']));
         foreach ($career as $key => $row) { $output->write(sprintf('CAREER profile=%s club=%s ovr=%d role=%s starts=%d appearances=%d minutes=%d bench=%d', $key, $row['club'], $row['ovr'], $row['role'], $row['starts'], $row['appearances'], $row['minutes'], $row['bench'])); }
         $failed = array_keys(array_filter($reloadChecks, static fn (bool $value): bool => !$value)); $output->write(sprintf('PERSISTENCE save_initial=%d save_final=%d reload_checks=%d reload_failures=%s', $saveSizes['initial'], $saveSizes['final'] ?? ($saveSizes['season_' . count($seasons)] ?? 0), count($reloadChecks), $failed === [] ? 'none' : implode(',', $failed)));

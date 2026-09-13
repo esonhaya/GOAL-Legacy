@@ -51,6 +51,9 @@ final class CareerMovementService
         $playerId = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
         $seasonId = $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId);
         $player = (new PlayerRepository($database))->get($playerId);
+        if ($player->isRetired()) {
+            return [];
+        }
         $sourceMembership = $this->currentMembership($database, $playerId, $seasonId);
         $sourceContract = $this->contractService->repository($database)->activeForPlayer($playerId);
         if ($sourceMembership === null || $sourceContract === null || $sourceContract->clubId()->value() !== $sourceMembership->clubId()->value()) {

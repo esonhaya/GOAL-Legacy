@@ -399,6 +399,11 @@ Developer Notes
 Career records. Match Player stat lines remain Match-owned; season and career
 statistics are rebuildable projections over those durable records.
 
+✓ Player fatigue/load state and structured Injury history are Player-owned
+Career records. Availability is a derived projection over Injury dates,
+fatigue recovery, and existing administrative eligibility; it does not use a
+second clock or a global daily update.
+
 ✓ Data-Driven Design
 
 ---

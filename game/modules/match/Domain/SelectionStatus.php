@@ -9,4 +9,5 @@ enum SelectionStatus: string
     case Starter = 'starter';
     case Bench = 'bench';
     case NotSelected = 'not_selected';
+    case Unavailable = 'unavailable';
 }

@@ -50,6 +50,7 @@ final class ClubExpectationService
                 if ($evaluationRepository->exists($match->id(), $selection->playerId())) { continue; }
                 $membership = $this->membership($squadRepository->byPlayer($selection->playerId(), $match->seasonId()), $selection->clubId()->value());
                 if ($membership === null) { continue; }
+                if ($selection->status() === SelectionStatus::Unavailable) { continue; }
                 $stat = $stats[$selection->playerId()->value()] ?? null;
                 $evaluation = $stat === null ? new \Goal\Legacy\Modules\Player\Domain\PerformanceEvaluation(0, 'not_played') : (new PlayerPerformanceEvaluator())->evaluate($stat, $match);
                 $expected = $membership->role()->expectationScore();

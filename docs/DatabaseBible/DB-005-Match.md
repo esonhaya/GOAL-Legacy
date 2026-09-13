@@ -255,6 +255,13 @@ status. Only actual participants receive Player stat lines. Performance
 evaluation and recent form are rebuildable from Match results, selection
 records, and the existing minimal stat fields.
 
+DOMAIN-009 keeps Match as the owner of participation and minutes while the
+Player availability service consumes those durable stat lines as a stable
+workload source. Completed Match processing may apply fatigue load and a
+bounded deterministic injury exposure once per Match/Player source key. The
+resulting fatigue and Injury records remain Player-owned; Match does not
+duplicate availability state.
+
 ---
 
 # Staff References
@@ -279,7 +286,9 @@ Examples
 - Severity
 - Expected Recovery
 
-Medical management is handled by the Staff Module.
+DOMAIN-009 records only bounded deterministic occurrence and recovery through
+the Player availability service. Medical staff, diagnosis, rehabilitation,
+and treatment decisions remain deferred.
 
 ---
 

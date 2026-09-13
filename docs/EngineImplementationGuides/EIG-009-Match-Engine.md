@@ -314,6 +314,12 @@ decisions before generating minimal actual participant stat lines. Career
 evaluation is a downstream idempotent consumer of completed Match evidence;
 it does not alter Match ownership.
 
+✓ DOMAIN-009 consumes the Player availability assessment during selection.
+Completed Match Player minutes remain the workload source; bounded fatigue and
+deterministic Injury exposure are applied once per Match/Player source key by
+the Player availability service. The Match Engine does not own Injury state or
+run a minute-by-minute medical simulation.
+
 ---
 
 ## Revision History

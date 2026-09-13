@@ -92,6 +92,11 @@ career-player references. It does not implement contracts, transfers,
 training, injuries, matches, or staff. The Club Module owns the normalized
 season-bound squad relationship and validates Club/Player/Season references.
 
+DOMAIN-009 extends the Player Module with bounded fatigue state, structured
+Injury history, lazy SimulationDate recovery, and availability assessment. The
+Match Module remains the owner of participation/minutes and supplies workload;
+selection consumes availability without creating a second eligibility system.
+
 Never Owns
 
 - League Tables
@@ -157,8 +162,11 @@ Owns
 
 DOMAIN-006 Phase 1 narrows this to scheduled-to-completed Match lifecycle,
 deterministic league fixture generation, bounded simulation, minimal Player
-stat lines, structured highlights, and Match persistence. Interactive flow,
-injuries, tactics, and ratings beyond participation are deferred.
+stat lines, structured highlights, and Match persistence. DOMAIN-009 adds
+idempotent post-completion workload/injury exposure through the Player
+availability service; it does not add medical staff or a minute-by-minute
+injury simulator. Interactive flow, tactics, and ratings beyond
+participation remain deferred.
 
 Receives
 

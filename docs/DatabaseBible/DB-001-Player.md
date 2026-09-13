@@ -251,6 +251,14 @@ Nationality and international eligibility are distinct Player-owned ID
 relationships. Eligibility is a minimal explicit Nation-ID set; it is not a
 full national-team selection or FIFA-law engine.
 
+DOMAIN-009 adds durable current availability state to the Player lifetime.
+Fatigue is a bounded load value that is increased by real Match minutes and
+explicit training blocks and recovered lazily from SimulationDate. Injury
+history is retained as structured Player-referenced records; current
+availability is derived from active Injury state, fatigue, and the existing
+administrative eligibility path. No daily Player tick or wall-clock state is
+stored.
+
 ---
 
 # Statistics

@@ -38,6 +38,7 @@ use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\TrainingRequest;
 use Goal\Legacy\Modules\Player\Persistence\CareerEvaluationRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerDevelopmentRepository;
+use Goal\Legacy\Modules\Player\Persistence\PlayerAvailabilityRepository;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -72,7 +73,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
             $output->write(sprintf('SAVE_RELOAD equivalent=%s midpoint=%s', $equivalent ? 'yes' : 'no', $reloaded['reloaded_midpoint'] ? 'yes' : 'no'));
             foreach ($continuous['players'] as $player) {
                 $output->write(sprintf(
-                    'PLAYER profile=%s role_context=%s start_ovr=%d end_ovr=%d potential=%d starts=%d bench=%d non_selections=%d appearances=%d selection_pct=%.1f longest_start=%d longest_non_start=%d goals=%d avg_evaluation=%.1f best_evaluation=%d worst_evaluation=%d recent_form=%.1f initial_role=%s final_role=%s role_changes=%d training_events=%d match_development_events=%d training_gain=%d match_gain=%d attribute_gain=%d open_opportunities=%d',
+                    'PLAYER profile=%s role_context=%s start_ovr=%d end_ovr=%d potential=%d starts=%d bench=%d non_selections=%d unavailable=%d appearances=%d selection_pct=%.1f longest_start=%d longest_non_start=%d goals=%d avg_evaluation=%.1f best_evaluation=%d worst_evaluation=%d recent_form=%.1f initial_role=%s final_role=%s role_changes=%d training_events=%d match_development_events=%d training_gain=%d match_gain=%d attribute_gain=%d open_opportunities=%d',
                     $player['profile'],
                     $player['role_context'],
                     $player['start_ovr'],
@@ -81,6 +82,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
                     $player['starts'],
                     $player['bench'],
                     $player['non_selections'],
+                    $player['unavailable'],
                     $player['appearances'],
                     $player['selection_percentage'],
                     $player['longest_start_streak'],
@@ -102,6 +104,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
                 ));
             }
             $output->write(sprintf('LEAGUE completed=%d goals=%d goals_per_match=%.2f home_wins=%d draws=%d away_wins=%d extreme_scores=%d standings_spread=%d', $continuous['completed_matches'], $continuous['goals'], $continuous['goals_per_match'], $continuous['home_wins'], $continuous['draws'], $continuous['away_wins'], $continuous['extreme_scores'], $continuous['standings_spread']));
+            $output->write(sprintf('AVAILABILITY unique_starters=%d rotation_events=%d injuries=%d minor=%d moderate=%d major=%d injury_matches_missed=%d recoveries=%d', $continuous['unique_starters'], $continuous['rotation_events'], $continuous['injuries_total'], $continuous['minor_injuries'], $continuous['moderate_injuries'], $continuous['major_injuries'], $continuous['injury_matches_missed'], $continuous['recoveries']));
             $output->write(sprintf('CONSISTENCY match_double_processing=%s development_duplication=%s role_idempotency=%s standings_rebuild=%s selection_stats=%s contract_coherence=%s career_reference=%s completed_fixture_count=%d', $continuous['match_double_processing'] ? 'pass' : 'fail', $continuous['development_unique'] ? 'pass' : 'fail', $continuous['role_idempotent'] ? 'pass' : 'fail', $continuous['standings_rebuild'] ? 'pass' : 'fail', $continuous['selection_stat_consistency'] ? 'pass' : 'fail', $continuous['contract_coherent'] ? 'pass' : 'fail', $continuous['career_reference'] ? 'pass' : 'fail', $continuous['completed_matches']));
             $output->write(sprintf('PRESSURE selection_variance=%s role_changes=%d opportunities=%d availability_gap=evident transfer_market_gap=unresolved', $this->selectionVariance($continuous['players']) ? 'present' : 'low', $continuous['role_changes'], $continuous['opportunities']));
             if (!$equivalent) {
@@ -176,6 +179,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
             $standingsRebuilt = $standings === $matchService->standings($database, self::COMPETITION_ID, $season->id());
             $metrics = $this->playerMetrics($database, $players, $season, $matches);
             $resultMetrics = $this->leagueMetrics($completed, $standings);
+            $availabilityMetrics = $this->availabilityMetrics($database, $completed, $players);
             $consistency = $this->consistency($database, $matchService, $completed, $players, $season, $standingsRebuilt);
 
             return [
@@ -188,6 +192,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
                 'opportunities' => array_sum(array_column($metrics, 'open_opportunities')),
                 'reloaded_midpoint' => $reloadMidpoint,
                 ...$resultMetrics,
+                ...$availabilityMetrics,
                 ...$consistency,
             ];
         } finally {
@@ -262,12 +267,13 @@ final class CareerSeasonAuditCommand implements CommandInterface
         foreach ($definitions as $definition) {
             $player = $playerRepository->get($definition['player']->id());
             $selections = $selectionRepository->byPlayer($player->id());
-            $starts = $bench = $notSelected = 0; $statuses = [];
+            $starts = $bench = $notSelected = $unavailable = 0; $statuses = [];
             foreach ($selections as $selection) {
                 if ($selection->clubId()->value() !== self::CLUB_ID) { continue; }
                 $statuses[] = $selection->status()->value;
                 if ($selection->status()->value === 'starter') { ++$starts; }
                 elseif ($selection->status()->value === 'bench') { ++$bench; }
+                elseif ($selection->status()->value === 'unavailable') { ++$unavailable; }
                 else { ++$notSelected; }
             }
             $stats = $statsRepository->byPlayer($player->id());
@@ -289,7 +295,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
             $finalAttributes = $player->attributes()->toArray(); $gain = 0;
             foreach ($finalAttributes as $name => $value) { $gain += $value - $definition['start_attributes'][$name]; }
             $result[] = [
-                'id' => $player->id()->value(), 'profile' => $definition['profile'], 'role_context' => $definition['role_context'], 'start_ovr' => $definition['player']->overallRating(), 'end_ovr' => $player->overallRating(), 'potential' => $player->potential(), 'starts' => $starts, 'bench' => $bench, 'non_selections' => $notSelected, 'appearances' => $appearances, 'eligible_matches' => count($selections), 'selection_percentage' => count($selections) === 0 ? 0.0 : round(($starts + $bench) / count($selections) * 100, 1), 'longest_start_streak' => $streaks['starts'], 'longest_non_start_streak' => $streaks['non_starts'], 'goals' => $goals, 'average_evaluation' => $scores === [] ? 0.0 : round(array_sum($scores) / count($scores), 1), 'best_evaluation' => $scores === [] ? 0 : max($scores), 'worst_evaluation' => $scores === [] ? 0 : min($scores), 'recent_form' => $scores === [] ? 0.0 : round(array_sum(array_slice($scores, 0, 5)) / count(array_slice($scores, 0, 5)), 1), 'initial_role' => $roleHistory[0]['role'] ?? null, 'final_role' => $membership?->role()->value, 'role_changes' => $roleChanges, 'training_events' => $trainingEvents, 'match_development_events' => $matchEvents, 'training_gain' => $trainingGain, 'match_gain' => $matchGain, 'total_attribute_gain' => $gain, 'open_opportunities' => count($opportunityService->openForPlayer($database, $player->id())), 'attributes' => $finalAttributes,
+                'id' => $player->id()->value(), 'profile' => $definition['profile'], 'role_context' => $definition['role_context'], 'start_ovr' => $definition['player']->overallRating(), 'end_ovr' => $player->overallRating(), 'potential' => $player->potential(), 'starts' => $starts, 'bench' => $bench, 'non_selections' => $notSelected, 'unavailable' => $unavailable, 'appearances' => $appearances, 'eligible_matches' => count($selections), 'selection_percentage' => count($selections) === 0 ? 0.0 : round(($starts + $bench) / count($selections) * 100, 1), 'longest_start_streak' => $streaks['starts'], 'longest_non_start_streak' => $streaks['non_starts'], 'goals' => $goals, 'average_evaluation' => $scores === [] ? 0.0 : round(array_sum($scores) / count($scores), 1), 'best_evaluation' => $scores === [] ? 0 : max($scores), 'worst_evaluation' => $scores === [] ? 0 : min($scores), 'recent_form' => $scores === [] ? 0.0 : round(array_sum(array_slice($scores, 0, 5)) / count(array_slice($scores, 0, 5)), 1), 'initial_role' => $roleHistory[0]['role'] ?? null, 'final_role' => $membership?->role()->value, 'role_changes' => $roleChanges, 'training_events' => $trainingEvents, 'match_development_events' => $matchEvents, 'training_gain' => $trainingGain, 'match_gain' => $matchGain, 'total_attribute_gain' => $gain, 'open_opportunities' => count($opportunityService->openForPlayer($database, $player->id())), 'attributes' => $finalAttributes,
             ];
         }
 
@@ -306,6 +312,39 @@ final class CareerSeasonAuditCommand implements CommandInterface
         }
 
         return ['starts' => $bestStarts, 'non_starts' => $bestNonStarts];
+    }
+
+    /** @param list<GameMatch> $matches @param list<array<string, mixed>> $definitions @return array<string, int> */
+    private function availabilityMetrics(DatabaseInterface $database, array $matches, array $definitions): array
+    {
+        $selectionRepository = new MatchSelectionRepository($database);
+        $availabilityRepository = new PlayerAvailabilityRepository($database);
+        $playerIds = array_map(static fn (array $definition): string => $definition['player']->id()->value(), $definitions);
+        $injuries = [];
+        foreach ($playerIds as $playerId) {
+            foreach ($availabilityRepository->byPlayer(new PlayerId($playerId)) as $injury) {
+                $injuries[$injury->id()] = $injury;
+            }
+        }
+        $severityCounts = ['minor' => 0, 'moderate' => 0, 'major' => 0]; $missed = 0; $previousStarters = null; $rotationEvents = 0; $uniqueStarters = [];
+        usort($matches, static fn (GameMatch $left, GameMatch $right): int => $left->scheduledDate()->compareTo($right->scheduledDate()));
+        foreach ($matches as $match) {
+            $selections = array_values(array_filter($selectionRepository->byMatch($match->id()), static fn ($selection): bool => $selection->clubId()->value() === self::CLUB_ID));
+            $starters = array_values(array_map(static fn ($selection): string => $selection->playerId()->value(), array_filter($selections, static fn ($selection): bool => $selection->status()->value === 'starter')));
+            sort($starters, SORT_STRING);
+            foreach ($starters as $playerId) { $uniqueStarters[$playerId] = true; }
+            if ($previousStarters !== null && $previousStarters !== $starters) { ++$rotationEvents; }
+            $previousStarters = $starters;
+            foreach ($selections as $selection) {
+                if ($selection->status()->value !== 'unavailable') { continue; }
+                foreach ($injuries as $injury) {
+                    if ($injury->playerId()->value() === $selection->playerId()->value() && $injury->isActiveAt($match->scheduledDate())) { ++$missed; break; }
+                }
+            }
+        }
+        foreach ($injuries as $injury) { ++$severityCounts[$injury->severity()->value]; }
+
+        return ['unique_starters' => count($uniqueStarters), 'rotation_events' => $rotationEvents, 'injuries_total' => count($injuries), 'minor_injuries' => $severityCounts['minor'], 'moderate_injuries' => $severityCounts['moderate'], 'major_injuries' => $severityCounts['major'], 'injury_matches_missed' => $missed, 'recoveries' => count(array_filter($injuries, static fn ($injury): bool => $injury->status()->value === 'recovered'))];
     }
 
     /** @param list<GameMatch> $matches @param list<array<string, int|string>> $standings @return array<string, mixed> */

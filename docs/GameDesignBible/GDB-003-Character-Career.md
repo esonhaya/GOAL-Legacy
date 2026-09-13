@@ -54,9 +54,10 @@ stimulus idempotent across retries and reloads. Match Player statistics remain
 owned by Match; season and career appearances, starts, minutes, and goals are
 derived read models over those records. Transfer does not reset development.
 
-Phase 1 does not use Club facilities, coaches, fatigue, decline, or a daily
-per-Player tick. Development is processed at explicit training boundaries and
-for real Player appearances in completed Matches.
+Phase 1 does not use Club facilities, coaches, decline, or a daily per-Player
+tick. DOMAIN-009 adds bounded fatigue and Injury availability, but development
+is still processed only at explicit training boundaries and for real Player
+appearances in completed Matches.
 
 ## DOMAIN-008 Selection Pressure
 
@@ -76,6 +77,16 @@ Career opportunities are durable structured records referencing Player and
 Club IDs. Phase 1 supports role and playing-time opportunities; accepting or
 declining an opportunity does not execute a Transfer. The controlled career
 Player receives no selection, ability, or opportunity bonus.
+
+## DOMAIN-009 Availability and Recovery
+
+The controlled Player uses the same bounded availability path as every other
+persisted Player. Match minutes and explicit training blocks create fatigue;
+fatigue recovers from SimulationDate without a daily Player tick. Active
+Injuries block selection until their deterministic recovery date and remain
+visible as structured career history. Injury absence produces no synthetic
+poor-performance evaluation or direct attribute penalty; its development
+effect is indirect through missed training or Match minutes.
 
 ---
 

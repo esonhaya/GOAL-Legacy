@@ -31,7 +31,16 @@ final class PlayerDevelopmentService
 
     public function applyTraining(DatabaseInterface $database, TrainingRequest $request): DevelopmentApplicationResult
     {
-        $result = $database->transaction(fn (): DevelopmentApplicationResult => $this->applyStimulusInTransaction(
+        $result = $database->transaction(fn (): DevelopmentApplicationResult => $this->applyTrainingInTransaction($database, $request));
+        $this->dispatchTrainingResult($result);
+
+        return $result;
+    }
+
+    /** Must be called inside the caller's existing transaction. */
+    public function applyTrainingInTransaction(DatabaseInterface $database, TrainingRequest $request): DevelopmentApplicationResult
+    {
+        return $this->applyStimulusInTransaction(
             $database,
             $request->playerId(),
             $request->endDate(),
@@ -39,13 +48,36 @@ final class PlayerDevelopmentService
             $request->blockId(),
             $this->trainingStimulus($database, $request),
             $request->focus(),
-        ));
-        if ($result->applied() && $this->events !== null) {
-            $this->events->dispatch(new GenericEvent(DevelopmentEventNames::TRAINING_COMPLETED, $result->toArray()));
-            $this->events->dispatch(new GenericEvent(DevelopmentEventNames::PLAYER_DEVELOPED, $result->toArray()));
-        }
+        );
+    }
 
-        return $result;
+    /** Must be called inside the caller's existing transaction. */
+    public function skipTrainingInTransaction(DatabaseInterface $database, TrainingRequest $request): DevelopmentApplicationResult
+    {
+        $development = new PlayerDevelopmentRepository($database);
+        if ($development->hasSource($request->playerId(), 'training', $request->blockId())) {
+            $entry = $development->bySource($request->playerId(), 'training', $request->blockId());
+            if ($entry === null) {
+                throw new \RuntimeException('Training source was reported as processed but could not be loaded.');
+            }
+
+            return DevelopmentApplicationResult::skipped($request->playerId(), 'training', $request->blockId(), $entry->afterOverall());
+        }
+        $player = (new PlayerRepository($database))->get($request->playerId());
+        $state = $development->state($request->playerId());
+        $development->saveStateInTransaction($state->withProgress($state->progress(), $request->endDate(), $request->focus()));
+        $development->saveHistoryInTransaction(new DevelopmentHistoryEntry(hash('sha256', $request->playerId()->value() . '|training|' . $request->blockId()), $request->playerId(), $request->endDate(), 'training', $request->blockId(), [], $player->overallRating(), $player->overallRating()));
+
+        return DevelopmentApplicationResult::skipped($request->playerId(), 'training', $request->blockId(), $player->overallRating());
+    }
+
+    public function dispatchTrainingResult(DevelopmentApplicationResult $result): void
+    {
+        if (!$result->applied() || $this->events === null) {
+            return;
+        }
+        $this->events->dispatch(new GenericEvent(DevelopmentEventNames::TRAINING_COMPLETED, $result->toArray()));
+        $this->events->dispatch(new GenericEvent(DevelopmentEventNames::PLAYER_DEVELOPED, $result->toArray()));
     }
 
     /** @return list<DevelopmentApplicationResult> */

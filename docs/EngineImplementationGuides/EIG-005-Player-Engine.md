@@ -300,6 +300,12 @@ and immutable progression history are Career data.
 ✓ Season and career statistics are derived from Match Player stat lines rather
 than duplicated mutable counters.
 
+✓ DOMAIN-009 adds bounded Player fatigue and structured Injury history. Match
+minutes and explicit training blocks are idempotent workload sources; lazy
+SimulationDate recovery derives current fatigue without a daily global tick.
+Availability is assessed from Injury state, fatigue, and existing Match
+eligibility. Injury absence has no direct attribute penalty in this phase.
+
 ---
 
 ## Revision History

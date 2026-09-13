@@ -21,6 +21,7 @@ use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\PlayerDevelopmentService;
+use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
 use Goal\Legacy\Modules\Player\ClubExpectationService;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -31,10 +32,10 @@ final class MatchService
     private readonly MatchSimulationService $simulator;
     private readonly StandingsService $standings;
 
-    public function __construct(private readonly ClubService $clubService, private readonly EventDispatcherInterface $events, private readonly ?PlayerDevelopmentService $development = null, private readonly ?ClubExpectationService $expectations = null)
+    public function __construct(private readonly ClubService $clubService, private readonly EventDispatcherInterface $events, private readonly ?PlayerDevelopmentService $development = null, private readonly ?ClubExpectationService $expectations = null, private readonly ?PlayerAvailabilityService $availability = null)
     {
         $this->fixtureGenerator = new FixtureGenerationService($clubService);
-        $this->simulator = new MatchSimulationService($clubService, new MatchSelectionService($clubService));
+        $this->simulator = new MatchSimulationService($clubService, new MatchSelectionService($clubService, $availability));
         $this->standings = new StandingsService($clubService);
     }
     public function repository(DatabaseInterface $database): MatchRepository { return new MatchRepository($database); }
@@ -45,11 +46,12 @@ final class MatchService
     public function simulate(DatabaseInterface $database, string|MatchId $matchId): GameMatch
     {
         $repository = $this->repository($database); $match = $repository->get($matchId); if ($match->status() !== MatchStatus::Scheduled) { throw new MatchException('Only scheduled Matches can be simulated.'); }
-        $simulation = $this->simulator->simulate($database, $match); $stats = $simulation->playerStats(); $highlights = $simulation->highlights(); $selections = $simulation->selections(); $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $database): array { $completed = $match->complete($simulation->result()); $repository->saveInTransaction($completed); (new MatchSelectionRepository($database))->replaceForMatchInTransaction($selections); (new PlayerMatchStatRepository($database))->replaceForMatchInTransaction($stats); (new MatchHighlightRepository($database))->replaceForMatchInTransaction($highlights); $development = $this->development?->applyMatchInTransaction($database, $completed) ?? []; return [$completed, $development]; });
-        [$completed, $development] = $transactionResult;
+        $simulation = $this->simulator->simulate($database, $match); $stats = $simulation->playerStats(); $highlights = $simulation->highlights(); $selections = $simulation->selections(); $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $database): array { $completed = $match->complete($simulation->result()); $repository->saveInTransaction($completed); (new MatchSelectionRepository($database))->replaceForMatchInTransaction($selections); (new PlayerMatchStatRepository($database))->replaceForMatchInTransaction($stats); (new MatchHighlightRepository($database))->replaceForMatchInTransaction($highlights); $availability = $this->availability?->reconcileInTransaction($database, $completed->scheduledDate()) ?? []; $availability = array_merge($availability, $this->availability?->applyMatchInTransaction($database, $completed) ?? []); $development = $this->development?->applyMatchInTransaction($database, $completed) ?? []; return [$completed, $development, $availability]; });
+        [$completed, $development, $availability] = $transactionResult;
         foreach ($development as $application) {
             if ($application->applied()) { $this->events->dispatch(new GenericEvent('player.developed', $application->toArray())); }
         }
+        $this->availability?->dispatchChanges($availability);
         $this->events->dispatch(new GenericEvent(MatchEventNames::COMPLETED, ['match_id' => $completed->id()->value(), 'competition_id' => $completed->competitionId()->value(), 'season_id' => $completed->seasonId()->value(), 'home_club_id' => $completed->homeClubId()->value(), 'away_club_id' => $completed->awayClubId()->value(), 'home_goals' => $completed->result()?->homeGoals(), 'away_goals' => $completed->result()?->awayGoals()]));
         $this->events->dispatch(new GenericEvent(MatchEventNames::STANDINGS_UPDATED, ['competition_id' => $completed->competitionId()->value(), 'season_id' => $completed->seasonId()->value()]));
         $this->expectations?->evaluateMatch($database, $completed);

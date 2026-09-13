@@ -34,3 +34,24 @@ expectations and role transitions are evaluated after Match persistence, using
 two-match evidence before a normal role change. Role opportunities are durable
 read/action records; transfer-interest signals, when generated later, never
 execute a Transfer automatically.
+
+## DOMAIN-009 Availability Boundary
+
+Match minutes and explicit training blocks add bounded fatigue to real
+Players. Fatigue recovers lazily from SimulationDate at a fixed deterministic
+rate, so ordinary weekly play is sustainable while congested dates reduce
+selection readiness. Availability augments, but does not replace, Contract,
+registration, and squad eligibility and resolves to available, limited, or
+unavailable.
+
+Match workload can produce a bounded deterministic Injury exposure whose
+severity supplies an expected recovery date. An active Injury blocks selection
+until that date; historical Injuries remain structured Player records. Normal
+training supplies no development stimulus while unavailable and no medical
+staff, rehabilitation system, or wall-clock update is introduced.
+
+The Match Module remains responsible for participation/minutes. Selection
+consumes the Player availability assessment, and load/injury application is
+idempotent by stable Match/Player source key. Clubs without persisted rosters
+continue to use aggregate strength and receive no synthetic availability
+records.

@@ -27,6 +27,11 @@ final readonly class DevelopmentApplicationResult
     public function afterOverall(): int { return $this->afterOverall; }
     public function applied(): bool { return $this->applied; }
 
+    public static function skipped(PlayerId $playerId, string $source, string $sourceId, int $overall): self
+    {
+        return new self($playerId, $source, $sourceId, [], $overall, $overall, false);
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {

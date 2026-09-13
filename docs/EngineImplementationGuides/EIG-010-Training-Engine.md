@@ -287,6 +287,12 @@ stimulus and remains the only component that mutates Player attributes.
 ✓ Coach, workload, fatigue, and recurring daily schedules remain deferred;
 Phase 1 does not create per-Player scheduler callbacks.
 
+✓ DOMAIN-009 permits an explicit training block to add bounded Player fatigue
+through the Player availability service. An unavailable Player receives no
+normal development stimulus or training load, and a stable block source key
+prevents retry duplication. Recovery remains lazy and SimulationDate-based;
+there is no rehabilitation or medical-staff subsystem.
+
 ---
 
 ## Revision History

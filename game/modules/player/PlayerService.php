@@ -22,6 +22,7 @@ final class PlayerService
         private readonly NationService $nationService,
         private readonly ClubService $clubService,
         private readonly ?PlayerDevelopmentService $developmentService = null,
+        private readonly ?PlayerAvailabilityService $availabilityService = null,
     ) {
     }
 
@@ -47,7 +48,7 @@ final class PlayerService
 
     public function trainingService(): TrainingService
     {
-        return new TrainingService($this->developmentService());
+        return new TrainingService($this->developmentService(), $this->availabilityService);
     }
 
     /** @return list<Player> */

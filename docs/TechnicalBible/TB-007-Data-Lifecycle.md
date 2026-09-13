@@ -148,6 +148,15 @@ recent form, and expectations are rebuildable projections.
 ✓ Career opportunities are Career-durable structured records owned by the
 Player career boundary and reference Player/Club IDs without embedding them.
 
+✓ Player fatigue/load state is Career-durable current state and is recovered
+from its last processed SimulationDate on demand. Match and training source
+keys make load application idempotent.
+
+✓ Injury occurrences are Career-durable structured Player records with an
+expected SimulationDate recovery boundary. Availability is a derived/current
+projection; recovery does not require a serialized callback or a daily global
+Player tick.
+
 ---
 
 ## Revision History

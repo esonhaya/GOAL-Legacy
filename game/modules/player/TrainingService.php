@@ -10,12 +10,29 @@ use Goal\Legacy\Modules\Player\Domain\TrainingRequest;
 
 final class TrainingService
 {
-    public function __construct(private readonly PlayerDevelopmentService $development)
+    public function __construct(private readonly PlayerDevelopmentService $development, private readonly ?PlayerAvailabilityService $availability = null)
     {
     }
 
     public function complete(DatabaseInterface $database, TrainingRequest $request): DevelopmentApplicationResult
     {
-        return $this->development->applyTraining($database, $request);
+        if ($this->availability === null) {
+            return $this->development->applyTraining($database, $request);
+        }
+        $changes = [];
+        $result = $database->transaction(function () use ($database, $request, &$changes): DevelopmentApplicationResult {
+            $assessment = $this->availability->assess($database, $request->playerId(), $request->endDate());
+            $result = $assessment->isUnavailable()
+                ? $this->development->skipTrainingInTransaction($database, $request)
+                : $this->development->applyTrainingInTransaction($database, $request);
+            $weeks = max(1, intdiv($request->startDate()->daysUntil($request->endDate()), 7));
+            $changes = $this->availability->applyTrainingInTransaction($database, $request->playerId(), $request->blockId(), $request->endDate(), $weeks);
+
+            return $result;
+        });
+        $this->development->dispatchTrainingResult($result);
+        $this->availability->dispatchChanges($changes);
+
+        return $result;
     }
 }

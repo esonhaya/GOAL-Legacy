@@ -25,6 +25,7 @@ final class PlayerCareerProgressionQuery
         $player = (new PlayerServiceProxy($database))->get($id);
         $development = new PlayerDevelopmentService();
         $statistics = new PlayerCareerStatisticsService();
+        $availability = (new PlayerAvailabilityService())->assess($database, $id, $date);
         $summary = [
             'player' => $player->toArray(),
             'age' => $player->ageAt($date),
@@ -34,6 +35,9 @@ final class PlayerCareerProgressionQuery
             'training_focus' => $development->state($database, $id)->currentFocus()?->value,
             'career_stats' => $statistics->career($database, $id),
             'recent_development' => array_map(static fn ($entry): array => $entry->toArray(), array_slice(array_reverse($development->history($database, $id)), 0, 5)),
+            'availability' => $availability->status()->value,
+            'fatigue' => $availability->fatigue(),
+            'active_injury' => $availability->injury()?->toArray(),
         ];
         if ($seasonId !== null) {
             $summary['season_stats'] = $statistics->season($database, $id, $seasonId);

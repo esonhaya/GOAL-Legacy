@@ -13,11 +13,13 @@ use Goal\Legacy\Modules\Match\Domain\GameMatch;
 use Goal\Legacy\Modules\Match\Domain\PlayerSelection;
 use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
 use Goal\Legacy\Modules\Player\Domain\Player;
+use Goal\Legacy\Modules\Player\Domain\AvailabilityStatus;
+use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 
 final class MatchSelectionService
 {
-    public function __construct(private readonly ClubService $clubService)
+    public function __construct(private readonly ClubService $clubService, private readonly ?PlayerAvailabilityService $availability = null)
     {
     }
 
@@ -30,9 +32,15 @@ final class MatchSelectionService
             $eligible = $this->eligiblePlayers($database, $match, $clubId, $players);
             $ranked = [];
             foreach ($eligible as $player) {
+                $assessment = ($this->availability ?? new PlayerAvailabilityService())->assess($database, $player->id(), $match->scheduledDate());
+                if ($assessment->status() === AvailabilityStatus::Unavailable) {
+                    $selections[] = new PlayerSelection($match->id(), $player->id(), new \Goal\Legacy\Modules\Club\Domain\ClubId($clubId), SelectionStatus::Unavailable);
+                    continue;
+                }
                 $membership = $this->clubService->squadRepository($database)->byPlayer($player->id(), $match->seasonId());
                 $role = array_values(array_filter($membership, static fn ($value): bool => $value->clubId()->value() === $clubId))[0]?->role() ?? SquadRole::Prospect;
-                $ranked[] = ['player' => $player, 'score' => $role->weight() + ($player->overallRating() * 10) + $this->formBonus($database, $player->id()->value(), $match), 'tie' => hash('sha256', $match->id()->value() . '|' . $player->id()->value())];
+                $fatiguePenalty = $assessment->fatigue() * 4;
+                $ranked[] = ['player' => $player, 'score' => $role->weight() + ($player->overallRating() * 10) + $this->formBonus($database, $player->id()->value(), $match) - $fatiguePenalty, 'tie' => hash('sha256', $match->id()->value() . '|' . $player->id()->value())];
             }
             usort($ranked, static fn (array $a, array $b): int => ($b['score'] <=> $a['score']) ?: strcmp($a['tie'], $b['tie']));
             foreach ($ranked as $index => $entry) {

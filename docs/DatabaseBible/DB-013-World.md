@@ -122,11 +122,15 @@ World may store references to global cycles needed to coordinate a save.
 Detailed season and competition state is owned by the relevant domain.
 
 The current Phase-1 persistence boundary supports a durable current Season
-reference and historical completed Season data. Automatic creation and
-activation of a following Season, including its Competition memberships,
-registrations, and fixtures, is not yet part of the World production path;
-future lifecycle work must create those Season-scoped records through their
-owning modules rather than reusing the completed Season rows.
+reference and historical completed Season data. `SeasonRolloverService` is
+the single World lifecycle coordinator for the recurring league loop: after
+all scheduled Matches are complete it prepares the next Aug 1--May 31
+Season, applies bounded Club Contract renewal/release, and at activation
+materializes seasonal Competition memberships, replenishes viable squads,
+creates registrations, and generates fixtures through their owning modules.
+Completed Season rows remain historical and are never reused as current
+registration or fixture state. Promotion/relegation, retirement, newgens,
+and autonomous NPC recruitment remain deferred.
 
 Examples:
 

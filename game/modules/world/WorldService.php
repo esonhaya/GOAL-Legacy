@@ -42,6 +42,7 @@ final class WorldService
         private readonly ClubService $clubService,
         private readonly SeasonLifecycleService $seasonLifecycle = new SeasonLifecycleService(),
         private readonly ?ContractService $contractService = null,
+        private readonly ?SeasonRolloverService $seasonRollover = null,
     ) {
     }
 
@@ -122,7 +123,20 @@ final class WorldService
         $competitionRepository = new CompetitionRepository($database);
         $worldRepository = new WorldRepository($database);
         $season = $world->currentSeasonId() === null ? null : $seasonRepository->get($world->currentSeasonId());
-        $transition = $season === null ? null : $this->seasonLifecycle->evaluate($season, $date);
+        if ($season !== null && $season->status() === SeasonStatus::Active && !$date->isBefore($season->endDate()) && $this->seasonRollover !== null && !$this->seasonRollover->competitionsComplete($database, $world, $season)) {
+            throw new WorldException('Cannot complete a Season while scheduled Competition Matches remain.');
+        }
+        $transitionSeason = $season;
+        if ($season !== null && $season->status() === SeasonStatus::Completed && $this->seasonRollover !== null) {
+            $nextCandidate = $this->seasonRollover->nextSeason($season);
+            if ($seasonRepository->exists($nextCandidate->id()) && !$date->isBefore($nextCandidate->startDate())) {
+                $transitionSeason = $seasonRepository->get($nextCandidate->id());
+            }
+        }
+        if ($season !== null && $transitionSeason !== null && $transitionSeason->id()->value() !== $season->id()->value() && $this->seasonRollover !== null) {
+            $this->seasonRollover->materializeNext($database, $world, $season, $transitionSeason, $date);
+        }
+        $transition = $transitionSeason === null ? null : $this->seasonLifecycle->evaluate($transitionSeason, $date);
         $competitionChanges = [];
         if ($transition !== null) {
             foreach ($competitionRepository->bySeason($transition->season()->id()) as $competition) {
@@ -155,6 +169,12 @@ final class WorldService
         });
 
         $this->clock->advanceTo($targetTime);
+        if ($transition?->completed() && $this->seasonRollover !== null && $transition !== null) {
+            $this->seasonRollover->prepareNext($database, $world, $transition->season(), $date);
+        }
+        if ($transition?->started() && !$transition->completed() && $this->seasonRollover !== null) {
+            $this->seasonRollover->activateNext($database, $transition->season());
+        }
         $timestamp = $date->atStartOfDay();
         $this->events->dispatch(new GenericEvent(WorldEventNames::TIME_ADVANCED, [
             'from_date' => $world->currentDate($this->calendar)->toIsoString(),

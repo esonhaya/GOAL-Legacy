@@ -183,14 +183,21 @@ replace existing Players. Name pools and generation rules are static/runtime
 configuration; generated Contracts are normal Career history and
 Competition registrations remain Season-bound.
 
-## CAREER-003 Season Boundary Finding
+## DOMAIN-013 Season Rollover
 
-The current production World lifecycle completes the active Season and keeps
-its durable history, but does not automatically create the next Season or
-rebuild next-season Competition memberships, registrations, fixtures, and
-squad state. This is an explicit missing lifecycle capability, not permission
-to copy Season-bound rows into a new Season during an audit. Future rollover
-work must preserve historical Match and Contract records while creating new
-Season-scoped projections through their owning services.
+`SeasonRolloverService` owns the single recurring Season transition. The
+active Season must have all scheduled Competition Matches completed before it
+can complete. The service then creates one deterministic upcoming successor,
+continues Club/Competition memberships, applies the bounded Contract
+renewal/release policy, and at the successor start creates fresh seasonal
+registrations and fixtures. Replenishment fills only missing senior-squad
+places and uses ordinary Player, Contract, squad, and registration services.
+
+Season-bound rows are never mutated into the next Season: historical
+Matches, registrations, memberships, and Contracts remain queryable. The
+Phase-1 world keeps stable league membership; promotion/relegation,
+retirement, true newgens, free-agent market behavior, and autonomous NPC
+recruitment remain deferred. Rollover operations are retry-safe by existing
+IDs and repository uniqueness checks.
 
 END OF DOCUMENT

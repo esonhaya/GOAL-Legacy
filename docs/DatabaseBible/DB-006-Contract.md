@@ -308,10 +308,26 @@ These additions should extend the existing structure without breaking compatibil
 
 ---
 
+## DOMAIN-013 Contract Boundary
+
+At a Season boundary, `SeasonRolloverService` evaluates Contracts that end
+before the next Season begins. A bounded deterministic Club policy may create
+a historical renewal Contract beginning with the next Season, or release the
+Player by omitting the next Season squad membership and registration. The
+policy uses age, OVR, Club-scoped role, and squad continuity; it does not
+negotiate wages or consult a finance engine. Replacements receive ordinary
+Contracts through the same Contract service.
+
+Renewal IDs and replacement generation context are Season-scoped so retries
+cannot create duplicate active Contracts. The existing one-active-permanent-
+Contract invariant remains authoritative. Expiration is processed at the
+boundary rather than by a daily global Contract tick.
+
 ## DOMAIN-010 Generated Contracts
 
 Generated Players receive ordinary durable Contracts through the Contract
-Module. Terms are deterministic bounded save-initialization data; there is no
-wage-budget, renewal, negotiation, or market system in this phase.
+Module. Terms are deterministic bounded save-initialization data. Renewal is
+now available only through the DOMAIN-013 rollover policy; there is still no
+wage budget, negotiation, or autonomous market system.
 
 END OF DOCUMENT

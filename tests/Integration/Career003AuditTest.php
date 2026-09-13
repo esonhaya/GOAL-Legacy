@@ -32,19 +32,31 @@ final class Career003AuditTest extends TestCase
         }
     }
 
-    public function testCurrentProductionWorldCompletesSeasonButDoesNotCreateSeasonTwo(): void
+    public function testCurrentProductionWorldCompletesSeasonAndPreparesSeasonTwo(): void
     {
         [$services, $database, $store, $world] = $this->scenario('career-003-rollover');
         $worldService = $services->worldModule()->service();
+        $clubService = $services->clubModule()->service();
+        $membershipsBefore = count($clubService->membershipRepository($database)->bySeason(new SeasonId('season-2024-25')));
         $completed = $worldService->advanceToDate($database, $world->id(), SimulationDate::fromIsoString('2025-06-01'));
 
         self::assertSame(SeasonStatus::Completed, $worldService->seasonRepository($database)->get(new SeasonId('season-2024-25'))->status());
         self::assertSame('season-2024-25', $completed->currentSeasonId()?->value());
-        self::assertFalse($worldService->seasonRepository($database)->exists(new SeasonId('season-2025-26')));
+        self::assertSame(SeasonStatus::Upcoming, $worldService->seasonRepository($database)->get(new SeasonId('season-2025-26'))->status());
+
+        $activated = $worldService->advanceToDate($database, $world->id(), SimulationDate::fromIsoString('2025-08-01'));
+        self::assertSame('season-2025-26', $activated->currentSeasonId()?->value());
+        self::assertSame(SeasonStatus::Active, $worldService->seasonRepository($database)->get(new SeasonId('season-2025-26'))->status());
+        self::assertSame($membershipsBefore, count($clubService->membershipRepository($database)->bySeason(new SeasonId('season-2025-26'))));
+        self::assertCount(2, $worldService->seasonRepository($database)->all());
+
+        $again = $worldService->advanceToDate($database, $world->id(), SimulationDate::fromIsoString('2025-08-01'));
+        self::assertSame($activated->toArray(), $again->toArray());
+        self::assertSame($membershipsBefore, count($clubService->membershipRepository($database)->bySeason(new SeasonId('season-2025-26'))));
 
         unset($database);
         $database = $store->openDatabase('career-003-rollover');
-        self::assertSame('season-2024-25', $worldService->load($database, $world->id())->currentSeasonId()?->value());
+        self::assertSame('season-2025-26', $worldService->load($database, $world->id())->currentSeasonId()?->value());
     }
 
     /** @return array{0: object, 1: object, 2: SqliteSaveStore, 3: World} */

@@ -105,17 +105,23 @@ or NPC-to-NPC market simulation; transfer fees and proposed wages are
 structured offer metadata while Contract and Transfer records remain owned by
 their existing modules.
 
-## CAREER-003 Multi-Season Boundary
+## DOMAIN-013 Multi-Season Career Boundary
 
-The current Phase-1 World can complete the active Season and retain its
-historical Matches, standings, Player development, availability, Contracts,
-and transfer records. It does not yet create or activate a following Season,
-rebuild that Season's Competition memberships and registrations, or generate
-its fixtures. Contract expiration is evaluated at the existing Season
-boundary, but automatic renewal, Club replacement recruitment, retirement,
-and new Player generation remain future lifecycle systems. A multi-season
-career must therefore treat the first completed Season as the current
-playable horizon until a subsequent World lifecycle milestone is implemented.
+The World now completes the active Season only after its scheduled Matches
+are complete, prepares one deterministic successor, and activates it at the
+next Season start. Club-specific Contract renewal/release and senior-squad
+replenishment happen at that boundary; the next Season receives independent
+Competition memberships, registrations, and fixtures while prior history
+remains queryable. A released Player is preserved as durable history but is
+not silently registered without an active Contract.
+
+This is continuity infrastructure rather than full Club management. The
+Phase-1 world has stable league membership and bounded deterministic
+renewal/replenishment. Player aging/decline, retirement, true newgens,
+promotion/relegation, finance, and autonomous NPC transfer recruitment are
+future systems. A career transfer remains continuous because Player identity,
+development, availability, and historical Matches survive while the new
+Club-scoped role and seasonal registration are rebuilt.
 
 ---
 

@@ -298,4 +298,19 @@ These additions should extend the engine without changing its responsibilities.
 
 ---
 
+## DOMAIN-013 Season Rollover
+
+The World service delegates the recurring football-season boundary to one
+`SeasonRolloverService`. Once the active Season's scheduled Matches are
+complete, the service creates one deterministic upcoming successor, applies
+Club-scoped Contract renewal/release, and preserves historical rows. At the
+successor start it materializes the next seasonal Competition projection,
+continues Club membership, replenishes only missing senior-squad places,
+registers Players with active Contracts, and generates fixtures through the
+Competition and Match services. This coordination is bounded by the World
+competition scope and is retry-safe through existing repository identities.
+
+The service does not own Match simulation, Player development, finance,
+promotion/relegation, retirement, newgens, or autonomous recruitment.
+
 END OF DOCUMENT

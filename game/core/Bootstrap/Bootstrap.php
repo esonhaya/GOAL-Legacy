@@ -35,6 +35,7 @@ use Goal\Legacy\Modules\Match\MatchService;
 use Goal\Legacy\Modules\World\Domain\SimulationCalendar;
 use Goal\Legacy\Modules\World\WorldModule;
 use Goal\Legacy\Modules\World\WorldService;
+use Goal\Legacy\Modules\World\SeasonRolloverService;
 use Goal\Legacy\Modules\Transfer\TransferModule;
 use Goal\Legacy\Modules\Transfer\TransferService;
 use InvalidArgumentException;
@@ -89,6 +90,7 @@ final class Bootstrap
         $transferModule = new TransferModule(new TransferService($contractModule->service(), $clubModule->service(), $competitionModule->service(), $dispatcher));
         $expectationService = new ClubExpectationService($clubModule->service(), $dispatcher);
         $matchModule = new MatchModule(new MatchService($clubModule->service(), $dispatcher, $developmentService, $expectationService, $availabilityService));
+        $seasonRollover = new SeasonRolloverService($competitionModule->service(), $clubModule->service(), $contractModule->service(), $populationService, $matchModule->service(), $dispatcher);
         $worldModule = new WorldModule(new WorldService(
             $clock,
             new SimulationCalendar(),
@@ -97,6 +99,7 @@ final class Bootstrap
             $competitionModule->service(),
             $clubModule->service(),
             contractService: $contractModule->service(),
+            seasonRollover: $seasonRollover,
         ));
         $registry->register($nationModule);
         $registry->register($competitionModule);

@@ -351,4 +351,12 @@ Season-bound Competition registration relationship. Population does not add
 a second registration table or alter Competition ownership of Club and
 Player records.
 
+## DOMAIN-013 Registration Rollover
+
+At a new Season activation, the existing registration repository creates
+fresh Season-bound rows for Players who have an active Contract matching an
+active senior-squad membership and Club Competition membership. Prior-season
+registrations remain historical. Injury or fatigue does not prevent
+administrative registration; an expired or released Contract does.
+
 END OF DOCUMENT

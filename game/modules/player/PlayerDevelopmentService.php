@@ -208,8 +208,8 @@ final class PlayerDevelopmentService
                 }
                 $candidate = $attributes;
                 ++$candidate[$name];
-                $candidatePlayer = $player->withAttributes(new PlayerAttributeSet(...array_values($candidate)));
-                if ($candidatePlayer->overallRating() > $player->potential()) {
+                $candidateAttributes = new PlayerAttributeSet(...array_values($candidate));
+                if ($candidateAttributes->overallRating() > $player->potential()) {
                     break;
                 }
                 $attributes = $candidate;

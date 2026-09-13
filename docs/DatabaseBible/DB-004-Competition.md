@@ -340,4 +340,11 @@ These additions should extend the existing architecture without breaking compati
 
 ---
 
+## DOMAIN-010 Registration Boundary
+
+Generated senior-squad Players are registered through the existing
+Season-bound Competition registration relationship. Population does not add
+a second registration table or alter Competition ownership of Club and
+Player records.
+
 END OF DOCUMENT

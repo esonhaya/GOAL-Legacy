@@ -417,4 +417,11 @@ second clock or a global daily update.
 
 ---
 
+## DOMAIN-010 Generated Save State
+
+Generated Player populations are save-state rows created by a versioned
+deterministic service. Static content supplies Nations, Clubs, and
+Competitions; generated Players, Contracts, squad relationships, and
+registrations remain normalized SQLite state with stable IDs and indexes.
+
 END OF DOCUMENT

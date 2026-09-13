@@ -308,4 +308,11 @@ selection context; they do not duplicate Player ability or grant attributes.
 
 ---
 
+## DOMAIN-010 Squad Population
+
+The normalized squad relationship receives generated senior Players. The
+initial policy is 25 Players per participating Big-5 Club with goalkeeper,
+defensive, midfield, and attacking coverage; reserves and youth populations
+are deferred.
+
 END OF DOCUMENT

@@ -316,4 +316,10 @@ eligibility. Injury absence has no direct attribute penalty in this phase.
 
 ---
 
+## DOMAIN-010 Procedural Players
+
+Procedural senior Players are ordinary Player entities created as save state
+by a versioned deterministic population service. The service does not create
+an NPC subclass or bypass PlayerCreationService validation.
+
 END OF DOCUMENT

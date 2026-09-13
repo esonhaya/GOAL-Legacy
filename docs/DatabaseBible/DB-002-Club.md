@@ -354,4 +354,12 @@ and a transferred Player receives an independent destination role.
 
 ---
 
+## DOMAIN-010 Squad Population
+
+The initial population phase creates one season-bound senior squad of 25
+Players per participating Big-5 Club. It reuses Player, Contract,
+squad-membership, and Competition registration ownership; Clubs do not own
+canonical Player records. Reserve, youth, and academy populations remain
+deferred.
+
 END OF DOCUMENT

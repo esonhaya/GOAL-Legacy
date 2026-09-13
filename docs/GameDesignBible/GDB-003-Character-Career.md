@@ -88,6 +88,15 @@ visible as structured career history. Injury absence produces no synthetic
 poor-performance evaluation or direct attribute penalty; its development
 effect is indirect through missed training or Match minutes.
 
+## DOMAIN-010 Generated Squad Boundary
+
+The controlled career Player coexists with deterministic generated senior
+Players in the same Club squad and uses the same selection, availability,
+development, and Match paths. Generated Players are mutable save state, not
+static licensed content, and the controlled Player receives no population
+or selection bonus. The initial population phase does not include reserves,
+youth academies, retirement, or transfer-market behavior.
+
 ---
 
 END OF DOCUMENT

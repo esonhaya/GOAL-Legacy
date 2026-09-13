@@ -55,3 +55,17 @@ consumes the Player availability assessment, and load/injury application is
 idempotent by stable Match/Player source key. Clubs without persisted rosters
 continue to use aggregate strength and receive no synthetic availability
 records.
+
+## DOMAIN-010 Population Boundary
+
+New viable Big-5 career saves explicitly populate each participating Club
+with a deterministic 25-Player senior squad. Generated Players use the same
+identity, attributes, potential, development, Contract, registration,
+availability, selection, and Match systems as the controlled Player. The
+generator uses the World seed, Club ID, ordinal, and version; it does not
+create static real-world Player content or a second NPC entity model.
+
+The population phase supplies broad positional coverage and bounded Club
+reputation-based ability variation. Reserves, youth academies, retirement,
+transfer-market AI, and exact licensed rosters remain deferred. Sparse legacy
+saves retain the aggregate Club-strength fallback until explicitly populated.

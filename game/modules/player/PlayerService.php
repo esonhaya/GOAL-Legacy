@@ -23,6 +23,7 @@ final class PlayerService
         private readonly ClubService $clubService,
         private readonly ?PlayerDevelopmentService $developmentService = null,
         private readonly ?PlayerAvailabilityService $availabilityService = null,
+        private readonly ?PlayerPopulationService $populationService = null,
     ) {
     }
 
@@ -49,6 +50,15 @@ final class PlayerService
     public function trainingService(): TrainingService
     {
         return new TrainingService($this->developmentService(), $this->availabilityService);
+    }
+
+    public function populationService(): PlayerPopulationService
+    {
+        if ($this->populationService === null) {
+            throw new PlayerException('Player population is not configured for this service composition.');
+        }
+
+        return $this->populationService;
     }
 
     /** @return list<Player> */

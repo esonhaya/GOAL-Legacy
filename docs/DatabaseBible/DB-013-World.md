@@ -304,4 +304,11 @@ These additions extend the architecture without breaking compatibility.
 
 ---
 
+## DOMAIN-010 Population Phase
+
+World creation retains the existing initializer and adds an explicit
+population phase for a viable career save. The Player Module consumes the
+durable World seed after Nations, Season, Competitions, and Clubs exist;
+World does not own generated Player records.
+
 END OF DOCUMENT

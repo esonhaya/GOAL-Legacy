@@ -167,4 +167,12 @@ Player tick.
 
 ---
 
+## DOMAIN-010 Generated Player Lifetime
+
+Generated Players are Career-durable mutable state. Their generator version
+and seed metadata are durable initialization state so reruns cannot silently
+replace existing Players. Name pools and generation rules are static/runtime
+configuration; generated Contracts are normal Career history and
+Competition registrations remain Season-bound.
+
 END OF DOCUMENT

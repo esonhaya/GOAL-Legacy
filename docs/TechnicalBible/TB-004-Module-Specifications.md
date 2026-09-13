@@ -613,4 +613,11 @@ Club or Match records.
 
 ---
 
+## DOMAIN-010 Population Ownership
+
+Population remains in the Player Module. The service coordinates existing
+Nation lookup, Club squad relationships, Contract persistence, and
+Competition registration; it does not introduce a parallel squad, Contract,
+registration, or procedural-entity framework.
+
 END OF DOCUMENT

@@ -404,4 +404,11 @@ These additions should extend existing structures without breaking compatibility
 
 ---
 
+## DOMAIN-010 Population Boundary
+
+NPC Players use the canonical Player record and are generated as
+deterministic mutable save state, not static content-package records.
+Generation metadata identifies the generator version and seed without adding
+an NPC-only football model.
+
 END OF DOCUMENT

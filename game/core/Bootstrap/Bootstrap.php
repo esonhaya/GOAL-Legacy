@@ -28,6 +28,7 @@ use Goal\Legacy\Modules\Player\PlayerModule;
 use Goal\Legacy\Modules\Player\PlayerService;
 use Goal\Legacy\Modules\Player\PlayerDevelopmentService;
 use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
+use Goal\Legacy\Modules\Player\PlayerPopulationService;
 use Goal\Legacy\Modules\Player\ClubExpectationService;
 use Goal\Legacy\Modules\Match\MatchModule;
 use Goal\Legacy\Modules\Match\MatchService;
@@ -82,8 +83,9 @@ final class Bootstrap
         $clubModule = new ClubModule(new ClubService($contentPackages, $nationModule->service(), $competitionModule->service()));
         $developmentService = new PlayerDevelopmentService($dispatcher);
         $availabilityService = new PlayerAvailabilityService($dispatcher);
-        $playerModule = new PlayerModule(new PlayerService($nationModule->service(), $clubModule->service(), $developmentService, $availabilityService));
         $contractModule = new ContractModule(new ContractService());
+        $populationService = new PlayerPopulationService($nationModule->service(), $clubModule->service(), $contractModule->service());
+        $playerModule = new PlayerModule(new PlayerService($nationModule->service(), $clubModule->service(), $developmentService, $availabilityService, $populationService));
         $transferModule = new TransferModule(new TransferService($contractModule->service(), $clubModule->service(), $competitionModule->service(), $dispatcher));
         $expectationService = new ClubExpectationService($clubModule->service(), $dispatcher);
         $matchModule = new MatchModule(new MatchService($clubModule->service(), $dispatcher, $developmentService, $expectationService, $availabilityService));

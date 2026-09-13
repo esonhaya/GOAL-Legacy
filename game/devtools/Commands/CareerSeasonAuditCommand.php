@@ -71,6 +71,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
 
             $output->write(sprintf('AUDIT seed=%d horizon=full-season competition=%s fixtures=%d big5_fixtures=%d', $seed, self::COMPETITION_ID, $continuous['fixture_count'], $continuous['big5_fixture_count']));
             $output->write(sprintf('SAVE_RELOAD equivalent=%s midpoint=%s', $equivalent ? 'yes' : 'no', $reloaded['reloaded_midpoint'] ? 'yes' : 'no'));
+            $output->write(sprintf('POPULATION clubs=%d players=%d avg_squad=%.1f min_squad=%d max_squad=%d ovr_avg=%.1f age_avg=%.1f', $continuous['population']['clubs_populated'], $continuous['population']['players_total'], $continuous['population']['avg_squad_size'], $continuous['population']['min_squad_size'], $continuous['population']['max_squad_size'], $continuous['population']['ovr_avg'], $continuous['population']['age_avg']));
             foreach ($continuous['players'] as $player) {
                 $output->write(sprintf(
                     'PLAYER profile=%s role_context=%s start_ovr=%d end_ovr=%d potential=%d starts=%d bench=%d non_selections=%d unavailable=%d appearances=%d selection_pct=%.1f longest_start=%d longest_non_start=%d goals=%d avg_evaluation=%.1f best_evaluation=%d worst_evaluation=%d recent_form=%.1f initial_role=%s final_role=%s role_changes=%d training_events=%d match_development_events=%d training_gain=%d match_gain=%d attribute_gain=%d open_opportunities=%d',
@@ -136,6 +137,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
             $this->services->worldModule()->service()->initialize($database, $world, $season);
 
             $players = $this->installPlayers($database, $season, $seed);
+            $population = $this->services->playerModule()->service()->populationService()->populate($database, $season, $seed);
             $matchService = $this->services->matchModule()->service();
             $fixtureCounts = [];
             foreach (['premier-league', 'la-liga', 'bundesliga', 'serie-a', 'ligue-1'] as $competitionId) {
@@ -191,6 +193,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
                 'role_changes' => array_sum(array_column($metrics, 'role_changes')),
                 'opportunities' => array_sum(array_column($metrics, 'open_opportunities')),
                 'reloaded_midpoint' => $reloadMidpoint,
+                'population' => $population,
                 ...$resultMetrics,
                 ...$availabilityMetrics,
                 ...$consistency,

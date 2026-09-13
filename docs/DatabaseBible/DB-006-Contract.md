@@ -308,4 +308,10 @@ These additions should extend the existing structure without breaking compatibil
 
 ---
 
+## DOMAIN-010 Generated Contracts
+
+Generated Players receive ordinary durable Contracts through the Contract
+Module. Terms are deterministic bounded save-initialization data; there is no
+wage-budget, renewal, negotiation, or market system in this phase.
+
 END OF DOCUMENT

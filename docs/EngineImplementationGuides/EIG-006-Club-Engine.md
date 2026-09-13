@@ -294,6 +294,10 @@ These additions should extend the Club Engine without changing its core responsi
 
 ✓ Board objectives drive long-term strategy.
 
+✓ DOMAIN-008 adds only a compact Club-scoped squad role and role history to
+the normalized squad relationship. Roles express Club expectations and
+selection context; they do not duplicate Player ability or grant attributes.
+
 ---
 
 ## Revision History

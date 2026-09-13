@@ -27,6 +27,7 @@ use Goal\Legacy\Modules\Nation\NationService;
 use Goal\Legacy\Modules\Player\PlayerModule;
 use Goal\Legacy\Modules\Player\PlayerService;
 use Goal\Legacy\Modules\Player\PlayerDevelopmentService;
+use Goal\Legacy\Modules\Player\ClubExpectationService;
 use Goal\Legacy\Modules\Match\MatchModule;
 use Goal\Legacy\Modules\Match\MatchService;
 use Goal\Legacy\Modules\World\Domain\SimulationCalendar;
@@ -82,7 +83,8 @@ final class Bootstrap
         $playerModule = new PlayerModule(new PlayerService($nationModule->service(), $clubModule->service(), $developmentService));
         $contractModule = new ContractModule(new ContractService());
         $transferModule = new TransferModule(new TransferService($contractModule->service(), $clubModule->service(), $competitionModule->service(), $dispatcher));
-        $matchModule = new MatchModule(new MatchService($clubModule->service(), $dispatcher, $developmentService));
+        $expectationService = new ClubExpectationService($clubModule->service(), $dispatcher);
+        $matchModule = new MatchModule(new MatchService($clubModule->service(), $dispatcher, $developmentService, $expectationService));
         $worldModule = new WorldModule(new WorldService(
             $clock,
             new SimulationCalendar(),

@@ -58,6 +58,25 @@ Phase 1 does not use Club facilities, coaches, fatigue, decline, or a daily
 per-Player tick. Development is processed at explicit training boundaries and
 for real Player appearances in completed Matches.
 
+## DOMAIN-008 Selection Pressure
+
+Squad role belongs to the season-bound Club–Player relationship and is one of
+`prospect`, `rotation`, `regular`, or `key_player`. Selection uses the same
+contract, registration, and squad eligibility rules as Match simulation. A
+Player can be a starter, bench selection, or not selected; role is evidence
+for selection, not a guarantee.
+
+Performance evaluation uses only existing Match evidence. Recent form is a
+rebuildable projection over actual appearances. Club expectations compare the
+role's expected performance band with those evaluations. Two-match evidence is
+required for ordinary role promotion or demotion, preventing one Match from
+flapping a role.
+
+Career opportunities are durable structured records referencing Player and
+Club IDs. Phase 1 supports role and playing-time opportunities; accepting or
+declining an opportunity does not execute a Transfer. The controlled career
+Player receives no selection, ability, or opportunity bonus.
+
 ---
 
 END OF DOCUMENT

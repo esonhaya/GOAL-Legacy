@@ -139,6 +139,15 @@ the existing Match persistence transaction.
 ✓ Season and career Player statistics are derived from durable Match Player
 stat lines and remain rebuildable after reload.
 
+✓ Squad roles and role history are Career relationship data owned by the Club
+Module.
+
+✓ Match selection decisions are Career-durable Match records; performance,
+recent form, and expectations are rebuildable projections.
+
+✓ Career opportunities are Career-durable structured records owned by the
+Player career boundary and reference Player/Club IDs without embedding them.
+
 ---
 
 ## Revision History

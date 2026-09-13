@@ -339,6 +339,10 @@ These additions should extend the existing structure without breaking compatibil
 
 ✓ Competition participation is a Season-bound ID relationship
 
+✓ DOMAIN-008 squad roles are Club-scoped relationship state: `prospect`,
+`rotation`, `regular`, or `key_player`. Roles do not duplicate Player ability
+and a transferred Player receives an independent destination role.
+
 ---
 
 ## Revision History

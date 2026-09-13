@@ -590,6 +590,11 @@ These are outside the scope of Phase 1.
 stimulus is explicit and deterministic, while Match completion supplies
 idempotent experience stimulus through the existing Match path.
 
+✓ The Club Module owns Club-scoped squad roles. The Match Module owns
+selection decisions and Match participation evidence. Player career services
+derive evaluation, expectations, and structured opportunities without owning
+Club or Match records.
+
 ---
 
 ## Revision History

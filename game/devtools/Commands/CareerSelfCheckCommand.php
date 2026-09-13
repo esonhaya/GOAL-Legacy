@@ -13,6 +13,7 @@ use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
+use Goal\Legacy\Modules\Club\Domain\SquadRole;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionId;
 use Goal\Legacy\Modules\Competition\Domain\PlayerRegistration;
 use Goal\Legacy\Modules\Contract\Domain\ContractCreationRequest;
@@ -52,15 +53,14 @@ final class CareerSelfCheckCommand implements CommandInterface
             $this->services->worldModule()->service()->initialize($database, $world, $season);
             $playerService = $this->services->playerModule()->service();
             $player = $playerService->create(new PlayerCreationRequest('career-self-check-player', 'Career', 'Demo', 'Career Demo', '2005-01-01', 'england', [], 'england', ['england'], 180, 75, 'CM', 90, 'regular', 7007, new PlayerAttributeSet(50, 50, 50, 50, 50, 50)));
-            $playerService->initializeCareer($database, $player, new CareerPlayerReference(new CareerId('career-self-check'), $player->id(), SimulationDate::fromIsoString('2024-07-31')), new ClubSquadMembership(new ClubId('arsenal'), $player->id(), $season->id()));
+            $playerService->initializeCareer($database, $player, new CareerPlayerReference(new CareerId('career-self-check'), $player->id(), SimulationDate::fromIsoString('2024-07-31')), new ClubSquadMembership(new ClubId('arsenal'), $player->id(), $season->id(), SquadRole::Prospect));
             $contract = $this->services->contractModule()->service(); $contract->save($database, $contract->create(new ContractCreationRequest(new ContractId('career-self-check-contract'), $player->id(), new ClubId('arsenal'), SimulationDate::fromIsoString('2024-07-31'), SimulationDate::fromIsoString('2025-06-30'), 100, SimulationDate::fromIsoString('2024-07-31'))));
             $this->services->competitionModule()->service()->registrationRepository($database)->register(new PlayerRegistration($season->id(), new CompetitionId('premier-league'), new ClubId('arsenal'), $player->id()));
             $playerService->trainingService()->complete($database, new TrainingRequest($player->id(), 'career-training-1', 'passing', SimulationDate::fromIsoString('2024-08-01'), SimulationDate::fromIsoString('2024-09-26')));
-            $matches = $this->services->matchModule()->service()->generateFixtures($database, 'premier-league', $season->id()); $date = $matches[0]->scheduledDate(); $this->services->worldModule()->service()->advanceToDate($database, 'career-self-check', $date); $completed = $this->services->matchModule()->service()->simulateDue($database, $date);
-            $matchService = $this->services->matchModule()->service(); $summary = null; foreach ($completed as $match) { $summary = $matchService->playerSummary($database, $match->id(), $player->id()); if ($summary !== null) { break; } }
+            $matches = $this->services->matchModule()->service()->generateFixtures($database, 'premier-league', $season->id()); $careerMatches = array_values(array_filter($matches, static fn ($match): bool => $match->homeClubId()->value() === 'arsenal' || $match->awayClubId()->value() === 'arsenal')); $matchService = $this->services->matchModule()->service(); $summary = null; $date = $careerMatches[1]->scheduledDate(); foreach (array_slice($careerMatches, 0, 2) as $careerMatch) { $this->services->worldModule()->service()->advanceToDate($database, 'career-self-check', $careerMatch->scheduledDate()); $completed = $matchService->simulateDue($database, $careerMatch->scheduledDate()); $summary = $matchService->playerSummary($database, $careerMatch->id(), $player->id()); }
             if ($summary === null) { throw new RuntimeException('Career Player did not receive a Match stat line.'); }
             $query = new PlayerCareerProgressionQuery($this->services->clubModule()->service()); $beforeReload = $query->summary($database, $player->id(), $date, $season->id()); unset($database); $database = $store->openDatabase('career-self-check'); $afterReload = $query->summary($database, $player->id(), $date, $season->id()); if ($beforeReload !== $afterReload) { throw new RuntimeException('Career progression changed after reload.'); }
-            $output->write(sprintf('Career self-check passed: player=%s ovr=%d potential=%d appearances=%d minutes=%d history=%d match=%s.', $player->id()->value(), $afterReload['current_ovr'], $afterReload['potential'], $afterReload['career_stats']['appearances'], $afterReload['career_stats']['minutes'], count($afterReload['recent_development']), $summary['match_id'])); return 0;
+            $output->write(sprintf('Career self-check passed: player=%s ovr=%d potential=%d role=%s appearances=%d minutes=%d opportunities=%d history=%d match=%s.', $player->id()->value(), $afterReload['current_ovr'], $afterReload['potential'], $afterReload['squad_role'], $afterReload['career_stats']['appearances'], $afterReload['career_stats']['minutes'], count($afterReload['open_opportunities']), count($afterReload['recent_development']), $summary['match_id'])); return 0;
         } catch (Throwable $exception) { $output->error('Career self-check failed: ' . $exception->getMessage()); return 1; }
         finally { unset($database); $this->removeIsolatedStorage($directory); }
     }

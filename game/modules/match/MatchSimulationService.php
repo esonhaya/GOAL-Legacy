@@ -14,18 +14,18 @@ use Goal\Legacy\Modules\Match\Domain\PlayerMatchStat;
 use Goal\Legacy\Modules\Match\Domain\TeamStrength;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
-use Goal\Legacy\Modules\Competition\Persistence\PlayerRegistrationRepository;
-use Goal\Legacy\Modules\Contract\Persistence\ContractRepository;
+use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
 
 final class MatchSimulationService
 {
-    public function __construct(private readonly ClubService $clubService) {}
+    public function __construct(private readonly ClubService $clubService, private readonly MatchSelectionService $selectionService) {}
 
     public function simulate(DatabaseInterface $database, GameMatch $match): MatchSimulation
     {
         $playerRepository = new PlayerRepository($database);
-        $homePlayers = $this->eligiblePlayers($database, $match, $match->homeClubId()->value(), $playerRepository);
-        $awayPlayers = $this->eligiblePlayers($database, $match, $match->awayClubId()->value(), $playerRepository);
+        $selections = $this->selectionService->select($database, $match);
+        $homePlayers = $this->selectedPlayers($selections, $match->homeClubId()->value(), $playerRepository);
+        $awayPlayers = $this->selectedPlayers($selections, $match->awayClubId()->value(), $playerRepository);
         $homeStrength = $this->strength($database, $match->homeClubId()->value(), $homePlayers);
         $awayStrength = $this->strength($database, $match->awayClubId()->value(), $awayPlayers);
         $homeLambda = max(0.2, min(3.2, 1.10 + (($homeStrength->value() - $awayStrength->value()) / 100 * 0.75) + 0.18));
@@ -42,23 +42,19 @@ final class MatchSimulationService
         foreach ($goalEvents as $index => $event) { if ($event['player'] !== null) { $goalCounts[$event['player']] = ($goalCounts[$event['player']] ?? 0) + 1; } $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], 'goal', new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), $event['player'] === null ? null : new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['side' => $event['side'], 'home_goals' => $homeGoals, 'away_goals' => $awayGoals]); }
         $stats = [];
         foreach (array_merge($homePlayers, $awayPlayers) as $player) { $clubId = in_array($player, $homePlayers, true) ? $match->homeClubId() : $match->awayClubId(); $stats[] = new PlayerMatchStat($match->id(), $player->id(), $clubId, true, true, 90, $goalCounts[$player->id()->value()] ?? 0); }
-        return new MatchSimulation($result, $stats, $highlights);
+        return new MatchSimulation($result, $stats, $highlights, $selections);
     }
 
-    /** @return list<Player> */
-    private function eligiblePlayers(DatabaseInterface $database, GameMatch $match, string $clubId, PlayerRepository $players): array
+    /** @param list<\Goal\Legacy\Modules\Match\Domain\PlayerSelection> $selections @return list<Player> */
+    private function selectedPlayers(array $selections, string $clubId, PlayerRepository $players): array
     {
-        new PlayerRegistrationRepository($database);
-        new ContractRepository($database);
-        $registeredStatement = $database->connection()->prepare('SELECT r.player_id FROM player_competition_registrations r INNER JOIN contract_records c ON c.player_id = r.player_id AND c.club_id = r.club_id WHERE r.season_id = :season_id AND r.competition_id = :competition_id AND r.club_id = :club_id AND c.status = :status ORDER BY r.player_id ASC');
-        $registeredStatement->execute(['season_id' => $match->seasonId()->value(), 'competition_id' => $match->competitionId()->value(), 'club_id' => $clubId, 'status' => 'active']);
-        $registered = array_fill_keys(array_map('strval', $registeredStatement->fetchAll(\PDO::FETCH_COLUMN)), true);
         $result = [];
-        foreach ($this->clubService->squadRepository($database)->byClub($clubId, $match->seasonId()) as $squad) {
-            if (isset($registered[$squad->playerId()->value()])) { $result[$squad->playerId()->value()] = $players->get($squad->playerId()); }
+        foreach ($selections as $selection) {
+            if ($selection->clubId()->value() === $clubId && $selection->status() === SelectionStatus::Starter) {
+                $result[] = $players->get($selection->playerId());
+            }
         }
-        ksort($result, SORT_STRING);
-        return array_values($result);
+        return $result;
     }
 
     /** @param list<Player> $players */

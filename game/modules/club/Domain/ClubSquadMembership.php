@@ -13,6 +13,7 @@ final readonly class ClubSquadMembership
         private ClubId $clubId,
         private PlayerId $playerId,
         private SeasonId $seasonId,
+        private SquadRole $role = SquadRole::Prospect,
     ) {
     }
 
@@ -21,6 +22,8 @@ final readonly class ClubSquadMembership
     public function playerId(): PlayerId { return $this->playerId; }
 
     public function seasonId(): SeasonId { return $this->seasonId; }
+
+    public function role(): SquadRole { return $this->role; }
 
     public function key(): string
     {
@@ -34,6 +37,7 @@ final readonly class ClubSquadMembership
             'club_id' => $this->clubId->value(),
             'player_id' => $this->playerId->value(),
             'season_id' => $this->seasonId->value(),
+            'role' => $this->role->value,
         ];
     }
 }

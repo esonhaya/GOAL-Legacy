@@ -309,6 +309,11 @@ These additions should extend the Match Engine without changing its core respons
 
 ✓ Match state is deterministic.
 
+✓ DOMAIN-008 reuses Match eligibility and persists deterministic selection
+decisions before generating minimal actual participant stat lines. Career
+evaluation is a downstream idempotent consumer of completed Match evidence;
+it does not alter Match ownership.
+
 ---
 
 ## Revision History

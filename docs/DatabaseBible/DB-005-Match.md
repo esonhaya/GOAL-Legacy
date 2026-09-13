@@ -249,6 +249,12 @@ SimulationDate.
 DOMAIN-007 consumes completed Match Player stat lines as development input;
 this does not transfer ownership of Match statistics to the Player Module.
 
+DOMAIN-008 persists deterministic selection decisions for real eligible
+Players as Match-owned records with `starter`, `bench`, or `not_selected`
+status. Only actual participants receive Player stat lines. Performance
+evaluation and recent form are rebuildable from Match results, selection
+records, and the existing minimal stat fields.
+
 ---
 
 # Staff References

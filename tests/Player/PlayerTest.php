@@ -6,6 +6,7 @@ namespace Goal\Legacy\Tests\Player;
 
 use Goal\Legacy\Core\Bootstrap\Bootstrap;
 use Goal\Legacy\Core\Persistence\SqliteDatabase;
+use Goal\Legacy\Core\Persistence\SqlProfiler;
 use Goal\Legacy\Modules\Club\Domain\Club;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
@@ -123,6 +124,24 @@ final class PlayerTest extends TestCase
         $updated = new Player(new PlayerId('career-player'), 'Updated', 'Player', 'Updated Player', $player->birthDate(), $player->primaryNationId(), $player->secondaryNationIds(), $player->birthNationId(), $player->eligibilityNationIds(), 181, 76, $player->primaryPosition(), new PlayerAttributeSet(72, 70, 68, 71, 66, 73), 80, $player->developmentProfile(), $player->creationSeed());
         $repository->save($updated);
         self::assertSame('Updated', $repository->get('career-player')->firstName());
+    }
+
+    public function testAllUsesBoundedBulkHydrationInsteadOfPerPlayerReads(): void
+    {
+        $profiler = new SqlProfiler();
+        $database = new SqliteDatabase(':memory:', $profiler);
+        $nations = new NationRepository($database);
+        $nations->save($this->nation('england'));
+        $nations->save($this->nation('france'));
+        $repository = new PlayerRepository($database);
+        $repository->save($this->player());
+        $repository->save(new Player(new PlayerId('second-player'), 'Second', 'Player', 'Second Player', SimulationDate::fromIsoString('2004-01-01'), new NationId('england'), [], new NationId('england'), [new NationId('england')], 180, 75, PlayerPosition::CentralMidfielder, new PlayerAttributeSet(60, 60, 60, 60, 60, 60), 80, DevelopmentProfile::Regular, 43));
+        $profiler->reset();
+
+        self::assertCount(2, $repository->all());
+        $queries = $profiler->snapshot()['queries'];
+        self::assertSame(0, array_sum(array_map(static fn (array $query): int => str_contains((string) $query['fingerprint'], 'SELECT * FROM player_records WHERE id = :id') ? (int) $query['calls'] : 0, $queries)));
+        self::assertSame(1, array_sum(array_map(static fn (array $query): int => str_contains((string) $query['fingerprint'], 'SELECT * FROM player_records WHERE id IN') ? (int) $query['calls'] : 0, $queries)));
     }
 
     public function testSeasonBoundSquadAndCareerReferencePersistWithoutDuplicatingPlayer(): void

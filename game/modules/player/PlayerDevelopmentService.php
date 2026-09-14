@@ -131,20 +131,24 @@ final class PlayerDevelopmentService
     /**
      * Apply the once-per-Season age lifecycle adjustment. This deliberately
      * shares the normal development history so a rollover retry is harmless.
+     * @param array<string, DevelopmentHistoryEntry>|null $processedSources
+     * @param array<string, DevelopmentState>|null $knownStates
      */
-    public function applySeasonLifecycleInTransaction(DatabaseInterface $database, PlayerId $playerId, SimulationDate $date, string $seasonSourceId): DevelopmentApplicationResult
+    public function applySeasonLifecycleInTransaction(DatabaseInterface $database, PlayerId $playerId, SimulationDate $date, string $seasonSourceId, ?Player $knownPlayer = null, ?array &$processedSources = null, ?array &$knownStates = null, ?PlayerDevelopmentRepository $development = null): DevelopmentApplicationResult
     {
-        $development = new PlayerDevelopmentRepository($database);
-        if ($development->hasSource($playerId, 'season_lifecycle', $seasonSourceId)) {
+        $development ??= new PlayerDevelopmentRepository($database);
+        $entry = $processedSources[$playerId->value()] ?? null;
+        if ($entry === null && $processedSources === null && $development->hasSource($playerId, 'season_lifecycle', $seasonSourceId)) {
             $entry = $development->bySource($playerId, 'season_lifecycle', $seasonSourceId);
-            if ($entry === null) {
-                throw new \RuntimeException('Lifecycle source was reported as processed but could not be loaded.');
-            }
-
+        }
+        if ($entry !== null) {
             return new DevelopmentApplicationResult($playerId, 'season_lifecycle', $seasonSourceId, $entry->attributeDeltas(), $entry->beforeOverall(), $entry->afterOverall(), false);
         }
-        $players = new PlayerRepository($database);
-        $player = $players->get($playerId);
+        $players = $knownPlayer === null ? new PlayerRepository($database) : null;
+        $player = $knownPlayer ?? $players?->get($playerId);
+        if ($player === null) {
+            throw new \RuntimeException('Season lifecycle Player could not be loaded.');
+        }
         $before = $player->overallRating();
         $deltas = $this->seasonalDecline($player, $date);
         if ($deltas !== []) {
@@ -152,11 +156,15 @@ final class PlayerDevelopmentService
             foreach ($deltas as $attribute => $delta) {
                 $attributes[$attribute] = max(0, $attributes[$attribute] + $delta);
             }
-            $players->saveInTransaction($player->withAttributes(new PlayerAttributeSet(...array_values($attributes))));
+            $player = $player->withAttributes(new PlayerAttributeSet(...array_values($attributes)));
+            ($players ?? new PlayerRepository($database))->saveInTransaction($player);
         }
-        $state = $development->state($playerId);
+        $state = $knownStates[$playerId->value()] ?? ($knownStates === null ? $development->state($playerId) : DevelopmentState::empty($playerId));
         $development->saveStateInTransaction($state->withProgress($state->progress(), $date, $state->currentFocus()));
-        $after = $deltas === [] ? $before : $players->get($playerId)->overallRating();
+        if ($knownStates !== null) {
+            $knownStates[$playerId->value()] = $state->withProgress($state->progress(), $date, $state->currentFocus());
+        }
+        $after = $player->overallRating();
         $entry = new DevelopmentHistoryEntry(
             hash('sha256', $playerId->value() . '|season_lifecycle|' . $seasonSourceId),
             $playerId,
@@ -168,6 +176,9 @@ final class PlayerDevelopmentService
             $after,
         );
         $development->saveHistoryInTransaction($entry);
+        if ($processedSources !== null) {
+            $processedSources[$playerId->value()] = $entry;
+        }
 
         return new DevelopmentApplicationResult($playerId, 'season_lifecycle', $seasonSourceId, $deltas, $before, $after, true);
     }

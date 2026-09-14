@@ -44,6 +44,8 @@ final class SeasonRolloverService
     private array $lastLifecycle = ['renewed' => 0, 'released' => 0, 'carried' => 0];
     /** @var array{promoted:list<array{club_id:string,from_competition_id:string,to_competition_id:string,nation_id:string}>,relegated:list<array{club_id:string,from_competition_id:string,to_competition_id:string,nation_id:string}>} */
     private array $lastMovement = ['promoted' => [], 'relegated' => []];
+    /** @var array<string, float> */
+    private array $lastPhaseTimings = [];
     private readonly PromotionRelegationService $promotionRelegation;
 
     public function __construct(
@@ -77,6 +79,12 @@ final class SeasonRolloverService
         return $this->lastMovement;
     }
 
+    /** @return array<string, float> */
+    public function lastPhaseTimings(): array
+    {
+        return $this->lastPhaseTimings;
+    }
+
     public function nextSeason(Season $season): Season
     {
         $startYear = $season->startDate()->year() + 1;
@@ -103,7 +111,9 @@ final class SeasonRolloverService
         $database->transaction(function () use ($seasonRepository, $next): void {
             $seasonRepository->save($next);
         });
-        $this->playerLifecycle->processSeasonBoundaryInTransaction($database, $next);
+        $phaseStart = hrtime(true);
+        $database->transaction(fn (): array => $this->playerLifecycle->processSeasonBoundaryInTransaction($database, $next));
+        $this->lastPhaseTimings['player_lifecycle_ms'] = $this->elapsedMilliseconds($phaseStart);
 
         $currentSquads = $this->clubService->squadRepository($database)->all();
         $currentSquads = array_values(array_filter($currentSquads, static fn (ClubSquadMembership $membership): bool => $membership->seasonId()->value() === $current->id()->value()));
@@ -112,15 +122,35 @@ final class SeasonRolloverService
             $byClub[$membership->clubId()->value()][] = $membership;
         }
         $clubs = $this->clubService->repository($database)->all();
+        $playersById = [];
+        foreach ((new PlayerRepository($database))->all() as $player) {
+            $playersById[$player->id()->value()] = $player;
+        }
+        $contractsById = [];
+        $contractsByPlayer = [];
+        foreach ($this->contractService->repository($database)->all() as $contract) {
+            $contractsById[$contract->id()->value()] = $contract;
+            $contractsByPlayer[$contract->playerId()->value()][] = $contract;
+        }
+        $activeContractsByPlayer = [];
+        foreach ($contractsByPlayer as $playerId => $playerContracts) {
+            foreach ($playerContracts as $contract) {
+                if ($contract->status()->value === 'active') {
+                    $activeContractsByPlayer[$playerId] = $contract;
+                }
+            }
+        }
         $renewed = 0;
         $released = 0;
         $carried = 0;
+        $phaseStart = hrtime(true);
         foreach ($clubs as $club) {
-            $result = $database->transaction(fn (): array => $this->continueClubSquadInTransaction($database, $club, $byClub[$club->id()->value()] ?? [], $next, $asOfDate));
+            $result = $database->transaction(fn (): array => $this->continueClubSquadInTransaction($database, $club, $byClub[$club->id()->value()] ?? [], $next, $asOfDate, $playersById, $contractsByPlayer, $contractsById, $activeContractsByPlayer));
             $renewed += $result['renewed'];
             $released += $result['released'];
             $carried += $result['carried'];
         }
+        $this->lastPhaseTimings['contract_squad_continuity_ms'] = $this->elapsedMilliseconds($phaseStart);
         $this->lastLifecycle = ['renewed' => $renewed, 'released' => $released, 'carried' => $carried];
 
         $this->events->dispatch(new GenericEvent(WorldEventNames::SEASON_CREATED, [
@@ -140,12 +170,15 @@ final class SeasonRolloverService
     public function materializeNext(DatabaseInterface $database, World $world, Season $previous, Season $next, SimulationDate $asOfDate): array
     {
         $definitions = array_values(array_filter($this->competitionService->loadSelected(), fn (CompetitionDefinition $definition): bool => in_array($definition->id()->value(), $world->competitionIds(), true)));
+        $phaseStart = hrtime(true);
         $movement = $this->promotionRelegation->determine($database, $previous, $definitions);
+        $this->lastPhaseTimings['promotion_standings_ms'] = $this->elapsedMilliseconds($phaseStart);
         $movesByClub = [];
         foreach (array_merge($movement['promoted'], $movement['relegated']) as $change) {
             $movesByClub[$change['club_id']] = $change;
         }
 
+        $phaseStart = hrtime(true);
         $database->transaction(function () use ($database, $previous, $next, $definitions, $movesByClub): void {
             $this->competitionService->materializeInTransaction($database, $definitions, $next->id());
             $previousMemberships = $this->clubService->membershipRepository($database)->bySeason($previous->id());
@@ -164,15 +197,22 @@ final class SeasonRolloverService
             }
             $this->assertNextMemberships($memberships->bySeason($next->id()), $previousMemberships, $movesByClub);
         });
+        $this->lastPhaseTimings['membership_materialization_ms'] = $this->elapsedMilliseconds($phaseStart);
         $this->lastMovement = $movement;
 
         $previousSquads = array_filter($this->clubService->squadRepository($database)->all(), static fn (ClubSquadMembership $membership): bool => $membership->seasonId()->value() === $previous->id()->value());
         $population = ['players_generated' => 0];
         $recruitment = ['free_agents_signed' => 0, 'npc_transfers' => 0, 'newgens_avoided' => 0, 'position_needs_met' => 0, 'movement_budget' => 0, 'clubs_processed' => 0, 'candidates_evaluated' => 0, 'clubs_with_activity' => 0];
         if ($previousSquads !== []) {
+            $phaseStart = hrtime(true);
             $recruitment = $this->recruitment->recruit($database, $next, $asOfDate);
+            $this->lastPhaseTimings['recruitment_ms'] = $this->elapsedMilliseconds($phaseStart);
+            $phaseStart = hrtime(true);
             $newgens = $this->populationService->generateNewgens($database, $next, $world->universeSeed(), $asOfDate);
+            $this->lastPhaseTimings['newgens_ms'] = $this->elapsedMilliseconds($phaseStart);
+            $phaseStart = hrtime(true);
             $fallback = $this->populationService->replenish($database, $next, $world->universeSeed(), $asOfDate);
+            $this->lastPhaseTimings['replenishment_ms'] = $this->elapsedMilliseconds($phaseStart);
             $population['players_generated'] = (int) ($newgens['players_generated'] ?? 0) + (int) ($fallback['players_generated'] ?? 0);
         }
         $this->lastRecruitment = [
@@ -186,6 +226,7 @@ final class SeasonRolloverService
             'clubs_with_activity' => (int) ($recruitment['clubs_with_activity'] ?? 0),
         ];
         $fixtures = 0;
+        $phaseStart = hrtime(true);
         $matches = new MatchRepository($database);
         foreach ($world->competitionIds() as $competitionId) {
             if ($matches->byCompetition($competitionId, $previous->id()) === []) {
@@ -193,6 +234,7 @@ final class SeasonRolloverService
             }
             $fixtures += count($this->matchService->generateFixtures($database, $competitionId, $next->id()));
         }
+        $this->lastPhaseTimings['fixture_generation_ms'] = $this->elapsedMilliseconds($phaseStart);
 
         return ['memberships' => count($this->clubService->membershipRepository($database)->bySeason($next->id())), 'replenished' => (int) ($population['players_generated'] ?? 0), 'fixtures' => $fixtures, 'free_agent_signings' => (int) ($recruitment['free_agents_signed'] ?? 0), 'npc_transfers' => (int) ($recruitment['npc_transfers'] ?? 0), 'newgens_avoided' => (int) ($recruitment['newgens_avoided'] ?? 0), 'position_needs_met' => (int) ($recruitment['position_needs_met'] ?? 0)];
     }
@@ -207,30 +249,49 @@ final class SeasonRolloverService
         $squads = $this->clubService->squadRepository($database);
         $clubMemberships = $this->clubService->membershipRepository($database);
         $contracts = $this->contractService->repository($database);
+        $players = [];
+        foreach ((new PlayerRepository($database))->all() as $player) {
+            $players[$player->id()->value()] = $player;
+        }
+        $activeContracts = [];
+        foreach ($contracts->all() as $contract) {
+            if ($contract->status()->value === 'active') {
+                $activeContracts[$contract->playerId()->value()] = $contract;
+            }
+        }
+        $competitionMemberships = [];
+        foreach ($clubMemberships->bySeason($season->id()) as $membership) {
+            $competitionMemberships[$membership->clubId()->value()][] = $membership;
+        }
+        $existingRegistrations = [];
+        foreach ($registrations->bySeason($season->id()) as $registration) {
+            $existingRegistrations[$registration->key()] = true;
+        }
+        $pending = [];
+        $phaseStart = hrtime(true);
         $count = 0;
         foreach ($squads->all() as $squad) {
             if ($squad->seasonId()->value() !== $season->id()->value()) {
                 continue;
             }
-            $contract = $contracts->activeForPlayer($squad->playerId());
-            if ((new PlayerRepository($database))->get($squad->playerId())->isRetired()) {
+            $player = $players[$squad->playerId()->value()] ?? null;
+            $contract = $activeContracts[$squad->playerId()->value()] ?? null;
+            if ($player === null || $player->isRetired()) {
                 continue;
             }
             if ($contract === null || $contract->clubId()->value() !== $squad->clubId()->value()) {
                 continue;
             }
-            foreach ($clubMemberships->byClub($squad->clubId()) as $membership) {
-                if ($membership->seasonId()->value() !== $season->id()->value()) {
-                    continue;
-                }
+            foreach ($competitionMemberships[$squad->clubId()->value()] ?? [] as $membership) {
                 $registration = new PlayerRegistration($season->id(), $membership->competitionId(), $membership->clubId(), $squad->playerId());
-                if (!$registrations->exists($registration)) {
-                    $registrations->register($registration);
-                    ++$count;
+                if (!isset($existingRegistrations[$registration->key()])) {
+                    $pending[] = $registration;
                 }
             }
         }
+        $count = $database->transaction(fn (): int => $registrations->registerManyInTransaction($pending));
 
+        $this->lastPhaseTimings['registration_activation_ms'] = $this->elapsedMilliseconds($phaseStart);
         return ['registrations' => $count];
     }
 
@@ -248,28 +309,31 @@ final class SeasonRolloverService
     }
 
     /** @param list<ClubSquadMembership> $memberships @return array{renewed: int, released: int, carried: int} */
-    private function continueClubSquadInTransaction(DatabaseInterface $database, Club $club, array $memberships, Season $next, SimulationDate $asOfDate): array
+    private function continueClubSquadInTransaction(DatabaseInterface $database, Club $club, array $memberships, Season $next, SimulationDate $asOfDate, array $playersById, array $contractsByPlayer, array &$contractsById, array &$activeContractsByPlayer): array
     {
         $squads = $this->clubService->squadRepository($database);
-        $players = new PlayerRepository($database);
         $contracts = $this->contractService->repository($database);
         $renewed = 0;
         $released = 0;
         $carried = 0;
         foreach ($memberships as $membership) {
-            $player = $players->get($membership->playerId());
+            $player = $playersById[$membership->playerId()->value()] ?? null;
+            if ($player === null) {
+                ++$released;
+                continue;
+            }
             if ($player->isRetired()) {
                 ++$released;
                 continue;
             }
-            $active = $contracts->activeForPlayer($player->id());
+            $active = $activeContractsByPlayer[$player->id()->value()] ?? null;
             if ($active !== null && $active->clubId()->value() !== $club->id()->value()) {
                 ++$released;
                 continue;
             }
             $candidate = $active;
             if ($candidate === null) {
-                foreach (array_reverse($contracts->byPlayer($player->id())) as $historical) {
+                foreach (array_reverse($contractsByPlayer[$player->id()->value()] ?? []) as $historical) {
                     if ($historical->clubId()->value() === $club->id()->value()) {
                         $candidate = $historical;
                         break;
@@ -283,7 +347,7 @@ final class SeasonRolloverService
                     continue;
                 }
                 $renewalId = new ContractId('renewal-' . $next->id()->value() . '-' . substr(hash('sha256', $player->id()->value() . '|' . $club->id()->value()), 0, 24));
-                if (!$contracts->exists($renewalId)) {
+                if (!isset($contractsById[$renewalId->value()])) {
                     $oldWage = $candidate?->wage() ?? 0;
                     if ($candidate !== null && $candidate->status()->value === 'active') {
                         $contracts->saveInTransaction($candidate->terminate());
@@ -291,6 +355,9 @@ final class SeasonRolloverService
                     $wage = max($oldWage, ($club->reputation() * 10) + ($player->overallRating() * 5));
                     $renewal = $this->contractService->create(new ContractCreationRequest($renewalId, $player->id(), $club->id(), $next->startDate(), $next->endDate()->addDays(365), $wage, $asOfDate));
                     $contracts->saveInTransaction($renewal);
+                    $contractsById[$renewal->id()->value()] = $renewal;
+                    $contractsByPlayer[$player->id()->value()][] = $renewal;
+                    $activeContractsByPlayer[$player->id()->value()] = $renewal;
                     ++$renewed;
                 }
             }
@@ -346,5 +413,10 @@ final class SeasonRolloverService
         if ($expected !== $actual) {
             throw new WorldException('Next Season Competition membership does not match the finalized tier exchange.');
         }
+    }
+
+    private function elapsedMilliseconds(int $start): float
+    {
+        return round((hrtime(true) - $start) / 1_000_000, 2);
     }
 }

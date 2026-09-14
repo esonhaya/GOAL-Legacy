@@ -235,8 +235,15 @@ final class PlayerRepository
     public function all(): array
     {
         $rows = $this->database->connection()->query('SELECT id FROM ' . self::TABLE . ' ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
+        $ids = array_map(static fn (array $row): string => (string) $row['id'], $rows);
+        $players = [];
+        foreach (array_chunk($ids, 400) as $chunk) {
+            foreach ($this->byIds($chunk) as $player) {
+                $players[$player->id()->value()] = $player;
+            }
+        }
 
-        return array_map(fn (array $row): Player => $this->get((string) $row['id']), $rows);
+        return array_values(array_filter(array_map(static fn (string $id): ?Player => $players[$id] ?? null, $ids)));
     }
 
     /** @return list<Player> */

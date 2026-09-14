@@ -9,6 +9,9 @@ use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\JsonSerializer;
 use Goal\Legacy\Core\Persistence\SaveMetadata;
 use Goal\Legacy\Core\Persistence\SqliteSaveStore;
+use Goal\Legacy\Core\Persistence\SqlProfiler;
+use Goal\Legacy\Core\Persistence\SqlProfileReporter;
+use Goal\Legacy\Core\Persistence\SqliteQueryPlanExplainer;
 use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
@@ -57,8 +60,9 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         $requested = $this->argumentInt($arguments, '--seasons=', 3);
         $seed = $this->argumentInt($arguments, '--seed=', 13003);
         $lifecycleOnly = in_array('--lifecycle-only', $arguments, true);
-        if ($requested < 3 || $requested > ($lifecycleOnly ? 10 : 5)) {
-            $output->error($lifecycleOnly ? 'Lifecycle audit requires --seasons between 3 and 10.' : 'Multi-season audit requires --seasons between 3 and 5.');
+        $minimumSeasons = $lifecycleOnly ? 1 : 3;
+        if ($requested < $minimumSeasons || $requested > ($lifecycleOnly ? 10 : 5)) {
+            $output->error($lifecycleOnly ? 'Lifecycle audit requires --seasons between 1 and 10.' : 'Multi-season audit requires --seasons between 3 and 5.');
             return 1;
         }
 
@@ -69,7 +73,11 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
             $population = $this->services->playerModule()->service()->populationService()->populate($database, $season, $seed);
             $players = $lifecycleOnly ? [] : $this->installControlledPlayers($database, $season);
             if ($lifecycleOnly) {
-                return $this->executeLifecycleOnly($store, $database, $world, $season, $requested, $seed, $directory, $output);
+                $profiler = in_array('--profile-sql', $arguments, true) ? new SqlProfiler() : null;
+                if ($profiler !== null) {
+                    $database = $store->openDatabase(self::SAVE_ID, $profiler);
+                }
+                return $this->executeLifecycleOnly($store, $database, $world, $season, $requested, $seed, $directory, $output, $profiler);
             }
             // Keep the long-horizon audit comparable to CAREER-003 and
             // Termux-feasible. The World still contains all selected
@@ -127,22 +135,37 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         }
     }
 
-    private function executeLifecycleOnly($store, $database, World $world, Season $season, int $requested, int $seed, string $directory, ConsoleOutputInterface $output): int
+    private function executeLifecycleOnly($store, $database, World $world, Season $season, int $requested, int $seed, string $directory, ConsoleOutputInterface $output, ?SqlProfiler $profiler = null): int
     {
             $reports = [];
         $reloadChecks = [];
         for ($number = 1; $number <= $requested; ++$number) {
+            $output->write(sprintf('LIFECYCLE_SEASON_START number=%d/%d season=%s phase=complete_and_rollover', $number, $requested, $season->id()->value()));
+            $seasonStart = hrtime(true);
             $this->services->worldModule()->service()->advanceToDate($database, self::SAVE_ID, $season->endDate()->addDays(1));
+            $boundaryMilliseconds = round((hrtime(true) - $seasonStart) / 1_000_000, 2);
             $nextId = new SeasonId(sprintf('season-%04d-%02d', $season->startDate()->year() + 1, ($season->startDate()->year() + 2) % 100));
             $next = $this->services->worldModule()->service()->seasonRepository($database)->get($nextId);
-            $database = $this->advanceAndReload($store, $database, $next->startDate(), $reloadChecks, 'lifecycle-season-' . $number);
+            $reloadStart = hrtime(true);
+            $database = $this->advanceAndReload($store, $database, $next->startDate(), $reloadChecks, 'lifecycle-season-' . $number, $profiler);
+            $reloadMilliseconds = round((hrtime(true) - $reloadStart) / 1_000_000, 2);
             $season = $this->services->worldModule()->service()->seasonRepository($database)->get($nextId);
             $reports[] = $this->lifecycleMetrics($database, $season, $directory);
+            $phases = $this->services->worldModule()->service()->seasonRollover()?->lastPhaseTimings() ?? [];
+            $materializeMilliseconds = array_sum(array_intersect_key($phases, array_flip(['promotion_standings_ms', 'membership_materialization_ms', 'recruitment_ms', 'newgens_ms', 'replenishment_ms', 'fixture_generation_ms'])));
+            $output->write(sprintf('LIFECYCLE_PHASE number=%d boundary_ms=%.2f player_lifecycle_ms=%.2f contract_squad_ms=%.2f materialize_ms=%.2f reload_ms=%.2f promotion_ms=%.2f membership_ms=%.2f recruitment_ms=%.2f newgens_ms=%.2f replenish_ms=%.2f fixtures_ms=%.2f registration_ms=%.2f', $number, $boundaryMilliseconds, $phases['player_lifecycle_ms'] ?? 0.0, $phases['contract_squad_continuity_ms'] ?? 0.0, $materializeMilliseconds, $reloadMilliseconds, $phases['promotion_standings_ms'] ?? 0.0, $phases['membership_materialization_ms'] ?? 0.0, $phases['recruitment_ms'] ?? 0.0, $phases['newgens_ms'] ?? 0.0, $phases['replenishment_ms'] ?? 0.0, $phases['fixture_generation_ms'] ?? 0.0, $phases['registration_activation_ms'] ?? 0.0));
         }
         $last = $reports[count($reports) - 1];
             $output->write(sprintf('LIFECYCLE_AUDIT seed=%d requested=%d completed=%d start=%s end=%s active_start=%d active_final=%d retired_final=%d newgens_final=%d records_final=%d avg_age_final=%.1f oldest_final=%d squad_min=%d squad_max=%d reload_failures=%s', $seed, $requested, count($reports), $reports[0]['season']->startDate()->toIsoString(), $last['season']->startDate()->toIsoString(), $reports[0]['active'], $last['active'], $last['retired'], $last['newgens'], $last['records'], $last['age_avg'], $last['oldest'], $last['squad_min'], $last['squad_max'], $reloadChecks === [] || count(array_filter($reloadChecks, static fn (bool $value): bool => !$value)) === 0 ? 'none' : 'present'));
         foreach ($reports as $index => $report) {
             $output->write(sprintf('LIFECYCLE_SEASON_%d season=%s promoted=%d relegated=%d active=%d retired=%d newgens=%d renewals=%d releases=%d free_signings=%d npc_transfers=%d movement_budget=%d candidates=%d clubs_active=%d newgens_avoided=%d cross_league=%d upward=%d lateral=%d downward=%d records=%d unclubbed_active=%d avg_age=%.1f oldest=%d squad_avg=%.1f squad_min=%d squad_max=%d save_size=%d', $index + 1, $report['season']->id()->value(), $report['promoted'], $report['relegated'], $report['active'], $report['retired'], $report['newgens'], $report['renewed'], $report['released'], $report['free_agent_signings'], $report['npc_transfers'], $report['movement_budget'], $report['candidates_evaluated'], $report['clubs_with_activity'], $report['newgens_avoided'], $report['cross_league'], $report['upward'], $report['lateral'], $report['downward'], $report['records'], $report['unclubbed_active'], $report['age_avg'], $report['oldest'], $report['squad_avg'], $report['squad_min'], $report['squad_max'], $report['save_size']));
+        }
+        if ($profiler !== null) {
+            (new SqliteQueryPlanExplainer())->explain($database->connection(), $profiler, 10);
+            $reporter = new SqlProfileReporter();
+            foreach (explode("\n", $reporter->text($profiler, 10)) as $line) {
+                $output->write($line);
+            }
         }
 
         return 0;
@@ -274,12 +297,12 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         }
     }
 
-    private function advanceAndReload($store, $database, SimulationDate $date, array &$reloadChecks, string $label)
+    private function advanceAndReload($store, $database, SimulationDate $date, array &$reloadChecks, string $label, ?SqlProfiler $profiler = null)
     {
         $this->services->worldModule()->service()->advanceToDate($database, self::SAVE_ID, $date);
         $worldAfter = $this->services->worldModule()->service()->load($database, self::SAVE_ID);
         unset($database);
-        $database = $store->openDatabase(self::SAVE_ID);
+        $database = $store->openDatabase(self::SAVE_ID, $profiler);
         $worldReloaded = $this->services->worldModule()->service()->load($database, self::SAVE_ID);
         $reloadChecks[$label] = $worldAfter->toArray() === $worldReloaded->toArray();
         return $database;

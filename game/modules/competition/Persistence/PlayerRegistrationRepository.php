@@ -69,6 +69,8 @@ final class PlayerRegistrationRepository
     /** @return list<PlayerRegistration> */
     public function byPlayer(string|PlayerId $id): array { return $this->byColumn('player_id', ($id instanceof PlayerId ? $id : new PlayerId($id))->value(), 'season_id ASC, competition_id ASC, club_id ASC'); }
     /** @return list<PlayerRegistration> */
+    public function bySeason(SeasonId $id): array { return $this->byColumn('season_id', $id->value(), 'competition_id ASC, club_id ASC, player_id ASC'); }
+    /** @return list<PlayerRegistration> */
     public function byClub(string|ClubId $id): array { return $this->byColumn('club_id', ($id instanceof ClubId ? $id : new ClubId($id))->value(), 'season_id ASC, competition_id ASC, player_id ASC'); }
     /** @return list<PlayerRegistration> */
     public function byCompetition(string|CompetitionId $id, ?SeasonId $seasonId = null): array
@@ -80,6 +82,26 @@ final class PlayerRegistrationRepository
         $sql .= ' ORDER BY season_id ASC, club_id ASC, player_id ASC';
         $statement = $this->database->connection()->prepare($sql); $statement->execute($parameters);
         return $this->hydrateRows($statement->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /** @param list<PlayerRegistration> $registrations */
+    public function registerManyInTransaction(array $registrations): int
+    {
+        if ($registrations === []) {
+            return 0;
+        }
+        $statement = $this->database->connection()->prepare('INSERT INTO ' . self::TABLE . ' (season_id, competition_id, club_id, player_id) VALUES (:season_id, :competition_id, :club_id, :player_id)');
+        $count = 0;
+        foreach ($registrations as $registration) {
+            try {
+                $statement->execute($registration->toArray());
+            } catch (PDOException $exception) {
+                throw new PlayerRegistrationException(sprintf('Player registration "%s" already exists.', $registration->key()), 0, $exception);
+            }
+            ++$count;
+        }
+
+        return $count;
     }
 
     /** @param list<array<string, mixed>> $rows @return list<PlayerRegistration> */

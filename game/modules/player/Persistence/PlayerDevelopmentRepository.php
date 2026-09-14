@@ -46,6 +46,25 @@ final class PlayerDevelopmentRepository
         );
     }
 
+    /** @return array<string, DevelopmentState> */
+    public function allStates(): array
+    {
+        $states = [];
+        foreach ($this->database->connection()->query('SELECT * FROM ' . self::STATE_TABLE . ' ORDER BY player_id ASC')->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $progress = json_decode((string) $row['progress_json'], true, 512, JSON_THROW_ON_ERROR);
+            $playerId = (string) $row['player_id'];
+            $states[$playerId] = new DevelopmentState(
+                new PlayerId($playerId),
+                array_map('intval', is_array($progress) ? $progress : []),
+                $row['last_processed_date'] === null ? null : SimulationDate::fromIsoString((string) $row['last_processed_date']),
+                $row['current_focus'] === null ? null : TrainingFocus::from((string) $row['current_focus']),
+                (int) $row['revision'],
+            );
+        }
+
+        return $states;
+    }
+
     public function saveStateInTransaction(DevelopmentState $state): void
     {
         $statement = $this->database->connection()->prepare('INSERT INTO ' . self::STATE_TABLE . ' (player_id, progress_json, last_processed_date, current_focus, revision) VALUES (:player_id, :progress_json, :last_processed_date, :current_focus, :revision) ON CONFLICT(player_id) DO UPDATE SET progress_json = excluded.progress_json, last_processed_date = excluded.last_processed_date, current_focus = excluded.current_focus, revision = excluded.revision');
@@ -64,6 +83,20 @@ final class PlayerDevelopmentRepository
         $statement->execute(['player_id' => $playerId->value(), 'source' => $source, 'source_id' => $sourceId]);
 
         return $statement->fetchColumn() !== false;
+    }
+
+    /** @return array<string, DevelopmentHistoryEntry> */
+    public function bySourceId(string $source, string $sourceId): array
+    {
+        $statement = $this->database->connection()->prepare('SELECT * FROM ' . self::HISTORY_TABLE . ' WHERE source = :source AND source_id = :source_id ORDER BY player_id ASC');
+        $statement->execute(['source' => $source, 'source_id' => $sourceId]);
+        $entries = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $entry = $this->hydrate($row);
+            $entries[$entry->playerId()->value()] = $entry;
+        }
+
+        return $entries;
     }
 
     public function saveHistoryInTransaction(DevelopmentHistoryEntry $entry): void

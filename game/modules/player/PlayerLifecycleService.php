@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Goal\Legacy\Modules\Player;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Modules\Contract\Domain\Contract;
 use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerCareerState;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
+use Goal\Legacy\Modules\Player\Persistence\PlayerDevelopmentRepository;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 
@@ -27,23 +29,40 @@ final class PlayerLifecycleService
         $declined = 0;
         $processed = 0;
         $contractRepository = $this->contracts->repository($database);
+        $activeContracts = [];
+        foreach ($contractRepository->all() as $contract) {
+            if ($contract->status()->value === 'active') {
+                $activeContracts[$contract->playerId()->value()] = $contract;
+            }
+        }
+        $developmentRepository = new PlayerDevelopmentRepository($database);
+        $processedSources = $developmentRepository->bySourceId('season_lifecycle', $nextSeason->id()->value());
+        $knownStates = $developmentRepository->allStates();
         foreach ($players->all() as $player) {
             if ($player->isRetired()) {
                 continue;
             }
             ++$processed;
-            $result = $this->development->applySeasonLifecycleInTransaction($database, $player->id(), $nextSeason->startDate(), $nextSeason->id()->value());
-            if ($result->attributeDeltas() !== []) {
+            $result = $this->development->applySeasonLifecycleInTransaction($database, $player->id(), $nextSeason->startDate(), $nextSeason->id()->value(), $player, $processedSources, $knownStates, $developmentRepository);
+            if ($result->applied() && $result->attributeDeltas() !== []) {
                 ++$declined;
             }
-            $current = $players->get($player->id());
-            if (!$this->shouldRetire($database, $current, $nextSeason->startDate())) {
+            $current = $player;
+            if ($result->applied() && $result->attributeDeltas() !== []) {
+                $attributes = $current->attributes()->toArray();
+                foreach ($result->attributeDeltas() as $attribute => $delta) {
+                    $attributes[$attribute] = max(0, $attributes[$attribute] + $delta);
+                }
+                $current = $current->withAttributes(new \Goal\Legacy\Modules\Player\Domain\PlayerAttributeSet(...array_values($attributes)));
+            }
+            $active = $activeContracts[$current->id()->value()] ?? null;
+            if (!$this->shouldRetire($database, $current, $nextSeason->startDate(), $active)) {
                 continue;
             }
             $players->saveInTransaction($current->withCareerState(PlayerCareerState::Retired));
-            $active = $contractRepository->activeForPlayer($current->id());
             if ($active !== null) {
                 $contractRepository->saveInTransaction($active->terminate());
+                unset($activeContracts[$current->id()->value()]);
             }
             ++$retired;
         }
@@ -51,7 +70,7 @@ final class PlayerLifecycleService
         return ['processed' => $processed, 'retired' => $retired, 'declined' => $declined];
     }
 
-    public function shouldRetire(DatabaseInterface $database, Player $player, SimulationDate $date): bool
+    public function shouldRetire(DatabaseInterface $database, Player $player, SimulationDate $date, ?Contract $knownContract = null): bool
     {
         if ($player->isRetired()) {
             return false;
@@ -73,7 +92,7 @@ final class PlayerLifecycleService
         if ($player->overallRating() < 58) {
             $threshold += 14;
         }
-        $contract = $this->contracts->repository($database)->activeForPlayer($player->id());
+        $contract = $knownContract ?? $this->contracts->repository($database)->activeForPlayer($player->id());
         if ($contract === null) {
             $threshold += 8;
         }

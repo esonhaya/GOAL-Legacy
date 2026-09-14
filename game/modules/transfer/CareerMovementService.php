@@ -19,8 +19,10 @@ use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
 use Goal\Legacy\Modules\Player\PlayerFormService;
 use Goal\Legacy\Modules\Player\PlayerPopulationService;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunity;
+use Goal\Legacy\Modules\Player\Domain\CareerPlayerReference;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunityStatus;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunityType;
+use Goal\Legacy\Modules\Player\Domain\CareerTransferRequestStatus;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
@@ -123,6 +125,84 @@ final class CareerMovementService
         return $created;
     }
 
+    /** Request consideration by the existing bounded pre-season market. */
+    public function requestTransfer(DatabaseInterface $database, PlayerId|string $playerId, Season $season, SimulationDate $date): CareerPlayerReference
+    {
+        $playerId = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        $careers = new CareerPlayerRepository($database);
+        $reference = $careers->byPlayer($playerId);
+        if ($reference === null) {
+            throw new TransferException('Only the controlled career Player can request a transfer.');
+        }
+        $player = (new PlayerRepository($database))->get($playerId);
+        if ($player->isRetired()) {
+            throw new TransferException('Retired Players cannot request a transfer.');
+        }
+        $membership = $this->currentMembership($database, $playerId, $season->id());
+        $contract = $this->contractService->repository($database)->activeForPlayer($playerId);
+        if ($membership === null || $contract === null || $contract->clubId()->value() !== $membership->clubId()->value()) {
+            throw new TransferException('A transfer request requires an active Club Contract.');
+        }
+        if (!$contract->endDate()->isAfter($season->endDate())) {
+            throw new TransferException('Contract expiry decisions take priority over transfer requests.');
+        }
+        if ($reference->hasActiveTransferRequest($season->id())) {
+            throw new TransferException('Transfer request is already active for this window.');
+        }
+        foreach ($this->transferService->repository($database)->byPlayer($playerId) as $transfer) {
+            if ($transfer->seasonId()->value() === $season->id()->value() && $transfer->status() === TransferStatus::Completed) {
+                throw new TransferException('Recently moved Players cannot request another transfer in the same window.');
+            }
+        }
+        foreach ((new CareerOpportunityRepository($database))->openForPlayer($playerId) as $opportunity) {
+            if ($opportunity->type() === CareerOpportunityType::ContractRenewal || ($opportunity->context()['decision_kind'] ?? null) === 'controlled_transfer') {
+                throw new TransferException('An existing career decision must be resolved before requesting a transfer.');
+            }
+        }
+        $requested = $reference->withTransferRequest($season->id());
+        $database->transaction(function () use ($careers, $requested): void { $careers->save($requested); });
+        $this->events->dispatch(new GenericEvent('career.transfer_request_created', ['player_id' => $playerId->value(), 'season_id' => $season->id()->value(), 'date' => $date->toIsoString()]));
+
+        return $requested;
+    }
+
+    /** Withdraw an unresolved request without changing Contract or Club state. */
+    public function withdrawTransferRequest(DatabaseInterface $database, PlayerId|string $playerId, SimulationDate $date): CareerPlayerReference
+    {
+        $playerId = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        $careers = new CareerPlayerRepository($database);
+        $reference = $careers->byPlayer($playerId);
+        if ($reference === null) {
+            throw new TransferException('Only the controlled career Player can withdraw a transfer request.');
+        }
+        if ($reference->transferRequestStatus() === CareerTransferRequestStatus::None) {
+            return $reference;
+        }
+        $withdrawn = $reference->withoutTransferRequest();
+        $database->transaction(function () use ($careers, $withdrawn): void { $careers->save($withdrawn); });
+        $this->events->dispatch(new GenericEvent('career.transfer_request_withdrawn', ['player_id' => $playerId->value(), 'date' => $date->toIsoString()]));
+
+        return $withdrawn;
+    }
+
+    /** Expire requests after their Season-scoped market window. */
+    public function expireStaleTransferRequests(DatabaseInterface $database, Season $season): int
+    {
+        $careers = new CareerPlayerRepository($database);
+        $expired = 0;
+        foreach ($careers->playerIds() as $playerId) {
+            $reference = $careers->byPlayer($playerId);
+            if ($reference === null || $reference->transferRequestStatus() !== CareerTransferRequestStatus::Requested || $reference->transferRequestSeasonId()?->value() === $season->id()->value()) {
+                continue;
+            }
+            $cleared = $reference->withoutTransferRequest();
+            $database->transaction(function () use ($careers, $cleared): void { $careers->save($cleared); });
+            ++$expired;
+        }
+
+        return $expired;
+    }
+
     /**
      * Turn a legitimate NPC-market candidate into one controlled-career
      * choice. The market remains Club-owned; this method only replaces the
@@ -190,6 +270,8 @@ final class CareerMovementService
             return null;
         }
 
+        $careerReference = (new CareerPlayerRepository($database))->byPlayer($playerId);
+        $requestActive = $careerReference?->hasActiveTransferRequest($season->id()) ?? false;
         $options = [['id' => 'stay', 'kind' => 'stay', 'club_id' => $sourceClub->id()->value()]];
         foreach (array_slice($candidates, 0, self::MAX_OFFERS) as $candidate) {
             $targetClub = $candidate['club'];
@@ -221,6 +303,8 @@ final class CareerMovementService
             [
                 'decision_kind' => 'controlled_transfer',
                 'offer_status' => 'open',
+                'origin' => $requestActive ? 'player_request' : 'club_interest',
+                'request_season_id' => $requestActive ? $season->id()->value() : null,
                 'season_id' => $season->id()->value(),
                 'source_club_id' => $sourceClub->id()->value(),
                 'options' => $options,
@@ -268,6 +352,7 @@ final class CareerMovementService
         if (($selected['kind'] ?? null) === 'stay') {
             $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'stayed') + ['selected_option' => $optionId]);
             $this->saveStatus($database, $resolved);
+            $this->clearRequestForOpportunity($database, $resolved);
             $this->events->dispatch(new GenericEvent('career.controlled_transfer_declined', $resolved->toArray()));
 
             return $resolved;
@@ -341,6 +426,7 @@ final class CareerMovementService
         $completed = $this->transferService->execute($database, $transfer, new TransferExecutionTerms(new ContractId((string) $selected['destination_contract_id']), SimulationDate::fromIsoString((string) $selected['contract_end_date']), (int) $selected['wage'], $role));
         $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'completed') + ['selected_option' => $optionId, 'completed_transfer_id' => $completed->id()->value()]);
         $this->saveStatus($database, $resolved);
+        $this->clearRequestForOpportunity($database, $resolved);
         $this->events->dispatch(new GenericEvent('career.controlled_transfer_completed', $resolved->toArray()));
 
         return $resolved;
@@ -561,6 +647,7 @@ final class CareerMovementService
         }
         $declined = $offer->withStatusAndContext(CareerOpportunityStatus::Declined, $this->withOfferStatus($offer->context(), 'declined'));
         $this->saveStatus($database, $declined);
+        $this->clearRequestForOpportunity($database, $declined);
         $this->events->dispatch(new GenericEvent('career.transfer_offer_declined', $declined->toArray()));
 
         return $declined;
@@ -718,6 +805,20 @@ final class CareerMovementService
     {
         $repository = new CareerOpportunityRepository($database);
         $database->transaction(function () use ($repository, $offer): void { $repository->updateStatusInTransaction($offer, $offer->status()); });
+    }
+
+    private function clearRequestForOpportunity(DatabaseInterface $database, CareerOpportunity $opportunity): void
+    {
+        if (($opportunity->context()['origin'] ?? null) !== 'player_request') {
+            return;
+        }
+        $careers = new CareerPlayerRepository($database);
+        $reference = $careers->byPlayer($opportunity->playerId());
+        if ($reference === null || $reference->transferRequestStatus() === CareerTransferRequestStatus::None) {
+            return;
+        }
+        $cleared = $reference->withoutTransferRequest();
+        $database->transaction(function () use ($careers, $cleared): void { $careers->save($cleared); });
     }
 
     private function currentMembership(DatabaseInterface $database, PlayerId $playerId, SeasonId $seasonId): ?ClubSquadMembership

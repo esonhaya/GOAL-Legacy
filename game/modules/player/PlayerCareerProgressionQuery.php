@@ -9,6 +9,7 @@ use Goal\Legacy\Modules\Club\ClubService;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
+use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -41,6 +42,11 @@ final class PlayerCareerProgressionQuery
             'availability' => $availability->status()->value,
             'fatigue' => $availability->fatigue(),
             'active_injury' => $availability->injury()?->toArray(),
+        ];
+        $careerReference = (new CareerPlayerRepository($database))->byPlayer($id);
+        $summary['transfer_request'] = $careerReference === null ? null : [
+            'status' => $careerReference->transferRequestStatus()->value,
+            'season_id' => $careerReference->transferRequestSeasonId()?->value(),
         ];
         if ($seasonId !== null) {
             $summary['season_stats'] = $statistics->season($database, $id, $seasonId);

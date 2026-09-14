@@ -12,6 +12,30 @@ by the DOMAIN-019 Contract decision flow and never receives both decision
 types at the same boundary. There is no daily tick, player-requested listing,
 negotiation, wage system, agent, or competing-bid system.
 
+## Player-initiated requests
+
+The controlled career Player can request consideration through
+`CareerMovementService::requestTransfer()`. The request is stored on the
+existing career-player reference as a Season-scoped `requested` state. It
+does not terminate the Contract, remove the Player, create an offer, or name
+a destination. The next canonical Club recruitment checkpoint expires stale
+requests and evaluates current requests through the same bounded candidate
+pool. A request adds only a modest existing movement-pressure/willingness
+signal and may keep that one controlled candidate in the bounded source pool;
+Club fit, vacancy, source safety, and destination capacity remain
+authoritative.
+
+The result may be no interest. In that case the Player stays contracted and
+the request expires when the Season window changes. If interest exists, the
+same `transfer_interest` opportunity is used with origin metadata
+`player_request`; the existing stay/accept resolver handles the choice. A
+stay/rejection clears the request without changing the Contract. An accepted
+move clears it after `TransferService` completes the canonical Contract,
+squad, registration, and history transition. Repeated requests, expiry
+decisions, recently moved Players, and stale opportunities are rejected or
+expired deterministically. Withdrawal is available before resolution and
+also leaves Club and Contract state unchanged.
+
 Accepting a destination delegates the complete contracted movement to
 `TransferService`: the source Contract and registration are closed, the
 destination Contract and squad membership are created, and current
@@ -30,6 +54,6 @@ without executing movement twice.
 
 Promotion/relegation changes the seasonal Club context consumed by the same
 market and does not force an offer or movement. NPC Players continue to use
-the existing automatic path. Player-requested transfers, loans, fees or
-finance, agents, counteroffers, mid-season windows, and negotiation remain
-deferred.
+the existing automatic path. Preferred Club/league selection, transfer
+listing, loans, fees or finance, agents, counteroffers, mid-season windows,
+morale, and negotiation remain deferred.

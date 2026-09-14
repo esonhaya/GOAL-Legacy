@@ -8,7 +8,7 @@ interface SaveStore
 {
     public function create(SaveMetadata $metadata): void;
 
-    public function openDatabase(string $saveId): DatabaseInterface;
+    public function openDatabase(string $saveId, ?SqlProfiler $profiler = null): DatabaseInterface;
 
     public function exists(string $saveId): bool;
 

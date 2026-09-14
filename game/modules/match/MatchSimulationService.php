@@ -25,10 +25,16 @@ final class MatchSimulationService
     {
         $playerRepository = new PlayerRepository($database);
         $selections = $this->selectionService->select($database, $match);
-        $homeStarters = $this->selectedPlayers($selections, $match->homeClubId()->value(), SelectionStatus::Starter, $playerRepository);
-        $awayStarters = $this->selectedPlayers($selections, $match->awayClubId()->value(), SelectionStatus::Starter, $playerRepository);
-        $homeBench = $this->selectedPlayers($selections, $match->homeClubId()->value(), SelectionStatus::Bench, $playerRepository);
-        $awayBench = $this->selectedPlayers($selections, $match->awayClubId()->value(), SelectionStatus::Bench, $playerRepository);
+        $participantIds = [];
+        foreach ($selections as $selection) {
+            if ($selection->status() === SelectionStatus::Starter || $selection->status() === SelectionStatus::Bench) { $participantIds[] = $selection->playerId(); }
+        }
+        $playersById = [];
+        foreach ($playerRepository->byIds($participantIds) as $player) { $playersById[$player->id()->value()] = $player; }
+        $homeStarters = $this->selectedPlayers($selections, $match->homeClubId()->value(), SelectionStatus::Starter, $playersById);
+        $awayStarters = $this->selectedPlayers($selections, $match->awayClubId()->value(), SelectionStatus::Starter, $playersById);
+        $homeBench = $this->selectedPlayers($selections, $match->homeClubId()->value(), SelectionStatus::Bench, $playersById);
+        $awayBench = $this->selectedPlayers($selections, $match->awayClubId()->value(), SelectionStatus::Bench, $playersById);
         $homeSubstitutions = $this->substitutions($match, $match->homeClubId(), $homeStarters, $homeBench);
         $awaySubstitutions = $this->substitutions($match, $match->awayClubId(), $awayStarters, $awayBench);
         $substitutions = array_merge($homeSubstitutions, $awaySubstitutions);
@@ -68,18 +74,19 @@ final class MatchSimulationService
             }
         }
         $stats = [];
-        foreach ($this->participantStats($match, $match->homeClubId(), $homeStarters, $homeSubstitutions, $goalCounts, $playerRepository) as $stat) { $stats[] = $stat; }
-        foreach ($this->participantStats($match, $match->awayClubId(), $awayStarters, $awaySubstitutions, $goalCounts, $playerRepository) as $stat) { $stats[] = $stat; }
+        foreach ($this->participantStats($match, $match->homeClubId(), $homeStarters, $homeSubstitutions, $goalCounts, $playersById) as $stat) { $stats[] = $stat; }
+        foreach ($this->participantStats($match, $match->awayClubId(), $awayStarters, $awaySubstitutions, $goalCounts, $playersById) as $stat) { $stats[] = $stat; }
         return new MatchSimulation($result, $stats, $highlights, $selections, $substitutions);
     }
 
     /** @param list<\Goal\Legacy\Modules\Match\Domain\PlayerSelection> $selections @return list<Player> */
-    private function selectedPlayers(array $selections, string $clubId, SelectionStatus $status, PlayerRepository $players): array
+    private function selectedPlayers(array $selections, string $clubId, SelectionStatus $status, array $playersById): array
     {
         $result = [];
         foreach ($selections as $selection) {
             if ($selection->clubId()->value() === $clubId && $selection->status() === $status) {
-                $result[] = $players->get($selection->playerId());
+                $player = $playersById[$selection->playerId()->value()] ?? null;
+                if ($player !== null) { $result[] = $player; }
             }
         }
         return $result;
@@ -140,7 +147,7 @@ final class MatchSimulationService
     }
 
     /** @param list<Player> $starters @param list<MatchSubstitution> $substitutions @param array<string, int> $goalCounts @return list<PlayerMatchStat> */
-    private function participantStats(GameMatch $match, \Goal\Legacy\Modules\Club\Domain\ClubId $clubId, array $starters, array $substitutions, array $goalCounts, PlayerRepository $players): array
+    private function participantStats(GameMatch $match, \Goal\Legacy\Modules\Club\Domain\ClubId $clubId, array $starters, array $substitutions, array $goalCounts, array $playersById): array
     {
         $outgoingMinutes = [];
         foreach ($substitutions as $substitution) {
@@ -152,7 +159,8 @@ final class MatchSimulationService
             $stats[] = new PlayerMatchStat($match->id(), $starter->id(), $clubId, true, true, $outgoingMinutes[$id] ?? 90, $goalCounts[$id] ?? 0);
         }
         foreach ($substitutions as $substitution) {
-            $incoming = $players->get($substitution->incomingPlayerId());
+            $incoming = $playersById[$substitution->incomingPlayerId()->value()] ?? null;
+            if ($incoming === null) { continue; }
             $id = $incoming->id()->value();
             $stats[] = new PlayerMatchStat($match->id(), $incoming->id(), $clubId, true, false, 90 - $substitution->minute(), $goalCounts[$id] ?? 0);
         }

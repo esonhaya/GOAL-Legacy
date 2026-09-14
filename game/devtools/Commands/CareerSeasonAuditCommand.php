@@ -10,7 +10,10 @@ use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Core\Persistence\JsonSerializer;
 use Goal\Legacy\Core\Persistence\SaveMetadata;
+use Goal\Legacy\Core\Persistence\SqlProfiler;
+use Goal\Legacy\Core\Persistence\SqlProfileReporter;
 use Goal\Legacy\Core\Persistence\SqliteSaveStore;
+use Goal\Legacy\Core\Persistence\SqliteQueryPlanExplainer;
 use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
@@ -65,14 +68,28 @@ final class CareerSeasonAuditCommand implements CommandInterface
     public function execute(array $arguments, ConsoleOutputInterface $output): int
     {
         $seed = $this->seed($arguments);
+        $profileEnabled = in_array('--profile-sql', $arguments, true) || $this->profileJsonPath($arguments) !== null;
+        $profileTop = $this->profileTop($arguments);
+        $profiler = $profileEnabled ? new SqlProfiler() : null;
 
         try {
-            $continuous = (new self($this->freshServices()))->runScenario($seed, 'career-audit-continuous', false);
+            $continuous = (new self($this->freshServices()))->runScenario($seed, 'career-audit-continuous', false, $profiler, $profileTop);
             $reloaded = (new self($this->freshServices()))->runScenario($seed, 'career-audit-reloaded', true);
             $equivalent = $this->canonical($continuous) === $this->canonical($reloaded);
 
             $output->write(sprintf('AUDIT seed=%d horizon=full-season competition=%s fixtures=%d big5_fixtures=%d', $seed, self::COMPETITION_ID, $continuous['fixture_count'], $continuous['big5_fixture_count']));
             $output->write(sprintf('SAVE_RELOAD equivalent=%s midpoint=%s', $equivalent ? 'yes' : 'no', $reloaded['reloaded_midpoint'] ? 'yes' : 'no'));
+            if ($profileEnabled && is_string($continuous['sql_profile_text'] ?? null)) {
+                foreach (explode("\n", $continuous['sql_profile_text']) as $line) { $output->write($line); }
+                $output->write(sprintf('SQL_RUNTIME total_ms=%.1f database_start=%d database_end=%d', $continuous['runtime_ms'], $continuous['database_size_start'], $continuous['database_size_end']));
+                $jsonPath = $this->profileJsonPath($arguments);
+                if ($jsonPath !== null) {
+                    $directory = dirname($jsonPath);
+                    if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) { throw new RuntimeException('Unable to create SQL profile directory: ' . $directory); }
+                    if (file_put_contents($jsonPath, json_encode($continuous['sql_profile'], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT)) === false) { throw new RuntimeException('Unable to write SQL profile: ' . $jsonPath); }
+                    $output->write('SQL_JSON path=' . $jsonPath);
+                }
+            }
             $output->write(sprintf('POPULATION clubs=%d players=%d avg_squad=%.1f min_squad=%d max_squad=%d ovr_avg=%.1f age_avg=%.1f', $continuous['population']['clubs_populated'], $continuous['population']['players_total'], $continuous['population']['avg_squad_size'], $continuous['population']['min_squad_size'], $continuous['population']['max_squad_size'], $continuous['population']['ovr_avg'], $continuous['population']['age_avg']));
             $squad = $continuous['squad'];
             $squadSummary = $squad['summary'];
@@ -151,7 +168,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
     }
 
     /** @return array<string, mixed> */
-    private function runScenario(int $seed, string $saveId, bool $reloadMidpoint): array
+    private function runScenario(int $seed, string $saveId, bool $reloadMidpoint, ?SqlProfiler $profiler = null, int $profileTop = 10): array
     {
         $directory = sys_get_temp_dir() . '/goal-legacy-season-audit-' . bin2hex(random_bytes(8));
         $database = null;
@@ -163,7 +180,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
             $world = new World(new WorldId($saveId), 'Career season audit', $seed, new DateTimeImmutable('@0'), $calendar->timeAt(SimulationDate::fromIsoString('2024-07-31')), $season->id(), array_map(static fn ($nation): string => $nation->id()->value(), $nations), array_map(static fn ($competition): string => $competition->id()->value(), $competitions), $this->services->contentPackages()->selectedIds());
             $store = new SqliteSaveStore($directory, new JsonSerializer());
             $store->create(SaveMetadata::create($saveId, 'Career season audit', $world->currentTime(), new DateTimeImmutable('@0')));
-            $database = $store->openDatabase($saveId);
+            $database = $store->openDatabase($saveId, $profiler);
             $this->services->worldModule()->service()->initialize($database, $world, $season);
 
             $players = $this->installPlayers($database, $season, $seed);
@@ -178,6 +195,9 @@ final class CareerSeasonAuditCommand implements CommandInterface
             foreach ($this->services->clubModule()->service()->byCompetition($database, self::COMPETITION_ID, $season->id()) as $club) {
                 $leagueSnapshots[$club->id()->value()] = $this->captureSquad($database, $club->id()->value(), $season);
             }
+            $profiler?->reset();
+            $workloadStarted = hrtime(true);
+            $databaseSizeStart = filesize($directory . '/' . $saveId . '.sqlite') ?: 0;
             $matchService = $this->services->matchModule()->service();
             $fixtureCounts = [];
             foreach (['premier-league', 'la-liga', 'bundesliga', 'serie-a', 'ligue-1'] as $competitionId) {
@@ -208,7 +228,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
                 }
                 if ($reloadMidpoint && $index === intdiv(count($dates), 2) - 1) {
                     unset($database);
-                    $database = $store->openDatabase($saveId);
+                    $database = $store->openDatabase($saveId, $profiler);
                 }
             }
 
@@ -228,6 +248,15 @@ final class CareerSeasonAuditCommand implements CommandInterface
             $resultMetrics = $this->leagueMetrics($completed, $standings);
             $availabilityMetrics = $this->availabilityMetrics($database, $completed, $players);
             $consistency = $this->consistency($database, $matchService, $completed, $players, $season, $standingsRebuilt);
+            $runtimeMs = (hrtime(true) - $workloadStarted) / 1_000_000;
+            $sqlProfile = $profiler?->snapshot();
+            $sqlProfileText = null;
+            if ($profiler !== null) {
+                (new SqliteQueryPlanExplainer())->explain($database->connection(), $profiler, $profileTop);
+                $reporter = new SqlProfileReporter();
+                $sqlProfile = $reporter->json($profiler, $profileTop);
+                $sqlProfileText = $reporter->text($profiler, $profileTop);
+            }
 
             return [
                 'fixture_count' => count($matches),
@@ -245,6 +274,11 @@ final class CareerSeasonAuditCommand implements CommandInterface
                 ...$resultMetrics,
                 ...$availabilityMetrics,
                 ...$consistency,
+                'runtime_ms' => round($runtimeMs, 3),
+                'database_size_start' => $databaseSizeStart,
+                'database_size_end' => filesize($directory . '/' . $saveId . '.sqlite') ?: 0,
+                'sql_profile' => $sqlProfile,
+                'sql_profile_text' => $sqlProfileText,
             ];
         } finally {
             unset($database);
@@ -835,6 +869,31 @@ final class CareerSeasonAuditCommand implements CommandInterface
         return 8001;
     }
 
+    /** @param list<string> $arguments */
+    private function profileJsonPath(array $arguments): ?string
+    {
+        foreach ($arguments as $argument) {
+            if (str_starts_with($argument, '--profile-sql-json=')) {
+                $path = trim(substr($argument, 19));
+                return $path === '' ? null : $path;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param list<string> $arguments */
+    private function profileTop(array $arguments): int
+    {
+        foreach ($arguments as $argument) {
+            if (str_starts_with($argument, '--profile-sql-top=')) {
+                return max(1, min(100, (int) substr($argument, 18)));
+            }
+        }
+
+        return 10;
+    }
+
     private function freshServices(): CoreServices
     {
         return (new Bootstrap())->create(dirname(__DIR__, 3));
@@ -843,7 +902,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
     /** @param array<string, mixed> $scenario */
     private function canonical(array $scenario): string
     {
-        unset($scenario['reloaded_midpoint']);
+        unset($scenario['reloaded_midpoint'], $scenario['runtime_ms'], $scenario['database_size_start'], $scenario['database_size_end'], $scenario['sql_profile'], $scenario['sql_profile_text']);
         return json_encode($scenario, JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION);
     }
 

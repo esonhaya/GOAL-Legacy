@@ -29,7 +29,10 @@ final class MatchSelectionService
         $players = new PlayerRepository($database);
         $selections = [];
         foreach ([$match->homeClubId()->value(), $match->awayClubId()->value()] as $clubId) {
-            $eligible = $this->eligiblePlayers($database, $match, $clubId, $players);
+            $squadMemberships = $this->clubService->squadRepository($database)->byClub($clubId, $match->seasonId());
+            $eligible = $this->eligiblePlayers($database, $match, $clubId, $players, $squadMemberships);
+            $roles = [];
+            foreach ($squadMemberships as $membership) { $roles[$membership->playerId()->value()] = $membership->role(); }
             $ranked = [];
             foreach ($eligible as $player) {
                 $assessment = ($this->availability ?? new PlayerAvailabilityService())->assess($database, $player->id(), $match->scheduledDate());
@@ -37,8 +40,7 @@ final class MatchSelectionService
                     $selections[] = new PlayerSelection($match->id(), $player->id(), new \Goal\Legacy\Modules\Club\Domain\ClubId($clubId), SelectionStatus::Unavailable);
                     continue;
                 }
-                $membership = $this->clubService->squadRepository($database)->byPlayer($player->id(), $match->seasonId());
-                $role = array_values(array_filter($membership, static fn ($value): bool => $value->clubId()->value() === $clubId))[0]?->role() ?? SquadRole::Prospect;
+                $role = $roles[$player->id()->value()] ?? SquadRole::Prospect;
                 $fatiguePenalty = $assessment->fatigue() * 4;
                 $ranked[] = ['player' => $player, 'score' => $role->weight() + ($player->overallRating() * 10) + $this->formBonus($database, $player->id()->value(), $match) - $fatiguePenalty, 'tie' => hash('sha256', $match->id()->value() . '|' . $player->id()->value()), 'group' => $this->positionGroup($player)];
             }
@@ -134,17 +136,20 @@ final class MatchSelectionService
     }
 
     /** @return list<Player> */
-    public function eligiblePlayers(DatabaseInterface $database, GameMatch $match, string $clubId, PlayerRepository $players): array
+    /** @param list<\Goal\Legacy\Modules\Club\Domain\ClubSquadMembership>|null $squadMemberships */
+    public function eligiblePlayers(DatabaseInterface $database, GameMatch $match, string $clubId, PlayerRepository $players, ?array $squadMemberships = null): array
     {
         new PlayerRegistrationRepository($database);
         new ContractRepository($database);
         $registeredStatement = $database->connection()->prepare("SELECT r.player_id FROM player_competition_registrations r INNER JOIN contract_records c ON c.player_id = r.player_id AND c.club_id = r.club_id INNER JOIN player_records p ON p.id = r.player_id WHERE r.season_id = :season_id AND r.competition_id = :competition_id AND r.club_id = :club_id AND c.status = :status AND p.career_state = 'active' ORDER BY r.player_id ASC");
         $registeredStatement->execute(['season_id' => $match->seasonId()->value(), 'competition_id' => $match->competitionId()->value(), 'club_id' => $clubId, 'status' => 'active']);
         $registered = array_fill_keys(array_map('strval', $registeredStatement->fetchAll(\PDO::FETCH_COLUMN)), true);
-        $result = [];
-        foreach ($this->clubService->squadRepository($database)->byClub($clubId, $match->seasonId()) as $squad) {
-            if (isset($registered[$squad->playerId()->value()])) { $result[$squad->playerId()->value()] = $players->get($squad->playerId()); }
+        $squadIds = [];
+        foreach ($squadMemberships ?? $this->clubService->squadRepository($database)->byClub($clubId, $match->seasonId()) as $squad) {
+            if (isset($registered[$squad->playerId()->value()])) { $squadIds[] = $squad->playerId(); }
         }
+        $result = [];
+        foreach ($players->byIds($squadIds) as $player) { $result[$player->id()->value()] = $player; }
         ksort($result, SORT_STRING);
 
         return array_values($result);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Goal\Legacy\Modules\Player\Persistence;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Core\Persistence\SchemaInitializationGuard;
 use Goal\Legacy\Modules\Player\Domain\Injury;
 use Goal\Legacy\Modules\Player\Domain\InjuryCategory;
 use Goal\Legacy\Modules\Player\Domain\InjurySeverity;
@@ -22,11 +23,14 @@ final class PlayerAvailabilityRepository
 
     public function __construct(private readonly DatabaseInterface $database)
     {
-        $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::STATE_TABLE . ' (player_id TEXT PRIMARY KEY, fatigue INTEGER NOT NULL, last_processed_date TEXT NOT NULL, revision INTEGER NOT NULL)');
-        $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::SOURCE_TABLE . ' (player_id TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, fatigue_delta INTEGER NOT NULL, occurred_date TEXT NOT NULL, PRIMARY KEY (player_id, source_type, source_id))');
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_player_availability_sources_player ON ' . self::SOURCE_TABLE . ' (player_id, occurred_date, source_type, source_id)');
-        $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::INJURY_TABLE . ' (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, category TEXT NOT NULL, severity TEXT NOT NULL, start_date TEXT NOT NULL, recovery_date TEXT NOT NULL, status TEXT NOT NULL, actual_recovery_date TEXT NULL, UNIQUE (player_id, source_type, source_id))');
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_player_injuries_active ON ' . self::INJURY_TABLE . ' (player_id, status, recovery_date, id)');
+        SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
+            $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::STATE_TABLE . ' (player_id TEXT PRIMARY KEY, fatigue INTEGER NOT NULL, last_processed_date TEXT NOT NULL, revision INTEGER NOT NULL)');
+            $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::SOURCE_TABLE . ' (player_id TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, fatigue_delta INTEGER NOT NULL, occurred_date TEXT NOT NULL, PRIMARY KEY (player_id, source_type, source_id))');
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_player_availability_sources_player ON ' . self::SOURCE_TABLE . ' (player_id, occurred_date, source_type, source_id)');
+            $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::INJURY_TABLE . ' (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, category TEXT NOT NULL, severity TEXT NOT NULL, start_date TEXT NOT NULL, recovery_date TEXT NOT NULL, status TEXT NOT NULL, actual_recovery_date TEXT NULL, UNIQUE (player_id, source_type, source_id))');
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_player_injuries_active ON ' . self::INJURY_TABLE . ' (player_id, status, recovery_date, id)');
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_player_injuries_active_order ON ' . self::INJURY_TABLE . ' (player_id, status, start_date DESC, id DESC)');
+        });
     }
 
     /** @return array{fatigue:int,last_date:?SimulationDate,revision:int} */

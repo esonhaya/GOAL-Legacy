@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Goal\Legacy\Modules\Match\Persistence;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Core\Persistence\SchemaInitializationGuard;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Match\Domain\MatchId;
 use Goal\Legacy\Modules\Match\Domain\PlayerMatchStat;
@@ -15,7 +16,7 @@ final class PlayerMatchStatRepository
 {
     private const TABLE = 'match_player_stats';
     public function __construct(private readonly DatabaseInterface $database)
-    { $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, player_id TEXT NOT NULL, club_id TEXT NOT NULL, appeared INTEGER NOT NULL, started INTEGER NOT NULL, minutes INTEGER NOT NULL, goals INTEGER NOT NULL, PRIMARY KEY (match_id, player_id))'); $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_stats_player ON ' . self::TABLE . ' (player_id, match_id)'); $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_stats_club ON ' . self::TABLE . ' (club_id, match_id)'); }
+    { SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void { $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, player_id TEXT NOT NULL, club_id TEXT NOT NULL, appeared INTEGER NOT NULL, started INTEGER NOT NULL, minutes INTEGER NOT NULL, goals INTEGER NOT NULL, PRIMARY KEY (match_id, player_id))'); $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_stats_player ON ' . self::TABLE . ' (player_id, match_id)'); $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_stats_club ON ' . self::TABLE . ' (club_id, match_id)'); }); }
     /** @param list<PlayerMatchStat> $stats */
     public function replaceForMatch(array $stats): void { $this->database->transaction(function () use ($stats): void { $this->replaceForMatchInTransaction($stats); }); }
     /** @param list<PlayerMatchStat> $stats */

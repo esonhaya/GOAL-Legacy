@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Goal\Legacy\Modules\Player\Persistence;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Core\Persistence\SchemaInitializationGuard;
 use Goal\Legacy\Modules\Player\Domain\DevelopmentHistoryEntry;
 use Goal\Legacy\Modules\Player\Domain\DevelopmentState;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
@@ -19,9 +20,11 @@ final class PlayerDevelopmentRepository
 
     public function __construct(private readonly DatabaseInterface $database)
     {
-        $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::STATE_TABLE . ' (player_id TEXT PRIMARY KEY, progress_json TEXT NOT NULL, last_processed_date TEXT NULL, current_focus TEXT NULL, revision INTEGER NOT NULL)');
-        $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::HISTORY_TABLE . ' (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, occurred_date TEXT NOT NULL, source TEXT NOT NULL, source_id TEXT NOT NULL, attribute_deltas_json TEXT NOT NULL, before_ovr INTEGER NOT NULL, after_ovr INTEGER NOT NULL, UNIQUE (player_id, source, source_id))');
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_player_development_history_player_date ON ' . self::HISTORY_TABLE . ' (player_id, occurred_date, id)');
+        SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
+            $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::STATE_TABLE . ' (player_id TEXT PRIMARY KEY, progress_json TEXT NOT NULL, last_processed_date TEXT NULL, current_focus TEXT NULL, revision INTEGER NOT NULL)');
+            $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::HISTORY_TABLE . ' (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, occurred_date TEXT NOT NULL, source TEXT NOT NULL, source_id TEXT NOT NULL, attribute_deltas_json TEXT NOT NULL, before_ovr INTEGER NOT NULL, after_ovr INTEGER NOT NULL, UNIQUE (player_id, source, source_id))');
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_player_development_history_player_date ON ' . self::HISTORY_TABLE . ' (player_id, occurred_date, id)');
+        });
     }
 
     public function state(PlayerId $playerId): DevelopmentState

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Goal\Legacy\Modules\Club\Persistence;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Core\Persistence\SchemaInitializationGuard;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
@@ -20,24 +21,26 @@ final class ClubSquadRepository
 
     public function __construct(private readonly DatabaseInterface $database)
     {
-        $this->database->connection()->exec(
-            'CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' ('
-            . 'club_id TEXT NOT NULL, '
-            . 'player_id TEXT NOT NULL, '
-            . 'season_id TEXT NOT NULL, '
-            . 'role TEXT NOT NULL DEFAULT \'prospect\', '
-            . 'PRIMARY KEY (season_id, club_id, player_id), '
-            . 'UNIQUE (season_id, player_id)'
-            . ')'
-        );
-        $columns = $this->database->connection()->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(PDO::FETCH_ASSOC);
-        if (!in_array('role', array_column($columns, 'name'), true)) {
-            $this->database->connection()->exec("ALTER TABLE " . self::TABLE . " ADD COLUMN role TEXT NOT NULL DEFAULT 'prospect'");
-        }
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_club_squad_club ON ' . self::TABLE . ' (club_id, season_id, player_id)');
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_club_squad_player ON ' . self::TABLE . ' (player_id, season_id, club_id)');
-        $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS club_squad_role_history (id TEXT PRIMARY KEY, season_id TEXT NOT NULL, club_id TEXT NOT NULL, player_id TEXT NOT NULL, role TEXT NOT NULL, occurred_date TEXT NOT NULL, source TEXT NOT NULL, UNIQUE (season_id, club_id, player_id, role, occurred_date, source))');
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_club_squad_role_history_player ON club_squad_role_history (player_id, occurred_date, id)');
+        SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
+            $this->database->connection()->exec(
+                'CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' ('
+                . 'club_id TEXT NOT NULL, '
+                . 'player_id TEXT NOT NULL, '
+                . 'season_id TEXT NOT NULL, '
+                . 'role TEXT NOT NULL DEFAULT \'prospect\', '
+                . 'PRIMARY KEY (season_id, club_id, player_id), '
+                . 'UNIQUE (season_id, player_id)'
+                . ')'
+            );
+            $columns = $this->database->connection()->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(PDO::FETCH_ASSOC);
+            if (!in_array('role', array_column($columns, 'name'), true)) {
+                $this->database->connection()->exec("ALTER TABLE " . self::TABLE . " ADD COLUMN role TEXT NOT NULL DEFAULT 'prospect'");
+            }
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_club_squad_club ON ' . self::TABLE . ' (club_id, season_id, player_id)');
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_club_squad_player ON ' . self::TABLE . ' (player_id, season_id, club_id)');
+            $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS club_squad_role_history (id TEXT PRIMARY KEY, season_id TEXT NOT NULL, club_id TEXT NOT NULL, player_id TEXT NOT NULL, role TEXT NOT NULL, occurred_date TEXT NOT NULL, source TEXT NOT NULL, UNIQUE (season_id, club_id, player_id, role, occurred_date, source))');
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_club_squad_role_history_player ON club_squad_role_history (player_id, occurred_date, id)');
+        });
     }
 
     public function save(ClubSquadMembership $membership): void

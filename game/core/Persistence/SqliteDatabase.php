@@ -11,9 +11,11 @@ use Throwable;
 final class SqliteDatabase implements DatabaseInterface
 {
     private PDO $connection;
+    private readonly ?SqlProfiler $profiler;
 
-    public function __construct(string $path)
+    public function __construct(string $path, ?SqlProfiler $profiler = null)
     {
+        $this->profiler = $profiler;
         if (!extension_loaded('pdo_sqlite')) {
             throw new PersistenceException('PDO SQLite extension is required for save persistence.');
         }
@@ -29,11 +31,14 @@ final class SqliteDatabase implements DatabaseInterface
         }
 
         try {
-            $this->connection = new PDO('sqlite:' . $path, null, null, [
+            $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
-            ]);
+            ];
+            $this->connection = $profiler === null
+                ? new PDO('sqlite:' . $path, null, null, $options)
+                : new ProfilingPdo('sqlite:' . $path, null, null, $options, $profiler);
             $this->connection->exec('PRAGMA foreign_keys = ON');
             $this->connection->exec('PRAGMA busy_timeout = 5000');
         } catch (PDOException $exception) {
@@ -52,10 +57,13 @@ final class SqliteDatabase implements DatabaseInterface
             throw new PersistenceException('Nested database transactions are not supported.');
         }
 
+        $started = hrtime(true);
         $this->connection->beginTransaction();
         try {
             $result = $operation($this->connection);
+            $commitStarted = hrtime(true);
             $this->connection->commit();
+            $this->profiler?->recordCommit(hrtime(true) - $commitStarted);
 
             return $result;
         } catch (Throwable $exception) {
@@ -64,6 +72,8 @@ final class SqliteDatabase implements DatabaseInterface
             }
 
             throw $exception;
+        } finally {
+            $this->profiler?->recordTransaction(hrtime(true) - $started);
         }
     }
 }

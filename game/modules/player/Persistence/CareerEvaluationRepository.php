@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Goal\Legacy\Modules\Player\Persistence;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Core\Persistence\SchemaInitializationGuard;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Match\Domain\MatchId;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
@@ -16,9 +17,11 @@ final class CareerEvaluationRepository
 
     public function __construct(private readonly DatabaseInterface $database)
     {
-        $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, player_id TEXT NOT NULL, club_id TEXT NOT NULL, occurred_date TEXT NOT NULL, evaluation_score INTEGER NOT NULL, expectation_status TEXT NOT NULL, PRIMARY KEY (match_id, player_id))');
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_career_evaluations_player ON ' . self::TABLE . ' (player_id, occurred_date, match_id)');
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_career_evaluations_club ON ' . self::TABLE . ' (club_id, occurred_date, player_id)');
+        SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
+            $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, player_id TEXT NOT NULL, club_id TEXT NOT NULL, occurred_date TEXT NOT NULL, evaluation_score INTEGER NOT NULL, expectation_status TEXT NOT NULL, PRIMARY KEY (match_id, player_id))');
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_career_evaluations_player ON ' . self::TABLE . ' (player_id, occurred_date, match_id)');
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_career_evaluations_club ON ' . self::TABLE . ' (club_id, occurred_date, player_id)');
+        });
     }
 
     public function exists(MatchId $matchId, PlayerId $playerId): bool

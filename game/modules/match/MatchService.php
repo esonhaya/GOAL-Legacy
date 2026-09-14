@@ -23,6 +23,9 @@ use Goal\Legacy\Modules\Match\Persistence\MatchSubstitutionRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\PlayerDevelopmentService;
 use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
+use Goal\Legacy\Modules\Player\Persistence\CareerEvaluationRepository;
+use Goal\Legacy\Modules\Player\Persistence\PlayerAvailabilityRepository;
+use Goal\Legacy\Modules\Player\Persistence\PlayerDevelopmentRepository;
 use Goal\Legacy\Modules\Player\ClubExpectationService;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -48,7 +51,12 @@ final class MatchService
     public function simulate(DatabaseInterface $database, string|MatchId $matchId): GameMatch
     {
         $repository = $this->repository($database); $match = $repository->get($matchId); if ($match->status() !== MatchStatus::Scheduled) { throw new MatchException('Only scheduled Matches can be simulated.'); }
-        $simulation = $this->simulator->simulate($database, $match); $stats = $simulation->playerStats(); $highlights = $simulation->highlights(); $selections = $simulation->selections(); $substitutions = $simulation->substitutions(); $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database): array { $completed = $match->complete($simulation->result()); $repository->saveInTransaction($completed); (new MatchSelectionRepository($database))->replaceForMatchInTransaction($selections); (new MatchSubstitutionRepository($database))->replaceForMatchInTransaction($substitutions); (new PlayerMatchStatRepository($database))->replaceForMatchInTransaction($stats); (new MatchHighlightRepository($database))->replaceForMatchInTransaction($highlights); $availability = $this->availability?->reconcileInTransaction($database, $completed->scheduledDate()) ?? []; $availability = array_merge($availability, $this->availability?->applyMatchInTransaction($database, $completed) ?? []); $development = $this->development?->applyMatchInTransaction($database, $completed) ?? []; return [$completed, $development, $availability]; });
+        $simulation = $this->simulator->simulate($database, $match); $stats = $simulation->playerStats(); $highlights = $simulation->highlights(); $selections = $simulation->selections(); $substitutions = $simulation->substitutions();
+        // Match persistence repositories are constructed again inside the
+        // atomic write. Warm their schemas before the transaction so guarded
+        // DDL can never become part of a rollback-prone Match transaction.
+        new MatchSelectionRepository($database); new MatchSubstitutionRepository($database); new PlayerMatchStatRepository($database); new MatchHighlightRepository($database); new PlayerAvailabilityRepository($database); new PlayerDevelopmentRepository($database); new CareerEvaluationRepository($database);
+        $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database): array { $completed = $match->complete($simulation->result()); $repository->saveInTransaction($completed); (new MatchSelectionRepository($database))->replaceForMatchInTransaction($selections); (new MatchSubstitutionRepository($database))->replaceForMatchInTransaction($substitutions); (new PlayerMatchStatRepository($database))->replaceForMatchInTransaction($stats); (new MatchHighlightRepository($database))->replaceForMatchInTransaction($highlights); $availability = $this->availability?->reconcileInTransaction($database, $completed->scheduledDate()) ?? []; $availability = array_merge($availability, $this->availability?->applyMatchInTransaction($database, $completed) ?? []); $development = $this->development?->applyMatchInTransaction($database, $completed) ?? []; return [$completed, $development, $availability]; });
         [$completed, $development, $availability] = $transactionResult;
         foreach ($development as $application) {
             if ($application->applied()) { $this->events->dispatch(new GenericEvent('player.developed', $application->toArray())); }

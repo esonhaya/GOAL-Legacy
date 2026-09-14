@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Goal\Legacy\Modules\Player\Persistence;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Core\Persistence\SchemaInitializationGuard;
 use Goal\Legacy\Modules\Nation\Domain\NationId;
 use Goal\Legacy\Modules\Nation\Persistence\NationRepository;
 use Goal\Legacy\Modules\Player\Domain\DevelopmentProfile;
@@ -24,6 +25,7 @@ final class PlayerRepository
 
     public function __construct(private readonly DatabaseInterface $database)
     {
+        SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
         $this->database->connection()->exec(
             'CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' ('
             . 'id TEXT PRIMARY KEY, '
@@ -70,6 +72,7 @@ final class PlayerRepository
         $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_player_records_primary_nation ON ' . self::TABLE . ' (primary_nation_id, id)');
         $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_player_records_birth_nation ON ' . self::TABLE . ' (birth_nation_id, id)');
         $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_player_eligibilities_nation ON player_eligibilities (nation_id, player_id)');
+        });
     }
 
     public function save(Player $player): void
@@ -160,6 +163,53 @@ final class PlayerRepository
         $eligibility = $this->database->connection()->prepare('SELECT nation_id FROM player_eligibilities WHERE player_id = :player_id ORDER BY nation_id ASC');
         $eligibility->execute(['player_id' => $playerId->value()]);
 
+        return $this->hydratePlayer($row, $secondary->fetchAll(PDO::FETCH_ASSOC), $eligibility->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /** @param list<string|PlayerId> $ids @return list<Player> */
+    public function byIds(array $ids): array
+    {
+        $values = [];
+        foreach ($ids as $id) {
+            $value = $id instanceof PlayerId ? $id->value() : $id;
+            if (!in_array($value, $values, true)) { $values[] = $value; }
+        }
+        if ($values === []) { return []; }
+
+        $base = $this->database->connection()->prepare('SELECT * FROM ' . self::TABLE . ' WHERE id IN (' . implode(', ', array_map(static fn (int $index): string => ':player_' . $index, array_keys($values))) . ')');
+        $parameters = [];
+        foreach ($values as $index => $value) { $parameters['player_' . $index] = $value; }
+        $base->execute($parameters);
+        $rows = [];
+        foreach ($base->fetchAll(PDO::FETCH_ASSOC) as $row) { $rows[(string) $row['id']] = $row; }
+
+        $secondary = $this->relatedNations('player_nationalities', $values, 'nationality');
+        $eligibility = $this->relatedNations('player_eligibilities', $values, 'eligibility');
+        $result = [];
+        foreach ($values as $value) {
+            if (isset($rows[$value])) { $result[] = $this->hydratePlayer($rows[$value], $secondary[$value] ?? [], $eligibility[$value] ?? []); }
+        }
+
+        return $result;
+    }
+
+    /** @param list<string> $values @return array<string, list<array<string, mixed>>> */
+    private function relatedNations(string $table, array $values, string $prefix): array
+    {
+        $placeholders = array_map(static fn (int $index): string => ':' . $prefix . '_' . $index, array_keys($values));
+        $statement = $this->database->connection()->prepare('SELECT player_id, nation_id FROM ' . $table . ' WHERE player_id IN (' . implode(', ', $placeholders) . ') ORDER BY player_id ASC, nation_id ASC');
+        $parameters = [];
+        foreach ($values as $index => $value) { $parameters[$prefix . '_' . $index] = $value; }
+        $statement->execute($parameters);
+        $result = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) { $result[(string) $row['player_id']][] = $row; }
+
+        return $result;
+    }
+
+    /** @param array<string, mixed> $row @param list<array<string, mixed>> $secondary @param list<array<string, mixed>> $eligibility */
+    private function hydratePlayer(array $row, array $secondary, array $eligibility): Player
+    {
         return new Player(
             new PlayerId((string) $row['id']),
             (string) $row['first_name'],
@@ -167,9 +217,9 @@ final class PlayerRepository
             (string) $row['preferred_name'],
             SimulationDate::fromIsoString((string) $row['birth_date']),
             new NationId((string) $row['primary_nation_id']),
-            array_map(static fn (array $value): NationId => new NationId((string) $value['nation_id']), $secondary->fetchAll(PDO::FETCH_ASSOC)),
+            array_map(static fn (array $value): NationId => new NationId((string) $value['nation_id']), $secondary),
             new NationId((string) $row['birth_nation_id']),
-            array_map(static fn (array $value): NationId => new NationId((string) $value['nation_id']), $eligibility->fetchAll(PDO::FETCH_ASSOC)),
+            array_map(static fn (array $value): NationId => new NationId((string) $value['nation_id']), $eligibility),
             (int) $row['height_cm'],
             (int) $row['weight_kg'],
             PlayerPosition::from((string) $row['primary_position']),

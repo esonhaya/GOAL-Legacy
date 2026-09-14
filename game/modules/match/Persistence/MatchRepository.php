@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Goal\Legacy\Modules\Match\Persistence;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Core\Persistence\SchemaInitializationGuard;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionId;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
@@ -22,11 +23,13 @@ final class MatchRepository
     private const TABLE = 'match_records';
     public function __construct(private readonly DatabaseInterface $database)
     {
-        $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (id TEXT PRIMARY KEY, competition_id TEXT NOT NULL, season_id TEXT NOT NULL, round_number INTEGER NOT NULL, scheduled_date TEXT NOT NULL, home_club_id TEXT NOT NULL, away_club_id TEXT NOT NULL, status TEXT NOT NULL, home_goals INTEGER NULL, away_goals INTEGER NULL)');
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_competition_season ON ' . self::TABLE . ' (competition_id, season_id, scheduled_date, id)');
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_home_club ON ' . self::TABLE . ' (home_club_id, season_id, scheduled_date, id)');
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_away_club ON ' . self::TABLE . ' (away_club_id, season_id, scheduled_date, id)');
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_due ON ' . self::TABLE . ' (status, scheduled_date, id)');
+        SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
+            $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (id TEXT PRIMARY KEY, competition_id TEXT NOT NULL, season_id TEXT NOT NULL, round_number INTEGER NOT NULL, scheduled_date TEXT NOT NULL, home_club_id TEXT NOT NULL, away_club_id TEXT NOT NULL, status TEXT NOT NULL, home_goals INTEGER NULL, away_goals INTEGER NULL)');
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_competition_season ON ' . self::TABLE . ' (competition_id, season_id, scheduled_date, id)');
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_home_club ON ' . self::TABLE . ' (home_club_id, season_id, scheduled_date, id)');
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_away_club ON ' . self::TABLE . ' (away_club_id, season_id, scheduled_date, id)');
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_due ON ' . self::TABLE . ' (status, scheduled_date, id)');
+        });
     }
 
     public function save(GameMatch $match): void { $this->database->transaction(function () use ($match): void { $this->saveInTransaction($match); }); }

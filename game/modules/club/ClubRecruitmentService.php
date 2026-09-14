@@ -213,7 +213,12 @@ final class ClubRecruitmentService
         }
         $needs = [];
         foreach (self::GROUP_MINIMUMS as $group => $minimum) {
-            while ($counts[$group] < $minimum) {
+            // A full senior squad cannot absorb a positional upgrade.  The
+            // current lifecycle has no one-in/one-out release transaction;
+            // emitting a need here would let recruitment add a 26th Player.
+            // Leave that structural repair to a later vacancy or the
+            // canonical emergency population repair path.
+            while ($counts[$group] < $minimum && count($memberships) + count($needs) < PlayerPopulationService::TARGET_SQUAD_SIZE) {
                 $needs[] = ['group' => $group, 'position' => $this->neededPosition($group, $positionCounts)];
                 ++$counts[$group];
             }

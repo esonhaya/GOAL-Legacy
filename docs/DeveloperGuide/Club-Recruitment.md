@@ -29,6 +29,10 @@ quality upgrade; one-in/one-out upgrades remain deferred until a canonical
 destination release transaction is added.
 Candidate pressure uses role, depth, OVR/potential, age, and previous-Season
 minutes/appearances when available. Recently moved Players are excluded.
+The need planner is capacity-aware: once a Club has the 25-player senior
+squad target, a positional shortage does not authorize a 26th signing. A
+one-in/one-out positional repair remains deferred until the canonical
+release/transfer transaction can preserve both headcount and coverage.
 
 The current transfer window is the pre-Season materialization checkpoint.
 There is no daily market tick or mid-season window. NPC movement can cross

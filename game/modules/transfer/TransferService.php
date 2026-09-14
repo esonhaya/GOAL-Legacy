@@ -8,13 +8,18 @@ use Goal\Legacy\Core\Events\EventDispatcherInterface;
 use Goal\Legacy\Core\Events\GenericEvent;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\ClubService;
+use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
+use Goal\Legacy\Modules\Club\Domain\SquadRole;
 use Goal\Legacy\Modules\Competition\CompetitionService;
 use Goal\Legacy\Modules\Competition\Domain\PlayerRegistration;
 use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Contract\Domain\Contract;
+use Goal\Legacy\Modules\Contract\Domain\ContractId;
 use Goal\Legacy\Modules\Contract\Domain\ContractStatus;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
+use Goal\Legacy\Modules\Player\Domain\Player;
+use Goal\Legacy\Modules\Player\PlayerPopulationService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Transfer\Domain\Transfer;
 use Goal\Legacy\Modules\Transfer\Domain\TransferEventNames;
@@ -22,12 +27,66 @@ use Goal\Legacy\Modules\Transfer\Domain\TransferExecutionTerms;
 use Goal\Legacy\Modules\Transfer\Domain\TransferException;
 use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
+use Goal\Legacy\Modules\World\Domain\Season;
 
 final class TransferService
 {
     public function __construct(private readonly ContractService $contractService, private readonly ClubService $clubService, private readonly CompetitionService $competitionService, private readonly EventDispatcherInterface $events) {}
     public function repository(DatabaseInterface $database): TransferRepository { return new TransferRepository($database); }
     public function save(DatabaseInterface $database, Transfer $transfer): void { $this->repository($database)->save($transfer); }
+
+    /**
+     * Sign an active out-of-contract Player through the canonical Contract,
+     * squad, and registration owners.  The Season may still be upcoming;
+     * activation will register the Player once its Competition membership is
+     * active.
+     */
+    public function signFreeAgent(DatabaseInterface $database, Player $player, ClubId $clubId, Season $season, SimulationDate $asOfDate, SquadRole $role, ContractId $contractId, int $wage): Contract
+    {
+        if ($player->isRetired()) {
+            throw new TransferException('Retired Players cannot sign a Contract.');
+        }
+        $contracts = $this->contractService->repository($database);
+        if ($contracts->exists($contractId)) {
+            $existing = $contracts->get($contractId);
+            if ($existing->playerId()->value() !== $player->id()->value() || $existing->clubId()->value() !== $clubId->value()) {
+                throw new TransferException('Free-agent Contract ID belongs to another Player or Club.');
+            }
+            return $existing;
+        }
+        if ($contracts->activeForPlayer($player->id()) !== null) {
+            throw new TransferException('Player already has an active Contract.');
+        }
+        if (!$this->clubService->repository($database)->exists($clubId)) {
+            throw new TransferException('Free-agent destination Club does not exist.');
+        }
+        $squads = $this->clubService->squadRepository($database);
+        $existingSquad = $squads->byClub($clubId, $season->id());
+        if (count($existingSquad) >= PlayerPopulationService::TARGET_SQUAD_SIZE && !$squads->exists(new ClubSquadMembership($clubId, $player->id(), $season->id(), $role))) {
+            throw new TransferException('Free-agent destination Club has no safe squad capacity.');
+        }
+        $contract = Contract::forDate($contractId, $player->id(), $clubId, $season->startDate(), $season->endDate()->addDays(365), $wage, $asOfDate);
+        $squad = new ClubSquadMembership($clubId, $player->id(), $season->id(), $role);
+        $registrations = $this->competitionService->registrationRepository($database);
+        $clubMemberships = $this->clubService->membershipRepository($database)->byClub($clubId);
+        $database->transaction(function () use ($contracts, $contract, $squads, $squad, $registrations, $clubMemberships, $season, $clubId, $player): void {
+            $contracts->saveInTransaction($contract);
+            if (!$squads->exists($squad)) {
+                $squads->save($squad);
+            }
+            foreach ($clubMemberships as $membership) {
+                if ($membership->seasonId()->value() !== $season->id()->value()) {
+                    continue;
+                }
+                $registration = new PlayerRegistration($season->id(), $membership->competitionId(), $clubId, $player->id());
+                if (!$registrations->exists($registration)) {
+                    $registrations->registerInTransaction($registration);
+                }
+            }
+        });
+
+        return $contract;
+    }
 
     public function careerMovement(): CareerMovementService
     {

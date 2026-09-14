@@ -8,6 +8,7 @@ use Goal\Legacy\Core\Events\EventDispatcherInterface;
 use Goal\Legacy\Core\Events\GenericEvent;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\ClubService;
+use Goal\Legacy\Modules\Club\Domain\Club;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
@@ -16,11 +17,13 @@ use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
 use Goal\Legacy\Modules\Player\PlayerFormService;
+use Goal\Legacy\Modules\Player\PlayerPopulationService;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunity;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunityStatus;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunityType;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
+use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Transfer\Domain\Transfer;
@@ -30,7 +33,9 @@ use Goal\Legacy\Modules\Transfer\Domain\TransferId;
 use Goal\Legacy\Modules\Transfer\Domain\TransferStatus;
 use Goal\Legacy\Modules\Contract\Domain\ContractId;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
+use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
+use Goal\Legacy\Modules\World\Persistence\SeasonRepository;
 
 final class CareerMovementService
 {
@@ -108,6 +113,183 @@ final class CareerMovementService
         }
 
         return $created;
+    }
+
+    /**
+     * Create the one controlled-player decision at an expiring Contract
+     * boundary.  NPC renewal policy remains owned by SeasonRolloverService;
+     * this method only turns its current-club result into career options.
+     */
+    public function prepareContractDecision(DatabaseInterface $database, PlayerId|string $playerId, Season $currentSeason, Season $nextSeason, SimulationDate $date, ClubSquadMembership $currentMembership, bool $currentClubOffersRenewal): ?CareerOpportunity
+    {
+        $playerId = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        if (!in_array($playerId->value(), (new CareerPlayerRepository($database))->playerIds(), true)) {
+            throw new TransferException('Contract decisions are available only for the controlled career Player.');
+        }
+        $player = (new PlayerRepository($database))->get($playerId);
+        if ($player->isRetired()) {
+            return null;
+        }
+        $sourceClub = $this->clubService->repository($database)->get($currentMembership->clubId());
+        $sourceKey = implode('|', ['contract-decision', $playerId->value(), $currentMembership->clubId()->value(), $nextSeason->id()->value()]);
+        $repository = new CareerOpportunityRepository($database);
+        $existing = $repository->bySourceKey($sourceKey);
+        if ($existing !== null) {
+            return $existing;
+        }
+        $currentMetrics = $this->playerMetrics($database, $player, $sourceClub->id(), $currentSeason->id());
+        $options = [];
+        if ($currentClubOffersRenewal) {
+            $options[] = [
+                'id' => 'renew-current-club',
+                'kind' => 'renew_current_club',
+                'club_id' => $sourceClub->id()->value(),
+                'contract_end_date' => $nextSeason->endDate()->addDays(365)->toIsoString(),
+                'wage' => max(100, ($sourceClub->reputation() * 10) + ($player->overallRating() * 5)),
+                'role' => $currentMembership->role()->value,
+            ];
+        }
+        foreach ($this->contractBoundaryCandidates($database, $player, $sourceClub, $currentMembership, $currentMetrics, $currentSeason) as $candidate) {
+            $target = $candidate['club'];
+            $options[] = [
+                'id' => 'sign-' . $target->id()->value(),
+                'kind' => 'sign_with_club',
+                'club_id' => $target->id()->value(),
+                'contract_end_date' => $nextSeason->endDate()->addDays(365)->toIsoString(),
+                'wage' => max(100, ($target->reputation() * 10) + ($player->overallRating() * 5)),
+                'role' => $candidate['role']->value,
+                'interest_score' => $candidate['score'],
+                'reasons' => $candidate['reasons'],
+            ];
+        }
+        if ($options === []) {
+            return null;
+        }
+        $options[] = ['id' => 'enter-free-agency', 'kind' => 'enter_free_agency', 'club_id' => null];
+        $contract = $this->contractService->repository($database)->byPlayer($playerId);
+        $currentContract = null;
+        foreach (array_reverse($contract) as $candidate) {
+            if ($candidate->clubId()->value() === $sourceClub->id()->value()) {
+                $currentContract = $candidate;
+                break;
+            }
+        }
+        $context = [
+            'decision_kind' => 'contract_boundary',
+            'offer_status' => 'open',
+            'season_id' => $nextSeason->id()->value(),
+            'outgoing_season_id' => $currentSeason->id()->value(),
+            'current_club_id' => $sourceClub->id()->value(),
+            'current_contract_id' => $currentContract?->id()->value(),
+            'current_role' => $currentMembership->role()->value,
+            'options' => $options,
+        ];
+        $opportunity = new CareerOpportunity(
+            'contract-decision-' . substr(hash('sha256', $sourceKey), 0, 24),
+            $playerId,
+            CareerOpportunityType::ContractRenewal,
+            $sourceClub->id(),
+            null,
+            $date,
+            $nextSeason->startDate()->addDays(14),
+            CareerOpportunityStatus::Open,
+            $context,
+            $sourceKey,
+        );
+        $database->transaction(function () use ($repository, $opportunity): void { $repository->saveInTransaction($opportunity); });
+        $this->events->dispatch(new GenericEvent('career.contract_decision_created', $opportunity->toArray()));
+
+        return $opportunity;
+    }
+
+    /**
+     * Resolve a controlled Contract decision exactly once.  The selected
+     * signing uses the same free-agent path as Club recruitment; decline
+     * intentionally leaves the Player active and unattached.
+     */
+    public function resolveContractDecision(DatabaseInterface $database, string $opportunityId, string $optionId, SimulationDate $date): CareerOpportunity
+    {
+        $repository = new CareerOpportunityRepository($database);
+        $opportunity = $repository->get($opportunityId);
+        if ($opportunity === null || $opportunity->type() !== CareerOpportunityType::ContractRenewal) {
+            throw new TransferException(sprintf('Contract decision "%s" was not found.', $opportunityId));
+        }
+        if ($opportunity->status() === CareerOpportunityStatus::Resolved) {
+            return $opportunity;
+        }
+        if ($opportunity->status() !== CareerOpportunityStatus::Open) {
+            throw new TransferException('Only open Contract decisions can be resolved.');
+        }
+        if ($opportunity->expiryDate() !== null && $date->isAfter($opportunity->expiryDate())) {
+            $this->setStatus($database, $opportunity, CareerOpportunityStatus::Expired, 'expired');
+            throw new TransferException('Contract decision has expired.');
+        }
+        if (!in_array($opportunity->playerId()->value(), (new CareerPlayerRepository($database))->playerIds(), true)) {
+            throw new TransferException('Contract decision no longer belongs to the controlled career Player.');
+        }
+        $context = $opportunity->context();
+        $selected = null;
+        foreach (($context['options'] ?? []) as $option) {
+            if (is_array($option) && ($option['id'] ?? null) === $optionId) {
+                $selected = $option;
+                break;
+            }
+        }
+        if (!is_array($selected)) {
+            throw new TransferException('Contract decision option is stale or unknown.');
+        }
+        $season = (new SeasonRepository($database))->get(new SeasonId((string) ($context['season_id'] ?? '')));
+        $player = (new PlayerRepository($database))->get($opportunity->playerId());
+        if ($player->isRetired()) {
+            throw new TransferException('Retired career Players cannot accept Contract decisions.');
+        }
+        $kind = (string) ($selected['kind'] ?? '');
+        if ($kind === 'renew_current_club' || $kind === 'sign_with_club') {
+            $clubId = new ClubId((string) ($selected['club_id'] ?? ''));
+            $role = SquadRole::fromInput((string) ($selected['role'] ?? SquadRole::Prospect->value));
+            $contractId = new ContractId($kind === 'renew_current_club'
+                ? 'career-renewal-' . substr(hash('sha256', $opportunity->sourceKey()), 0, 40)
+                : 'career-free-signing-' . substr(hash('sha256', $opportunity->sourceKey() . '|' . $clubId->value()), 0, 40));
+            $this->transferService->signFreeAgent($database, $player, $clubId, $season, $date, $role, $contractId, (int) ($selected['wage'] ?? 100));
+        } elseif ($kind !== 'enter_free_agency') {
+            throw new TransferException('Unsupported Contract decision option.');
+        }
+        $resolvedContext = $this->withOfferStatus($context, 'resolved');
+        $resolvedContext['selected_option'] = $optionId;
+        $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $resolvedContext);
+        $this->saveStatus($database, $resolved);
+        $this->events->dispatch(new GenericEvent('career.contract_decision_resolved', $resolved->toArray()));
+
+        return $resolved;
+    }
+
+    /** Create bounded future offers for a controlled Player already in free agency. */
+    public function evaluateFreeAgentOffers(DatabaseInterface $database, PlayerId|string $playerId, Season $season, SimulationDate $date, ClubId|string $originClubId): ?CareerOpportunity
+    {
+        $playerId = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        $originClubId = $originClubId instanceof ClubId ? $originClubId : new ClubId($originClubId);
+        $player = (new PlayerRepository($database))->get($playerId);
+        if ($player->isRetired() || !in_array($playerId->value(), (new CareerPlayerRepository($database))->playerIds(), true) || $this->contractService->repository($database)->activeForPlayer($playerId) !== null || $this->currentMembership($database, $playerId, $season->id()) !== null) {
+            return null;
+        }
+        $source = $this->clubService->repository($database)->get($originClubId);
+        $sourceKey = implode('|', ['free-agent-contract-decision', $playerId->value(), $season->id()->value()]);
+        $repository = new CareerOpportunityRepository($database);
+        if ($repository->bySourceKey($sourceKey) !== null) {
+            return $repository->bySourceKey($sourceKey);
+        }
+        $options = [];
+        foreach ($this->freeAgentCandidates($database, $player, $season, $source) as $candidate) {
+            $options[] = ['id' => 'sign-' . $candidate['club']->id()->value(), 'kind' => 'sign_with_club', 'club_id' => $candidate['club']->id()->value(), 'contract_end_date' => $season->endDate()->addDays(365)->toIsoString(), 'wage' => max(100, $candidate['club']->reputation() * 10 + $player->overallRating() * 5), 'role' => $candidate['role']->value, 'interest_score' => $candidate['score'], 'reasons' => $candidate['reasons']];
+        }
+        if ($options === []) {
+            return null;
+        }
+        $options[] = ['id' => 'remain-free', 'kind' => 'enter_free_agency', 'club_id' => null];
+        $opportunity = new CareerOpportunity('free-agent-contract-' . substr(hash('sha256', $sourceKey), 0, 24), $playerId, CareerOpportunityType::ContractRenewal, $originClubId, null, $date, $season->startDate()->addDays(14), CareerOpportunityStatus::Open, ['decision_kind' => 'free_agent_contract', 'offer_status' => 'open', 'season_id' => $season->id()->value(), 'options' => $options], $sourceKey);
+        $database->transaction(function () use ($repository, $opportunity): void { $repository->saveInTransaction($opportunity); });
+
+        return $opportunity;
     }
 
     /** @return list<CareerOpportunity> */
@@ -209,6 +391,62 @@ final class CareerMovementService
         $this->saveStatus($database, $resolved);
 
         return $resolved;
+    }
+
+    /** @return list<array{club:\Goal\Legacy\Modules\Club\Domain\Club,role:SquadRole,score:int,reasons:list<string>}> */
+    private function contractBoundaryCandidates(DatabaseInterface $database, Player $player, Club $sourceClub, ClubSquadMembership $sourceMembership, array $currentMetrics, Season $currentSeason): array
+    {
+        $candidates = [];
+        foreach ($this->clubService->repository($database)->all() as $targetClub) {
+            if ($targetClub->id()->value() === $sourceClub->id()->value()) {
+                continue;
+            }
+            if (count($this->clubService->squadRepository($database)->byClub($targetClub->id(), $currentSeason->id())) >= PlayerPopulationService::TARGET_SQUAD_SIZE) {
+                continue;
+            }
+            $target = $this->targetMetrics($database, $player, $targetClub->id(), $currentSeason->id());
+            if ($target['position_rank'] > 10) {
+                continue;
+            }
+            $score = $this->interestScore($player, $sourceClub->reputation(), $sourceMembership->role(), $currentMetrics, $target, $targetClub->reputation());
+            if ($score < 70) {
+                continue;
+            }
+            $role = $this->roleForRank($target['position_rank'], $player->overallRating(), $target['position_average']);
+            $reasons = [];
+            if ($target['position_count'] < 4) { $reasons[] = 'positional_need'; }
+            if ($targetClub->reputation() > $sourceClub->reputation() + 5) { $reasons[] = 'step_up'; }
+            if ((int) $currentMetrics['minutes'] < 900) { $reasons[] = 'playing_time'; }
+            if ($reasons === []) { $reasons[] = 'contract_fit'; }
+            $candidates[] = ['club' => $targetClub, 'role' => $role, 'score' => $score, 'reasons' => $reasons];
+        }
+        usort($candidates, static fn (array $left, array $right): int => ($right['score'] <=> $left['score']) ?: strcmp($left['club']->id()->value(), $right['club']->id()->value()));
+
+        return array_slice($candidates, 0, self::MAX_OFFERS);
+    }
+
+    /** @return list<array{club:\Goal\Legacy\Modules\Club\Domain\Club,role:SquadRole,score:int,reasons:list<string>}> */
+    private function freeAgentCandidates(DatabaseInterface $database, Player $player, Season $season, Club $originClub): array
+    {
+        $candidates = [];
+        foreach ($this->clubService->repository($database)->all() as $targetClub) {
+            if (count($this->clubService->squadRepository($database)->byClub($targetClub->id(), $season->id())) >= \Goal\Legacy\Modules\Player\PlayerPopulationService::TARGET_SQUAD_SIZE) {
+                continue;
+            }
+            $target = $this->targetMetrics($database, $player, $targetClub->id(), $season->id());
+            if ($target['position_rank'] > 8) {
+                continue;
+            }
+            $score = max(0, 80 - ($target['position_rank'] * 5)) + max(0, 25 - $target['position_count'] * 4) + max(0, 20 - abs($player->overallRating() - $targetClub->reputation())) + max(0, $targetClub->reputation() - $originClub->reputation());
+            if ($score < 70) {
+                continue;
+            }
+            $role = $this->roleForRank($target['position_rank'], $player->overallRating(), $target['position_average']);
+            $candidates[] = ['club' => $targetClub, 'role' => $role, 'score' => $score, 'reasons' => ['free_agent_fit']];
+        }
+        usort($candidates, static fn (array $left, array $right): int => ($right['score'] <=> $left['score']) ?: strcmp($left['club']->id()->value(), $right['club']->id()->value()));
+
+        return array_slice($candidates, 0, self::MAX_OFFERS);
     }
 
     /** @param array<string, mixed> $context */

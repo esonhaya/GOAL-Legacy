@@ -10,11 +10,8 @@ use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
 use Goal\Legacy\Modules\Club\Persistence\ClubSquadRepository;
 use Goal\Legacy\Modules\Competition\CompetitionService;
-use Goal\Legacy\Modules\Competition\Domain\PlayerRegistration;
-use Goal\Legacy\Modules\Competition\Persistence\PlayerRegistrationRepository;
 use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Contract\Domain\Contract;
-use Goal\Legacy\Modules\Contract\Domain\ContractCreationRequest;
 use Goal\Legacy\Modules\Contract\Domain\ContractId;
 use Goal\Legacy\Modules\Contract\Persistence\ContractRepository;
 use Goal\Legacy\Modules\Player\Domain\Player;
@@ -475,19 +472,8 @@ final class ClubRecruitmentService
     {
         $role = $this->roleFor($club, $player, $squadsByClub[$club->id()->value()] ?? [], $players, $asOfDate);
         $contractId = new ContractId('recruitment-free-' . substr(hash('sha256', $season->id()->value() . '|' . $club->id()->value() . '|' . $player->id()->value()), 0, 40));
-        $contract = $this->contractService->create(new ContractCreationRequest($contractId, $player->id(), $club->id(), $season->startDate(), $season->endDate()->addDays(365), $this->wage($club, $player, $role), $asOfDate));
+        $contract = $this->transferService->signFreeAgent($database, $player, $club->id(), $season, $asOfDate, $role, $contractId, $this->wage($club, $player, $role));
         $squad = new ClubSquadMembership($club->id(), $player->id(), $season->id(), $role);
-        $registrations = new PlayerRegistrationRepository($database);
-        $memberships = $this->clubService->membershipRepository($database)->byClub($club->id());
-        $database->transaction(function () use ($database, $contract, $squad, $registrations, $memberships, $season, $club): void {
-            $this->contractService->repository($database)->saveInTransaction($contract);
-            $this->clubService->squadRepository($database)->save($squad);
-            foreach ($memberships as $membership) {
-                if ($membership->seasonId()->value() === $season->id()->value()) {
-                    $registrations->registerInTransaction(new PlayerRegistration($season->id(), $membership->competitionId(), $club->id(), $squad->playerId()));
-                }
-            }
-        });
         $squadsByClub[$club->id()->value()][] = $squad;
         $activeContracts[$player->id()->value()] = $contract;
     }

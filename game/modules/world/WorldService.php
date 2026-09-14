@@ -139,6 +139,7 @@ final class WorldService
             }
         }
         if ($season !== null && $transitionSeason !== null && $transitionSeason->id()->value() !== $season->id()->value() && $this->seasonRollover !== null) {
+            $this->seasonRollover->assertControlledContractDecisionsResolved($database, $transitionSeason);
             $this->seasonRollover->materializeNext($database, $world, $season, $transitionSeason, $date);
         }
         $transition = $transitionSeason === null ? null : $this->seasonLifecycle->evaluate($transitionSeason, $date);

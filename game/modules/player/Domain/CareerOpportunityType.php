@@ -10,4 +10,5 @@ enum CareerOpportunityType: string
     case PlayingTime = 'playing_time';
     case TransferInterest = 'transfer_interest';
     case RoleReassessment = 'role_reassessment';
+    case ContractRenewal = 'contract_renewal';
 }

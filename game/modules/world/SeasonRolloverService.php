@@ -8,6 +8,7 @@ use Goal\Legacy\Core\Events\EventDispatcherInterface;
 use Goal\Legacy\Core\Events\GenericEvent;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\ClubService;
+use Goal\Legacy\Modules\Club\ClubRecruitmentService;
 use Goal\Legacy\Modules\Club\Domain\Club;
 use Goal\Legacy\Modules\Club\Domain\ClubCompetitionMembership;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
@@ -36,15 +37,25 @@ use Goal\Legacy\Modules\World\Persistence\SeasonRepository;
 
 final class SeasonRolloverService
 {
+    /** @var array{free_agent_signings:int,npc_transfers:int,newgens_avoided:int,position_needs_met:int} */
+    private array $lastRecruitment = ['free_agent_signings' => 0, 'npc_transfers' => 0, 'newgens_avoided' => 0, 'position_needs_met' => 0];
+
     public function __construct(
         private readonly CompetitionService $competitionService,
         private readonly ClubService $clubService,
         private readonly ContractService $contractService,
         private readonly PlayerPopulationService $populationService,
         private readonly PlayerLifecycleService $playerLifecycle,
+        private readonly ClubRecruitmentService $recruitment,
         private readonly MatchService $matchService,
         private readonly EventDispatcherInterface $events,
     ) {
+    }
+
+    /** @return array{free_agent_signings:int,npc_transfers:int,newgens_avoided:int,position_needs_met:int} */
+    public function lastRecruitment(): array
+    {
+        return $this->lastRecruitment;
     }
 
     public function nextSeason(Season $season): Season
@@ -105,7 +116,7 @@ final class SeasonRolloverService
         return ['season' => $next, 'renewed' => $renewed, 'released' => $released, 'carried' => $carried, 'replenished' => 0, 'fixtures' => 0];
     }
 
-    /** @return array{memberships: int, replenished: int, fixtures: int} */
+    /** @return array{memberships: int, replenished: int, fixtures: int, free_agent_signings: int, npc_transfers: int, newgens_avoided: int, position_needs_met: int} */
     public function materializeNext(DatabaseInterface $database, World $world, Season $previous, Season $next, SimulationDate $asOfDate): array
     {
         $database->transaction(function () use ($database, $world, $previous, $next): void {
@@ -123,11 +134,19 @@ final class SeasonRolloverService
 
         $previousSquads = array_filter($this->clubService->squadRepository($database)->all(), static fn (ClubSquadMembership $membership): bool => $membership->seasonId()->value() === $previous->id()->value());
         $population = ['players_generated' => 0];
+        $recruitment = ['free_agents_signed' => 0, 'npc_transfers' => 0, 'newgens_avoided' => 0, 'position_needs_met' => 0];
         if ($previousSquads !== []) {
+            $recruitment = $this->recruitment->recruit($database, $next, $asOfDate);
             $newgens = $this->populationService->generateNewgens($database, $next, $world->universeSeed(), $asOfDate);
             $fallback = $this->populationService->replenish($database, $next, $world->universeSeed(), $asOfDate);
             $population['players_generated'] = (int) ($newgens['players_generated'] ?? 0) + (int) ($fallback['players_generated'] ?? 0);
         }
+        $this->lastRecruitment = [
+            'free_agent_signings' => (int) ($recruitment['free_agents_signed'] ?? 0),
+            'npc_transfers' => (int) ($recruitment['npc_transfers'] ?? 0),
+            'newgens_avoided' => (int) ($recruitment['newgens_avoided'] ?? 0),
+            'position_needs_met' => (int) ($recruitment['position_needs_met'] ?? 0),
+        ];
         $fixtures = 0;
         $matches = new MatchRepository($database);
         foreach ($world->competitionIds() as $competitionId) {
@@ -137,7 +156,7 @@ final class SeasonRolloverService
             $fixtures += count($this->matchService->generateFixtures($database, $competitionId, $next->id()));
         }
 
-        return ['memberships' => count($this->clubService->membershipRepository($database)->bySeason($next->id())), 'replenished' => (int) ($population['players_generated'] ?? 0), 'fixtures' => $fixtures];
+        return ['memberships' => count($this->clubService->membershipRepository($database)->bySeason($next->id())), 'replenished' => (int) ($population['players_generated'] ?? 0), 'fixtures' => $fixtures, 'free_agent_signings' => (int) ($recruitment['free_agents_signed'] ?? 0), 'npc_transfers' => (int) ($recruitment['npc_transfers'] ?? 0), 'newgens_avoided' => (int) ($recruitment['newgens_avoided'] ?? 0), 'position_needs_met' => (int) ($recruitment['position_needs_met'] ?? 0)];
     }
 
     /** @return array{registrations: int} */

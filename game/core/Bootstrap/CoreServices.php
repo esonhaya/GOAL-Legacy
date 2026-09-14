@@ -13,6 +13,7 @@ use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Core\Time\Scheduler;
 use Goal\Legacy\Core\Time\SimulationClock;
 use Goal\Legacy\Modules\Club\ClubModule;
+use Goal\Legacy\Modules\Club\ClubRecruitmentService;
 use Goal\Legacy\Modules\Competition\CompetitionModule;
 use Goal\Legacy\Modules\Contract\ContractModule;
 use Goal\Legacy\Modules\Nation\NationModule;
@@ -35,6 +36,7 @@ final class CoreServices
         private readonly NationModule $nationModule,
         private readonly CompetitionModule $competitionModule,
         private readonly ClubModule $clubModule,
+        private readonly ClubRecruitmentService $clubRecruitmentService,
         private readonly PlayerModule $playerModule,
         private readonly ContractModule $contractModule,
         private readonly TransferModule $transferModule,
@@ -64,6 +66,8 @@ final class CoreServices
     public function competitionModule(): CompetitionModule { return $this->competitionModule; }
 
     public function clubModule(): ClubModule { return $this->clubModule; }
+
+    public function clubRecruitmentService(): ClubRecruitmentService { return $this->clubRecruitmentService; }
 
     public function playerModule(): PlayerModule { return $this->playerModule; }
 

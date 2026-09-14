@@ -18,6 +18,7 @@ use Goal\Legacy\Core\Time\SimulationClock;
 use Goal\Legacy\Core\Time\SimulationTime;
 use Goal\Legacy\Modules\Club\ClubModule;
 use Goal\Legacy\Modules\Club\ClubService;
+use Goal\Legacy\Modules\Club\ClubRecruitmentService;
 use Goal\Legacy\Modules\Competition\CompetitionModule;
 use Goal\Legacy\Modules\Competition\CompetitionService;
 use Goal\Legacy\Modules\Contract\ContractModule;
@@ -90,9 +91,10 @@ final class Bootstrap
         $playerLifecycleService = new PlayerLifecycleService($developmentService, $contractModule->service());
         $playerModule = new PlayerModule(new PlayerService($nationModule->service(), $clubModule->service(), $developmentService, $availabilityService, $populationService));
         $transferModule = new TransferModule(new TransferService($contractModule->service(), $clubModule->service(), $competitionModule->service(), $dispatcher));
+        $clubRecruitmentService = new ClubRecruitmentService($clubModule->service(), $contractModule->service(), $competitionModule->service(), $transferModule->service());
         $expectationService = new ClubExpectationService($clubModule->service(), $dispatcher);
         $matchModule = new MatchModule(new MatchService($clubModule->service(), $dispatcher, $developmentService, $expectationService, $availabilityService));
-        $seasonRollover = new SeasonRolloverService($competitionModule->service(), $clubModule->service(), $contractModule->service(), $populationService, $playerLifecycleService, $matchModule->service(), $dispatcher);
+        $seasonRollover = new SeasonRolloverService($competitionModule->service(), $clubModule->service(), $contractModule->service(), $populationService, $playerLifecycleService, $clubRecruitmentService, $matchModule->service(), $dispatcher);
         $worldModule = new WorldModule(new WorldService(
             $clock,
             new SimulationCalendar(),
@@ -128,7 +130,7 @@ final class Bootstrap
             'environment' => $configuration->string('app.environment'),
         ]);
 
-        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule, $competitionModule, $clubModule, $playerModule, $contractModule, $transferModule, $matchModule, $worldModule);
+        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule, $competitionModule, $clubModule, $clubRecruitmentService, $playerModule, $contractModule, $transferModule, $matchModule, $worldModule);
     }
 
     /** @return array<string, string> */

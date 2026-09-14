@@ -129,7 +129,7 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
 
     private function executeLifecycleOnly($store, $database, World $world, Season $season, int $requested, int $seed, string $directory, ConsoleOutputInterface $output): int
     {
-        $reports = [];
+            $reports = [];
         $reloadChecks = [];
         for ($number = 1; $number <= $requested; ++$number) {
             $this->services->worldModule()->service()->advanceToDate($database, self::SAVE_ID, $season->endDate()->addDays(1));
@@ -140,9 +140,9 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
             $reports[] = $this->lifecycleMetrics($database, $season, $directory);
         }
         $last = $reports[count($reports) - 1];
-        $output->write(sprintf('LIFECYCLE_AUDIT seed=%d requested=%d completed=%d start=%s end=%s active_start=%d active_final=%d retired_final=%d newgens_final=%d records_final=%d avg_age_final=%.1f oldest_final=%d squad_min=%d squad_max=%d reload_failures=%s', $seed, $requested, count($reports), $reports[0]['season']->startDate()->toIsoString(), $last['season']->startDate()->toIsoString(), $reports[0]['active'], $last['active'], $last['retired'], $last['newgens'], $last['records'], $last['age_avg'], $last['oldest'], $last['squad_min'], $last['squad_max'], $reloadChecks === [] || count(array_filter($reloadChecks, static fn (bool $value): bool => !$value)) === 0 ? 'none' : 'present'));
+            $output->write(sprintf('LIFECYCLE_AUDIT seed=%d requested=%d completed=%d start=%s end=%s active_start=%d active_final=%d retired_final=%d newgens_final=%d records_final=%d avg_age_final=%.1f oldest_final=%d squad_min=%d squad_max=%d reload_failures=%s', $seed, $requested, count($reports), $reports[0]['season']->startDate()->toIsoString(), $last['season']->startDate()->toIsoString(), $reports[0]['active'], $last['active'], $last['retired'], $last['newgens'], $last['records'], $last['age_avg'], $last['oldest'], $last['squad_min'], $last['squad_max'], $reloadChecks === [] || count(array_filter($reloadChecks, static fn (bool $value): bool => !$value)) === 0 ? 'none' : 'present'));
         foreach ($reports as $index => $report) {
-            $output->write(sprintf('LIFECYCLE_SEASON_%d season=%s active=%d retired=%d newgens=%d records=%d unclubbed_active=%d avg_age=%.1f oldest=%d squad_avg=%.1f squad_min=%d squad_max=%d save_size=%d', $index + 1, $report['season']->id()->value(), $report['active'], $report['retired'], $report['newgens'], $report['records'], $report['unclubbed_active'], $report['age_avg'], $report['oldest'], $report['squad_avg'], $report['squad_min'], $report['squad_max'], $report['save_size']));
+            $output->write(sprintf('LIFECYCLE_SEASON_%d season=%s active=%d retired=%d newgens=%d free_signings=%d npc_transfers=%d newgens_avoided=%d records=%d unclubbed_active=%d avg_age=%.1f oldest=%d squad_avg=%.1f squad_min=%d squad_max=%d save_size=%d', $index + 1, $report['season']->id()->value(), $report['active'], $report['retired'], $report['newgens'], $report['free_agent_signings'], $report['npc_transfers'], $report['newgens_avoided'], $report['records'], $report['unclubbed_active'], $report['age_avg'], $report['oldest'], $report['squad_avg'], $report['squad_min'], $report['squad_max'], $report['save_size']));
         }
 
         return 0;
@@ -160,7 +160,8 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         $squadPlayerIds = array_fill_keys(array_map(static fn (ClubSquadMembership $membership): string => $membership->playerId()->value(), $squads), true);
         $ages = array_map(static fn (Player $player): int => $player->ageAt($season->startDate()), $active);
 
-        return ['season' => $season, 'active' => count($active), 'retired' => $retired, 'newgens' => $newgens, 'records' => count($players), 'unclubbed_active' => count(array_filter($active, static fn (Player $player): bool => !isset($squadPlayerIds[$player->id()->value()]))), 'age_avg' => $ages === [] ? 0.0 : round(array_sum($ages) / count($ages), 1), 'oldest' => $ages === [] ? 0 : max($ages), 'squad_avg' => $sizes === [] ? 0.0 : round(array_sum($sizes) / count($sizes), 1), 'squad_min' => $sizes === [] ? 0 : min($sizes), 'squad_max' => $sizes === [] ? 0 : max($sizes), 'save_size' => filesize($directory . '/' . self::SAVE_ID . '.sqlite') ?: 0];
+        $recruitment = $this->services->worldModule()->service()->seasonRollover()?->lastRecruitment() ?? ['free_agent_signings' => 0, 'npc_transfers' => 0, 'newgens_avoided' => 0, 'position_needs_met' => 0];
+        return ['season' => $season, 'active' => count($active), 'retired' => $retired, 'newgens' => $newgens, 'free_agent_signings' => $recruitment['free_agent_signings'], 'npc_transfers' => $recruitment['npc_transfers'], 'newgens_avoided' => $recruitment['newgens_avoided'], 'records' => count($players), 'unclubbed_active' => count(array_filter($active, static fn (Player $player): bool => !isset($squadPlayerIds[$player->id()->value()]))), 'age_avg' => $ages === [] ? 0.0 : round(array_sum($ages) / count($ages), 1), 'oldest' => $ages === [] ? 0 : max($ages), 'squad_avg' => $sizes === [] ? 0.0 : round(array_sum($sizes) / count($sizes), 1), 'squad_min' => $sizes === [] ? 0 : min($sizes), 'squad_max' => $sizes === [] ? 0 : max($sizes), 'save_size' => filesize($directory . '/' . self::SAVE_ID . '.sqlite') ?: 0];
     }
 
     /** @return array{0: SqliteSaveStore, 1: \Goal\Legacy\Core\Persistence\DatabaseInterface, 2: Season, 3: World} */

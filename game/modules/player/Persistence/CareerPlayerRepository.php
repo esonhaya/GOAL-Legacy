@@ -66,6 +66,12 @@ final class CareerPlayerRepository
         return $statement->fetchColumn() !== false;
     }
 
+    /** @return list<string> */
+    public function playerIds(): array
+    {
+        return array_map('strval', $this->database->connection()->query('SELECT player_id FROM ' . self::TABLE . ' ORDER BY player_id ASC')->fetchAll(\PDO::FETCH_COLUMN));
+    }
+
     private function assertPlayer(CareerPlayerReference $reference): void
     {
         $statement = $this->database->connection()->prepare('SELECT 1 FROM player_records WHERE id = :player_id');

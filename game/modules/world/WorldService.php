@@ -61,6 +61,11 @@ final class WorldService
         return new SeasonRepository($database);
     }
 
+    public function seasonRollover(): ?SeasonRolloverService
+    {
+        return $this->seasonRollover;
+    }
+
     public function initialize(DatabaseInterface $database, World $world, Season $season): void
     {
         if ($world->currentSeasonId()?->value() !== $season->id()->value()) {

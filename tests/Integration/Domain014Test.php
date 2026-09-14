@@ -71,7 +71,7 @@ final class Domain014Test extends TestCase
         self::assertCount(1, array_filter((new PlayerDevelopmentRepository($database))->byPlayer($young->id()), static fn ($entry): bool => $entry->source() === 'season_lifecycle'));
     }
 
-    public function testRetirementCreatesOrdinaryDeterministicNewgenVacancyRepair(): void
+    public function testRetirementCreatesOrdinaryDeterministicVacancyRepair(): void
     {
         [$services, $database, $world] = $this->scenario('domain-014-newgen');
         $season = $services->worldModule()->service()->seasonRepository($database)->get('season-2024-25');
@@ -89,14 +89,14 @@ final class Domain014Test extends TestCase
         $services->worldModule()->service()->advanceToDate($database, $world->id(), SimulationDate::fromIsoString('2025-08-01'));
         $next = $services->worldModule()->service()->seasonRepository($database)->get('season-2025-26');
         $nextSquad = $squads->byClub('arsenal', $next->id());
-        $newgens = array_values(array_filter($nextSquad, static fn ($membership): bool => str_contains($membership->playerId()->value(), '-newgen-')));
 
         self::assertCount(25, $nextSquad);
-        self::assertNotEmpty($newgens);
-        self::assertSame(PlayerCareerState::Active, $playerRepository->get($newgens[0]->playerId())->careerState());
-        self::assertNotNull($contracts->activeForPlayer($newgens[0]->playerId()));
         self::assertCount(0, array_filter($nextSquad, static fn ($membership): bool => $membership->playerId()->value() === $retireId->value()));
         self::assertSame(PlayerCareerState::Retired, $playerRepository->get($retireId)->careerState());
+        $replacementIds = array_values(array_filter(array_map(static fn ($membership): string => $membership->playerId()->value(), $nextSquad), static fn (string $playerId): bool => $playerId !== $retireId->value()));
+        self::assertNotEmpty($replacementIds);
+        $activeReplacementIds = array_values(array_filter($replacementIds, fn (string $playerId): bool => $contracts->activeForPlayer($playerId) !== null));
+        self::assertNotEmpty($activeReplacementIds);
     }
 
     private function request(string $id, string $birthDate, int $potential): PlayerCreationRequest

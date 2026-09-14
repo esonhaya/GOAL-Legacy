@@ -27,6 +27,7 @@ use Goal\Legacy\Devtools\Commands\MatchSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\CareerSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\CareerSeasonAuditCommand;
 use Goal\Legacy\Devtools\Commands\PopulationSelfCheckCommand;
+use Goal\Legacy\Devtools\Commands\RecruitmentSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\CareerTransferSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\CareerMultiSeasonAuditCommand;
 
@@ -52,6 +53,7 @@ $commands->register(new MatchSelfCheckCommand($services));
 $commands->register(new CareerSelfCheckCommand($services));
 $commands->register(new CareerSeasonAuditCommand($services));
 $commands->register(new PopulationSelfCheckCommand($services));
+$commands->register(new RecruitmentSelfCheckCommand($services));
 $commands->register(new CareerTransferSelfCheckCommand($services));
 $commands->register(new CareerMultiSeasonAuditCommand($services));
 

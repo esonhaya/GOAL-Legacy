@@ -14,6 +14,7 @@ use Goal\Legacy\Modules\Club\Domain\ClubCompetitionMembership;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
 use Goal\Legacy\Modules\Competition\CompetitionService;
+use Goal\Legacy\Modules\Competition\PromotionRelegationService;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionDefinition;
 use Goal\Legacy\Modules\Competition\Domain\PlayerRegistration;
 use Goal\Legacy\Modules\Competition\Persistence\PlayerRegistrationRepository;
@@ -41,6 +42,9 @@ final class SeasonRolloverService
     private array $lastRecruitment = ['free_agent_signings' => 0, 'npc_transfers' => 0, 'newgens_avoided' => 0, 'position_needs_met' => 0, 'movement_budget' => 0, 'clubs_processed' => 0, 'candidates_evaluated' => 0, 'clubs_with_activity' => 0];
     /** @var array{renewed:int,released:int,carried:int} */
     private array $lastLifecycle = ['renewed' => 0, 'released' => 0, 'carried' => 0];
+    /** @var array{promoted:list<array{club_id:string,from_competition_id:string,to_competition_id:string,nation_id:string}>,relegated:list<array{club_id:string,from_competition_id:string,to_competition_id:string,nation_id:string}>} */
+    private array $lastMovement = ['promoted' => [], 'relegated' => []];
+    private readonly PromotionRelegationService $promotionRelegation;
 
     public function __construct(
         private readonly CompetitionService $competitionService,
@@ -52,6 +56,7 @@ final class SeasonRolloverService
         private readonly MatchService $matchService,
         private readonly EventDispatcherInterface $events,
     ) {
+        $this->promotionRelegation = new PromotionRelegationService($clubService);
     }
 
     /** @return array{free_agent_signings:int,npc_transfers:int,newgens_avoided:int,position_needs_met:int,movement_budget:int,clubs_processed:int,candidates_evaluated:int,clubs_with_activity:int} */
@@ -64,6 +69,12 @@ final class SeasonRolloverService
     public function lastLifecycle(): array
     {
         return $this->lastLifecycle;
+    }
+
+    /** @return array{promoted:list<array{club_id:string,from_competition_id:string,to_competition_id:string,nation_id:string}>,relegated:list<array{club_id:string,from_competition_id:string,to_competition_id:string,nation_id:string}>} */
+    public function lastMovement(): array
+    {
+        return $this->lastMovement;
     }
 
     public function nextSeason(Season $season): Season
@@ -128,18 +139,32 @@ final class SeasonRolloverService
     /** @return array{memberships: int, replenished: int, fixtures: int, free_agent_signings: int, npc_transfers: int, newgens_avoided: int, position_needs_met: int} */
     public function materializeNext(DatabaseInterface $database, World $world, Season $previous, Season $next, SimulationDate $asOfDate): array
     {
-        $database->transaction(function () use ($database, $world, $previous, $next): void {
-            $definitions = array_values(array_filter($this->competitionService->loadSelected(), fn (CompetitionDefinition $definition): bool => in_array($definition->id()->value(), $world->competitionIds(), true)));
+        $definitions = array_values(array_filter($this->competitionService->loadSelected(), fn (CompetitionDefinition $definition): bool => in_array($definition->id()->value(), $world->competitionIds(), true)));
+        $movement = $this->promotionRelegation->determine($database, $previous, $definitions);
+        $movesByClub = [];
+        foreach (array_merge($movement['promoted'], $movement['relegated']) as $change) {
+            $movesByClub[$change['club_id']] = $change;
+        }
+
+        $database->transaction(function () use ($database, $previous, $next, $definitions, $movesByClub): void {
             $this->competitionService->materializeInTransaction($database, $definitions, $next->id());
             $previousMemberships = $this->clubService->membershipRepository($database)->bySeason($previous->id());
             $memberships = $this->clubService->membershipRepository($database);
             foreach ($previousMemberships as $membership) {
-                $continued = new ClubCompetitionMembership($membership->clubId(), $membership->competitionId(), $next->id());
+                $clubId = $membership->clubId()->value();
+                $competitionId = $membership->competitionId()->value();
+                $change = $movesByClub[$clubId] ?? null;
+                if ($change !== null && $change['from_competition_id'] === $competitionId) {
+                    $competitionId = $change['to_competition_id'];
+                }
+                $continued = new ClubCompetitionMembership($membership->clubId(), new \Goal\Legacy\Modules\Competition\Domain\CompetitionId($competitionId), $next->id());
                 if (!$memberships->exists($continued)) {
                     $memberships->save($continued);
                 }
             }
+            $this->assertNextMemberships($memberships->bySeason($next->id()), $previousMemberships, $movesByClub);
         });
+        $this->lastMovement = $movement;
 
         $previousSquads = array_filter($this->clubService->squadRepository($database)->all(), static fn (ClubSquadMembership $membership): bool => $membership->seasonId()->value() === $previous->id()->value());
         $population = ['players_generated' => 0];
@@ -290,5 +315,36 @@ final class SeasonRolloverService
         }
 
         return $age <= 23 || $player->overallRating() >= max(55, $club->reputation() - 18);
+    }
+
+    /** @param list<ClubCompetitionMembership> $nextMemberships @param list<ClubCompetitionMembership> $previousMemberships @param array<string, array{club_id:string,from_competition_id:string,to_competition_id:string,nation_id:string}> $movesByClub */
+    private function assertNextMemberships(array $nextMemberships, array $previousMemberships, array $movesByClub): void
+    {
+        $expected = [];
+        foreach ($previousMemberships as $membership) {
+            $clubId = $membership->clubId()->value();
+            $competitionId = $membership->competitionId()->value();
+            $change = $movesByClub[$clubId] ?? null;
+            if ($change !== null && $change['from_competition_id'] === $competitionId) {
+                $competitionId = $change['to_competition_id'];
+            }
+            $expected[$competitionId . ':' . $clubId] = true;
+        }
+        $actual = [];
+        $clubs = [];
+        foreach ($nextMemberships as $membership) {
+            $clubId = $membership->clubId()->value();
+            $key = $membership->competitionId()->value() . ':' . $clubId;
+            if (isset($actual[$key]) || isset($clubs[$clubId])) {
+                throw new WorldException(sprintf('Next Season contains duplicate Competition membership for Club "%s".', $clubId));
+            }
+            $actual[$key] = true;
+            $clubs[$clubId] = true;
+        }
+        ksort($expected);
+        ksort($actual);
+        if ($expected !== $actual) {
+            throw new WorldException('Next Season Competition membership does not match the finalized tier exchange.');
+        }
     }
 }

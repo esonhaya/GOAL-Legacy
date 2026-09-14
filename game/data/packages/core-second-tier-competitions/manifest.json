@@ -1,0 +1,12 @@
+{
+  "id": "core-second-tier-competitions",
+  "name": "Core Second-Tier Competitions",
+  "version": "1.0.0",
+  "schema_version": 1,
+  "dependencies": ["core-nations", "core-competitions"],
+  "files": ["competitions.json"],
+  "metadata": {
+    "content_domain": "competition",
+    "baseline_season": "2024-25"
+  }
+}

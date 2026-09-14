@@ -117,6 +117,8 @@ final class DeveloperConsoleTest extends TestCase
             'core-clubs Core Clubs version=1.0.0 schema=1 selected=yes dependencies=core-nations,core-competitions',
             'core-competitions Core Competitions version=1.0.0 schema=1 selected=yes dependencies=core-nations',
             'core-nations Core Nations version=1.0.0 schema=1 selected=yes dependencies=-',
+            'core-second-tier-clubs Core Second-Tier Clubs version=1.0.0 schema=1 selected=yes dependencies=core-nations,core-competitions,core-second-tier-competitions,core-clubs',
+            'core-second-tier-competitions Core Second-Tier Competitions version=1.0.0 schema=1 selected=yes dependencies=core-nations,core-competitions',
         ], $output->messages());
     }
 

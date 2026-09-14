@@ -33,12 +33,16 @@ final class CompetitionRepository
             . 'source_package_id TEXT NOT NULL, '
             . 'source_package_version TEXT NOT NULL, '
             . 'source_schema_version INTEGER NOT NULL, '
-            . 'maximum_substitutions INTEGER NOT NULL DEFAULT 5'
+            . 'maximum_substitutions INTEGER NOT NULL DEFAULT 5, '
+            . 'tier INTEGER NOT NULL DEFAULT 1'
             . ')'
         );
         $columns = $this->database->connection()->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(PDO::FETCH_ASSOC);
         if (!in_array('maximum_substitutions', array_column($columns, 'name'), true)) {
             $this->database->connection()->exec('ALTER TABLE ' . self::TABLE . ' ADD COLUMN maximum_substitutions INTEGER NOT NULL DEFAULT 5');
+        }
+        if (!in_array('tier', array_column($columns, 'name'), true)) {
+            $this->database->connection()->exec('ALTER TABLE ' . self::TABLE . ' ADD COLUMN tier INTEGER NOT NULL DEFAULT 1');
         }
     }
 
@@ -46,13 +50,13 @@ final class CompetitionRepository
     {
         $statement = $this->database->connection()->prepare(
             'INSERT INTO ' . self::TABLE . ' '
-            . '(id, name, short_name, type, nation_id, season_id, status, source_package_id, source_package_version, source_schema_version, maximum_substitutions) '
-            . 'VALUES (:id, :name, :short_name, :type, :nation_id, :season_id, :status, :source_package_id, :source_package_version, :source_schema_version, :maximum_substitutions) '
+            . '(id, name, short_name, type, nation_id, season_id, status, source_package_id, source_package_version, source_schema_version, maximum_substitutions, tier) '
+            . 'VALUES (:id, :name, :short_name, :type, :nation_id, :season_id, :status, :source_package_id, :source_package_version, :source_schema_version, :maximum_substitutions, :tier) '
             . 'ON CONFLICT(id) DO UPDATE SET '
             . 'name = excluded.name, short_name = excluded.short_name, type = excluded.type, '
             . 'nation_id = excluded.nation_id, season_id = excluded.season_id, status = excluded.status, '
             . 'source_package_id = excluded.source_package_id, source_package_version = excluded.source_package_version, '
-            . 'source_schema_version = excluded.source_schema_version, maximum_substitutions = excluded.maximum_substitutions'
+            . 'source_schema_version = excluded.source_schema_version, maximum_substitutions = excluded.maximum_substitutions, tier = excluded.tier'
         );
         $statement->execute($competition->toArray());
     }
@@ -124,6 +128,7 @@ final class CompetitionRepository
             (string) $row['source_package_version'],
             (int) $row['source_schema_version'],
             (int) ($row['maximum_substitutions'] ?? 5),
+            (int) ($row['tier'] ?? 1),
         );
 
         return new Competition(

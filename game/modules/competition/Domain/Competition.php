@@ -31,6 +31,8 @@ final readonly class Competition
 
     public function maximumSubstitutions(): int { return $this->definition->maximumSubstitutions(); }
 
+    public function tier(): int { return $this->definition->tier(); }
+
     public function nationId(): \Goal\Legacy\Modules\Nation\Domain\NationId { return $this->definition->nationId(); }
 
     public function status(): CompetitionStatus { return $this->status; }
@@ -79,6 +81,7 @@ final readonly class Competition
             'status' => $this->status->value,
             'type' => $this->type()->value,
             'maximum_substitutions' => $this->maximumSubstitutions(),
+            'tier' => $this->tier(),
         ];
     }
 }

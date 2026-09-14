@@ -6,35 +6,40 @@
       "name": "Bundesliga",
       "short_name": "Bundesliga",
       "type": "domestic_league",
-      "nation_id": "germany"
+      "nation_id": "germany",
+      "tier": 1
     },
     {
       "id": "la-liga",
       "name": "La Liga",
       "short_name": "La Liga",
       "type": "domestic_league",
-      "nation_id": "spain"
+      "nation_id": "spain",
+      "tier": 1
     },
     {
       "id": "ligue-1",
       "name": "Ligue 1",
       "short_name": "Ligue 1",
       "type": "domestic_league",
-      "nation_id": "france"
+      "nation_id": "france",
+      "tier": 1
     },
     {
       "id": "premier-league",
       "name": "Premier League",
       "short_name": "Premier League",
       "type": "domestic_league",
-      "nation_id": "england"
+      "nation_id": "england",
+      "tier": 1
     },
     {
       "id": "serie-a",
       "name": "Serie A",
       "short_name": "Serie A",
       "type": "domestic_league",
-      "nation_id": "italy"
+      "nation_id": "italy",
+      "tier": 1
     }
   ]
 }

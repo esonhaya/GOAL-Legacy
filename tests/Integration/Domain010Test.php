@@ -55,12 +55,12 @@ final class Domain010Test extends TestCase
         $population = $services->playerModule()->service()->populationService();
         $first = $population->populate($database, $season, 1010);
 
-        self::assertSame(96, $first['clubs_populated']);
-        self::assertSame(2400, $first['players_total']);
+        self::assertSame(198, $first['clubs_populated']);
+        self::assertSame(4950, $first['players_total']);
         self::assertSame(25, $first['min_squad_size']);
         self::assertSame(25, $first['max_squad_size']);
-        self::assertSame(2400, count($services->contractModule()->service()->repository($database)->all()));
-        self::assertSame(2400, count($services->competitionModule()->service()->registrationRepository($database)->all()));
+        self::assertSame(4950, count($services->contractModule()->service()->repository($database)->all()));
+        self::assertSame(4950, count($services->competitionModule()->service()->registrationRepository($database)->all()));
         self::assertGreaterThan(0, $first['position_counts']['GK']);
         self::assertGreaterThan(0, $first['position_counts']['CB']);
         self::assertGreaterThan(0, $first['position_counts']['CM']);
@@ -75,7 +75,7 @@ final class Domain010Test extends TestCase
         self::assertSame(0, $second['players_generated']);
         self::assertSame($first['players_total'], $second['players_total']);
         self::assertSame($sampleBefore, $playerRepository->get('npc-v1-arsenal-01')->toArray());
-        self::assertCount(2400, $playerRepository->all());
+        self::assertCount(4950, $playerRepository->all());
     }
 
     public function testCareerPlayerCoexistsWithGeneratedSquad(): void

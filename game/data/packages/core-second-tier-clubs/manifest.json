@@ -1,0 +1,12 @@
+{
+  "id": "core-second-tier-clubs",
+  "name": "Core Second-Tier Clubs",
+  "version": "1.0.0",
+  "schema_version": 1,
+  "dependencies": ["core-nations", "core-competitions", "core-second-tier-competitions", "core-clubs"],
+  "files": ["clubs.json"],
+  "metadata": {
+    "content_domain": "club",
+    "baseline_season": "2024-25"
+  }
+}

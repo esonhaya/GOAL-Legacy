@@ -69,10 +69,10 @@ final class Domain003Test extends TestCase
 
         $clubRepository = new ClubRepository($database);
         $membershipRepository = new ClubMembershipRepository($database);
-        self::assertCount(96, $clubs);
-        self::assertCount(96, $clubRepository->all());
-        self::assertCount(96, $membershipRepository->all());
-        self::assertSame(['bundesliga' => 18, 'la-liga' => 20, 'ligue-1' => 18, 'premier-league' => 20, 'serie-a' => 20], $this->membershipCounts($membershipRepository->all()));
+        self::assertCount(198, $clubs);
+        self::assertCount(198, $clubRepository->all());
+        self::assertCount(198, $membershipRepository->all());
+        self::assertSame(['2-bundesliga' => 18, 'bundesliga' => 18, 'championship' => 24, 'la-liga' => 20, 'ligue-1' => 18, 'ligue-2' => 18, 'premier-league' => 20, 'segunda-division' => 22, 'serie-a' => 20, 'serie-b' => 20], $this->membershipCounts($membershipRepository->all()));
         self::assertSame([], array_diff(array_map(static fn ($club): string => $club->id()->value(), $clubRepository->all()), array_map(static fn ($definition): string => $definition->club()->id()->value(), $clubs)));
 
         $before = array_map(static fn ($membership): array => $membership->toArray(), $membershipRepository->all());

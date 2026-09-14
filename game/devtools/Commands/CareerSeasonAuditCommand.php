@@ -200,7 +200,8 @@ final class CareerSeasonAuditCommand implements CommandInterface
             $databaseSizeStart = filesize($directory . '/' . $saveId . '.sqlite') ?: 0;
             $matchService = $this->services->matchModule()->service();
             $fixtureCounts = [];
-            foreach (['premier-league', 'la-liga', 'bundesliga', 'serie-a', 'ligue-1'] as $competitionId) {
+            foreach (array_filter($competitions, static fn ($competition): bool => $competition->tier() === 1) as $competition) {
+                $competitionId = $competition->id()->value();
                 $fixtureCounts[$competitionId] = count($matchService->generateFixtures($database, $competitionId, $season->id()));
             }
             $matches = $matchService->repository($database)->byCompetition(self::COMPETITION_ID, $season->id());

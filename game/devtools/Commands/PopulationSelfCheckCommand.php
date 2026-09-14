@@ -79,10 +79,11 @@ final class PopulationSelfCheckCommand implements CommandInterface
     /** @param array<string, mixed> $population */
     private function assertPopulation(DatabaseInterface $database, Season $season, array $population): void
     {
-        if ($population['clubs_populated'] !== 96 || $population['players_total'] !== 2400 || $population['min_squad_size'] !== 25 || $population['max_squad_size'] !== 25) {
+        $clubs = $this->services->clubModule()->service()->repository($database)->all();
+        $expectedPlayers = count($clubs) * 25;
+        if ($population['clubs_populated'] !== count($clubs) || $population['players_total'] !== $expectedPlayers || $population['min_squad_size'] !== 25 || $population['max_squad_size'] !== 25) {
             throw new RuntimeException(sprintf('Unexpected population counts: clubs=%d players=%d squads=%d-%d.', $population['clubs_populated'], $population['players_total'], $population['min_squad_size'], $population['max_squad_size']));
         }
-        $clubs = $this->services->clubModule()->service()->repository($database)->all();
         $squadRepository = $this->services->clubModule()->service()->squadRepository($database);
         $contractRepository = $this->services->contractModule()->service()->repository($database);
         $registrationRepository = $this->services->competitionModule()->service()->registrationRepository($database);

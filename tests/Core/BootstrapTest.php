@@ -24,10 +24,12 @@ final class BootstrapTest extends TestCase
         self::assertSame(0, $services->clock()->now()->ticks());
         self::assertFalse($services->scheduler()->hasPendingTasks());
         self::assertNotNull($services->saveStore());
-        self::assertCount(3, $services->contentPackages()->packages());
+        self::assertCount(5, $services->contentPackages()->packages());
         self::assertTrue($services->contentPackages()->isSelected('core-nations'));
         self::assertTrue($services->contentPackages()->isSelected('core-competitions'));
         self::assertTrue($services->contentPackages()->isSelected('core-clubs'));
+        self::assertTrue($services->contentPackages()->isSelected('core-second-tier-competitions'));
+        self::assertTrue($services->contentPackages()->isSelected('core-second-tier-clubs'));
         self::assertSame('nation', $services->nationModule()->descriptor()->id());
         self::assertSame('competition', $services->competitionModule()->descriptor()->id());
         self::assertSame('club', $services->clubModule()->descriptor()->id());

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "competitions": [
+    {"id":"championship","name":"EFL Championship","short_name":"Championship","type":"domestic_league","nation_id":"england","tier":2},
+    {"id":"segunda-division","name":"Segunda División","short_name":"LaLiga Hypermotion","type":"domestic_league","nation_id":"spain","tier":2},
+    {"id":"2-bundesliga","name":"2. Bundesliga","short_name":"2. Bundesliga","type":"domestic_league","nation_id":"germany","tier":2},
+    {"id":"serie-b","name":"Serie B","short_name":"Serie B","type":"domestic_league","nation_id":"italy","tier":2},
+    {"id":"ligue-2","name":"Ligue 2","short_name":"Ligue 2","type":"domestic_league","nation_id":"france","tier":2}
+  ]
+}

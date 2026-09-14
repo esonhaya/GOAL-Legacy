@@ -35,16 +35,18 @@ final class CompetitionTest extends TestCase
         }
     }
 
-    public function testSeededCompetitionContentLoadsFiveNationBoundDefinitions(): void
+    public function testSeededCompetitionContentLoadsFiveNationBoundTierDefinitions(): void
     {
         $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);
         $definitions = $services->competitionModule()->service()->loadSelected();
 
-        self::assertSame(['bundesliga', 'la-liga', 'ligue-1', 'premier-league', 'serie-a'], array_map(
+        self::assertSame(['2-bundesliga', 'bundesliga', 'championship', 'la-liga', 'ligue-1', 'ligue-2', 'premier-league', 'segunda-division', 'serie-a', 'serie-b'], array_map(
             static fn (CompetitionDefinition $definition): string => $definition->id()->value(),
             $definitions,
         ));
-        self::assertSame('england', $definitions[3]->nationId()->value());
+        self::assertSame('england', $definitions[6]->nationId()->value());
+        self::assertSame(1, $definitions[6]->tier());
+        self::assertSame(2, $definitions[2]->tier());
     }
 
     public function testCompetitionRepositoryMaterializesStateAndQueriesByNationAndSeason(): void

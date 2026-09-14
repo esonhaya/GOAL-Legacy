@@ -75,16 +75,22 @@ final class ClubTest extends TestCase
         }
         ksort($counts);
 
-        self::assertCount(96, $definitions);
+        self::assertCount(198, $definitions);
         self::assertSame([
+            '2-bundesliga' => 18,
             'bundesliga' => 18,
+            'championship' => 24,
             'la-liga' => 20,
             'ligue-1' => 18,
+            'ligue-2' => 18,
             'premier-league' => 20,
+            'segunda-division' => 22,
             'serie-a' => 20,
+            'serie-b' => 20,
         ], $counts);
-        self::assertSame('core-clubs', $definitions[0]->club()->sourcePackageId());
-        self::assertSame('season-2024-25', $definitions[0]->memberships()[0]->seasonId()->value());
+        $arsenal = array_values(array_filter($definitions, static fn ($definition): bool => $definition->club()->id()->value() === 'arsenal'))[0];
+        self::assertSame('core-clubs', $arsenal->club()->sourcePackageId());
+        self::assertSame('season-2024-25', $arsenal->memberships()[0]->seasonId()->value());
     }
 
     public function testClubContentRejectsUnknownNation(): void

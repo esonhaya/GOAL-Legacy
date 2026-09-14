@@ -68,7 +68,7 @@ final class ClubRecruitmentService
     ) {
     }
 
-    /** @return array{free_agents_considered:int,free_agents_signed:int,npc_transfers:int,newgens_avoided:int,position_needs_met:int,unsuitable_candidates_rejected:int,duplicates:int,movement_budget:int,clubs_processed:int,candidates_evaluated:int,clubs_with_activity:int} */
+    /** @return array{free_agents_considered:int,free_agents_signed:int,npc_transfers:int,controlled_transfer_opportunities:int,newgens_avoided:int,position_needs_met:int,unsuitable_candidates_rejected:int,duplicates:int,movement_budget:int,clubs_processed:int,candidates_evaluated:int,clubs_with_activity:int} */
     public function recruit(DatabaseInterface $database, Season $season, SimulationDate $asOfDate): array
     {
         $clubs = $this->clubService->repository($database)->all();
@@ -108,6 +108,7 @@ final class ClubRecruitmentService
             'free_agents_considered' => 0,
             'free_agents_signed' => 0,
             'npc_transfers' => 0,
+            'controlled_transfer_opportunities' => 0,
             'newgens_avoided' => 0,
             'position_needs_met' => 0,
             'unsuitable_candidates_rejected' => 0,
@@ -174,6 +175,17 @@ final class ClubRecruitmentService
                 $candidate = $this->bestContractedCandidate($destination, $need, $candidatePool, $squadsByClub, $players, $existingTransfers, $movedPlayers, $usage, $asOfDate, $summary['candidates_evaluated']);
                 if ($candidate === null) {
                     continue;
+                }
+                if (isset($careerPlayers[$candidate['player']->id()->value()])) {
+                    // The NPC market may identify controlled interest, but
+                    // CareerMovementService owns the player's decision and
+                    // TransferService must not execute it automatically.
+                    $movedPlayers[$candidate['player']->id()->value()] = true;
+                    $opportunity = $this->transferService->careerMovement()->prepareControlledTransferDecision($database, $candidate['player']->id(), $season, $asOfDate);
+                    if ($opportunity !== null) {
+                        ++$summary['controlled_transfer_opportunities'];
+                    }
+                    break;
                 }
                 $transfer = $this->moveContractedPlayer($database, $candidate['source'], $destination, $candidate['player'], $season, $asOfDate, $squadsByClub, $activeContracts, $players);
                 $existingTransfers[$transfer->id()->value()] = true;
@@ -337,7 +349,7 @@ final class ClubRecruitmentService
             $sourceEntries = [];
             foreach ($squadsByClub[$source->id()->value()] ?? [] as $membership) {
                 $player = $players[$membership->playerId()->value()] ?? null;
-                if ($player === null || !isset($activeContracts[$player->id()->value()]) || $player->careerState() !== PlayerCareerState::Active || isset($careerPlayers[$player->id()->value()])) {
+                if ($player === null || !isset($activeContracts[$player->id()->value()]) || $player->careerState() !== PlayerCareerState::Active) {
                     continue;
                 }
                 $sourceEntries[$this->positionGroup($player)][] = ['source' => $source, 'membership' => $membership, 'player' => $player];

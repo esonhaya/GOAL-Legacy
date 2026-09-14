@@ -41,6 +41,14 @@ final class CareerMovementService
 {
     private const MAX_OFFERS = 3;
 
+    /** @var array<string, int> */
+    private const GROUP_MINIMUMS = [
+        'goalkeeper' => 1,
+        'defensive' => 4,
+        'midfield' => 5,
+        'attacking' => 3,
+    ];
+
     public function __construct(
         private readonly TransferService $transferService,
         private readonly ContractService $contractService,
@@ -113,6 +121,229 @@ final class CareerMovementService
         }
 
         return $created;
+    }
+
+    /**
+     * Turn a legitimate NPC-market candidate into one controlled-career
+     * choice. The market remains Club-owned; this method only replaces the
+     * automatic execution when the candidate is the controlled Player.
+     */
+    public function prepareControlledTransferDecision(DatabaseInterface $database, PlayerId|string $playerId, Season $season, SimulationDate $date): ?CareerOpportunity
+    {
+        $playerId = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        if (!in_array($playerId->value(), (new CareerPlayerRepository($database))->playerIds(), true)) {
+            throw new TransferException('Transfer decisions are available only for the controlled career Player.');
+        }
+        $player = (new PlayerRepository($database))->get($playerId);
+        if ($player->isRetired()) {
+            return null;
+        }
+        $sourceMembership = $this->currentMembership($database, $playerId, $season->id());
+        $sourceContract = $this->contractService->repository($database)->activeForPlayer($playerId);
+        if ($sourceMembership === null || $sourceContract === null || $sourceContract->clubId()->value() !== $sourceMembership->clubId()->value()) {
+            return null;
+        }
+        // DOMAIN-019 owns an expiring Contract decision at this boundary.
+        if (!$sourceContract->endDate()->isAfter($season->endDate())) {
+            return null;
+        }
+        $sourceClub = $this->clubService->repository($database)->get($sourceMembership->clubId());
+        if (!$this->sourceCanReleaseControlledPlayer($database, $sourceClub->id(), $player, $season)) {
+            return null;
+        }
+        $sourceKey = implode('|', ['controlled-transfer', $playerId->value(), $sourceClub->id()->value(), $season->id()->value()]);
+        $repository = new CareerOpportunityRepository($database);
+        $existing = $repository->bySourceKey($sourceKey);
+        if ($existing !== null) {
+            return $existing;
+        }
+        foreach ($this->transferService->repository($database)->byPlayer($playerId) as $transfer) {
+            if ($transfer->seasonId()->value() === $season->id()->value()) {
+                return null;
+            }
+        }
+
+        $currentMetrics = $this->playerMetrics($database, $player, $sourceClub->id(), $season->id());
+        $candidates = [];
+        foreach ($this->clubService->repository($database)->all() as $targetClub) {
+            if ($targetClub->id()->value() === $sourceClub->id()->value()) {
+                continue;
+            }
+            if ($this->competitionForClub($database, $targetClub->id(), $season->id()) === null) {
+                continue;
+            }
+            if (count($this->clubService->squadRepository($database)->byClub($targetClub->id(), $season->id())) >= PlayerPopulationService::TARGET_SQUAD_SIZE) {
+                continue;
+            }
+            $target = $this->targetMetrics($database, $player, $targetClub->id(), $season->id());
+            if ($target['position_rank'] > 8) {
+                continue;
+            }
+            $score = $this->interestScore($player, $sourceClub->reputation(), $sourceMembership->role(), $currentMetrics, $target, $targetClub->reputation());
+            if (!$this->isJustified($currentMetrics, $target, $targetClub->reputation(), $sourceClub->reputation(), $score)) {
+                continue;
+            }
+            $candidates[] = ['club' => $targetClub, 'metrics' => $target, 'score' => $score];
+        }
+        usort($candidates, static fn (array $left, array $right): int => ($right['score'] <=> $left['score']) ?: strcmp($left['club']->id()->value(), $right['club']->id()->value()));
+        if ($candidates === []) {
+            return null;
+        }
+
+        $options = [['id' => 'stay', 'kind' => 'stay', 'club_id' => $sourceClub->id()->value()]];
+        foreach (array_slice($candidates, 0, self::MAX_OFFERS) as $candidate) {
+            $targetClub = $candidate['club'];
+            $optionKey = $sourceKey . '|' . $targetClub->id()->value();
+            $context = $this->offerContext($player, $sourceClub->reputation(), $sourceMembership->role(), $currentMetrics, $targetClub->reputation(), $candidate['metrics'], $candidate['score'], $date, $optionKey, $season->id());
+            $options[] = [
+                'id' => 'accept-' . $targetClub->id()->value(),
+                'kind' => 'accept_transfer',
+                'club_id' => $targetClub->id()->value(),
+                'role' => $context['proposed_role'],
+                'transfer_id' => $context['transfer_id'],
+                'destination_contract_id' => $context['destination_contract_id'],
+                'contract_end_date' => $context['contract_end_date'],
+                'fee' => $context['fee'],
+                'wage' => $context['wage'],
+                'interest_score' => $context['interest_score'],
+                'reasons' => $context['reasons'],
+            ];
+        }
+        $opportunity = new CareerOpportunity(
+            'controlled-transfer-' . substr(hash('sha256', $sourceKey), 0, 24),
+            $playerId,
+            CareerOpportunityType::TransferInterest,
+            $sourceClub->id(),
+            null,
+            $date,
+            $date->addDays(30),
+            CareerOpportunityStatus::Open,
+            [
+                'decision_kind' => 'controlled_transfer',
+                'offer_status' => 'open',
+                'season_id' => $season->id()->value(),
+                'source_club_id' => $sourceClub->id()->value(),
+                'options' => $options,
+            ],
+            $sourceKey,
+        );
+        $database->transaction(function () use ($repository, $opportunity): void { $repository->saveInTransaction($opportunity); });
+        $this->events->dispatch(new GenericEvent('career.controlled_transfer_interest_created', $opportunity->toArray()));
+
+        return $opportunity;
+    }
+
+    /** Resolve one controlled transfer-interest decision through TransferService. */
+    public function resolveTransferDecision(DatabaseInterface $database, string $opportunityId, string $optionId, SimulationDate $date): CareerOpportunity
+    {
+        $repository = new CareerOpportunityRepository($database);
+        $opportunity = $repository->get($opportunityId);
+        if ($opportunity === null || $opportunity->type() !== CareerOpportunityType::TransferInterest || ($opportunity->context()['decision_kind'] ?? null) !== 'controlled_transfer') {
+            throw new TransferException(sprintf('Controlled transfer decision "%s" was not found.', $opportunityId));
+        }
+        if ($opportunity->status() === CareerOpportunityStatus::Resolved) {
+            return $opportunity;
+        }
+        if ($opportunity->status() !== CareerOpportunityStatus::Open) {
+            throw new TransferException('Only open controlled transfer decisions can be resolved.');
+        }
+        if ($opportunity->expiryDate() !== null && $date->isAfter($opportunity->expiryDate())) {
+            $this->setStatus($database, $opportunity, CareerOpportunityStatus::Expired, 'expired');
+            throw new TransferException('Controlled transfer decision has expired.');
+        }
+        if (!in_array($opportunity->playerId()->value(), (new CareerPlayerRepository($database))->playerIds(), true)) {
+            throw new TransferException('Controlled transfer decision no longer belongs to the career Player.');
+        }
+        $context = $opportunity->context();
+        $selected = null;
+        foreach (($context['options'] ?? []) as $option) {
+            if (is_array($option) && ($option['id'] ?? null) === $optionId) {
+                $selected = $option;
+                break;
+            }
+        }
+        if (!is_array($selected)) {
+            throw new TransferException('Controlled transfer option is stale or unknown.');
+        }
+        if (($selected['kind'] ?? null) === 'stay') {
+            $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'stayed') + ['selected_option' => $optionId]);
+            $this->saveStatus($database, $resolved);
+            $this->events->dispatch(new GenericEvent('career.controlled_transfer_declined', $resolved->toArray()));
+
+            return $resolved;
+        }
+        if (($selected['kind'] ?? null) !== 'accept_transfer') {
+            throw new TransferException('Unsupported controlled transfer option.');
+        }
+        $transferId = new TransferId((string) ($selected['transfer_id'] ?? ''));
+        $transfers = $this->transferService->repository($database);
+        if ($transfers->exists($transferId)) {
+            $stored = $transfers->get($transferId);
+            $storedDestination = (string) ($selected['club_id'] ?? '');
+            if ($stored->playerId()->value() !== $opportunity->playerId()->value() || $stored->sourceClubId()->value() !== $opportunity->sourceClubId()->value() || $stored->destinationClubId()->value() !== $storedDestination) {
+                throw new TransferException('Controlled transfer record does not match the current decision.');
+            }
+            if ($stored->status() === TransferStatus::Completed) {
+                $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'completed') + ['selected_option' => $optionId, 'completed_transfer_id' => $stored->id()->value()]);
+                $this->saveStatus($database, $resolved);
+
+                return $resolved;
+            }
+        }
+        $player = (new PlayerRepository($database))->get($opportunity->playerId());
+        if ($player->isRetired()) {
+            throw new TransferException('Retired Players cannot accept transfer interest.');
+        }
+        $seasonId = new SeasonId((string) ($context['season_id'] ?? ''));
+        $membership = $this->currentMembership($database, $player->id(), $seasonId);
+        $sourceClubId = new ClubId((string) ($context['source_club_id'] ?? $opportunity->sourceClubId()->value()));
+        if ($membership === null || $membership->clubId()->value() !== $sourceClubId->value()) {
+            throw new TransferException('Controlled transfer is stale because the source squad changed.');
+        }
+        $sourceContract = $this->contractService->repository($database)->activeForPlayer($player->id());
+        $season = (new SeasonRepository($database))->get($seasonId);
+        if ($sourceContract === null || $sourceContract->clubId()->value() !== $sourceClubId->value() || !$sourceContract->endDate()->isAfter($season->endDate())) {
+            throw new TransferException('Controlled transfer is stale because the source Contract is no longer eligible.');
+        }
+        $destinationClubId = new ClubId((string) ($selected['club_id'] ?? ''));
+        if (!$this->clubService->repository($database)->exists($destinationClubId) || $destinationClubId->value() === $sourceClubId->value() || $this->competitionForClub($database, $destinationClubId, $seasonId) === null) {
+            throw new TransferException('Controlled transfer destination is stale.');
+        }
+        if (count($this->clubService->squadRepository($database)->byClub($destinationClubId, $seasonId)) >= PlayerPopulationService::TARGET_SQUAD_SIZE) {
+            throw new TransferException('Controlled transfer destination has no safe squad capacity.');
+        }
+        if (!$this->sourceCanReleaseControlledPlayer($database, $sourceClubId, $player, $season)) {
+            throw new TransferException('Controlled transfer would make the source Club unsafe.');
+        }
+        foreach ($this->transferService->repository($database)->byPlayer($player->id()) as $existing) {
+            if ($existing->seasonId()->value() === $seasonId->value()) {
+                if ($existing->status() === TransferStatus::Completed) {
+                    throw new TransferException('Controlled Player has already moved in this transfer window.');
+                }
+            }
+        }
+        $transfer = $transfers->exists($transferId)
+            ? $transfers->get($transferId)
+            : new Transfer($transferId, $player->id(), $sourceClubId, $destinationClubId, $seasonId, (int) ($selected['fee'] ?? 0), $date, TransferStatus::Agreed);
+        if ($transfer->status() === TransferStatus::Completed) {
+            $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'completed') + ['selected_option' => $optionId, 'completed_transfer_id' => $transfer->id()->value()]);
+            $this->saveStatus($database, $resolved);
+
+            return $resolved;
+        }
+        if ($transfer->status() !== TransferStatus::Agreed) {
+            throw new TransferException('Controlled transfer cannot be executed from its current state.');
+        }
+        if (!$transfers->exists($transferId)) {
+            $this->transferService->save($database, $transfer);
+        }
+        $role = SquadRole::fromInput((string) ($selected['role'] ?? SquadRole::Prospect->value));
+        $completed = $this->transferService->execute($database, $transfer, new TransferExecutionTerms(new ContractId((string) $selected['destination_contract_id']), SimulationDate::fromIsoString((string) $selected['contract_end_date']), (int) $selected['wage'], $role));
+        $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'completed') + ['selected_option' => $optionId, 'completed_transfer_id' => $completed->id()->value()]);
+        $this->saveStatus($database, $resolved);
+        $this->events->dispatch(new GenericEvent('career.controlled_transfer_completed', $resolved->toArray()));
+
+        return $resolved;
     }
 
     /**
@@ -338,6 +569,9 @@ final class CareerMovementService
     public function accept(DatabaseInterface $database, string $offerId, SimulationDate $date): CareerOpportunity
     {
         $offer = $this->inspect($database, $offerId);
+        if (($offer->context()['decision_kind'] ?? null) === 'controlled_transfer') {
+            throw new TransferException('Controlled transfer decisions require an explicit option.');
+        }
         if ($offer->status() === CareerOpportunityStatus::Resolved && isset($offer->context()['completed_transfer_id'])) {
             return $offer;
         }
@@ -447,6 +681,24 @@ final class CareerMovementService
         usort($candidates, static fn (array $left, array $right): int => ($right['score'] <=> $left['score']) ?: strcmp($left['club']->id()->value(), $right['club']->id()->value()));
 
         return array_slice($candidates, 0, self::MAX_OFFERS);
+    }
+
+    private function sourceCanReleaseControlledPlayer(DatabaseInterface $database, ClubId $sourceClubId, Player $player, Season $season): bool
+    {
+        $squad = $this->clubService->squadRepository($database)->byClub($sourceClubId, $season->id());
+        if (count($squad) <= 11) {
+            return false;
+        }
+        $players = new PlayerRepository($database);
+        $counts = array_fill_keys(array_keys(self::GROUP_MINIMUMS), 0);
+        foreach ($squad as $membership) {
+            if ($membership->playerId()->value() === $player->id()->value()) {
+                continue;
+            }
+            ++$counts[$this->positionGroup($players->get($membership->playerId()))];
+        }
+
+        return ($counts[$this->positionGroup($player)] ?? 0) >= self::GROUP_MINIMUMS[$this->positionGroup($player)];
     }
 
     /** @param array<string, mixed> $context */

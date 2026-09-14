@@ -20,8 +20,23 @@ Competition registration services and preserves the Player ID and history.
 If a free Player cannot satisfy a need, a small deterministic contracted
 NPC candidate may move between Clubs through the existing TransferService.
 The source Club must retain playable headcount and broad positional
-coverage. Transfers are sparse and capped per checkpoint. There is no
-finance ledger, negotiation, scouting, agent, or global market tick.
+coverage. DOMAIN-016 makes this movement window-aware and need-driven:
+structural vacancies are considered first. The world budget is derived from
+unresolved vacancies (approximately one ninth enters the autonomous window)
+and has a hard safety ceiling of 18; each Club may participate in at most
+one contracted movement in a window. Full squads are not enlarged for a
+quality upgrade; one-in/one-out upgrades remain deferred until a canonical
+destination release transaction is added.
+Candidate pressure uses role, depth, OVR/potential, age, and previous-Season
+minutes/appearances when available. Recently moved Players are excluded.
+
+The current transfer window is the pre-Season materialization checkpoint.
+There is no daily market tick or mid-season window. NPC movement can cross
+the installed Big-5 Competitions because existing TransferService and
+registration paths support it. Player willingness is a deterministic role
+and level-fit policy; source Clubs are protected from losing critical
+coverage. There is no finance ledger, negotiation, scouting, agent, or
+manager-personality system.
 
 Unresolved vacancies continue to use the DOMAIN-014 newgen generator;
 emergency replenishment remains the final invariant-repair fallback.
@@ -29,7 +44,15 @@ Recruitment identifiers include Season, Club, and Player context so a
 checkpoint retry does not duplicate Contracts, memberships, registrations,
 or transfers.
 
-Recruitment reports expose free-agent signings, NPC transfers, position
-needs met, and newgens avoided. Use `recruitment:self-check` for the
-isolated free-agent and production Match-selection path. The lifecycle
-audit reports recruitment counts per Season.
+Unchanged Contract renewal/release policy runs before this window. Released
+active Players therefore feed the same free-agent pool, while newgens
+remain the generational fallback for unresolved vacancies. Recruitment
+identifiers and the completed-transfer window guard make retries safe and
+prevent a Player from moving twice in one window.
+
+Recruitment reports expose free-agent signings, NPC transfers, dynamic
+movement budget, candidate evaluations, Club activity, position needs met,
+and newgens avoided. Use `recruitment:self-check` for the isolated
+free-agent and production Match-selection path. The lifecycle audit reports
+renewals, releases, movement distribution, and recruitment counts per
+Season.

@@ -37,8 +37,10 @@ use Goal\Legacy\Modules\World\Persistence\SeasonRepository;
 
 final class SeasonRolloverService
 {
-    /** @var array{free_agent_signings:int,npc_transfers:int,newgens_avoided:int,position_needs_met:int} */
-    private array $lastRecruitment = ['free_agent_signings' => 0, 'npc_transfers' => 0, 'newgens_avoided' => 0, 'position_needs_met' => 0];
+    /** @var array{free_agent_signings:int,npc_transfers:int,newgens_avoided:int,position_needs_met:int,movement_budget:int,clubs_processed:int,candidates_evaluated:int,clubs_with_activity:int} */
+    private array $lastRecruitment = ['free_agent_signings' => 0, 'npc_transfers' => 0, 'newgens_avoided' => 0, 'position_needs_met' => 0, 'movement_budget' => 0, 'clubs_processed' => 0, 'candidates_evaluated' => 0, 'clubs_with_activity' => 0];
+    /** @var array{renewed:int,released:int,carried:int} */
+    private array $lastLifecycle = ['renewed' => 0, 'released' => 0, 'carried' => 0];
 
     public function __construct(
         private readonly CompetitionService $competitionService,
@@ -52,10 +54,16 @@ final class SeasonRolloverService
     ) {
     }
 
-    /** @return array{free_agent_signings:int,npc_transfers:int,newgens_avoided:int,position_needs_met:int} */
+    /** @return array{free_agent_signings:int,npc_transfers:int,newgens_avoided:int,position_needs_met:int,movement_budget:int,clubs_processed:int,candidates_evaluated:int,clubs_with_activity:int} */
     public function lastRecruitment(): array
     {
         return $this->lastRecruitment;
+    }
+
+    /** @return array{renewed:int,released:int,carried:int} */
+    public function lastLifecycle(): array
+    {
+        return $this->lastLifecycle;
     }
 
     public function nextSeason(Season $season): Season
@@ -102,6 +110,7 @@ final class SeasonRolloverService
             $released += $result['released'];
             $carried += $result['carried'];
         }
+        $this->lastLifecycle = ['renewed' => $renewed, 'released' => $released, 'carried' => $carried];
 
         $this->events->dispatch(new GenericEvent(WorldEventNames::SEASON_CREATED, [
             'season_id' => $next->id()->value(),
@@ -134,7 +143,7 @@ final class SeasonRolloverService
 
         $previousSquads = array_filter($this->clubService->squadRepository($database)->all(), static fn (ClubSquadMembership $membership): bool => $membership->seasonId()->value() === $previous->id()->value());
         $population = ['players_generated' => 0];
-        $recruitment = ['free_agents_signed' => 0, 'npc_transfers' => 0, 'newgens_avoided' => 0, 'position_needs_met' => 0];
+        $recruitment = ['free_agents_signed' => 0, 'npc_transfers' => 0, 'newgens_avoided' => 0, 'position_needs_met' => 0, 'movement_budget' => 0, 'clubs_processed' => 0, 'candidates_evaluated' => 0, 'clubs_with_activity' => 0];
         if ($previousSquads !== []) {
             $recruitment = $this->recruitment->recruit($database, $next, $asOfDate);
             $newgens = $this->populationService->generateNewgens($database, $next, $world->universeSeed(), $asOfDate);
@@ -146,6 +155,10 @@ final class SeasonRolloverService
             'npc_transfers' => (int) ($recruitment['npc_transfers'] ?? 0),
             'newgens_avoided' => (int) ($recruitment['newgens_avoided'] ?? 0),
             'position_needs_met' => (int) ($recruitment['position_needs_met'] ?? 0),
+            'movement_budget' => (int) ($recruitment['movement_budget'] ?? 0),
+            'clubs_processed' => (int) ($recruitment['clubs_processed'] ?? 0),
+            'candidates_evaluated' => (int) ($recruitment['candidates_evaluated'] ?? 0),
+            'clubs_with_activity' => (int) ($recruitment['clubs_with_activity'] ?? 0),
         ];
         $fixtures = 0;
         $matches = new MatchRepository($database);

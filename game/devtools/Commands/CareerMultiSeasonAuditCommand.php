@@ -142,7 +142,7 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         $last = $reports[count($reports) - 1];
             $output->write(sprintf('LIFECYCLE_AUDIT seed=%d requested=%d completed=%d start=%s end=%s active_start=%d active_final=%d retired_final=%d newgens_final=%d records_final=%d avg_age_final=%.1f oldest_final=%d squad_min=%d squad_max=%d reload_failures=%s', $seed, $requested, count($reports), $reports[0]['season']->startDate()->toIsoString(), $last['season']->startDate()->toIsoString(), $reports[0]['active'], $last['active'], $last['retired'], $last['newgens'], $last['records'], $last['age_avg'], $last['oldest'], $last['squad_min'], $last['squad_max'], $reloadChecks === [] || count(array_filter($reloadChecks, static fn (bool $value): bool => !$value)) === 0 ? 'none' : 'present'));
         foreach ($reports as $index => $report) {
-            $output->write(sprintf('LIFECYCLE_SEASON_%d season=%s active=%d retired=%d newgens=%d free_signings=%d npc_transfers=%d newgens_avoided=%d records=%d unclubbed_active=%d avg_age=%.1f oldest=%d squad_avg=%.1f squad_min=%d squad_max=%d save_size=%d', $index + 1, $report['season']->id()->value(), $report['active'], $report['retired'], $report['newgens'], $report['free_agent_signings'], $report['npc_transfers'], $report['newgens_avoided'], $report['records'], $report['unclubbed_active'], $report['age_avg'], $report['oldest'], $report['squad_avg'], $report['squad_min'], $report['squad_max'], $report['save_size']));
+            $output->write(sprintf('LIFECYCLE_SEASON_%d season=%s active=%d retired=%d newgens=%d renewals=%d releases=%d free_signings=%d npc_transfers=%d movement_budget=%d candidates=%d clubs_active=%d newgens_avoided=%d cross_league=%d upward=%d lateral=%d downward=%d records=%d unclubbed_active=%d avg_age=%.1f oldest=%d squad_avg=%.1f squad_min=%d squad_max=%d save_size=%d', $index + 1, $report['season']->id()->value(), $report['active'], $report['retired'], $report['newgens'], $report['renewed'], $report['released'], $report['free_agent_signings'], $report['npc_transfers'], $report['movement_budget'], $report['candidates_evaluated'], $report['clubs_with_activity'], $report['newgens_avoided'], $report['cross_league'], $report['upward'], $report['lateral'], $report['downward'], $report['records'], $report['unclubbed_active'], $report['age_avg'], $report['oldest'], $report['squad_avg'], $report['squad_min'], $report['squad_max'], $report['save_size']));
         }
 
         return 0;
@@ -160,8 +160,46 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         $squadPlayerIds = array_fill_keys(array_map(static fn (ClubSquadMembership $membership): string => $membership->playerId()->value(), $squads), true);
         $ages = array_map(static fn (Player $player): int => $player->ageAt($season->startDate()), $active);
 
-        $recruitment = $this->services->worldModule()->service()->seasonRollover()?->lastRecruitment() ?? ['free_agent_signings' => 0, 'npc_transfers' => 0, 'newgens_avoided' => 0, 'position_needs_met' => 0];
-        return ['season' => $season, 'active' => count($active), 'retired' => $retired, 'newgens' => $newgens, 'free_agent_signings' => $recruitment['free_agent_signings'], 'npc_transfers' => $recruitment['npc_transfers'], 'newgens_avoided' => $recruitment['newgens_avoided'], 'records' => count($players), 'unclubbed_active' => count(array_filter($active, static fn (Player $player): bool => !isset($squadPlayerIds[$player->id()->value()]))), 'age_avg' => $ages === [] ? 0.0 : round(array_sum($ages) / count($ages), 1), 'oldest' => $ages === [] ? 0 : max($ages), 'squad_avg' => $sizes === [] ? 0.0 : round(array_sum($sizes) / count($sizes), 1), 'squad_min' => $sizes === [] ? 0 : min($sizes), 'squad_max' => $sizes === [] ? 0 : max($sizes), 'save_size' => filesize($directory . '/' . self::SAVE_ID . '.sqlite') ?: 0];
+        $recruitment = $this->services->worldModule()->service()->seasonRollover()?->lastRecruitment() ?? ['free_agent_signings' => 0, 'npc_transfers' => 0, 'newgens_avoided' => 0, 'movement_budget' => 0, 'candidates_evaluated' => 0, 'clubs_with_activity' => 0];
+        $lifecycle = $this->services->worldModule()->service()->seasonRollover()?->lastLifecycle() ?? ['renewed' => 0, 'released' => 0, 'carried' => 0];
+        $transfers = $this->transferMetrics($database, $season);
+        return ['season' => $season, 'active' => count($active), 'retired' => $retired, 'newgens' => $newgens, 'renewed' => $lifecycle['renewed'], 'released' => $lifecycle['released'], 'free_agent_signings' => $recruitment['free_agent_signings'], 'npc_transfers' => $recruitment['npc_transfers'], 'movement_budget' => $recruitment['movement_budget'], 'candidates_evaluated' => $recruitment['candidates_evaluated'], 'clubs_with_activity' => $recruitment['clubs_with_activity'], 'newgens_avoided' => $recruitment['newgens_avoided'], 'cross_league' => $transfers['cross_league'], 'upward' => $transfers['upward'], 'lateral' => $transfers['lateral'], 'downward' => $transfers['downward'], 'records' => count($players), 'unclubbed_active' => count(array_filter($active, static fn (Player $player): bool => !isset($squadPlayerIds[$player->id()->value()]))), 'age_avg' => $ages === [] ? 0.0 : round(array_sum($ages) / count($ages), 1), 'oldest' => $ages === [] ? 0 : max($ages), 'squad_avg' => $sizes === [] ? 0.0 : round(array_sum($sizes) / count($sizes), 1), 'squad_min' => $sizes === [] ? 0 : min($sizes), 'squad_max' => $sizes === [] ? 0 : max($sizes), 'save_size' => filesize($directory . '/' . self::SAVE_ID . '.sqlite') ?: 0];
+    }
+
+    /** @return array{cross_league:int,upward:int,lateral:int,downward:int} */
+    private function transferMetrics($database, Season $season): array
+    {
+        $clubs = [];
+        foreach ($this->services->clubModule()->service()->repository($database)->all() as $club) {
+            $clubs[$club->id()->value()] = $club;
+        }
+        $competitions = [];
+        foreach ($this->services->clubModule()->service()->membershipRepository($database)->bySeason($season->id()) as $membership) {
+            $competitions[$membership->clubId()->value()] = $membership->competitionId()->value();
+        }
+        $metrics = ['cross_league' => 0, 'upward' => 0, 'lateral' => 0, 'downward' => 0];
+        foreach ((new TransferRepository($database))->all() as $transfer) {
+            if ($transfer->seasonId()->value() !== $season->id()->value() || $transfer->status()->value !== 'completed') {
+                continue;
+            }
+            if (($competitions[$transfer->sourceClubId()->value()] ?? null) !== ($competitions[$transfer->destinationClubId()->value()] ?? null)) {
+                ++$metrics['cross_league'];
+            }
+            $source = $clubs[$transfer->sourceClubId()->value()] ?? null;
+            $destination = $clubs[$transfer->destinationClubId()->value()] ?? null;
+            if ($source === null || $destination === null) {
+                continue;
+            }
+            if ($destination->reputation() > $source->reputation() + 5) {
+                ++$metrics['upward'];
+            } elseif ($source->reputation() > $destination->reputation() + 5) {
+                ++$metrics['downward'];
+            } else {
+                ++$metrics['lateral'];
+            }
+        }
+
+        return $metrics;
     }
 
     /** @return array{0: SqliteSaveStore, 1: \Goal\Legacy\Core\Persistence\DatabaseInterface, 2: Season, 3: World} */

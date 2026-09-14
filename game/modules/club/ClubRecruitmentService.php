@@ -35,7 +35,9 @@ use Goal\Legacy\Modules\World\Domain\SimulationDate;
 /** Bounded Club-owned squad maintenance at Season boundaries. */
 final class ClubRecruitmentService
 {
-    private const MAX_NPC_TRANSFERS = 8;
+    private const MAX_WORLD_MOVEMENTS = 18;
+    private const MAX_MOVEMENTS_PER_CLUB = 1;
+    private const MAX_CANDIDATES_PER_NEED = 48;
 
     /** @var array<string, list<string>> */
     private const GROUP_POSITIONS = [
@@ -69,7 +71,7 @@ final class ClubRecruitmentService
     ) {
     }
 
-    /** @return array{free_agents_considered:int,free_agents_signed:int,npc_transfers:int,newgens_avoided:int,position_needs_met:int,unsuitable_candidates_rejected:int,duplicates:int} */
+    /** @return array{free_agents_considered:int,free_agents_signed:int,npc_transfers:int,newgens_avoided:int,position_needs_met:int,unsuitable_candidates_rejected:int,duplicates:int,movement_budget:int,clubs_processed:int,candidates_evaluated:int,clubs_with_activity:int} */
     public function recruit(DatabaseInterface $database, Season $season, SimulationDate $asOfDate): array
     {
         $clubs = $this->clubService->repository($database)->all();
@@ -96,6 +98,7 @@ final class ClubRecruitmentService
             $squadByPlayer[$membership->playerId()->value()] = $membership->clubId()->value();
         }
         $careerPlayers = array_fill_keys((new CareerPlayerRepository($database))->playerIds(), true);
+        $usage = $this->usageByPlayer($database, $season);
         $freeAgents = [];
         foreach ($players as $playerId => $player) {
             if ($player->careerState() !== PlayerCareerState::Active || isset($careerPlayers[$playerId]) || isset($activeContracts[$playerId]) || isset($squadByPlayer[$playerId])) {
@@ -112,9 +115,13 @@ final class ClubRecruitmentService
             'position_needs_met' => 0,
             'unsuitable_candidates_rejected' => 0,
             'duplicates' => 0,
+            'movement_budget' => 0,
+            'clubs_processed' => count($clubs),
+            'candidates_evaluated' => 0,
+            'clubs_with_activity' => 0,
         ];
         foreach ($clubs as $club) {
-            foreach ($this->needs($club, $squadsByClub[$club->id()->value()] ?? [], $players) as $need) {
+            foreach ($this->marketNeeds($club, $squadsByClub[$club->id()->value()] ?? [], $players) as $need) {
                 $candidate = $this->bestFreeAgent($club, $need, $freeAgents, $summary['free_agents_considered'], $asOfDate);
                 if ($candidate === null) {
                     continue;
@@ -129,27 +136,63 @@ final class ClubRecruitmentService
         }
 
         $transferRepository = new TransferRepository($database);
-        $existingTransfers = array_fill_keys(array_map(static fn (Transfer $transfer): string => $transfer->id()->value(), $transferRepository->all()), true);
+        $existingTransfers = [];
+        $movedPlayers = [];
+        $clubTransferCounts = [];
+        foreach ($transferRepository->all() as $existingTransfer) {
+            if ($existingTransfer->seasonId()->value() !== $season->id()->value() || $existingTransfer->status() !== TransferStatus::Completed) {
+                continue;
+            }
+            $existingTransfers[$existingTransfer->id()->value()] = true;
+            $movedPlayers[$existingTransfer->playerId()->value()] = true;
+            $sourceId = $existingTransfer->sourceClubId()->value();
+            $destinationId = $existingTransfer->destinationClubId()->value();
+            $clubTransferCounts[$sourceId] = ($clubTransferCounts[$sourceId] ?? 0) + 1;
+            $clubTransferCounts[$destinationId] = ($clubTransferCounts[$destinationId] ?? 0) + 1;
+        }
+        $needsByClub = [];
+        $unresolvedNeeds = 0;
+        foreach ($clubs as $club) {
+            $needsByClub[$club->id()->value()] = $this->marketNeeds($club, $squadsByClub[$club->id()->value()] ?? [], $players);
+            $unresolvedNeeds += count($needsByClub[$club->id()->value()]);
+        }
+        // Only a bounded share of unresolved structural demand enters the
+        // autonomous window. Newgens and emergency repair remain responsible
+        // for the rest, so vacancies cannot turn into market churn.
+        $movementBudget = min(self::MAX_WORLD_MOVEMENTS, (int) ceil($unresolvedNeeds / 9) + min(2, intdiv(count($freeAgents), 20)));
+        $summary['movement_budget'] = $movementBudget;
+        $candidatePool = $this->candidatePool($clubs, $squadsByClub, $players, $activeContracts, $careerPlayers);
         $transfers = 0;
         foreach ($clubs as $destination) {
-            if ($transfers >= self::MAX_NPC_TRANSFERS) {
+            if ($transfers >= $movementBudget) {
                 break;
             }
-            foreach ($this->needs($destination, $squadsByClub[$destination->id()->value()] ?? [], $players) as $need) {
-                if ($transfers >= self::MAX_NPC_TRANSFERS) {
+            if (($clubTransferCounts[$destination->id()->value()] ?? 0) >= self::MAX_MOVEMENTS_PER_CLUB) {
+                continue;
+            }
+            foreach ($needsByClub[$destination->id()->value()] ?? [] as $need) {
+                if ($transfers >= $movementBudget) {
                     break 2;
                 }
-                $candidate = $this->bestContractedCandidate($destination, $need, $clubs, $squadsByClub, $players, $activeContracts, $careerPlayers, $existingTransfers, $asOfDate);
+                $candidate = $this->bestContractedCandidate($destination, $need, $candidatePool, $squadsByClub, $players, $existingTransfers, $movedPlayers, $usage, $asOfDate, $summary['candidates_evaluated']);
                 if ($candidate === null) {
                     continue;
                 }
                 $transfer = $this->moveContractedPlayer($database, $candidate['source'], $destination, $candidate['player'], $season, $asOfDate, $squadsByClub, $activeContracts, $players);
                 $existingTransfers[$transfer->id()->value()] = true;
+                $movedPlayers[$candidate['player']->id()->value()] = true;
+                $sourceId = $candidate['source']->id()->value();
+                $destinationId = $destination->id()->value();
+                $clubTransferCounts[$sourceId] = ($clubTransferCounts[$sourceId] ?? 0) + 1;
+                $clubTransferCounts[$destinationId] = ($clubTransferCounts[$destinationId] ?? 0) + 1;
                 ++$transfers;
                 ++$summary['npc_transfers'];
                 ++$summary['position_needs_met'];
+                break;
             }
         }
+
+        $summary['clubs_with_activity'] = count(array_filter($clubTransferCounts, static fn (int $count): bool => $count > 0));
 
         return $summary;
     }
@@ -194,6 +237,12 @@ final class ClubRecruitmentService
         return $needs;
     }
 
+    /** @param list<ClubSquadMembership> $memberships @param array<string, Player> $players @return list<array{group:string,position:string}> */
+    private function marketNeeds(Club $club, array $memberships, array $players): array
+    {
+        return $this->needs($club, $memberships, $players);
+    }
+
     /** @param array<string, int> $positionCounts */
     private function neededPosition(string $group, array $positionCounts): string
     {
@@ -228,11 +277,15 @@ final class ClubRecruitmentService
         return $ranked[0][1] ?? null;
     }
 
-    /** @param list<Club> $clubs @param array<string, list<ClubSquadMembership>> $squadsByClub @param array<string, Player> $players @param array<string, Contract> $activeContracts @param array<string, bool> $careerPlayers @param array<string, bool> $existingTransfers @return array{source:Club,player:Player}|null */
-    private function bestContractedCandidate(Club $destination, array $need, array $clubs, array $squadsByClub, array $players, array $activeContracts, array $careerPlayers, array $existingTransfers, SimulationDate $asOfDate): ?array
+    /** @param array<string, list<array{source:Club,membership:ClubSquadMembership,player:Player}>> $candidatePool @param array<string, list<ClubSquadMembership>> $squadsByClub @param array<string, Player> $players @param array<string, bool> $existingTransfers @param array<string, bool> $movedPlayers @param array<string, array{appearances:int,starts:int,minutes:int}> $usage @return array{source:Club,player:Player}|null */
+    private function bestContractedCandidate(Club $destination, array $need, array $candidatePool, array $squadsByClub, array $players, array $existingTransfers, array $movedPlayers, array $usage, SimulationDate $asOfDate, int &$candidatesEvaluated): ?array
     {
         $ranked = [];
-        foreach ($clubs as $source) {
+        $needCandidates = 0;
+        foreach ($candidatePool[$need['group']] ?? [] as $candidateEntry) {
+            $source = $candidateEntry['source'];
+            $membership = $candidateEntry['membership'];
+            $player = $candidateEntry['player'];
             if ($source->id()->value() === $destination->id()->value()) {
                 continue;
             }
@@ -240,26 +293,150 @@ final class ClubRecruitmentService
             if (!$this->sourceCanRelease($sourceSquad, $need, $players)) {
                 continue;
             }
-            foreach ($sourceSquad as $membership) {
-                $player = $players[$membership->playerId()->value()] ?? null;
-                $contract = $activeContracts[$membership->playerId()->value()] ?? null;
-                if ($player === null || $contract === null || $player->careerState() !== PlayerCareerState::Active || isset($careerPlayers[$player->id()->value()]) || $membership->role() === SquadRole::KeyPlayer || $this->positionGroup($player) !== $need['group']) {
-                    continue;
-                }
-                $transferId = $this->transferId($player, $source, $destination, $membership->seasonId()->value());
-                if (isset($existingTransfers[$transferId])) {
-                    continue;
-                }
-                if ($player->overallRating() < max(35, $destination->reputation() - 35)) {
-                    continue;
-                }
-                $score = $this->fitScore($destination, $player, $need['position'], true, $asOfDate) + ($membership->role() === SquadRole::Prospect ? 50 : 0) - ($source->reputation() > $destination->reputation() + 25 ? 40 : 0);
-                $ranked[] = [$score, $source, $player];
+            ++$candidatesEvaluated;
+            ++$needCandidates;
+            if ($needCandidates > self::MAX_CANDIDATES_PER_NEED) {
+                break;
             }
+            if (isset($movedPlayers[$player->id()->value()])) {
+                continue;
+            }
+            $transferId = $this->transferId($player, $source, $destination, $membership->seasonId()->value());
+            if (isset($existingTransfers[$transferId])) {
+                continue;
+            }
+            if ($membership->role() === SquadRole::KeyPlayer && !$this->sourceHasSurplus($sourceSquad, $player, $players)) {
+                continue;
+            }
+            if ($player->overallRating() < max(35, $destination->reputation() - 35)) {
+                continue;
+            }
+            $pressure = $this->movementPressure($source, $player, $membership, $sourceSquad, $players, $usage, $asOfDate);
+            if ($pressure < 35) {
+                continue;
+            }
+            $willingness = $this->playerWillingness($source, $destination, $player, $membership, $need, $squadsByClub[$destination->id()->value()] ?? [], $players, $asOfDate);
+            if ($willingness < 35) {
+                continue;
+            }
+            $score = $this->fitScore($destination, $player, $need['position'], true, $asOfDate) + $pressure + $willingness - ($source->reputation() > $destination->reputation() + 25 ? 40 : 0);
+            $ranked[] = [$score, $source, $player];
         }
         usort($ranked, static fn (array $left, array $right): int => ($right[0] <=> $left[0]) ?: strcmp($left[2]->id()->value(), $right[2]->id()->value()));
 
         return isset($ranked[0]) ? ['source' => $ranked[0][1], 'player' => $ranked[0][2]] : null;
+    }
+
+    /** @param list<Club> $clubs @param array<string, list<ClubSquadMembership>> $squadsByClub @param array<string, Player> $players @param array<string, Contract> $activeContracts @param array<string, bool> $careerPlayers @return array<string, list<array{source:Club,membership:ClubSquadMembership,player:Player}>> */
+    private function candidatePool(array $clubs, array $squadsByClub, array $players, array $activeContracts, array $careerPlayers): array
+    {
+        $pool = [];
+        foreach ($clubs as $source) {
+            $sourceEntries = [];
+            foreach ($squadsByClub[$source->id()->value()] ?? [] as $membership) {
+                $player = $players[$membership->playerId()->value()] ?? null;
+                if ($player === null || !isset($activeContracts[$player->id()->value()]) || $player->careerState() !== PlayerCareerState::Active || isset($careerPlayers[$player->id()->value()])) {
+                    continue;
+                }
+                $sourceEntries[$this->positionGroup($player)][] = ['source' => $source, 'membership' => $membership, 'player' => $player];
+            }
+            foreach ($sourceEntries as $group => $entries) {
+                usort($entries, static fn (array $left, array $right): int => ($right['player']->overallRating() <=> $left['player']->overallRating()) ?: strcmp($left['player']->id()->value(), $right['player']->id()->value()));
+                foreach (array_slice($entries, 0, 2) as $entry) {
+                    $pool[$group][] = $entry;
+                }
+            }
+        }
+
+        return $pool;
+    }
+
+    /** @param list<ClubSquadMembership> $sourceSquad @param array<string, Player> $players */
+    private function sourceHasSurplus(array $sourceSquad, Player $candidate, array $players): bool
+    {
+        $sameGroup = 0;
+        foreach ($sourceSquad as $membership) {
+            $player = $players[$membership->playerId()->value()] ?? null;
+            if ($player !== null && $this->positionGroup($player) === $this->positionGroup($candidate)) {
+                ++$sameGroup;
+            }
+        }
+
+        return $sameGroup > self::GROUP_IDEALS[$this->positionGroup($candidate)];
+    }
+
+    /** @param list<ClubSquadMembership> $sourceSquad @param array<string, Player> $players @param array<string, array{appearances:int,starts:int,minutes:int}> $usage */
+    private function movementPressure(Club $source, Player $player, ClubSquadMembership $membership, array $sourceSquad, array $players, array $usage, SimulationDate $asOfDate): int
+    {
+        $group = $this->positionGroup($player);
+        $sameGroup = [];
+        foreach ($sourceSquad as $sourceMembership) {
+            $other = $players[$sourceMembership->playerId()->value()] ?? null;
+            if ($other !== null && $this->positionGroup($other) === $group) {
+                $sameGroup[] = $other;
+            }
+        }
+        $better = count(array_filter($sameGroup, static fn (Player $other): bool => $other->overallRating() > $player->overallRating()));
+        $pressure = match ($membership->role()) {
+            SquadRole::Prospect => 65,
+            SquadRole::Rotation => 45,
+            SquadRole::Regular => 20,
+            SquadRole::KeyPlayer => 0,
+        };
+        $pressure += min(30, $better * 5);
+        $pressure += max(0, $source->reputation() - $player->overallRating() - 8) * 2;
+        $pressure += max(0, $player->overallRating() - $source->reputation()) * 2;
+        $pressure += max(0, $player->potential() - $player->overallRating());
+        if (isset($usage[$player->id()->value()])) {
+            $minutes = $usage[$player->id()->value()]['minutes'];
+            if ($minutes < 900) {
+                $pressure += min(35, 10 + intdiv(900 - $minutes, 30));
+            }
+            if ($usage[$player->id()->value()]['appearances'] === 0) {
+                $pressure += 12;
+            }
+        }
+        if ($player->ageAt($asOfDate) >= 31) {
+            $pressure += 10;
+        }
+
+        return $pressure;
+    }
+
+    /** @return array<string, array{appearances:int,starts:int,minutes:int}> */
+    private function usageByPlayer(DatabaseInterface $database, Season $season): array
+    {
+        $tableExists = $database->connection()->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'match_player_stats'")->fetchColumn();
+        if ($tableExists === false) {
+            return [];
+        }
+        $statement = $database->connection()->prepare(
+            'SELECT stats.player_id, SUM(stats.appeared) AS appearances, SUM(stats.started) AS starts, SUM(stats.minutes) AS minutes '
+            . 'FROM match_player_stats stats JOIN match_records matches ON matches.id = stats.match_id '
+            . 'JOIN season_records seasons ON seasons.id = matches.season_id '
+            . 'WHERE seasons.start_date = (SELECT MAX(previous.start_date) FROM season_records previous WHERE previous.start_date < :start_date) '
+            . 'AND stats.appeared = 1 GROUP BY stats.player_id'
+        );
+        $statement->execute(['start_date' => $season->startDate()->toIsoString()]);
+        $usage = [];
+        foreach ($statement->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $usage[(string) $row['player_id']] = ['appearances' => (int) $row['appearances'], 'starts' => (int) $row['starts'], 'minutes' => (int) $row['minutes']];
+        }
+
+        return $usage;
+    }
+
+    /** @param array{group:string,position:string} $need @param list<ClubSquadMembership> $destinationSquad @param array<string, Player> $players */
+    private function playerWillingness(Club $source, Club $destination, Player $player, ClubSquadMembership $membership, array $need, array $destinationSquad, array $players, SimulationDate $asOfDate): int
+    {
+        $role = $this->roleFor($destination, $player, $destinationSquad, $players, $asOfDate);
+        $score = $destination->reputation() - $source->reputation();
+        $score += $role === SquadRole::Regular || $role === SquadRole::KeyPlayer ? 35 : 15;
+        $score += $player->primaryPosition()->value === $need['position'] ? 15 : 0;
+        $score += $membership->role() === SquadRole::Prospect || $membership->role() === SquadRole::Rotation ? 20 : 0;
+        $score -= max(0, $source->reputation() - $destination->reputation() - 15);
+
+        return $score;
     }
 
     /** @param list<ClubSquadMembership> $sourceSquad @param array{group:string,position:string} $need @param array<string, Player> $players */

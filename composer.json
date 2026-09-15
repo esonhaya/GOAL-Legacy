@@ -28,6 +28,9 @@
             "Goal\\Legacy\\Modules\\Competition\\": "game/modules/competition/",
             "Goal\\Legacy\\Modules\\Club\\": "game/modules/club/",
             "Goal\\Legacy\\Modules\\Player\\": "game/modules/player/",
+            "Goal\\Legacy\\Modules\\Match\\": "game/modules/match/",
+            "Goal\\Legacy\\Modules\\Contract\\": "game/modules/contract/",
+            "Goal\\Legacy\\Modules\\Transfer\\": "game/modules/transfer/",
             "Goal\\Legacy\\": "game/"
         }
     },

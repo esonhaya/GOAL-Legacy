@@ -65,6 +65,23 @@ final class MatchRepository
     public function byStatus(MatchStatus $status): array { $statement = $this->database->connection()->prepare('SELECT * FROM ' . self::TABLE . ' WHERE status = :status ORDER BY scheduled_date ASC, id ASC'); $statement->execute(['status' => $status->value]); return $this->hydrateRows($statement->fetchAll(PDO::FETCH_ASSOC)); }
     /** @return list<GameMatch> */
     public function completedByCompetition(string|CompetitionId $id, SeasonId $seasonId): array { $matches = $this->byCompetition($id, $seasonId); return array_values(array_filter($matches, static fn (GameMatch $match): bool => $match->status() === MatchStatus::Completed)); }
+    /** @return array<string, int> */
+    public function completedCountsByClub(SeasonId $seasonId): array
+    {
+        $statement = $this->database->connection()->prepare(
+            'SELECT club_id, COUNT(*) AS matches FROM ('
+            . 'SELECT home_club_id AS club_id FROM ' . self::TABLE . ' WHERE season_id = :season_id AND status = :status '
+            . 'UNION ALL SELECT away_club_id AS club_id FROM ' . self::TABLE . ' WHERE season_id = :season_id AND status = :status'
+            . ') GROUP BY club_id'
+        );
+        $statement->execute(['season_id' => $seasonId->value(), 'status' => MatchStatus::Completed->value]);
+        $counts = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $counts[(string) $row['club_id']] = (int) $row['matches'];
+        }
+
+        return $counts;
+    }
 
     /** @return array<string, mixed>|null */
     private function findRow(MatchId $id): ?array { $statement = $this->database->connection()->prepare('SELECT * FROM ' . self::TABLE . ' WHERE id = :id'); $statement->execute(['id' => $id->value()]); $row = $statement->fetch(); return is_array($row) ? $row : null; }

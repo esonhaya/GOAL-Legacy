@@ -55,6 +55,9 @@ final class PlayerCareerProgressionQuery
         $summary['club_ids'] = array_map(static fn ($membership): string => $membership->clubId()->value(), $memberships);
         $membership = $memberships[0] ?? null;
         $summary['squad_role'] = $membership?->role()->value;
+        if ($seasonId !== null) {
+            $summary['season_performance'] = (new PlayerSeasonPerformanceService())->assess($database, $id, $seasonId, $membership?->clubId())->toArray();
+        }
         $summary['recent_form'] = (new PlayerFormService())->recent($database, $id);
         $selectionRepository = new MatchSelectionRepository($database);
         $matchRepository = new MatchRepository($database);

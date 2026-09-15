@@ -25,6 +25,8 @@ use Goal\Legacy\Modules\Match\MatchService;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Player\PlayerPopulationService;
 use Goal\Legacy\Modules\Player\PlayerLifecycleService;
+use Goal\Legacy\Modules\Player\PlayerSeasonPerformanceService;
+use Goal\Legacy\Modules\Player\Domain\SeasonPerformanceAssessment;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunityType;
@@ -146,6 +148,7 @@ final class SeasonRolloverService
                 }
             }
         }
+        $performanceByPlayer = (new PlayerSeasonPerformanceService())->assessMany($database, $current->id());
         $controlledBoundaryPlayers = [];
         if ($this->transferService !== null) {
             $careerMovement = $this->transferService->careerMovement();
@@ -170,7 +173,7 @@ final class SeasonRolloverService
                 }
                 $controlledBoundaryPlayers[$playerId] = true;
                 $club = $this->clubService->repository($database)->get($membership->clubId());
-                $careerMovement->prepareContractDecision($database, $player->id(), $current, $next, $asOfDate, $membership, $this->shouldRenew($club, $player, $membership, $next->startDate()));
+                $careerMovement->prepareContractDecision($database, $player->id(), $current, $next, $asOfDate, $membership, $this->shouldRenew($club, $player, $membership, $next->startDate(), $performanceByPlayer[$playerId] ?? null));
             }
         }
         $renewed = 0;
@@ -178,7 +181,7 @@ final class SeasonRolloverService
         $carried = 0;
         $phaseStart = hrtime(true);
         foreach ($clubs as $club) {
-            $result = $database->transaction(fn (): array => $this->continueClubSquadInTransaction($database, $club, $byClub[$club->id()->value()] ?? [], $next, $asOfDate, $playersById, $contractsByPlayer, $contractsById, $activeContractsByPlayer, $controlledBoundaryPlayers));
+            $result = $database->transaction(fn (): array => $this->continueClubSquadInTransaction($database, $club, $byClub[$club->id()->value()] ?? [], $next, $asOfDate, $playersById, $contractsByPlayer, $contractsById, $activeContractsByPlayer, $controlledBoundaryPlayers, $performanceByPlayer));
             $renewed += $result['renewed'];
             $released += $result['released'];
             $carried += $result['carried'];
@@ -354,7 +357,7 @@ final class SeasonRolloverService
     }
 
     /** @param list<ClubSquadMembership> $memberships @return array{renewed: int, released: int, carried: int} */
-    private function continueClubSquadInTransaction(DatabaseInterface $database, Club $club, array $memberships, Season $next, SimulationDate $asOfDate, array $playersById, array $contractsByPlayer, array &$contractsById, array &$activeContractsByPlayer, array $controlledBoundaryPlayers = []): array
+    private function continueClubSquadInTransaction(DatabaseInterface $database, Club $club, array $memberships, Season $next, SimulationDate $asOfDate, array $playersById, array $contractsByPlayer, array &$contractsById, array &$activeContractsByPlayer, array $controlledBoundaryPlayers = [], array $performanceByPlayer = []): array
     {
         $squads = $this->clubService->squadRepository($database);
         $contracts = $this->contractService->repository($database);
@@ -390,7 +393,7 @@ final class SeasonRolloverService
             }
             $needsRenewal = $candidate === null || $candidate->endDate()->isBefore($next->startDate());
             if ($needsRenewal) {
-                if (!$this->shouldRenew($club, $player, $membership, $next->startDate())) {
+                if (!$this->shouldRenew($club, $player, $membership, $next->startDate(), $performanceByPlayer[$player->id()->value()] ?? null)) {
                     ++$released;
                     continue;
                 }
@@ -419,10 +422,16 @@ final class SeasonRolloverService
         return ['renewed' => $renewed, 'released' => $released, 'carried' => $carried];
     }
 
-    private function shouldRenew(Club $club, Player $player, ClubSquadMembership $membership, SimulationDate $date): bool
+    private function shouldRenew(Club $club, Player $player, ClubSquadMembership $membership, SimulationDate $date, ?SeasonPerformanceAssessment $performance = null): bool
     {
         $age = $player->ageAt($date);
         if ($age >= 34 && $player->overallRating() < max(60, $club->reputation() - 10)) {
+            return false;
+        }
+        if ($performance !== null && in_array($performance->classification(), ['breakout', 'strong'], true) && $age < 34 && $player->overallRating() >= max(45, $club->reputation() - 30)) {
+            return true;
+        }
+        if ($performance?->classification() === 'stagnant' && $age > 23 && $membership->role() !== SquadRole::KeyPlayer && $player->overallRating() < max(55, $club->reputation() - 18)) {
             return false;
         }
         if ($membership->role() === SquadRole::KeyPlayer || $membership->role() === SquadRole::Regular) {

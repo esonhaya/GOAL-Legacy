@@ -17,6 +17,7 @@ use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
 use Goal\Legacy\Modules\Player\PlayerFormService;
+use Goal\Legacy\Modules\Player\PlayerSeasonPerformanceService;
 use Goal\Legacy\Modules\Player\PlayerPopulationService;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunity;
 use Goal\Legacy\Modules\Player\Domain\CareerPlayerReference;
@@ -499,6 +500,10 @@ final class CareerMovementService
             'current_club_id' => $sourceClub->id()->value(),
             'current_contract_id' => $currentContract?->id()->value(),
             'current_role' => $currentMembership->role()->value,
+            'performance' => [
+                'classification' => (string) ($currentMetrics['performance'] ?? 'insufficient_evidence'),
+                'score' => (int) ($currentMetrics['performance_score'] ?? 0),
+            ],
             'options' => $options,
         ];
         $opportunity = new CareerOpportunity(
@@ -854,6 +859,9 @@ final class CareerMovementService
         $rank = $this->positionRank($database, $player, $clubId, $seasonId);
         $stats['position_rank'] = $rank;
         $stats['form'] = (new PlayerFormService())->recent($database, $player->id())['average_score'];
+        $performance = (new PlayerSeasonPerformanceService())->assess($database, $player->id(), $seasonId, $clubId);
+        $stats['performance'] = $performance->classification();
+        $stats['performance_score'] = $performance->score();
 
         return $stats;
     }
@@ -894,11 +902,17 @@ final class CareerMovementService
         $need = max(0, 25 - $target['position_count'] * 4) + max(0, (int) round(70 - $target['position_average']));
         $quality = max(0, 30 - abs($player->overallRating() - (int) round($target['position_average'])));
         $form = max(0, (int) $current['form'] - 60);
+        $performance = match ((string) ($current['performance'] ?? 'insufficient_evidence')) {
+            'breakout' => 12,
+            'strong' => 8,
+            'steady' => 2,
+            default => 0,
+        };
         $potential = max(0, $player->potential() - $player->overallRating());
         $levelFit = max(0, 20 - abs($targetReputation - $player->overallRating()));
         $pressure = ($current['position_rank'] > 8 ? 20 : 0) + ((int) $current['minutes'] < 900 ? 15 : 0) + ($role === SquadRole::Prospect ? 8 : 0);
 
-        return (int) round($playingTime + $need + $quality + $form + min(20, $potential) + $levelFit + $pressure + max(0, $targetReputation - $currentReputation) / 2);
+        return (int) round($playingTime + $need + $quality + $form + $performance + min(20, $potential) + $levelFit + $pressure + max(0, $targetReputation - $currentReputation) / 2);
     }
 
     /** @param array<string, int|float|string> $current @param array{position_rank:int,position_average:float,position_count:int} $target */
@@ -921,6 +935,7 @@ final class CareerMovementService
         if ((int) $current['position_rank'] > $target['position_rank'] || (int) $current['minutes'] < 900) { $reasons[] = 'playing_time'; }
         if ($target['position_count'] < 4 || $target['position_average'] < 70) { $reasons[] = 'positional_need'; }
         if ((int) $current['form'] >= 75) { $reasons[] = 'strong_form'; }
+        if (in_array((string) ($current['performance'] ?? ''), ['breakout', 'strong'], true)) { $reasons[] = 'season_performance'; }
         if ($player->potential() - $player->overallRating() >= 15) { $reasons[] = 'high_potential'; }
         if ($targetReputation > $currentReputation + 5) { $reasons[] = 'step_up'; }
         if ($reasons === []) { $reasons[] = 'squad_depth_upgrade'; }
@@ -941,6 +956,8 @@ final class CareerMovementService
             'current_position_rank' => (int) $current['position_rank'],
             'target_position_rank' => $target['position_rank'],
             'current_minutes' => (int) $current['minutes'],
+            'performance_classification' => (string) ($current['performance'] ?? 'insufficient_evidence'),
+            'performance_score' => (int) ($current['performance_score'] ?? 0),
             'target_position_average' => round($target['position_average'], 1),
             'expected_playing_time' => $role === SquadRole::KeyPlayer || $role === SquadRole::Regular ? 'regular' : 'rotation',
             'current_role' => $currentRole->value,

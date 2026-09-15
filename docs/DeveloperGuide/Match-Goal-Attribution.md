@@ -38,6 +38,5 @@ and includes goal highlights for an assisting Player. DOMAIN-022 career
 classification and downstream Contract/market/role/development policies do
 not consume assists in this milestone.
 
-Detailed event chains and statistics such as shots, ratings, expected assists,
-defensive actions, saves, cards, and set-piece/own-goal semantics remain
-deferred.
+Detailed event chains and statistics such as ratings, expected assists,
+defensive actions, cards, and set-piece/own-goal semantics remain deferred.

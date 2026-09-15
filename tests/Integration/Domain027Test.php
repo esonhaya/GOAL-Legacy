@@ -132,7 +132,7 @@ final class Domain027Test extends TestCase
         $repository->replaceForMatch($stats);
         self::assertSame(0, array_values(array_filter($repository->byMatch($match->id()), static fn ($stat): bool => $stat->playerId()->value() === 'domain-027-zero'))[0]->assists());
         $aggregate = $repository->seasonAggregatesForPlayer($p1, $season->id())['arsenal'];
-        self::assertSame(['club_id' => 'arsenal', 'appearances' => 1, 'starts' => 1, 'minutes' => 90, 'goals' => 2, 'assists' => 1], $aggregate);
+        self::assertSame(['club_id' => 'arsenal', 'appearances' => 1, 'starts' => 1, 'minutes' => 90, 'goals' => 2, 'assists' => 1, 'shots' => 2, 'shots_on_target' => 2, 'saves' => 0, 'clean_sheets' => 0], $aggregate);
         $repository->replaceForMatch($stats);
         self::assertCount(3, $repository->byMatch($match->id()));
     }

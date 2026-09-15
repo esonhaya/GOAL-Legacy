@@ -59,6 +59,14 @@ final class MatchSimulationService
             $scorer = $this->scorerAtMinute($match->id()->value(), $active, $minute, $i);
             $goalEvents[] = ['club' => $match->awayClubId()->value(), 'player' => $scorer, 'assist' => $this->assistAtMinute($match->id()->value(), $active, $scorer, $minute, $i), 'minute' => $minute, 'side' => 'away', 'type' => 'goal'];
         }
+        $shotCounts = [];
+        $shotsOnTargetCounts = [];
+        $saveCounts = [];
+        $cleanSheetCounts = [];
+        $this->additionalAttempts($match->id()->value(), 'home', $homeStarters, $homeSubstitutions, $awayStarters, $awaySubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts);
+        $this->additionalAttempts($match->id()->value(), 'away', $awayStarters, $awaySubstitutions, $homeStarters, $homeSubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts);
+        $this->applyCleanSheet($awayGoals === 0, $homeStarters, $homeSubstitutions, $playersById, $cleanSheetCounts);
+        $this->applyCleanSheet($homeGoals === 0, $awayStarters, $awaySubstitutions, $playersById, $cleanSheetCounts);
         foreach ($substitutions as $substitution) {
             $goalEvents[] = ['club' => $substitution->clubId()->value(), 'player' => $substitution->incomingPlayerId()->value(), 'minute' => $substitution->minute(), 'side' => $substitution->clubId()->value(), 'type' => 'substitution', 'substitution' => $substitution];
         }
@@ -69,6 +77,8 @@ final class MatchSimulationService
         foreach ($goalEvents as $index => $event) {
             if ($event['type'] === 'goal' && $event['player'] !== null) {
                 $goalCounts[$event['player']] = ($goalCounts[$event['player']] ?? 0) + 1;
+                $shotCounts[$event['player']] = ($shotCounts[$event['player']] ?? 0) + 1;
+                $shotsOnTargetCounts[$event['player']] = ($shotsOnTargetCounts[$event['player']] ?? 0) + 1;
                 if ($event['assist'] !== null) {
                     $assistCounts[$event['assist']] = ($assistCounts[$event['assist']] ?? 0) + 1;
                 }
@@ -82,8 +92,8 @@ final class MatchSimulationService
             }
         }
         $stats = [];
-        foreach ($this->participantStats($match, $match->homeClubId(), $homeStarters, $homeSubstitutions, $goalCounts, $assistCounts, $playersById) as $stat) { $stats[] = $stat; }
-        foreach ($this->participantStats($match, $match->awayClubId(), $awayStarters, $awaySubstitutions, $goalCounts, $assistCounts, $playersById) as $stat) { $stats[] = $stat; }
+        foreach ($this->participantStats($match, $match->homeClubId(), $homeStarters, $homeSubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $playersById) as $stat) { $stats[] = $stat; }
+        foreach ($this->participantStats($match, $match->awayClubId(), $awayStarters, $awaySubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $playersById) as $stat) { $stats[] = $stat; }
         return new MatchSimulation($result, $stats, $highlights, $selections, $substitutions);
     }
 
@@ -191,6 +201,70 @@ final class MatchSimulationService
         } + intdiv($player->attributes()->passing(), 5) + intdiv($player->attributes()->dribbling(), 8)));
     }
 
+    /** @param list<Player> $attackers @param list<MatchSubstitution> $attackerSubs @param list<Player> $defenders @param list<MatchSubstitution> $defenderSubs @param array<string, Player> $playersById @param array<string, int> $shotCounts @param array<string, int> $shotsOnTargetCounts @param array<string, int> $saveCounts */
+    private function additionalAttempts(string $matchId, string $side, array $attackers, array $attackerSubs, array $defenders, array $defenderSubs, array $playersById, array &$shotCounts, array &$shotsOnTargetCounts, array &$saveCounts): void
+    {
+        $attempts = 4 + (int) floor($this->unit($matchId . '|' . $side . '|shot-count') * 5);
+        for ($index = 0; $index < $attempts; ++$index) {
+            $minute = 1 + (int) floor($this->unit($matchId . '|' . $side . '|shot-minute|' . $index) * 89);
+            $activeAttackers = $this->activePlayersAtMinute($attackers, $attackerSubs, $minute, $playersById);
+            $shooter = $this->scorerAtMinute($matchId . '|shot|' . $side, $activeAttackers, $minute, $index);
+            if ($shooter === null) { continue; }
+            $shotCounts[$shooter] = ($shotCounts[$shooter] ?? 0) + 1;
+            $shooterPlayer = $playersById[$shooter] ?? null;
+            if ($shooterPlayer === null || $this->unit($matchId . '|' . $side . '|shot-target|' . $index) >= $this->shotOnTargetChance($shooterPlayer)) { continue; }
+            $shotsOnTargetCounts[$shooter] = ($shotsOnTargetCounts[$shooter] ?? 0) + 1;
+            $goalkeeper = $this->goalkeeperAtMinute($defenders, $defenderSubs, $minute, $playersById);
+            if ($goalkeeper !== null) { $saveCounts[$goalkeeper->id()->value()] = ($saveCounts[$goalkeeper->id()->value()] ?? 0) + 1; }
+        }
+    }
+
+    private function shotOnTargetChance(Player $player): float
+    {
+        $positionBonus = match ($player->primaryPosition()->value) {
+            'ST' => 0.18,
+            'LW', 'RW', 'AM' => 0.14,
+            'CM', 'DM' => 0.08,
+            'CB', 'LB', 'RB' => 0.04,
+            'GK' => 0.01,
+        };
+
+        return min(0.75, 0.18 + $positionBonus + ($player->attributes()->shooting() / 500));
+    }
+
+    /** @param list<Player> $starters @param list<MatchSubstitution> $substitutions @param array<string, Player> $playersById */
+    private function goalkeeperAtMinute(array $starters, array $substitutions, int $minute, array $playersById): ?Player
+    {
+        foreach ($this->activePlayersAtMinute($starters, $substitutions, $minute, $playersById) as $player) {
+            if ($player->primaryPosition()->value === 'GK') { return $player; }
+        }
+
+        return null;
+    }
+
+    /** @param list<Player> $starters @param list<MatchSubstitution> $substitutions @param array<string, Player> $playersById @param array<string, int> $cleanSheetCounts */
+    private function applyCleanSheet(bool $cleanSheet, array $starters, array $substitutions, array $playersById, array &$cleanSheetCounts): void
+    {
+        if (!$cleanSheet) { return; }
+        $participants = $this->participatingPlayers($starters, $substitutions, $playersById);
+        if (array_filter($participants, static fn (Player $player): bool => $player->primaryPosition()->value === 'GK') === []) { return; }
+        foreach ($participants as $player) {
+            if (in_array($player->primaryPosition()->value, ['GK', 'CB', 'LB', 'RB'], true)) { $cleanSheetCounts[$player->id()->value()] = 1; }
+        }
+    }
+
+    /** @param list<Player> $starters @param list<MatchSubstitution> $substitutions @param array<string, Player> $playersById @return list<Player> */
+    private function participatingPlayers(array $starters, array $substitutions, array $playersById): array
+    {
+        $players = $starters;
+        foreach ($substitutions as $substitution) {
+            $incoming = $playersById[$substitution->incomingPlayerId()->value()] ?? null;
+            if ($incoming !== null) { $players[] = $incoming; }
+        }
+
+        return $players;
+    }
+
     /** @param list<Player> $players @param callable(Player): int $weight */
     private function weightedPlayer(array $players, string $key, callable $weight): string
     {
@@ -206,8 +280,8 @@ final class MatchSimulationService
         return $players[array_key_last($players)]->id()->value();
     }
 
-    /** @param list<Player> $starters @param list<MatchSubstitution> $substitutions @param array<string, int> $goalCounts @param array<string, int> $assistCounts @return list<PlayerMatchStat> */
-    private function participantStats(GameMatch $match, \Goal\Legacy\Modules\Club\Domain\ClubId $clubId, array $starters, array $substitutions, array $goalCounts, array $assistCounts, array $playersById): array
+    /** @param list<Player> $starters @param list<MatchSubstitution> $substitutions @param array<string, int> $goalCounts @param array<string, int> $assistCounts @param array<string, int> $shotCounts @param array<string, int> $shotsOnTargetCounts @param array<string, int> $saveCounts @param array<string, int> $cleanSheetCounts @return list<PlayerMatchStat> */
+    private function participantStats(GameMatch $match, \Goal\Legacy\Modules\Club\Domain\ClubId $clubId, array $starters, array $substitutions, array $goalCounts, array $assistCounts, array $shotCounts, array $shotsOnTargetCounts, array $saveCounts, array $cleanSheetCounts, array $playersById): array
     {
         $outgoingMinutes = [];
         foreach ($substitutions as $substitution) {
@@ -216,13 +290,13 @@ final class MatchSimulationService
         $stats = [];
         foreach ($starters as $starter) {
             $id = $starter->id()->value();
-            $stats[] = new PlayerMatchStat($match->id(), $starter->id(), $clubId, true, true, $outgoingMinutes[$id] ?? 90, $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0);
+            $stats[] = new PlayerMatchStat($match->id(), $starter->id(), $clubId, true, true, $outgoingMinutes[$id] ?? 90, $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0, $shotCounts[$id] ?? 0, $shotsOnTargetCounts[$id] ?? 0, $saveCounts[$id] ?? 0, $cleanSheetCounts[$id] ?? 0);
         }
         foreach ($substitutions as $substitution) {
             $incoming = $playersById[$substitution->incomingPlayerId()->value()] ?? null;
             if ($incoming === null) { continue; }
             $id = $incoming->id()->value();
-            $stats[] = new PlayerMatchStat($match->id(), $incoming->id(), $clubId, true, false, 90 - $substitution->minute(), $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0);
+            $stats[] = new PlayerMatchStat($match->id(), $incoming->id(), $clubId, true, false, 90 - $substitution->minute(), $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0, $shotCounts[$id] ?? 0, $shotsOnTargetCounts[$id] ?? 0, $saveCounts[$id] ?? 0, $cleanSheetCounts[$id] ?? 0);
         }
 
         return $stats;

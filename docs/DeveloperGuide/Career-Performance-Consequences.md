@@ -2,8 +2,8 @@
 
 DOMAIN-022 derives one deterministic assessment for a completed Season from
 the existing Match path. `match_player_stats` is authoritative for
-appearances, starts, minutes, goals, and (from DOMAIN-027) assists; ratings,
-clean sheets, saves, and position-specific contribution metrics are not
+appearances, starts, minutes, goals, assists, shots, shots on target, saves,
+and clean sheets; ratings and position-specific contribution metrics are not
 stored and are therefore not inferred.
 
 The assessment normalizes participation against completed Matches played by

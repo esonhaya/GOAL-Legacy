@@ -10,13 +10,22 @@ use InvalidArgumentException;
 
 final readonly class PlayerMatchStat
 {
-    public function __construct(private MatchId $matchId, private PlayerId $playerId, private ClubId $clubId, private bool $appeared, private bool $started, private int $minutes, private int $goals, private int $assists = 0)
+    private int $shots;
+    private int $shotsOnTarget;
+    private int $saves;
+    private int $cleanSheets;
+
+    public function __construct(private MatchId $matchId, private PlayerId $playerId, private ClubId $clubId, private bool $appeared, private bool $started, private int $minutes, private int $goals, private int $assists = 0, ?int $shots = null, ?int $shotsOnTarget = null, int $saves = 0, int $cleanSheets = 0)
     {
-        if (!$appeared && ($started || $minutes !== 0 || $goals !== 0 || $assists !== 0)) { throw new InvalidArgumentException('A non-appearing Player cannot have Match statistics.'); }
+        $this->shots = $shots ?? $goals;
+        $this->shotsOnTarget = $shotsOnTarget ?? $goals;
+        $this->saves = $saves;
+        $this->cleanSheets = $cleanSheets;
+        if (!$appeared && ($started || $minutes !== 0 || $goals !== 0 || $assists !== 0 || $this->shots !== 0 || $this->shotsOnTarget !== 0 || $this->saves !== 0 || $this->cleanSheets !== 0)) { throw new InvalidArgumentException('A non-appearing Player cannot have Match statistics.'); }
         if ($appeared && $minutes < 1) { throw new InvalidArgumentException('An appearing Player must have positive Match minutes.'); }
         if ($started && !$appeared) { throw new InvalidArgumentException('A starting Player must appear in the Match.'); }
-        if ($minutes < 0 || $minutes > 90 || $goals < 0 || $assists < 0) { throw new InvalidArgumentException('Player Match statistics are outside the Phase-1 bounds.'); }
-        if ($goals > $minutes) { throw new InvalidArgumentException('Player goals cannot exceed minutes played.'); }
+        if ($minutes < 0 || $minutes > 90 || $goals < 0 || $assists < 0 || $this->shots < 0 || $this->shotsOnTarget < 0 || $this->saves < 0 || $this->cleanSheets < 0 || $this->cleanSheets > 1) { throw new InvalidArgumentException('Player Match statistics are outside the Phase-1 bounds.'); }
+        if ($goals > $minutes || $this->shotsOnTarget > $this->shots || $goals > $this->shotsOnTarget) { throw new InvalidArgumentException('Player Match statistics do not reconcile.'); }
     }
     public function matchId(): MatchId { return $this->matchId; }
     public function playerId(): PlayerId { return $this->playerId; }
@@ -26,6 +35,10 @@ final readonly class PlayerMatchStat
     public function minutes(): int { return $this->minutes; }
     public function goals(): int { return $this->goals; }
     public function assists(): int { return $this->assists; }
+    public function shots(): int { return $this->shots; }
+    public function shotsOnTarget(): int { return $this->shotsOnTarget; }
+    public function saves(): int { return $this->saves; }
+    public function cleanSheets(): int { return $this->cleanSheets; }
     /** @return array<string, mixed> */
-    public function toArray(): array { return ['match_id' => $this->matchId->value(), 'player_id' => $this->playerId->value(), 'club_id' => $this->clubId->value(), 'appeared' => $this->appeared ? 1 : 0, 'started' => $this->started ? 1 : 0, 'minutes' => $this->minutes, 'goals' => $this->goals, 'assists' => $this->assists]; }
+    public function toArray(): array { return ['match_id' => $this->matchId->value(), 'player_id' => $this->playerId->value(), 'club_id' => $this->clubId->value(), 'appeared' => $this->appeared ? 1 : 0, 'started' => $this->started ? 1 : 0, 'minutes' => $this->minutes, 'goals' => $this->goals, 'assists' => $this->assists, 'shots' => $this->shots, 'shots_on_target' => $this->shotsOnTarget, 'saves' => $this->saves, 'clean_sheets' => $this->cleanSheets]; }
 }

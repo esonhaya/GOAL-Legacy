@@ -2,9 +2,9 @@
 
 DOMAIN-022 derives one deterministic assessment for a completed Season from
 the existing Match path. `match_player_stats` is authoritative for
-appearances, starts, minutes, and goals; assists, ratings, clean sheets,
-saves, and position-specific contribution metrics are not currently stored
-and are therefore not inferred.
+appearances, starts, minutes, goals, and (from DOMAIN-027) assists; ratings,
+clean sheets, saves, and position-specific contribution metrics are not
+stored and are therefore not inferred.
 
 The assessment normalizes participation against completed Matches played by
 the Player's Club. Its classifications are `breakout`, `strong`, `steady`,
@@ -30,6 +30,15 @@ transfer, or offer. NPC lifecycle policy remains owned by Season rollover;
 controlled Players retain DOMAIN-019/020 choice semantics. Historical Match
 statistics remain attached to their original Season and Club context after a
 transfer.
+
+DOMAIN-027 extends the same Match-stat owner with deterministic scorer and
+single-assist attribution. Goal attribution uses active selected Players at
+the goal minute, with bounded position/attribute weights; an assist is
+optional, belongs to a different active teammate, and is persisted as zero
+for historical rows without the column. The new assist aggregate is factual
+data only in this phase: the performance classification above deliberately
+continues to use its existing participation/goals inputs, and Career Hub
+presentation may omit assists until its read model is expanded.
 
 At the Season boundary, the existing `ClubExpectationService` and
 `ClubSquadRepository` apply one bounded role consequence to the next-season

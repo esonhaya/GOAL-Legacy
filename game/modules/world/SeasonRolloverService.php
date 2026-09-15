@@ -26,6 +26,7 @@ use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Player\PlayerPopulationService;
 use Goal\Legacy\Modules\Player\PlayerLifecycleService;
 use Goal\Legacy\Modules\Player\PlayerSeasonPerformanceService;
+use Goal\Legacy\Modules\Player\ClubExpectationService;
 use Goal\Legacy\Modules\Player\Domain\SeasonPerformanceAssessment;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
@@ -149,6 +150,27 @@ final class SeasonRolloverService
             }
         }
         $performanceByPlayer = (new PlayerSeasonPerformanceService())->assessMany($database, $current->id());
+        $roleService = new ClubExpectationService($this->clubService);
+        $nextRolesByPlayer = [];
+        foreach ($byClub as $clubId => $memberships) {
+            $squadPlayers = [];
+            foreach ($memberships as $membership) {
+                if (isset($playersById[$membership->playerId()->value()])) {
+                    $squadPlayers[] = $playersById[$membership->playerId()->value()];
+                }
+            }
+            foreach ($memberships as $membership) {
+                $player = $playersById[$membership->playerId()->value()] ?? null;
+                if ($player === null) {
+                    continue;
+                }
+                $assessment = $performanceByPlayer[$player->id()->value()] ?? null;
+                if ($assessment === null) {
+                    continue;
+                }
+                $nextRolesByPlayer[$clubId . '|' . $player->id()->value()] = $roleService->roleAfterSeasonPerformance($player, $membership, $assessment, $squadPlayers);
+            }
+        }
         $controlledBoundaryPlayers = [];
         if ($this->transferService !== null) {
             $careerMovement = $this->transferService->careerMovement();
@@ -173,7 +195,8 @@ final class SeasonRolloverService
                 }
                 $controlledBoundaryPlayers[$playerId] = true;
                 $club = $this->clubService->repository($database)->get($membership->clubId());
-                $careerMovement->prepareContractDecision($database, $player->id(), $current, $next, $asOfDate, $membership, $this->shouldRenew($club, $player, $membership, $next->startDate(), $performanceByPlayer[$playerId] ?? null));
+                $nextRole = $nextRolesByPlayer[$membership->clubId()->value() . '|' . $playerId] ?? $membership->role();
+                $careerMovement->prepareContractDecision($database, $player->id(), $current, $next, $asOfDate, $membership, $this->shouldRenew($club, $player, $membership, $next->startDate(), $performanceByPlayer[$playerId] ?? null), $nextRole);
             }
         }
         $renewed = 0;
@@ -181,7 +204,7 @@ final class SeasonRolloverService
         $carried = 0;
         $phaseStart = hrtime(true);
         foreach ($clubs as $club) {
-            $result = $database->transaction(fn (): array => $this->continueClubSquadInTransaction($database, $club, $byClub[$club->id()->value()] ?? [], $next, $asOfDate, $playersById, $contractsByPlayer, $contractsById, $activeContractsByPlayer, $controlledBoundaryPlayers, $performanceByPlayer));
+            $result = $database->transaction(fn (): array => $this->continueClubSquadInTransaction($database, $club, $byClub[$club->id()->value()] ?? [], $next, $asOfDate, $playersById, $contractsByPlayer, $contractsById, $activeContractsByPlayer, $controlledBoundaryPlayers, $performanceByPlayer, $nextRolesByPlayer));
             $renewed += $result['renewed'];
             $released += $result['released'];
             $carried += $result['carried'];
@@ -357,7 +380,7 @@ final class SeasonRolloverService
     }
 
     /** @param list<ClubSquadMembership> $memberships @return array{renewed: int, released: int, carried: int} */
-    private function continueClubSquadInTransaction(DatabaseInterface $database, Club $club, array $memberships, Season $next, SimulationDate $asOfDate, array $playersById, array $contractsByPlayer, array &$contractsById, array &$activeContractsByPlayer, array $controlledBoundaryPlayers = [], array $performanceByPlayer = []): array
+    private function continueClubSquadInTransaction(DatabaseInterface $database, Club $club, array $memberships, Season $next, SimulationDate $asOfDate, array $playersById, array $contractsByPlayer, array &$contractsById, array &$activeContractsByPlayer, array $controlledBoundaryPlayers = [], array $performanceByPlayer = [], array $nextRolesByPlayer = []): array
     {
         $squads = $this->clubService->squadRepository($database);
         $contracts = $this->contractService->repository($database);
@@ -412,7 +435,8 @@ final class SeasonRolloverService
                     ++$renewed;
                 }
             }
-            $nextMembership = new ClubSquadMembership($club->id(), $player->id(), $next->id(), $membership->role());
+            $nextRole = $nextRolesByPlayer[$club->id()->value() . '|' . $player->id()->value()] ?? $membership->role();
+            $nextMembership = new ClubSquadMembership($club->id(), $player->id(), $next->id(), $nextRole);
             if (!$squads->exists($nextMembership)) {
                 $squads->save($nextMembership);
             }

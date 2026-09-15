@@ -438,7 +438,7 @@ final class CareerMovementService
      * boundary.  NPC renewal policy remains owned by SeasonRolloverService;
      * this method only turns its current-club result into career options.
      */
-    public function prepareContractDecision(DatabaseInterface $database, PlayerId|string $playerId, Season $currentSeason, Season $nextSeason, SimulationDate $date, ClubSquadMembership $currentMembership, bool $currentClubOffersRenewal): ?CareerOpportunity
+    public function prepareContractDecision(DatabaseInterface $database, PlayerId|string $playerId, Season $currentSeason, Season $nextSeason, SimulationDate $date, ClubSquadMembership $currentMembership, bool $currentClubOffersRenewal, ?SquadRole $nextSeasonRole = null): ?CareerOpportunity
     {
         $playerId = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
         if (!in_array($playerId->value(), (new CareerPlayerRepository($database))->playerIds(), true)) {
@@ -464,7 +464,7 @@ final class CareerMovementService
                 'club_id' => $sourceClub->id()->value(),
                 'contract_end_date' => $nextSeason->endDate()->addDays(365)->toIsoString(),
                 'wage' => max(100, ($sourceClub->reputation() * 10) + ($player->overallRating() * 5)),
-                'role' => $currentMembership->role()->value,
+                'role' => ($nextSeasonRole ?? $currentMembership->role())->value,
             ];
         }
         foreach ($this->contractBoundaryCandidates($database, $player, $sourceClub, $currentMembership, $currentMetrics, $currentSeason) as $candidate) {
@@ -500,6 +500,7 @@ final class CareerMovementService
             'current_club_id' => $sourceClub->id()->value(),
             'current_contract_id' => $currentContract?->id()->value(),
             'current_role' => $currentMembership->role()->value,
+            'next_role' => ($nextSeasonRole ?? $currentMembership->role())->value,
             'performance' => [
                 'classification' => (string) ($currentMetrics['performance'] ?? 'insufficient_evidence'),
                 'score' => (int) ($currentMetrics['performance_score'] ?? 0),

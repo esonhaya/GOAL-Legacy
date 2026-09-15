@@ -18,6 +18,8 @@ use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunity;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunityType;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunityStatus;
+use Goal\Legacy\Modules\Player\Domain\Player;
+use Goal\Legacy\Modules\Player\Domain\SeasonPerformanceAssessment;
 use Goal\Legacy\Modules\Player\Persistence\CareerEvaluationRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 
@@ -81,6 +83,48 @@ final class ClubExpectationService
         $base['expectation_status'] = $latest['expectation_status'] ?? 'unassessed';
 
         return $base;
+    }
+
+    /**
+     * Derive one bounded next-Season role from the canonical Season
+     * assessment. The caller supplies the Club squad so this remains a small
+     * same-position comparison rather than a second ranking engine.
+     *
+     * @param list<Player> $squadPlayers
+     */
+    public function roleAfterSeasonPerformance(Player $player, ClubSquadMembership $membership, SeasonPerformanceAssessment $assessment, array $squadPlayers): SquadRole
+    {
+        $role = $membership->role();
+        $classification = $assessment->classification();
+        $samePosition = array_values(array_filter($squadPlayers, static fn (Player $candidate): bool => $candidate->primaryPosition()->value === $player->primaryPosition()->value && $candidate->id()->value() !== $player->id()->value()));
+        $betterPlayers = count(array_filter($samePosition, static fn (Player $candidate): bool => $candidate->overallRating() > $player->overallRating()));
+
+        if (in_array($classification, ['breakout', 'strong'], true)) {
+            $next = $role->promoted();
+            if ($next === null) {
+                return $role;
+            }
+            $maximumBetterPlayers = match ($next) {
+                SquadRole::Rotation => 8,
+                SquadRole::Regular => 4,
+                SquadRole::KeyPlayer => 2,
+                SquadRole::Prospect => 99,
+            };
+            if ($betterPlayers <= $maximumBetterPlayers) {
+                return $next;
+            }
+
+            return $role;
+        }
+
+        if (in_array($classification, ['limited', 'stagnant'], true)) {
+            $minutesShare = (float) ($assessment->statistics()['minutes_share'] ?? 0.0);
+            if ($classification === 'stagnant' || $minutesShare < 0.15) {
+                return $role->demoted() ?? $role;
+            }
+        }
+
+        return $role;
     }
 
     /** @return array<string, string>|null */

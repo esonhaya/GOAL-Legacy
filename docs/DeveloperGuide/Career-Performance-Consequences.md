@@ -44,6 +44,26 @@ destination/current Club context and do not copy a global Player role.
 Role changes are persisted through the existing season squad membership and
 role-history records. No second role/depth system is introduced.
 
+The existing `PlayerDevelopmentService` remains the sole development and
+attribute owner. Match participation already accumulates development progress
+through that service; at the same Season boundary, the completed assessment
+adds a small balanced progress stimulus to the same buffer. The policy is
+`breakout` > `strong` > `steady`; limited, stagnant, and insufficient evidence
+are neutral. The stimulus is bounded, scaled by the existing age curve and
+potential gap, and consumed only by the existing potential-safe attribute
+point application. It does not assign OVR, attributes, potential, or a role
+directly, and it does not create a second development pass.
+
+Season lifecycle development remains idempotent under the existing
+`season_lifecycle` source key. The assessment is reconstructed from completed
+Season Match statistics before the lifecycle pass, while the resulting
+attribute deltas and OVR history remain in the existing development history.
+Rollover retry therefore cannot apply the same performance context twice;
+save/reload preserves the result. Newgens, retirement, and NPC Players use the
+same rule because the change is in the canonical Player development owner.
+Training, XP, dynamic potential, coaches, facilities, attribute selection,
+and development plans remain deferred.
+
 Training choices, injuries, fatigue, morale, wages, awards, position-specific
 metrics, dynamic Club reputation, and richer narrative performance history
 remain deferred.

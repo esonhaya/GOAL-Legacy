@@ -17,6 +17,7 @@ use Goal\Legacy\Modules\Player\Domain\DevelopmentState;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerAttributeSet;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
+use Goal\Legacy\Modules\Player\Domain\SeasonPerformanceAssessment;
 use Goal\Legacy\Modules\Player\Domain\TrainingFocus;
 use Goal\Legacy\Modules\Player\Domain\TrainingRequest;
 use Goal\Legacy\Modules\Player\Persistence\PlayerDevelopmentRepository;
@@ -134,7 +135,7 @@ final class PlayerDevelopmentService
      * @param array<string, DevelopmentHistoryEntry>|null $processedSources
      * @param array<string, DevelopmentState>|null $knownStates
      */
-    public function applySeasonLifecycleInTransaction(DatabaseInterface $database, PlayerId $playerId, SimulationDate $date, string $seasonSourceId, ?Player $knownPlayer = null, ?array &$processedSources = null, ?array &$knownStates = null, ?PlayerDevelopmentRepository $development = null): DevelopmentApplicationResult
+    public function applySeasonLifecycleInTransaction(DatabaseInterface $database, PlayerId $playerId, SimulationDate $date, string $seasonSourceId, ?Player $knownPlayer = null, ?array &$processedSources = null, ?array &$knownStates = null, ?PlayerDevelopmentRepository $development = null, ?SeasonPerformanceAssessment $performance = null): DevelopmentApplicationResult
     {
         $development ??= new PlayerDevelopmentRepository($database);
         $entry = $processedSources[$playerId->value()] ?? null;
@@ -157,14 +158,32 @@ final class PlayerDevelopmentService
                 $attributes[$attribute] = max(0, $attributes[$attribute] + $delta);
             }
             $player = $player->withAttributes(new PlayerAttributeSet(...array_values($attributes)));
-            ($players ?? new PlayerRepository($database))->saveInTransaction($player);
         }
         $state = $knownStates[$playerId->value()] ?? ($knownStates === null ? $development->state($playerId) : DevelopmentState::empty($playerId));
-        $development->saveStateInTransaction($state->withProgress($state->progress(), $date, $state->currentFocus()));
-        if ($knownStates !== null) {
-            $knownStates[$playerId->value()] = $state->withProgress($state->progress(), $date, $state->currentFocus());
+        $progress = $state->progress();
+        $performanceStimulus = $this->performanceStimulus($player, $date, $performance);
+        $updated = $player;
+        $nextProgress = $progress;
+        $performanceDeltas = [];
+        if ($performanceStimulus > 0) {
+            $weights = $this->weights(TrainingFocus::Balanced);
+            $totalWeight = array_sum($weights);
+            foreach ($weights as $attribute => $weight) {
+                $progress[$attribute] = ($progress[$attribute] ?? 0) + intdiv($performanceStimulus * $weight, $totalWeight);
+            }
+            [$updated, $nextProgress, $performanceDeltas] = $this->applyAttributePoints($player, $progress);
         }
-        $after = $player->overallRating();
+        foreach ($performanceDeltas as $attribute => $delta) {
+            $deltas[$attribute] = ($deltas[$attribute] ?? 0) + $delta;
+        }
+        if ($deltas !== [] || $performanceStimulus > 0) {
+            ($players ?? new PlayerRepository($database))->saveInTransaction($updated);
+        }
+        $development->saveStateInTransaction($state->withProgress($nextProgress, $date, $state->currentFocus()));
+        if ($knownStates !== null) {
+            $knownStates[$playerId->value()] = $state->withProgress($nextProgress, $date, $state->currentFocus());
+        }
+        $after = $updated->overallRating();
         $entry = new DevelopmentHistoryEntry(
             hash('sha256', $playerId->value() . '|season_lifecycle|' . $seasonSourceId),
             $playerId,
@@ -181,6 +200,22 @@ final class PlayerDevelopmentService
         }
 
         return new DevelopmentApplicationResult($playerId, 'season_lifecycle', $seasonSourceId, $deltas, $before, $after, true);
+    }
+
+    private function performanceStimulus(Player $player, SimulationDate $date, ?SeasonPerformanceAssessment $performance): int
+    {
+        if ($performance === null) {
+            return 0;
+        }
+
+        $base = match ($performance->classification()) {
+            'breakout' => 6000,
+            'strong' => 3500,
+            'steady' => 1000,
+            default => 0,
+        };
+
+        return intdiv($base * $this->curvePercent($player, $date) * $this->potentialPercent($player), 10000);
     }
 
     private function trainingStimulus(DatabaseInterface $database, TrainingRequest $request): int

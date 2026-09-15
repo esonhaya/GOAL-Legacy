@@ -120,8 +120,9 @@ final class SeasonRolloverService
         $database->transaction(function () use ($seasonRepository, $next): void {
             $seasonRepository->save($next);
         });
+        $performanceByPlayer = (new PlayerSeasonPerformanceService())->assessMany($database, $current->id());
         $phaseStart = hrtime(true);
-        $database->transaction(fn (): array => $this->playerLifecycle->processSeasonBoundaryInTransaction($database, $next));
+        $database->transaction(fn (): array => $this->playerLifecycle->processSeasonBoundaryInTransaction($database, $next, $performanceByPlayer));
         $this->lastPhaseTimings['player_lifecycle_ms'] = $this->elapsedMilliseconds($phaseStart);
 
         $currentSquads = $this->clubService->squadRepository($database)->all();
@@ -149,7 +150,6 @@ final class SeasonRolloverService
                 }
             }
         }
-        $performanceByPlayer = (new PlayerSeasonPerformanceService())->assessMany($database, $current->id());
         $roleService = new ClubExpectationService($this->clubService);
         $nextRolesByPlayer = [];
         foreach ($byClub as $clubId => $memberships) {

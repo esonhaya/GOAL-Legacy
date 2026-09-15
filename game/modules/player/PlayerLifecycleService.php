@@ -9,6 +9,7 @@ use Goal\Legacy\Modules\Contract\Domain\Contract;
 use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerCareerState;
+use Goal\Legacy\Modules\Player\Domain\SeasonPerformanceAssessment;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerDevelopmentRepository;
 use Goal\Legacy\Modules\World\Domain\Season;
@@ -22,7 +23,8 @@ final class PlayerLifecycleService
     }
 
     /** @return array{processed:int,retired:int,declined:int} */
-    public function processSeasonBoundaryInTransaction(DatabaseInterface $database, Season $nextSeason): array
+    /** @param array<string, SeasonPerformanceAssessment> $performanceByPlayer */
+    public function processSeasonBoundaryInTransaction(DatabaseInterface $database, Season $nextSeason, array $performanceByPlayer = []): array
     {
         $players = new PlayerRepository($database);
         $retired = 0;
@@ -43,17 +45,13 @@ final class PlayerLifecycleService
                 continue;
             }
             ++$processed;
-            $result = $this->development->applySeasonLifecycleInTransaction($database, $player->id(), $nextSeason->startDate(), $nextSeason->id()->value(), $player, $processedSources, $knownStates, $developmentRepository);
-            if ($result->applied() && $result->attributeDeltas() !== []) {
+            $result = $this->development->applySeasonLifecycleInTransaction($database, $player->id(), $nextSeason->startDate(), $nextSeason->id()->value(), $player, $processedSources, $knownStates, $developmentRepository, $performanceByPlayer[$player->id()->value()] ?? null);
+            if ($result->applied() && $player->ageAt($nextSeason->startDate()) >= 31) {
                 ++$declined;
             }
             $current = $player;
             if ($result->applied() && $result->attributeDeltas() !== []) {
-                $attributes = $current->attributes()->toArray();
-                foreach ($result->attributeDeltas() as $attribute => $delta) {
-                    $attributes[$attribute] = max(0, $attributes[$attribute] + $delta);
-                }
-                $current = $current->withAttributes(new \Goal\Legacy\Modules\Player\Domain\PlayerAttributeSet(...array_values($attributes)));
+                $current = $players->get($player->id());
             }
             $active = $activeContracts[$current->id()->value()] ?? null;
             if (!$this->shouldRetire($database, $current, $nextSeason->startDate(), $active)) {

@@ -16,9 +16,11 @@ use Goal\Legacy\Modules\Contract\Domain\Contract;
 use Goal\Legacy\Modules\Contract\Persistence\ContractRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
+use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
+use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Transfer\Domain\TransferStatus;
 use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
@@ -52,6 +54,7 @@ final class PlayerCareerProgressionQuery
         $currentClub = $activeContract === null ? null : $clubRepository->get($activeContract->clubId());
         $currentCompetition = $this->competitionForMembership($database, $currentMembership, $competitionRepository);
         $seasonHistory = $this->seasonHistory($database, $id, $allMemberships, $clubRepository, $competitionRepository);
+        $positionCompetition = $this->positionCompetition($database, $currentMembership, $player);
         $careerReference = (new CareerPlayerRepository($database))->byPlayer($id);
         $openOpportunities = array_values(array_filter(
             (new CareerOpportunityRepository($database))->openForPlayer($id, $date),
@@ -76,6 +79,7 @@ final class PlayerCareerProgressionQuery
             'current_club' => $this->clubView($currentClub),
             'current_competition' => $this->competitionView($currentCompetition),
             'current_role' => $currentMembership?->role()->value,
+            'position_competition' => $positionCompetition,
             'current_contract' => $this->contractView($activeContract, $clubRepository),
             'season_history' => $seasonHistory,
             'role_history' => $squads->roleHistory($id),
@@ -119,6 +123,7 @@ final class PlayerCareerProgressionQuery
             'options' => $opportunity->context()['options'] ?? [],
         ], $openOpportunities);
         $summary['available_actions'] = $this->availableActions($careerReference, $activeContract, $currentMembership, $openOpportunities);
+        $summary['career_outlook'] = (new CareerOutlookService())->derive($summary, $date);
         $next = null;
         if ($currentMembership !== null) {
             foreach ($matchRepository->byClub($currentMembership->clubId(), $currentMembership->seasonId()) as $match) {
@@ -154,6 +159,34 @@ final class PlayerCareerProgressionQuery
         }
 
         return null;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function positionCompetition(DatabaseInterface $database, ?ClubSquadMembership $membership, Player $player): ?array
+    {
+        if ($membership === null) {
+            return null;
+        }
+        $samePosition = [];
+        $players = new PlayerRepository($database);
+        foreach ($this->clubService->squadRepository($database)->byClub($membership->clubId(), $membership->seasonId()) as $candidateMembership) {
+            if ($candidateMembership->playerId()->value() === $player->id()->value()) {
+                continue;
+            }
+            $candidate = $players->get($candidateMembership->playerId());
+            if ($candidate->primaryPosition() !== $player->primaryPosition()) {
+                continue;
+            }
+            $samePosition[] = $candidate->overallRating();
+        }
+        $higher = array_values(array_filter($samePosition, static fn (int $rating): bool => $rating > $player->overallRating()));
+
+        return [
+            'position' => $player->primaryPosition()->value,
+            'same_position_count' => count($samePosition),
+            'higher_ovr_count' => count($higher),
+            'average_ovr' => $samePosition === [] ? null : (int) round(array_sum($samePosition) / count($samePosition)),
+        ];
     }
 
     /** @param list<ClubSquadMembership> $memberships @return list<array<string, mixed>> */

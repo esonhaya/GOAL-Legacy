@@ -139,7 +139,7 @@ final class Domain028Test extends TestCase
         ];
         $repository->replaceForMatch($stats);
         $aggregate = $repository->seasonAggregatesForPlayer($p1, $season->id())['arsenal'];
-        self::assertSame(['club_id' => 'arsenal', 'appearances' => 1, 'starts' => 1, 'minutes' => 90, 'goals' => 1, 'assists' => 0, 'shots' => 3, 'shots_on_target' => 2, 'saves' => 0, 'clean_sheets' => 0], $aggregate);
+        self::assertSame(['club_id' => 'arsenal', 'appearances' => 1, 'starts' => 1, 'minutes' => 90, 'goals' => 1, 'assists' => 0, 'shots' => 3, 'shots_on_target' => 2, 'saves' => 0, 'clean_sheets' => 0, 'tackles' => 0, 'interceptions' => 0, 'blocks' => 0], $aggregate);
         $repository->replaceForMatch($stats);
         self::assertCount(4, $repository->byMatch($match->id()));
     }

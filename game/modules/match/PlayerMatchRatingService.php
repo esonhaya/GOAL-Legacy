@@ -16,6 +16,8 @@ final class PlayerMatchRatingService
     public const MINIMUM = 0.0;
     public const MAXIMUM = 10.0;
 
+    private const DEFENSIVE_EVIDENCE_CAP = 1.2;
+
     public function rate(PlayerMatchStat $stat, PlayerPosition $position): ?float
     {
         if (!$stat->appeared() || $stat->minutes() < 1) {
@@ -38,6 +40,7 @@ final class PlayerMatchRatingService
         $rating += min(0.6, $shotsOnTarget * $sotWeight);
         $rating += $cleanSheets * $cleanSheetWeight;
         $rating += min(1.4, $saves * $saveWeight);
+        $rating += $this->defensiveBonus($stat, $position);
 
         return round(min(self::MAXIMUM, max(self::MINIMUM, $rating)), 1);
     }
@@ -50,6 +53,24 @@ final class PlayerMatchRatingService
             PlayerPosition::CentreBack, PlayerPosition::LeftBack, PlayerPosition::RightBack => [1.6, 0.8, 0.10, 0.8, 0.0],
             PlayerPosition::DefensiveMidfielder, PlayerPosition::CentralMidfielder, PlayerPosition::AttackingMidfielder => [1.35, 0.95, 0.10, 0.0, 0.0],
             PlayerPosition::LeftWinger, PlayerPosition::RightWinger, PlayerPosition::Striker => [1.25, 0.75, 0.12, 0.0, 0.0],
+        };
+    }
+
+    /**
+     * DOMAIN-030 actions are finalized factual evidence. The same action
+     * evidence has context-sensitive value: most for defenders, moderate for
+     * midfielders, incidental for attackers, and none for goalkeepers (whose
+     * save evidence is deliberately separate).
+     */
+    private function defensiveBonus(PlayerMatchStat $stat, PlayerPosition $position): float
+    {
+        $evidence = min(self::DEFENSIVE_EVIDENCE_CAP, ($stat->tackles() * 0.12) + ($stat->interceptions() * 0.14) + ($stat->blocks() * 0.16));
+
+        return match ($position) {
+            PlayerPosition::Goalkeeper => 0.0,
+            PlayerPosition::CentreBack, PlayerPosition::LeftBack, PlayerPosition::RightBack => $evidence,
+            PlayerPosition::DefensiveMidfielder, PlayerPosition::CentralMidfielder, PlayerPosition::AttackingMidfielder => min(0.8, $evidence),
+            PlayerPosition::LeftWinger, PlayerPosition::RightWinger, PlayerPosition::Striker => min(0.3, $evidence),
         };
     }
 }

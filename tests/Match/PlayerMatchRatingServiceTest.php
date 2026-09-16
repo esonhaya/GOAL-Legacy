@@ -46,8 +46,44 @@ final class PlayerMatchRatingServiceTest extends TestCase
         self::assertLessThanOrEqual(10.0, $this->rate(PlayerPosition::Goalkeeper, true, 90, saves: 999999, cleanSheets: 1));
     }
 
-    private function rate(PlayerPosition $position, bool $appeared, int $minutes, int $goals = 0, int $assists = 0, int $shots = 0, int $shotsOnTarget = 0, int $saves = 0, int $cleanSheets = 0): ?float
+    public function testDefensiveEvidenceIsPositionAwareBoundedAndDeterministic(): void
     {
-        return $this->ratings->rate(new PlayerMatchStat(new MatchId('rating-match'), new PlayerId('rating-player'), new ClubId('arsenal'), $appeared, $appeared, $minutes, $goals, $assists, $shots, $shotsOnTarget, $saves, $cleanSheets), $position);
+        $base = $this->rate(PlayerPosition::CentreBack, true, 90);
+        $tackles = $this->rate(PlayerPosition::CentreBack, true, 90, tackles: 3);
+        $interceptions = $this->rate(PlayerPosition::CentreBack, true, 90, interceptions: 3);
+        $blocks = $this->rate(PlayerPosition::CentreBack, true, 90, blocks: 3);
+        $balanced = $this->rate(PlayerPosition::CentreBack, true, 90, tackles: 3, interceptions: 2, blocks: 1);
+        $cleanSheetBalanced = $this->rate(PlayerPosition::CentreBack, true, 90, cleanSheets: 1, tackles: 3, interceptions: 2, blocks: 1);
+
+        self::assertGreaterThan($base, $tackles);
+        self::assertGreaterThan($base, $interceptions);
+        self::assertGreaterThan($base, $blocks);
+        self::assertGreaterThanOrEqual(6.8, $balanced, 'A defender can rate well through useful defensive work alone.');
+        self::assertGreaterThan($this->rate(PlayerPosition::CentreBack, true, 90, cleanSheets: 1), $cleanSheetBalanced);
+        self::assertLessThanOrEqual(10.0, $cleanSheetBalanced);
+
+        $evidence = ['tackles' => 9, 'interceptions' => 6, 'blocks' => 4];
+        $defender = $this->rate(PlayerPosition::CentreBack, true, 90, ...$evidence);
+        $midfielder = $this->rate(PlayerPosition::CentralMidfielder, true, 90, ...$evidence);
+        $attacker = $this->rate(PlayerPosition::Striker, true, 90, ...$evidence);
+        $goalkeeper = $this->rate(PlayerPosition::Goalkeeper, true, 90, ...$evidence);
+        $defenderBase = $this->rate(PlayerPosition::CentreBack, true, 90);
+        $midfielderBase = $this->rate(PlayerPosition::CentralMidfielder, true, 90);
+        $attackerBase = $this->rate(PlayerPosition::Striker, true, 90);
+        $goalkeeperBase = $this->rate(PlayerPosition::Goalkeeper, true, 90);
+
+        self::assertGreaterThan($midfielder - $midfielderBase, $defender - $defenderBase);
+        self::assertGreaterThan($attacker - $attackerBase, $midfielder - $midfielderBase);
+        self::assertGreaterThan($goalkeeper - $goalkeeperBase, $attacker - $attackerBase);
+        self::assertSame($goalkeeperBase, $goalkeeper);
+        self::assertSame($defender, $this->rate(PlayerPosition::CentreBack, true, 90, ...$evidence));
+        self::assertSame($defender, $this->rate(PlayerPosition::CentreBack, true, 90, tackles: 999999, interceptions: 999999, blocks: 999999));
+        self::assertGreaterThan($this->rate(PlayerPosition::CentreBack, true, 6), $this->rate(PlayerPosition::CentreBack, true, 6, tackles: 1));
+        self::assertNull($this->rate(PlayerPosition::CentreBack, false, 0));
+    }
+
+    private function rate(PlayerPosition $position, bool $appeared, int $minutes, int $goals = 0, int $assists = 0, int $shots = 0, int $shotsOnTarget = 0, int $saves = 0, int $cleanSheets = 0, int $tackles = 0, int $interceptions = 0, int $blocks = 0): ?float
+    {
+        return $this->ratings->rate(new PlayerMatchStat(new MatchId('rating-match'), new PlayerId('rating-player'), new ClubId('arsenal'), $appeared, $appeared, $minutes, $goals, $assists, $shots, $shotsOnTarget, $saves, $cleanSheets, $tackles, $interceptions, $blocks), $position);
     }
 }

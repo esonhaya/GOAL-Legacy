@@ -10,8 +10,10 @@ use Goal\Legacy\Core\Persistence\JsonSerializer;
 use Goal\Legacy\Core\Persistence\SaveMetadata;
 use Goal\Legacy\Core\Persistence\SqliteSaveStore;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
+use Goal\Legacy\Modules\Match\Domain\PlayerMatchStat;
 use Goal\Legacy\Modules\Match\MatchSelectionService;
 use Goal\Legacy\Modules\Match\MatchSimulationService;
+use Goal\Legacy\Modules\Match\PlayerMatchRatingService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
@@ -56,6 +58,11 @@ final class Domain029Test extends TestCase
             $ranges[$group][] = $summary['rating'];
         }
         foreach ($ranges as $values) { self::assertNotEmpty($values); }
+        $defensiveStat = array_values(array_filter($matchService->statRepository($database)->byMatch($completed->id()), static fn (PlayerMatchStat $stat): bool => ($stat->tackles() + $stat->interceptions() + $stat->blocks()) > 0 && $players->get($stat->playerId())->primaryPosition()->value !== 'GK'))[0] ?? null;
+        self::assertNotNull($defensiveStat, 'DOMAIN-030 should provide natural defensive evidence in the production Match.');
+        $position = $players->get($defensiveStat->playerId())->primaryPosition();
+        $withoutDefensiveEvidence = new PlayerMatchStat($defensiveStat->matchId(), $defensiveStat->playerId(), $defensiveStat->clubId(), $defensiveStat->appeared(), $defensiveStat->started(), $defensiveStat->minutes(), $defensiveStat->goals(), $defensiveStat->assists(), $defensiveStat->shots(), $defensiveStat->shotsOnTarget(), $defensiveStat->saves(), $defensiveStat->cleanSheets());
+        self::assertGreaterThan((new PlayerMatchRatingService())->rate($withoutDefensiveEvidence, $position), $matchService->playerSummary($database, $completed->id(), $defensiveStat->playerId())['rating']);
         $unusedBench = array_values(array_filter($matchService->selectionRepository($database)->byMatch($completed->id()), fn ($selection): bool => $selection->status()->value === 'bench' && $matchService->playerSummary($database, $completed->id(), $selection->playerId()) === null));
         self::assertNotEmpty($unusedBench);
 

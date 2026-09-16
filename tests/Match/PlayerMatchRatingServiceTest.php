@@ -117,8 +117,23 @@ final class PlayerMatchRatingServiceTest extends TestCase
         self::assertLessThanOrEqual(10.0, $midStrong);
     }
 
-    private function rate(PlayerPosition $position, bool $appeared, int $minutes, int $goals = 0, int $assists = 0, int $shots = 0, int $shotsOnTarget = 0, int $saves = 0, int $cleanSheets = 0, int $tackles = 0, int $interceptions = 0, int $blocks = 0, int $passesAttempted = 0, int $passesCompleted = 0): ?float
+    public function testDisciplinePenaltyIsBoundedAndRetainsOtherEvidence(): void
     {
-        return $this->ratings->rate(new PlayerMatchStat(new MatchId('rating-match'), new PlayerId('rating-player'), new ClubId('arsenal'), $appeared, $appeared, $minutes, $goals, $assists, $shots, $shotsOnTarget, $saves, $cleanSheets, $tackles, $interceptions, $blocks, $passesAttempted, $passesCompleted), $position);
+        $base = $this->rate(PlayerPosition::CentreBack, true, 90, tackles: 3);
+        $foul = $this->rate(PlayerPosition::CentreBack, true, 90, tackles: 3, foulsCommitted: 1);
+        $yellow = $this->rate(PlayerPosition::CentreBack, true, 90, tackles: 3, foulsCommitted: 1, yellowCards: 1);
+        $red = $this->rate(PlayerPosition::Striker, true, 90, goals: 2, shots: 2, shotsOnTarget: 2, foulsCommitted: 1, redCards: 1);
+        $scoringBase = $this->rate(PlayerPosition::Striker, true, 90, goals: 2, shots: 2, shotsOnTarget: 2);
+
+        self::assertGreaterThan($foul, $base);
+        self::assertGreaterThan($yellow, $foul);
+        self::assertGreaterThan($red, $scoringBase);
+        self::assertGreaterThan(0.0, $red);
+        self::assertLessThanOrEqual(10.0, $this->rate(PlayerPosition::Goalkeeper, true, 90, foulsCommitted: 99, yellowCards: 99, redCards: 1));
+    }
+
+    private function rate(PlayerPosition $position, bool $appeared, int $minutes, int $goals = 0, int $assists = 0, int $shots = 0, int $shotsOnTarget = 0, int $saves = 0, int $cleanSheets = 0, int $tackles = 0, int $interceptions = 0, int $blocks = 0, int $passesAttempted = 0, int $passesCompleted = 0, int $foulsCommitted = 0, int $yellowCards = 0, int $redCards = 0): ?float
+    {
+        return $this->ratings->rate(new PlayerMatchStat(new MatchId('rating-match'), new PlayerId('rating-player'), new ClubId('arsenal'), $appeared, $appeared, $minutes, $goals, $assists, $shots, $shotsOnTarget, $saves, $cleanSheets, $tackles, $interceptions, $blocks, $passesAttempted, $passesCompleted, $foulsCommitted, $yellowCards, $redCards), $position);
     }
 }

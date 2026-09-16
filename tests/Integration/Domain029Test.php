@@ -59,6 +59,14 @@ final class Domain029Test extends TestCase
             self::assertLessThanOrEqual($stat->passesAttempted(), $stat->passesCompleted());
             self::assertSame($stat->passesAttempted(), $summary['passes_attempted']);
             self::assertSame($stat->passesCompleted(), $summary['passes_completed']);
+            self::assertGreaterThanOrEqual(0, $stat->foulsCommitted());
+            self::assertGreaterThanOrEqual(0, $stat->yellowCards());
+            self::assertGreaterThanOrEqual(0, $stat->redCards());
+            self::assertLessThanOrEqual($stat->foulsCommitted(), $stat->yellowCards());
+            self::assertLessThanOrEqual(1, $stat->redCards());
+            self::assertSame($stat->foulsCommitted(), $summary['fouls_committed']);
+            self::assertSame($stat->yellowCards(), $summary['yellow_cards']);
+            self::assertSame($stat->redCards(), $summary['red_cards']);
             $group = match ($players->get($stat->playerId())->primaryPosition()->value) { 'GK' => 'GK', 'CB', 'LB', 'RB' => 'DEF', 'DM', 'CM', 'AM' => 'MID', default => 'ATT' };
             $ranges[$group][] = $summary['rating'];
         }

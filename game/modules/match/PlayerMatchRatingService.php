@@ -43,6 +43,7 @@ final class PlayerMatchRatingService
         $rating += min(1.4, $saves * $saveWeight);
         $rating += $this->defensiveBonus($stat, $position);
         $rating += $this->passingBonus($stat, $position);
+        $rating -= $this->disciplinePenalty($stat);
 
         return round(min(self::MAXIMUM, max(self::MINIMUM, $rating)), 1);
     }
@@ -100,5 +101,12 @@ final class PlayerMatchRatingService
         };
 
         return $cap * $confidence * $quality;
+    }
+
+    private function disciplinePenalty(PlayerMatchStat $stat): float
+    {
+        // Cards are the meaningful discipline outcome; ordinary fouls remain
+        // deliberately minor so normal defensive work is not double-punished.
+        return min(1.10, min(0.10, max(0, $stat->foulsCommitted()) * 0.03) + min(0.40, max(0, $stat->yellowCards()) * 0.20) + min(0.90, max(0, $stat->redCards()) * 0.90));
     }
 }

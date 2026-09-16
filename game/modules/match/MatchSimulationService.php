@@ -46,16 +46,25 @@ final class MatchSimulationService
         $homeGoals = $this->poisson($homeLambda, $match->id()->value() . '|home');
         $awayGoals = $this->poisson($awayLambda, $match->id()->value() . '|away');
         $result = new MatchResult($homeGoals, $awayGoals);
+        $foulCounts = []; $yellowCounts = []; $redCounts = []; $dismissals = [];
+        $disciplineEvents = array_merge(
+            $this->disciplineActions($match->id()->value(), $match->homeClubId()->value(), $homeStarters, $homeSubstitutions, $playersById, $foulCounts, $yellowCounts, $redCounts, $dismissals),
+            $this->disciplineActions($match->id()->value(), $match->awayClubId()->value(), $awayStarters, $awaySubstitutions, $playersById, $foulCounts, $yellowCounts, $redCounts, $dismissals),
+        );
+        $homeSubstitutions = $this->effectiveSubstitutions($homeSubstitutions, $dismissals);
+        $awaySubstitutions = $this->effectiveSubstitutions($awaySubstitutions, $dismissals);
+        $substitutions = array_merge($homeSubstitutions, $awaySubstitutions);
+        usort($substitutions, static fn (MatchSubstitution $left, MatchSubstitution $right): int => ($left->minute() <=> $right->minute()) ?: (($left->clubId()->value() <=> $right->clubId()->value()) ?: ($left->sequence() <=> $right->sequence())));
         $goalEvents = [];
         for ($i = 0; $i < $homeGoals; $i++) {
             $minute = 1 + (int) floor($this->unit($match->id()->value() . '|home-goal|' . $i) * 89);
-            $active = $this->activePlayersAtMinute($homeStarters, $homeSubstitutions, $minute, $playersById);
+            $active = $this->activePlayersAtMinute($homeStarters, $homeSubstitutions, $minute, $playersById, $dismissals);
             $scorer = $this->scorerAtMinute($match->id()->value(), $active, $minute, $i);
             $goalEvents[] = ['club' => $match->homeClubId()->value(), 'player' => $scorer, 'assist' => $this->assistAtMinute($match->id()->value(), $active, $scorer, $minute, $i), 'minute' => $minute, 'side' => 'home', 'type' => 'goal'];
         }
         for ($i = 0; $i < $awayGoals; $i++) {
             $minute = 1 + (int) floor($this->unit($match->id()->value() . '|away-goal|' . $i) * 89);
-            $active = $this->activePlayersAtMinute($awayStarters, $awaySubstitutions, $minute, $playersById);
+            $active = $this->activePlayersAtMinute($awayStarters, $awaySubstitutions, $minute, $playersById, $dismissals);
             $scorer = $this->scorerAtMinute($match->id()->value(), $active, $minute, $i);
             $goalEvents[] = ['club' => $match->awayClubId()->value(), 'player' => $scorer, 'assist' => $this->assistAtMinute($match->id()->value(), $active, $scorer, $minute, $i), 'minute' => $minute, 'side' => 'away', 'type' => 'goal'];
         }
@@ -66,12 +75,13 @@ final class MatchSimulationService
         $tackleCounts = [];
         $interceptionCounts = [];
         $blockCounts = [];
-        $this->additionalAttempts($match->id()->value(), 'home', $homeStarters, $homeSubstitutions, $awayStarters, $awaySubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts);
-        $this->additionalAttempts($match->id()->value(), 'away', $awayStarters, $awaySubstitutions, $homeStarters, $homeSubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts);
+        $this->additionalAttempts($match->id()->value(), 'home', $homeStarters, $homeSubstitutions, $awayStarters, $awaySubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts, $dismissals);
+        $this->additionalAttempts($match->id()->value(), 'away', $awayStarters, $awaySubstitutions, $homeStarters, $homeSubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts, $dismissals);
         $this->applyCleanSheet($awayGoals === 0, $homeStarters, $homeSubstitutions, $playersById, $cleanSheetCounts);
         $this->applyCleanSheet($homeGoals === 0, $awayStarters, $awaySubstitutions, $playersById, $cleanSheetCounts);
-        $this->defensiveActions($match->id()->value(), 'home', $homeStarters, $homeSubstitutions, $playersById, $tackleCounts, $interceptionCounts, $blockCounts);
-        $this->defensiveActions($match->id()->value(), 'away', $awayStarters, $awaySubstitutions, $playersById, $tackleCounts, $interceptionCounts, $blockCounts);
+        $this->defensiveActions($match->id()->value(), 'home', $homeStarters, $homeSubstitutions, $playersById, $tackleCounts, $interceptionCounts, $blockCounts, $dismissals);
+        $this->defensiveActions($match->id()->value(), 'away', $awayStarters, $awaySubstitutions, $playersById, $tackleCounts, $interceptionCounts, $blockCounts, $dismissals);
+        foreach ($disciplineEvents as $event) { $goalEvents[] = $event; }
         foreach ($substitutions as $substitution) {
             $goalEvents[] = ['club' => $substitution->clubId()->value(), 'player' => $substitution->incomingPlayerId()->value(), 'minute' => $substitution->minute(), 'side' => $substitution->clubId()->value(), 'type' => 'substitution', 'substitution' => $substitution];
         }
@@ -92,13 +102,15 @@ final class MatchSimulationService
                 /** @var MatchSubstitution $substitution */
                 $substitution = $event['substitution'];
                 $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], 'substitution', new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['outgoing_player_id' => $substitution->outgoingPlayerId()->value(), 'incoming_player_id' => $substitution->incomingPlayerId()->value(), 'sequence' => $substitution->sequence()]);
+            } elseif ($event['type'] === 'yellow_card' || $event['type'] === 'red_card') {
+                $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], $event['type'], new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['dismissal' => (int) $event['dismissal']]);
             } else {
                 $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], 'goal', new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), $event['player'] === null ? null : new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['side' => $event['side'], 'home_goals' => $homeGoals, 'away_goals' => $awayGoals, 'assist_player_id' => $event['assist']]);
             }
         }
         $stats = [];
-        foreach ($this->participantStats($match, $match->homeClubId(), $homeStarters, $homeSubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $playersById) as $stat) { $stats[] = $stat; }
-        foreach ($this->participantStats($match, $match->awayClubId(), $awayStarters, $awaySubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $playersById) as $stat) { $stats[] = $stat; }
+        foreach ($this->participantStats($match, $match->homeClubId(), $homeStarters, $homeSubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $foulCounts, $yellowCounts, $redCounts, $dismissals, $playersById) as $stat) { $stats[] = $stat; }
+        foreach ($this->participantStats($match, $match->awayClubId(), $awayStarters, $awaySubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $foulCounts, $yellowCounts, $redCounts, $dismissals, $playersById) as $stat) { $stats[] = $stat; }
         return new MatchSimulation($result, $stats, $highlights, $selections, $substitutions);
     }
 
@@ -141,7 +153,7 @@ final class MatchSimulationService
     }
 
     /** @param list<Player> $starters @param list<MatchSubstitution> $substitutions @param array<string, Player> $playersById @return list<Player> */
-    private function activePlayersAtMinute(array $starters, array $substitutions, int $minute, array $playersById): array
+    private function activePlayersAtMinute(array $starters, array $substitutions, int $minute, array $playersById, array $dismissals = []): array
     {
         $players = [];
         foreach ($starters as $starter) {
@@ -151,14 +163,16 @@ final class MatchSimulationService
                     $active = false;
                 }
             }
+            if (($dismissals[$starter->id()->value()] ?? 91) <= $minute) { $active = false; }
             if ($active) {
                 $players[] = $starter;
             }
         }
         foreach ($substitutions as $substitution) {
-            if ($minute >= $substitution->minute()) {
+            $outgoingDismissed = ($dismissals[$substitution->outgoingPlayerId()->value()] ?? 91) <= $substitution->minute();
+            if ($minute >= $substitution->minute() && !$outgoingDismissed) {
                 $incoming = $playersById[$substitution->incomingPlayerId()->value()] ?? null;
-                if ($incoming !== null) { $players[] = $incoming; }
+                if ($incoming !== null && ($dismissals[$incoming->id()->value()] ?? 91) > $minute) { $players[] = $incoming; }
             }
         }
 
@@ -207,19 +221,19 @@ final class MatchSimulationService
     }
 
     /** @param list<Player> $attackers @param list<MatchSubstitution> $attackerSubs @param list<Player> $defenders @param list<MatchSubstitution> $defenderSubs @param array<string, Player> $playersById @param array<string, int> $shotCounts @param array<string, int> $shotsOnTargetCounts @param array<string, int> $saveCounts */
-    private function additionalAttempts(string $matchId, string $side, array $attackers, array $attackerSubs, array $defenders, array $defenderSubs, array $playersById, array &$shotCounts, array &$shotsOnTargetCounts, array &$saveCounts): void
+    private function additionalAttempts(string $matchId, string $side, array $attackers, array $attackerSubs, array $defenders, array $defenderSubs, array $playersById, array &$shotCounts, array &$shotsOnTargetCounts, array &$saveCounts, array $dismissals = []): void
     {
         $attempts = 4 + (int) floor($this->unit($matchId . '|' . $side . '|shot-count') * 5);
         for ($index = 0; $index < $attempts; ++$index) {
             $minute = 1 + (int) floor($this->unit($matchId . '|' . $side . '|shot-minute|' . $index) * 89);
-            $activeAttackers = $this->activePlayersAtMinute($attackers, $attackerSubs, $minute, $playersById);
+            $activeAttackers = $this->activePlayersAtMinute($attackers, $attackerSubs, $minute, $playersById, $dismissals);
             $shooter = $this->scorerAtMinute($matchId . '|shot|' . $side, $activeAttackers, $minute, $index);
             if ($shooter === null) { continue; }
             $shotCounts[$shooter] = ($shotCounts[$shooter] ?? 0) + 1;
             $shooterPlayer = $playersById[$shooter] ?? null;
             if ($shooterPlayer === null || $this->unit($matchId . '|' . $side . '|shot-target|' . $index) >= $this->shotOnTargetChance($shooterPlayer)) { continue; }
             $shotsOnTargetCounts[$shooter] = ($shotsOnTargetCounts[$shooter] ?? 0) + 1;
-            $goalkeeper = $this->goalkeeperAtMinute($defenders, $defenderSubs, $minute, $playersById);
+            $goalkeeper = $this->goalkeeperAtMinute($defenders, $defenderSubs, $minute, $playersById, $dismissals);
             if ($goalkeeper !== null) { $saveCounts[$goalkeeper->id()->value()] = ($saveCounts[$goalkeeper->id()->value()] ?? 0) + 1; }
         }
     }
@@ -238,9 +252,9 @@ final class MatchSimulationService
     }
 
     /** @param list<Player> $starters @param list<MatchSubstitution> $substitutions @param array<string, Player> $playersById */
-    private function goalkeeperAtMinute(array $starters, array $substitutions, int $minute, array $playersById): ?Player
+    private function goalkeeperAtMinute(array $starters, array $substitutions, int $minute, array $playersById, array $dismissals = []): ?Player
     {
-        foreach ($this->activePlayersAtMinute($starters, $substitutions, $minute, $playersById) as $player) {
+        foreach ($this->activePlayersAtMinute($starters, $substitutions, $minute, $playersById, $dismissals) as $player) {
             if ($player->primaryPosition()->value === 'GK') { return $player; }
         }
 
@@ -259,13 +273,13 @@ final class MatchSimulationService
     }
 
     /** @param list<Player> $starters @param list<MatchSubstitution> $substitutions @param array<string, Player> $playersById @param array<string, int> $tackles @param array<string, int> $interceptions @param array<string, int> $blocks */
-    private function defensiveActions(string $matchId, string $side, array $starters, array $substitutions, array $playersById, array &$tackles, array &$interceptions, array &$blocks): void
+    private function defensiveActions(string $matchId, string $side, array $starters, array $substitutions, array $playersById, array &$tackles, array &$interceptions, array &$blocks, array $dismissals = []): void
     {
         foreach (['tackle' => 3, 'interception' => 2, 'block' => 1] as $type => $minimum) {
             $count = $minimum + (int) floor($this->unit($matchId . '|' . $side . '|defensive-' . $type . '-count') * 3);
             for ($index = 0; $index < $count; ++$index) {
                 $minute = 1 + (int) floor($this->unit($matchId . '|' . $side . '|defensive-' . $type . '-minute|' . $index) * 89);
-                $active = array_values(array_filter($this->activePlayersAtMinute($starters, $substitutions, $minute, $playersById), static fn (Player $player): bool => $player->primaryPosition()->value !== 'GK'));
+                $active = array_values(array_filter($this->activePlayersAtMinute($starters, $substitutions, $minute, $playersById, $dismissals), static fn (Player $player): bool => $player->primaryPosition()->value !== 'GK'));
                 if ($active === []) { continue; }
                 $playerId = $this->weightedPlayer($active, $matchId . '|' . $side . '|defensive-' . $type . '|player|' . $minute . '|' . $index, fn (Player $player): int => $this->defensiveWeight($player, $type));
                 match ($type) {
@@ -282,6 +296,51 @@ final class MatchSimulationService
         $position = match ($player->primaryPosition()->value) { 'CB' => 20, 'LB', 'RB' => 16, 'DM' => 17, 'CM' => 11, 'AM' => 7, 'LW', 'RW' => 5, 'ST' => 3, 'GK' => 0 };
         $attributes = $player->attributes();
         return max(1, $position + intdiv($attributes->defending(), 3) + ($type === 'tackle' ? intdiv($attributes->physicality(), 4) : 0) + ($type === 'block' ? intdiv($attributes->physicality(), 8) : 0));
+    }
+
+    /** @return list<array{club:string,player:string,minute:int,type:string,dismissal:int,side:string}> */
+    private function disciplineActions(string $matchId, string $clubId, array $starters, array $substitutions, array $playersById, array &$fouls, array &$yellows, array &$reds, array &$dismissals): array
+    {
+        $candidates = [];
+        $count = 2 + (int) floor($this->unit($matchId . '|' . $clubId . '|foul-count') * 4);
+        for ($index = 0; $index < $count; ++$index) {
+            $candidates[] = ['minute' => 1 + (int) floor($this->unit($matchId . '|' . $clubId . '|foul-minute|' . $index) * 89), 'index' => $index];
+        }
+        usort($candidates, static fn (array $left, array $right): int => ($left['minute'] <=> $right['minute']) ?: ($left['index'] <=> $right['index']));
+        $events = [];
+        foreach ($candidates as $candidate) {
+            $minute = $candidate['minute']; $index = $candidate['index'];
+            $active = $this->activePlayersAtMinute($starters, $substitutions, $minute, $playersById, $dismissals);
+            if ($active === []) { continue; }
+            $playerId = $this->weightedPlayer($active, $matchId . '|' . $clubId . '|foul-player|' . $minute . '|' . $index, fn (Player $player): int => $this->foulWeight($player));
+            $fouls[$playerId] = ($fouls[$playerId] ?? 0) + 1;
+            $directRed = $this->unit($matchId . '|' . $clubId . '|direct-red|' . $index) < 0.025;
+            $yellow = !$directRed && $this->unit($matchId . '|' . $clubId . '|yellow|' . $index) < 0.22;
+            if ($directRed) {
+                $reds[$playerId] = 1; $dismissals[$playerId] = $minute;
+                $events[] = ['club' => $clubId, 'player' => $playerId, 'minute' => $minute, 'type' => 'red_card', 'dismissal' => 1, 'side' => $clubId];
+            } elseif ($yellow) {
+                $yellows[$playerId] = ($yellows[$playerId] ?? 0) + 1;
+                $dismissal = $yellows[$playerId] >= 2;
+                if ($dismissal) { $reds[$playerId] = 1; $dismissals[$playerId] = $minute; }
+                $events[] = ['club' => $clubId, 'player' => $playerId, 'minute' => $minute, 'type' => 'yellow_card', 'dismissal' => $dismissal ? 1 : 0, 'side' => $clubId];
+                if ($dismissal) { $events[] = ['club' => $clubId, 'player' => $playerId, 'minute' => $minute, 'type' => 'red_card', 'dismissal' => 1, 'side' => $clubId]; }
+            }
+        }
+
+        return $events;
+    }
+
+    private function foulWeight(Player $player): int
+    {
+        $position = match ($player->primaryPosition()->value) { 'GK' => 3, 'CB', 'LB', 'RB' => 9, 'DM' => 10, 'CM', 'AM' => 7, 'LW', 'RW' => 5, 'ST' => 4 };
+        return max(1, $position + intdiv($player->attributes()->physicality(), 12) + intdiv($player->attributes()->defending(), 15));
+    }
+
+    /** @return list<MatchSubstitution> */
+    private function effectiveSubstitutions(array $substitutions, array $dismissals): array
+    {
+        return array_values(array_filter($substitutions, static fn (MatchSubstitution $substitution): bool => ($dismissals[$substitution->outgoingPlayerId()->value()] ?? 91) > $substitution->minute()));
     }
 
     /** @param list<Player> $starters @param list<MatchSubstitution> $substitutions @param array<string, Player> $playersById @return list<Player> */
@@ -312,7 +371,7 @@ final class MatchSimulationService
     }
 
     /** @param list<Player> $starters @param list<MatchSubstitution> $substitutions @param array<string, int> $goalCounts @param array<string, int> $assistCounts @param array<string, int> $shotCounts @param array<string, int> $shotsOnTargetCounts @param array<string, int> $saveCounts @param array<string, int> $cleanSheetCounts @param array<string, int> $tackleCounts @param array<string, int> $interceptionCounts @param array<string, int> $blockCounts @return list<PlayerMatchStat> */
-    private function participantStats(GameMatch $match, \Goal\Legacy\Modules\Club\Domain\ClubId $clubId, array $starters, array $substitutions, array $goalCounts, array $assistCounts, array $shotCounts, array $shotsOnTargetCounts, array $saveCounts, array $cleanSheetCounts, array $tackleCounts, array $interceptionCounts, array $blockCounts, array $playersById): array
+    private function participantStats(GameMatch $match, \Goal\Legacy\Modules\Club\Domain\ClubId $clubId, array $starters, array $substitutions, array $goalCounts, array $assistCounts, array $shotCounts, array $shotsOnTargetCounts, array $saveCounts, array $cleanSheetCounts, array $tackleCounts, array $interceptionCounts, array $blockCounts, array $foulCounts, array $yellowCounts, array $redCounts, array $dismissals, array $playersById): array
     {
         $outgoingMinutes = [];
         foreach ($substitutions as $substitution) {
@@ -321,17 +380,18 @@ final class MatchSimulationService
         $stats = [];
         foreach ($starters as $starter) {
             $id = $starter->id()->value();
-            $minutes = $outgoingMinutes[$id] ?? 90;
+            $minutes = min($outgoingMinutes[$id] ?? 90, $dismissals[$id] ?? 90);
             [$attempted, $completed] = $this->passingEvidence($match->id()->value(), $starter, $minutes);
-            $stats[] = new PlayerMatchStat($match->id(), $starter->id(), $clubId, true, true, $minutes, $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0, $shotCounts[$id] ?? 0, $shotsOnTargetCounts[$id] ?? 0, $saveCounts[$id] ?? 0, $cleanSheetCounts[$id] ?? 0, $tackleCounts[$id] ?? 0, $interceptionCounts[$id] ?? 0, $blockCounts[$id] ?? 0, $attempted, $completed);
+            $stats[] = new PlayerMatchStat($match->id(), $starter->id(), $clubId, true, true, $minutes, $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0, $shotCounts[$id] ?? 0, $shotsOnTargetCounts[$id] ?? 0, $saveCounts[$id] ?? 0, $cleanSheetCounts[$id] ?? 0, $tackleCounts[$id] ?? 0, $interceptionCounts[$id] ?? 0, $blockCounts[$id] ?? 0, $attempted, $completed, $foulCounts[$id] ?? 0, $yellowCounts[$id] ?? 0, $redCounts[$id] ?? 0);
         }
         foreach ($substitutions as $substitution) {
             $incoming = $playersById[$substitution->incomingPlayerId()->value()] ?? null;
             if ($incoming === null) { continue; }
             $id = $incoming->id()->value();
-            $minutes = 90 - $substitution->minute();
+            $minutes = max(0, min(90, $dismissals[$id] ?? 90) - $substitution->minute());
+            if ($minutes < 1) { continue; }
             [$attempted, $completed] = $this->passingEvidence($match->id()->value(), $incoming, $minutes);
-            $stats[] = new PlayerMatchStat($match->id(), $incoming->id(), $clubId, true, false, $minutes, $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0, $shotCounts[$id] ?? 0, $shotsOnTargetCounts[$id] ?? 0, $saveCounts[$id] ?? 0, $cleanSheetCounts[$id] ?? 0, $tackleCounts[$id] ?? 0, $interceptionCounts[$id] ?? 0, $blockCounts[$id] ?? 0, $attempted, $completed);
+            $stats[] = new PlayerMatchStat($match->id(), $incoming->id(), $clubId, true, false, $minutes, $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0, $shotCounts[$id] ?? 0, $shotsOnTargetCounts[$id] ?? 0, $saveCounts[$id] ?? 0, $cleanSheetCounts[$id] ?? 0, $tackleCounts[$id] ?? 0, $interceptionCounts[$id] ?? 0, $blockCounts[$id] ?? 0, $attempted, $completed, $foulCounts[$id] ?? 0, $yellowCounts[$id] ?? 0, $redCounts[$id] ?? 0);
         }
 
         return $stats;

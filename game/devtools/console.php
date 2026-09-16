@@ -32,6 +32,8 @@ use Goal\Legacy\Devtools\Commands\CareerTransferSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\CareerMultiSeasonAuditCommand;
 use Goal\Legacy\Devtools\Commands\CareerNewCommand;
 use Goal\Legacy\Devtools\Commands\CareerHomeCommand;
+use Goal\Legacy\Devtools\Commands\CareerContinueCommand;
+use Goal\Legacy\Devtools\Commands\CareerActionCommand;
 
 $projectRoot = dirname(__DIR__, 2);
 $services = (new Bootstrap())->create($projectRoot);
@@ -60,6 +62,8 @@ $commands->register(new CareerTransferSelfCheckCommand($services));
 $commands->register(new CareerMultiSeasonAuditCommand($services));
 $commands->register(new CareerNewCommand($services, $projectRoot));
 $commands->register(new CareerHomeCommand($services));
+$commands->register(new CareerContinueCommand($services));
+$commands->register(new CareerActionCommand($services));
 
 $application = new ConsoleApplication($commands);
 exit($application->run($argv, new StreamConsoleOutput(STDOUT, STDERR)));

@@ -9,6 +9,7 @@ use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\JsonSerializer;
 use Goal\Legacy\Core\Persistence\SaveMetadata;
 use Goal\Legacy\Core\Persistence\SqliteSaveStore;
+use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Modules\Player\Domain\CareerId;
@@ -25,7 +26,7 @@ use RuntimeException;
 /** CLI Phase-1 entry: preview Youth Camp offers or create one playable save. */
 final class CareerNewCommand implements CommandInterface
 {
-    public function __construct(private readonly CoreServices $services, private readonly string $projectRoot)
+    public function __construct(private readonly CoreServices $services, private readonly string $projectRoot, private readonly ?SaveStore $saveStore = null)
     {
     }
 
@@ -52,7 +53,7 @@ final class CareerNewCommand implements CommandInterface
             throw new RuntimeException('Choose a listed Youth Camp Club with --club=<club-id>, or use --preview first.');
         }
         $previewDirectory = $this->projectRoot . '/game/saves/.career-preview-' . bin2hex(random_bytes(6));
-        $destinationStore = $this->services->saveStore();
+        $destinationStore = $this->saveStore ?? $this->services->saveStore();
         if (!$preview && $destinationStore->exists($careerId->value())) {
             throw new RuntimeException(sprintf('Save "%s" already exists; New Career never overwrites a save.', $careerId->value()));
         }
@@ -92,7 +93,7 @@ final class CareerNewCommand implements CommandInterface
                 $this->services->matchModule()->service()->generateFixtures($database, $competition->id()->value(), $season->id());
             }
             $summary = (new PlayerCareerProgressionQuery($this->services->clubModule()->service()))->summary($database, $player->id(), SimulationDate::fromIsoString('2024-07-31'), $season->id());
-            $output->write(sprintf('Career started: save=%s player=%s club=%s role=%s. Open with: php game/devtools/console.php career:home %s', $careerId->value(), $player->preferredName(), $summary['current_club']['name'] ?? 'unknown', $summary['current_role'] ?? 'unknown', $careerId->value()));
+            $output->write(sprintf('Career started: save=%s player=%s club=%s role=%s. Open with: php game/devtools/console.php career:home %s; Continue with: php game/devtools/console.php career:continue %s', $careerId->value(), $player->preferredName(), $summary['current_club']['name'] ?? 'unknown', $summary['current_role'] ?? 'unknown', $careerId->value(), $careerId->value()));
 
             return 0;
         } catch (\Throwable $exception) {

@@ -82,8 +82,43 @@ final class PlayerMatchRatingServiceTest extends TestCase
         self::assertNull($this->rate(PlayerPosition::CentreBack, false, 0));
     }
 
-    private function rate(PlayerPosition $position, bool $appeared, int $minutes, int $goals = 0, int $assists = 0, int $shots = 0, int $shotsOnTarget = 0, int $saves = 0, int $cleanSheets = 0, int $tackles = 0, int $interceptions = 0, int $blocks = 0): ?float
+    public function testPassingEvidenceIsConservativePositionAwareAndBounded(): void
     {
-        return $this->ratings->rate(new PlayerMatchStat(new MatchId('rating-match'), new PlayerId('rating-player'), new ClubId('arsenal'), $appeared, $appeared, $minutes, $goals, $assists, $shots, $shotsOnTarget, $saves, $cleanSheets, $tackles, $interceptions, $blocks), $position);
+        $midBase = $this->rate(PlayerPosition::CentralMidfielder, true, 90);
+        $tinyPerfect = $this->rate(PlayerPosition::CentralMidfielder, true, 90, passesAttempted: 3, passesCompleted: 3);
+        $tinyPoor = $this->rate(PlayerPosition::CentralMidfielder, true, 90, passesAttempted: 1, passesCompleted: 0);
+        $shortPerfect = $this->rate(PlayerPosition::CentralMidfielder, true, 6, passesAttempted: 3, passesCompleted: 3);
+        $midPoor = $this->rate(PlayerPosition::CentralMidfielder, true, 90, passesAttempted: 30, passesCompleted: 15);
+        $midAverage = $this->rate(PlayerPosition::CentralMidfielder, true, 90, passesAttempted: 30, passesCompleted: 22);
+        $midStrong = $this->rate(PlayerPosition::CentralMidfielder, true, 90, passesAttempted: 30, passesCompleted: 27);
+        $highVolumeMediocre = $this->rate(PlayerPosition::CentralMidfielder, true, 90, passesAttempted: 100, passesCompleted: 70);
+
+        self::assertSame($midBase, $this->rate(PlayerPosition::CentralMidfielder, true, 90, passesAttempted: 0));
+        self::assertLessThanOrEqual(0.1, $tinyPerfect - $midBase);
+        self::assertSame($midBase, $tinyPoor);
+        self::assertLessThanOrEqual(4.7, $shortPerfect);
+        self::assertGreaterThan($midPoor, $midAverage);
+        self::assertGreaterThan($midAverage, $midStrong);
+        self::assertLessThan($midStrong, $highVolumeMediocre);
+
+        $evidence = ['passesAttempted' => 30, 'passesCompleted' => 27];
+        $defender = $this->rate(PlayerPosition::CentreBack, true, 90, ...$evidence);
+        $midfielder = $this->rate(PlayerPosition::CentralMidfielder, true, 90, ...$evidence);
+        $attacker = $this->rate(PlayerPosition::Striker, true, 90, ...$evidence);
+        $goalkeeper = $this->rate(PlayerPosition::Goalkeeper, true, 90, ...$evidence);
+        self::assertGreaterThan($defender - $this->rate(PlayerPosition::CentreBack, true, 90), $midfielder - $midBase);
+        self::assertGreaterThan($attacker - $this->rate(PlayerPosition::Striker, true, 90), $defender - $this->rate(PlayerPosition::CentreBack, true, 90));
+        self::assertGreaterThan($goalkeeper - $this->rate(PlayerPosition::Goalkeeper, true, 90), $attacker - $this->rate(PlayerPosition::Striker, true, 90));
+        self::assertGreaterThan($this->rate(PlayerPosition::CentreBack, true, 90, tackles: 3), $this->rate(PlayerPosition::CentreBack, true, 90, tackles: 3, passesAttempted: 30, passesCompleted: 27));
+        self::assertGreaterThan($this->rate(PlayerPosition::Goalkeeper, true, 90), $this->rate(PlayerPosition::Goalkeeper, true, 90, saves: 4));
+        self::assertSame($midStrong, $this->rate(PlayerPosition::CentralMidfielder, true, 90, ...$evidence));
+        self::assertSame($midStrong, $this->rate(PlayerPosition::CentralMidfielder, true, 90, passesAttempted: 999999, passesCompleted: 999999));
+        self::assertGreaterThanOrEqual(0.0, $midStrong);
+        self::assertLessThanOrEqual(10.0, $midStrong);
+    }
+
+    private function rate(PlayerPosition $position, bool $appeared, int $minutes, int $goals = 0, int $assists = 0, int $shots = 0, int $shotsOnTarget = 0, int $saves = 0, int $cleanSheets = 0, int $tackles = 0, int $interceptions = 0, int $blocks = 0, int $passesAttempted = 0, int $passesCompleted = 0): ?float
+    {
+        return $this->ratings->rate(new PlayerMatchStat(new MatchId('rating-match'), new PlayerId('rating-player'), new ClubId('arsenal'), $appeared, $appeared, $minutes, $goals, $assists, $shots, $shotsOnTarget, $saves, $cleanSheets, $tackles, $interceptions, $blocks, $passesAttempted, $passesCompleted), $position);
     }
 }

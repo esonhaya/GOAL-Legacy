@@ -17,6 +17,7 @@ final class PlayerMatchRatingService
     public const MAXIMUM = 10.0;
 
     private const DEFENSIVE_EVIDENCE_CAP = 1.2;
+    private const PASSING_MEANINGFUL_ATTEMPTS = 30;
 
     public function rate(PlayerMatchStat $stat, PlayerPosition $position): ?float
     {
@@ -41,6 +42,7 @@ final class PlayerMatchRatingService
         $rating += $cleanSheets * $cleanSheetWeight;
         $rating += min(1.4, $saves * $saveWeight);
         $rating += $this->defensiveBonus($stat, $position);
+        $rating += $this->passingBonus($stat, $position);
 
         return round(min(self::MAXIMUM, max(self::MINIMUM, $rating)), 1);
     }
@@ -72,5 +74,31 @@ final class PlayerMatchRatingService
             PlayerPosition::DefensiveMidfielder, PlayerPosition::CentralMidfielder, PlayerPosition::AttackingMidfielder => min(0.8, $evidence),
             PlayerPosition::LeftWinger, PlayerPosition::RightWinger, PlayerPosition::Striker => min(0.3, $evidence),
         };
+    }
+
+    /**
+     * Passing is one bounded evidence component. Volume only establishes how
+     * much confidence to place in completion quality; routine volume alone
+     * earns no bonus, and tiny perfect samples remain conservative.
+     */
+    private function passingBonus(PlayerMatchStat $stat, PlayerPosition $position): float
+    {
+        $attempted = max(0, $stat->passesAttempted());
+        $completed = min($attempted, max(0, $stat->passesCompleted()));
+        if ($attempted === 0) {
+            return 0.0;
+        }
+
+        $completion = $completed / $attempted;
+        $confidence = min(1.0, $attempted / self::PASSING_MEANINGFUL_ATTEMPTS);
+        $quality = min(1.0, max(0.0, ($completion - 0.60) / 0.30));
+        $cap = match ($position) {
+            PlayerPosition::Goalkeeper => 0.15,
+            PlayerPosition::CentreBack, PlayerPosition::LeftBack, PlayerPosition::RightBack => 0.50,
+            PlayerPosition::DefensiveMidfielder, PlayerPosition::CentralMidfielder, PlayerPosition::AttackingMidfielder => 0.70,
+            PlayerPosition::LeftWinger, PlayerPosition::RightWinger, PlayerPosition::Striker => 0.35,
+        };
+
+        return $cap * $confidence * $quality;
     }
 }

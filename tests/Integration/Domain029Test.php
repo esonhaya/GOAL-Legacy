@@ -68,6 +68,11 @@ final class Domain029Test extends TestCase
         $position = $players->get($defensiveStat->playerId())->primaryPosition();
         $withoutDefensiveEvidence = new PlayerMatchStat($defensiveStat->matchId(), $defensiveStat->playerId(), $defensiveStat->clubId(), $defensiveStat->appeared(), $defensiveStat->started(), $defensiveStat->minutes(), $defensiveStat->goals(), $defensiveStat->assists(), $defensiveStat->shots(), $defensiveStat->shotsOnTarget(), $defensiveStat->saves(), $defensiveStat->cleanSheets());
         self::assertGreaterThan((new PlayerMatchRatingService())->rate($withoutDefensiveEvidence, $position), $matchService->playerSummary($database, $completed->id(), $defensiveStat->playerId())['rating']);
+        $passingStat = array_values(array_filter($matchService->statRepository($database)->byMatch($completed->id()), static fn (PlayerMatchStat $stat): bool => $stat->passesAttempted() >= 30 && ($stat->passesCompleted() / $stat->passesAttempted()) > 0.60 && $players->get($stat->playerId())->primaryPosition()->value !== 'GK'))[0] ?? null;
+        self::assertNotNull($passingStat, 'DOMAIN-031B should provide meaningful natural passing evidence.');
+        $passingPosition = $players->get($passingStat->playerId())->primaryPosition();
+        $withoutPassingEvidence = new PlayerMatchStat($passingStat->matchId(), $passingStat->playerId(), $passingStat->clubId(), $passingStat->appeared(), $passingStat->started(), $passingStat->minutes(), $passingStat->goals(), $passingStat->assists(), $passingStat->shots(), $passingStat->shotsOnTarget(), $passingStat->saves(), $passingStat->cleanSheets(), $passingStat->tackles(), $passingStat->interceptions(), $passingStat->blocks());
+        self::assertGreaterThan((new PlayerMatchRatingService())->rate($withoutPassingEvidence, $passingPosition), $matchService->playerSummary($database, $completed->id(), $passingStat->playerId())['rating']);
         $unusedBench = array_values(array_filter($matchService->selectionRepository($database)->byMatch($completed->id()), fn ($selection): bool => $selection->status()->value === 'bench' && $matchService->playerSummary($database, $completed->id(), $selection->playerId()) === null));
         self::assertNotEmpty($unusedBench);
 

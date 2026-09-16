@@ -6,7 +6,7 @@ namespace Goal\Legacy\Modules\Player\Domain;
 
 final readonly class SeasonPerformanceAssessment
 {
-    /** @param array<string, int|float> $statistics */
+    /** @param array<string, int|float|null> $statistics */
     public function __construct(
         private string $classification,
         private int $score,
@@ -25,7 +25,7 @@ final readonly class SeasonPerformanceAssessment
         return $this->score;
     }
 
-    /** @return array<string, int|float> */
+    /** @return array<string, int|float|null> */
     public function statistics(): array
     {
         return $this->statistics;
@@ -36,7 +36,7 @@ final readonly class SeasonPerformanceAssessment
         return $this->reason;
     }
 
-    /** @return array{classification:string,score:int,reason:string,statistics:array<string,int|float>} */
+    /** @return array{classification:string,score:int,reason:string,statistics:array<string,int|float|null>} */
     public function toArray(): array
     {
         return [

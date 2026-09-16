@@ -130,6 +130,66 @@ final class Domain022Test extends TestCase
         self::assertSame('steady', $service->assess($database, $goalkeeper->id(), $season->id(), new ClubId('arsenal'))->classification());
     }
 
+    public function testSeasonRatingsArePositionAwareTransferSafeAndExcludeIncompleteEvidence(): void
+    {
+        [$services, $database, $season] = $this->scenario('domain-033-season-ratings');
+        $players = $services->playerModule()->service();
+        $attacker = $players->create($this->request('rating-attacker', new PlayerAttributeSet(70, 90, 70, 70, 40, 70), 90, 'ST'));
+        $midfielder = $players->create($this->request('rating-midfielder', new PlayerAttributeSet(70, 65, 90, 70, 80, 75), 90, 'CM'));
+        $defender = $players->create($this->request('rating-defender', new PlayerAttributeSet(65, 45, 70, 60, 90, 85), 90, 'CB'));
+        $goalkeeper = $players->create($this->request('rating-goalkeeper', new PlayerAttributeSet(60, 40, 70, 50, 70, 75), 90, 'GK'));
+        $ordinary = $players->create($this->request('rating-ordinary', new PlayerAttributeSet(60, 60, 60, 60, 60, 60), 90, 'CM'));
+        $short = $players->create($this->request('rating-short', new PlayerAttributeSet(70, 90, 70, 70, 40, 70), 90, 'ST'));
+        $weak = $players->create($this->request('rating-weak', new PlayerAttributeSet(60, 40, 50, 50, 50, 50), 90, 'CM'));
+        $volume = $players->create($this->request('rating-volume', new PlayerAttributeSet(60, 50, 70, 50, 50, 50), 90, 'CM'));
+        $transfer = $players->create($this->request('rating-transfer', new PlayerAttributeSet(65, 45, 70, 60, 90, 85), 90, 'CB'));
+        foreach ([$attacker, $midfielder, $defender, $goalkeeper, $ordinary, $short, $weak, $volume, $transfer] as $player) { $players->repository($database)->save($player); }
+
+        $matches = $services->matchModule()->service()->generateFixtures($database, 'premier-league', $season->id());
+        $arsenal = array_values(array_filter($matches, static fn ($match): bool => $match->homeClubId()->value() === 'arsenal' || $match->awayClubId()->value() === 'arsenal'));
+        $chelsea = array_values(array_filter($matches, static fn ($match): bool => ($match->homeClubId()->value() === 'chelsea' || $match->awayClubId()->value() === 'chelsea') && !in_array($match->id()->value(), array_map(static fn ($match): string => $match->id()->value(), array_slice($arsenal, 0, 10)), true)));
+        $matchesRepository = new MatchRepository($database);
+        $stats = new PlayerMatchStatRepository($database);
+        foreach (array_slice($arsenal, 0, 10) as $index => $match) {
+            $matchesRepository->save($match->complete(new MatchResult(1, 0)));
+            $rows = [
+                new PlayerMatchStat($match->id(), $attacker->id(), new ClubId('arsenal'), true, true, 90, 2, 0, 2, 2),
+                new PlayerMatchStat($match->id(), $midfielder->id(), new ClubId('arsenal'), true, true, 90, 0, 1, 0, 0, 0, 0, 3, 3, 1, 50, 45),
+                new PlayerMatchStat($match->id(), $defender->id(), new ClubId('arsenal'), true, true, 90, 0, 0, 0, 0, 0, 1, 4, 3, 2, 35, 30),
+                new PlayerMatchStat($match->id(), $goalkeeper->id(), new ClubId('arsenal'), true, true, 90, 0, 0, 0, 0, 4, 1, 0, 0, 0, 25, 20),
+                new PlayerMatchStat($match->id(), $ordinary->id(), new ClubId('arsenal'), true, true, 90, 0),
+                new PlayerMatchStat($match->id(), $weak->id(), new ClubId('arsenal'), true, true, 90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 10, 4, 2, 1),
+                new PlayerMatchStat($match->id(), $volume->id(), new ClubId('arsenal'), true, true, 90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 70),
+            ];
+            if ($index === 0) { $rows[] = new PlayerMatchStat($match->id(), $short->id(), new ClubId('arsenal'), true, false, 15, 2, 0, 2, 2); }
+            if ($index < 4) { $rows[] = new PlayerMatchStat($match->id(), $transfer->id(), new ClubId('arsenal'), true, true, 90, 0, 0, 0, 0, 0, 1, 4, 3, 2, 35, 30); }
+            $stats->replaceForMatch($rows);
+        }
+        foreach (array_slice($chelsea, 0, 4) as $match) {
+            $matchesRepository->save($match->complete(new MatchResult(1, 0)));
+            $stats->replaceForMatch([new PlayerMatchStat($match->id(), $transfer->id(), new ClubId('chelsea'), true, true, 90, 0, 0, 0, 0, 0, 1, 4, 3, 2, 35, 30)]);
+        }
+        $incomplete = $arsenal[10];
+        $stats->replaceForMatch([new PlayerMatchStat($incomplete->id(), $attacker->id(), new ClubId('arsenal'), true, true, 90, 9, 0, 9, 9)]);
+
+        $service = new PlayerSeasonPerformanceService();
+        foreach ([$attacker, $midfielder, $defender, $goalkeeper] as $player) { self::assertSame('breakout', $service->assess($database, $player->id(), $season->id())->classification()); }
+        self::assertSame('steady', $service->assess($database, $ordinary->id(), $season->id())->classification());
+        self::assertSame('insufficient_evidence', $service->assess($database, $short->id(), $season->id())->classification());
+        self::assertSame('stagnant', $service->assess($database, $weak->id(), $season->id())->classification());
+        self::assertSame('steady', $service->assess($database, $volume->id(), $season->id())->classification());
+        self::assertSame('insufficient_evidence', $service->assess($database, 'no-season-appearances', $season->id())->classification());
+        $transferAssessment = $service->assess($database, $transfer->id(), $season->id(), new ClubId('chelsea'));
+        self::assertSame(8, $transferAssessment->statistics()['rated_appearances']);
+        self::assertSame('breakout', $transferAssessment->classification());
+        $attackerAssessment = $service->assess($database, $attacker->id(), $season->id());
+        self::assertSame(10, $attackerAssessment->statistics()['rated_appearances']);
+        $attackerStat = array_values(array_filter($stats->byMatch($arsenal[0]->id()), static fn (PlayerMatchStat $stat): bool => $stat->playerId()->value() === 'rating-attacker'))[0];
+        self::assertSame((new \Goal\Legacy\Modules\Match\PlayerMatchRatingService())->rate($attackerStat, $attacker->primaryPosition()), $attackerAssessment->statistics()['average_match_rating']);
+        $players->repository($database)->save($attacker->withAttributes(new PlayerAttributeSet(90, 90, 90, 90, 90, 90)));
+        self::assertSame($attackerAssessment->toArray(), $service->assess($database, $attacker->id(), $season->id())->toArray());
+    }
+
     /** @return array{0:\Goal\Legacy\Core\Bootstrap\CoreServices,1:\Goal\Legacy\Core\Persistence\DatabaseInterface,2:Season,3:SqliteSaveStore} */
     private function scenario(string $id): array
     {
@@ -150,8 +210,8 @@ final class Domain022Test extends TestCase
         return [$services, $database, $season, $store];
     }
 
-    private function request(string $id, PlayerAttributeSet $attributes, int $potential): PlayerCreationRequest
+    private function request(string $id, PlayerAttributeSet $attributes, int $potential, string $position = 'CM'): PlayerCreationRequest
     {
-        return new PlayerCreationRequest($id, 'Performance', 'Player', $id, '2005-01-01', 'england', [], 'england', ['england'], 180, 75, 'CM', $potential, 'regular', 9022, $attributes);
+        return new PlayerCreationRequest($id, 'Performance', 'Player', $id, '2005-01-01', 'england', [], 'england', ['england'], 180, 75, $position, $potential, 'regular', 9022, $attributes);
     }
 }

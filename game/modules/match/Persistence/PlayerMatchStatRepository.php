@@ -26,6 +26,31 @@ final class PlayerMatchStatRepository
     public function byMatch(string|MatchId $id): array { $matchId = $id instanceof MatchId ? $id : new MatchId($id); $statement = $this->database->connection()->prepare('SELECT * FROM ' . self::TABLE . ' WHERE match_id = :match_id ORDER BY club_id ASC, player_id ASC'); $statement->execute(['match_id' => $matchId->value()]); return $this->hydrateRows($statement->fetchAll(PDO::FETCH_ASSOC)); }
     /** @return list<PlayerMatchStat> */
     public function byPlayer(string|PlayerId $id): array { $playerId = $id instanceof PlayerId ? $id : new PlayerId($id); $statement = $this->database->connection()->prepare('SELECT * FROM ' . self::TABLE . ' WHERE player_id = :player_id ORDER BY match_id ASC'); $statement->execute(['player_id' => $playerId->value()]); return $this->hydrateRows($statement->fetchAll(PDO::FETCH_ASSOC)); }
+    /** @return list<array{player_id:string,club_id:string,position:string,stat:PlayerMatchStat}> */
+    public function completedSeasonRatingEvidence(SeasonId $seasonId, ?PlayerId $playerId = null): array
+    {
+        $sql = 'SELECT stats.*, players.primary_position FROM ' . self::TABLE . ' stats '
+            . 'JOIN match_records matches ON matches.id = stats.match_id '
+            . 'JOIN player_records players ON players.id = stats.player_id '
+            . 'WHERE matches.season_id = :season_id AND matches.status = :status AND stats.appeared = 1';
+        $parameters = ['season_id' => $seasonId->value(), 'status' => 'completed'];
+        if ($playerId !== null) { $sql .= ' AND stats.player_id = :player_id'; $parameters['player_id'] = $playerId->value(); }
+        $sql .= ' ORDER BY stats.player_id ASC, stats.match_id ASC';
+        $statement = $this->database->connection()->prepare($sql);
+        $statement->execute($parameters);
+
+        $evidence = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $evidence[] = [
+                'player_id' => (string) $row['player_id'],
+                'club_id' => (string) $row['club_id'],
+                'position' => (string) $row['primary_position'],
+                'stat' => $this->hydrateRows([$row])[0],
+            ];
+        }
+
+        return $evidence;
+    }
     /** @return array<string, array{club_id:string,appearances:int,starts:int,minutes:int,goals:int,assists:int,shots:int,shots_on_target:int,saves:int,clean_sheets:int,tackles:int,interceptions:int,blocks:int,passes_attempted:int,passes_completed:int}> */
     public function seasonAggregates(SeasonId $seasonId): array
     {

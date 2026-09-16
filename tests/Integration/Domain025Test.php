@@ -92,6 +92,9 @@ final class Domain025Test extends TestCase
         self::assertSame('arsenal', $previous['club']['id']);
         self::assertSame('breakout', $previous['performance']['classification']);
         self::assertSame(1, $previous['appearances']);
+        self::assertSame(1, $previous['rated_appearances']);
+        self::assertIsFloat($previous['average_match_rating']);
+        self::assertSame($previous['average_match_rating'], $previous['performance']['statistics']['average_match_rating']);
         self::assertSame('breakout', $summary['latest_season_performance']['classification']);
         self::assertArrayNotHasKey('assists', $previous['performance']['statistics']);
         self::assertNotEmpty($summary['development_history']);

@@ -98,7 +98,7 @@ final class PlayerCareerProgressionQuery
         $membership = $requestedMembership;
         $summary['squad_role'] = $membership?->role()->value;
         if ($seasonId !== null) {
-            $summary['season_performance'] = (new PlayerSeasonPerformanceService())->assess($database, $id, $seasonId, $membership?->clubId())->toArray();
+            $summary['season_performance'] = (new PlayerSeasonPerformanceService())->assess($database, $id, $seasonId)->toArray();
         }
         $completedHistory = array_values(array_filter($seasonHistory, static fn (array $row): bool => $row['season_status'] === 'completed'));
         $summary['latest_season_performance'] = $completedHistory === [] ? null : $completedHistory[array_key_last($completedHistory)]['performance'];
@@ -208,7 +208,7 @@ final class PlayerCareerProgressionQuery
                     break;
                 }
             }
-            $assessment = $performance->assess($database, $playerId, $membership->seasonId(), $membership->clubId());
+            $assessment = $performance->assess($database, $playerId, $membership->seasonId());
             $statistics = $assessment->statistics();
             $history[] = [
                 'season_id' => $membership->seasonId()->value(),
@@ -223,6 +223,8 @@ final class PlayerCareerProgressionQuery
                 'starts' => (int) ($statistics['starts'] ?? 0),
                 'minutes' => (int) ($statistics['minutes'] ?? 0),
                 'goals' => (int) ($statistics['goals'] ?? 0),
+                'rated_appearances' => (int) ($statistics['rated_appearances'] ?? 0),
+                'average_match_rating' => $statistics['average_match_rating'] ?? null,
                 'performance' => $assessment->toArray(),
             ];
         }

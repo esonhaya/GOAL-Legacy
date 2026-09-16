@@ -66,6 +66,7 @@ final class PlayerCareerProgressionQuery
             'age' => $player->ageAt($date),
             'current_ovr' => $player->overallRating(),
             'current_season_id' => $seasonId?->value(),
+            'current_season_label' => $seasonId === null ? null : (new SeasonRepository($database))->get($seasonId)->label(),
             'career_state' => $player->careerState()->value,
             'potential' => $player->potential(),
             'development_profile' => $player->developmentProfile()->value,

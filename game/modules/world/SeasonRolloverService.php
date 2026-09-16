@@ -295,6 +295,20 @@ final class SeasonRolloverService
         }
         $this->lastPhaseTimings['fixture_generation_ms'] = $this->elapsedMilliseconds($phaseStart);
 
+        // CareerMovementService owns the free-agent decision. Create its
+        // bounded next-Season offer set once the new Season exists so the
+        // player can resolve it through the normal career:play path.
+        if ($this->transferService !== null) {
+            $movement = $this->transferService->careerMovement();
+            foreach ((new CareerPlayerRepository($database))->playerIds() as $playerId) {
+                $previousMembership = $this->clubService->squadRepository($database)->byPlayer($playerId, $previous->id())[0] ?? null;
+                if ($previousMembership === null) { continue; }
+                if ($this->clubService->squadRepository($database)->byPlayer($playerId, $next->id()) !== []) { continue; }
+                if ($this->contractService->repository($database)->activeForPlayer(new PlayerId($playerId)) !== null) { continue; }
+                $movement->evaluateFreeAgentOffers($database, $playerId, $next, $asOfDate, $previousMembership->clubId());
+            }
+        }
+
         return ['memberships' => count($this->clubService->membershipRepository($database)->bySeason($next->id())), 'replenished' => (int) ($population['players_generated'] ?? 0), 'fixtures' => $fixtures, 'free_agent_signings' => (int) ($recruitment['free_agents_signed'] ?? 0), 'npc_transfers' => (int) ($recruitment['npc_transfers'] ?? 0), 'newgens_avoided' => (int) ($recruitment['newgens_avoided'] ?? 0), 'position_needs_met' => (int) ($recruitment['position_needs_met'] ?? 0)];
     }
 

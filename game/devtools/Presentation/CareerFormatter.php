@@ -31,7 +31,7 @@ final class CareerFormatter
         $lines[] = 'Age: ' . $this->number($summary['age'] ?? null);
         $lines[] = 'Nationality: ' . CareerLabels::nationality($player['primary_nation_id'] ?? null);
         $lines[] = 'Position: ' . CareerLabels::position($player['primary_position'] ?? null);
-        $lines[] = 'Club: ' . ($club['name'] ?? 'Free agent');
+        $lines[] = 'Club: ' . ($club['name'] ?? 'Free Agent');
         $lines[] = 'Competition: ' . ($competition === null ? 'No competition' : ($competition['name'] ?? 'No competition') . ' (Tier ' . $this->number($competition['tier'] ?? null) . ')');
         $lines[] = 'OVR: ' . $this->number($summary['current_ovr'] ?? null);
         $lines[] = 'Potential: ' . $this->number($summary['potential'] ?? null);
@@ -40,7 +40,7 @@ final class CareerFormatter
 
         $lines[] = '';
         $latestSeason = $history === [] ? null : $history[array_key_last($history)];
-        $seasonLabel = is_array($latestSeason) ? ($latestSeason['season'] ?? 'Current') : 'Current';
+        $seasonLabel = $this->text($summary['current_season_label'] ?? null, is_array($latestSeason) ? (string) ($latestSeason['season'] ?? 'Current') : 'Current');
         $lines[] = 'CURRENT SEASON' . ($seasonLabel === 'Current' ? '' : ' — ' . $seasonLabel);
         $lines[] = 'Appearances: ' . $this->number($season['appearances'] ?? 0) . ' | Starts: ' . $this->number($season['starts'] ?? 0) . ' | Minutes: ' . $this->number($season['minutes'] ?? 0);
         $lines[] = 'Goals: ' . $this->number($season['goals'] ?? 0) . ' | Assists: ' . $this->number($season['assists'] ?? 0);
@@ -79,16 +79,122 @@ final class CareerFormatter
         $lines[] = '1. Continue';
         $lines[] = '2. Career';
         $lines[] = '3. World';
-        $actionNumber = 4;
+        $lines[] = '4. News';
+        $actionNumber = 5;
+        $hasDecision = false;
         foreach (($summary['available_actions'] ?? []) as $action) {
             $type = is_array($action) ? ($action['type'] ?? null) : null;
-            if ($type === 'request_transfer') {
+            if ($type === 'resolve_opportunity') {
+                if (!$hasDecision) {
+                    $lines[] = $actionNumber++ . '. Resolve career decision';
+                    $hasDecision = true;
+                }
+            } elseif ($type === 'request_transfer') {
                 $lines[] = $actionNumber++ . '. Request transfer';
             } elseif ($type === 'withdraw_transfer_request') {
                 $lines[] = $actionNumber++ . '. Withdraw transfer request';
             }
         }
         $lines[] = $actionNumber . '. Save & Exit';
+
+        return $lines;
+    }
+
+    /** @param array<string, mixed> $decision */
+    public function decision(array $decision): array
+    {
+        $lines = $this->title('CAREER DECISION');
+        $lines[] = 'Decision: ' . CareerLabels::value($decision['decision_kind'] ?? $decision['type'] ?? null);
+        $lines[] = 'Current Club: ' . $this->text($decision['current_club'] ?? null, 'Free agent');
+        $competition = $decision['current_competition'] ?? null;
+        if (is_array($competition)) {
+            $lines[] = 'Current Competition: ' . $this->text($competition['name'] ?? null) . ' (Tier ' . $this->number($competition['tier'] ?? null) . ')';
+        } else {
+            $lines[] = 'Current Competition: No competition';
+        }
+        if (trim((string) ($decision['contract'] ?? '')) !== '') {
+            $lines[] = 'Contract: ' . (string) $decision['contract'];
+        }
+        $lines[] = '';
+        $lines[] = 'OPTIONS';
+        $options = is_array($decision['options'] ?? null) ? $decision['options'] : [];
+        if ($options === []) {
+            $lines[] = 'No decision options available.';
+        } else {
+            foreach ($options as $index => $option) {
+                if (!is_array($option)) { continue; }
+                $line = ($index + 1) . '. ' . $this->text($option['label'] ?? null, 'Available choice');
+                if (is_array($option['club'] ?? null)) {
+                    $club = $option['club'];
+                    $line .= ' — ' . $this->text($club['name'] ?? null);
+                    if (trim((string) ($club['country'] ?? '')) !== '') { $line .= ', ' . (string) $club['country']; }
+                    if (trim((string) ($club['competition'] ?? '')) !== '') { $line .= ', ' . (string) $club['competition']; }
+                    if (isset($club['tier'])) { $line .= ' (Tier ' . $this->number($club['tier']) . ')'; }
+                }
+                if (trim((string) ($option['role'] ?? '')) !== '') { $line .= ' | Role: ' . (string) $option['role']; }
+                $lines[] = $line;
+            }
+        }
+
+        return $lines;
+    }
+
+    /** @param list<array<string, mixed>> $items */
+    public function news(array $items): array
+    {
+        $lines = $this->title('NEWS');
+        if ($items === []) {
+            $lines[] = 'No career news yet.';
+        } else {
+            foreach ($items as $item) {
+                if (!is_array($item)) { continue; }
+                $date = $this->text($item['date'] ?? null);
+                $headline = $this->text($item['headline'] ?? null, 'Career update');
+                $lines[] = $date . ' — ' . $headline;
+            }
+        }
+        $lines[] = '';
+        $lines[] = '1. Back to Career Home';
+
+        return $lines;
+    }
+
+    /** @param array<string, mixed> $summary */
+    public function seasonSummary(array $summary): array
+    {
+        $lines = $this->title('SEASON SUMMARY');
+        $lines[] = 'Season: ' . $this->text($summary['season'] ?? null);
+        $lines[] = 'Club: ' . $this->text($summary['club'] ?? null, 'Free agent');
+        $lines[] = 'Competition: ' . $this->text($summary['competition'] ?? null, 'No competition');
+        if (isset($summary['position'])) { $lines[] = 'Final league position: ' . $this->number($summary['position']); }
+        $stats = is_array($summary['stats'] ?? null) ? $summary['stats'] : [];
+        $lines[] = 'Player: ' . $this->statsLine($stats) . ' | Average Rating ' . $this->ratingOrEvidence($stats['average_match_rating'] ?? null);
+        $lines[] = 'Season Performance: ' . CareerLabels::value($summary['performance'] ?? null);
+        if (isset($summary['ovr_before'], $summary['ovr_after']) && $summary['ovr_before'] !== $summary['ovr_after']) {
+            $lines[] = 'OVR: ' . $this->number($summary['ovr_before']) . ' -> ' . $this->number($summary['ovr_after']);
+        }
+        if (trim((string) ($summary['role_change'] ?? '')) !== '') { $lines[] = 'Role: ' . (string) $summary['role_change']; }
+        if (trim((string) ($summary['tier_outcome'] ?? '')) !== '') { $lines[] = (string) $summary['tier_outcome']; }
+        $lines[] = '';
+        $lines[] = '1. Back to Career Home';
+
+        return $lines;
+    }
+
+    /** @param array<string, mixed> $summary */
+    public function rollover(array $summary): array
+    {
+        $lines = $this->title('NEW SEASON');
+        $lines[] = 'Season: ' . $this->text($summary['season'] ?? null);
+        $lines[] = 'Club: ' . $this->text($summary['club'] ?? null, 'Free agent');
+        $lines[] = 'Competition: ' . $this->text($summary['competition'] ?? null, 'No competition');
+        if (trim((string) ($summary['tier_outcome'] ?? '')) !== '') { $lines[] = (string) $summary['tier_outcome']; }
+        if (trim((string) ($summary['role_change'] ?? '')) !== '') { $lines[] = 'Role: ' . (string) $summary['role_change']; }
+        if (($summary['ovr'] ?? null) !== null) { $lines[] = 'OVR: ' . $this->number($summary['ovr']); }
+        $lines[] = '';
+        $lines[] = 'The new Season is ready. Your Season statistics start from zero.';
+        $lines[] = '';
+        $lines[] = '1. Back to Career Home';
 
         return $lines;
     }
@@ -111,11 +217,11 @@ final class CareerFormatter
         $lines[] = 'Development: ' . CareerLabels::value($summary['development_profile'] ?? null) . ' | Potential: ' . $this->number($summary['potential'] ?? null);
         $lines[] = '';
         $lines[] = 'CURRENT CLUB / CONTRACT';
-        $lines[] = 'Club: ' . ($club['name'] ?? 'Free agent') . ' | Role: ' . CareerLabels::value($summary['current_role'] ?? null);
+        $lines[] = 'Club: ' . ($club['name'] ?? 'Free Agent') . ' | Role: ' . CareerLabels::value($summary['current_role'] ?? null);
         $lines[] = 'Contract: ' . $this->contract($contract);
         $lines[] = '';
         $latestSeason = $history === [] ? null : $history[array_key_last($history)];
-        $seasonLabel = is_array($latestSeason) ? ($latestSeason['season'] ?? 'Current') : 'Current';
+        $seasonLabel = $this->text($summary['current_season_label'] ?? null, is_array($latestSeason) ? (string) ($latestSeason['season'] ?? 'Current') : 'Current');
         $lines[] = 'CURRENT SEASON' . ($seasonLabel === 'Current' ? '' : ' — ' . $seasonLabel);
         $lines[] = $this->statsLine($season);
         $lines[] = 'Average Rating: ' . $this->ratingOrEvidence($season['average_match_rating'] ?? null);
@@ -243,9 +349,23 @@ final class CareerFormatter
             }
         }
         $lines[] = '';
+        $lines[] = 'RECENT RESULTS (* = controlled Club)';
+        $recentResults = is_array($world['recent_results'] ?? null) ? $world['recent_results'] : [];
+        if ($recentResults === []) {
+            $lines[] = $this->text($world['recent_result'] ?? null, 'No completed result yet.');
+        } else {
+            foreach ($recentResults as $result) { if (is_string($result) && trim($result) !== '') { $lines[] = $result; } }
+        }
         $lines[] = 'RECENT CONTROLLED CLUB RESULT';
         $lines[] = $this->text($world['recent_result'] ?? null, 'No completed result yet.');
         $lines[] = '';
+        $lines[] = 'UPCOMING FIXTURES (* = controlled Club)';
+        $upcoming = is_array($world['upcoming_fixtures'] ?? null) ? $world['upcoming_fixtures'] : [];
+        if ($upcoming === []) {
+            $lines[] = $this->text($world['next_fixture'] ?? null, 'No scheduled fixture.');
+        } else {
+            foreach ($upcoming as $fixture) { if (is_string($fixture) && trim($fixture) !== '') { $lines[] = $fixture; } }
+        }
         $lines[] = 'NEXT CONTROLLED CLUB FIXTURE';
         $lines[] = $this->text($world['next_fixture'] ?? null, 'No scheduled fixture.');
         $lines[] = '';

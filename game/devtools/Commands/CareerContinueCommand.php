@@ -13,6 +13,9 @@ use Goal\Legacy\Devtools\Presentation\CareerFormatter;
 use Goal\Legacy\Devtools\Presentation\CareerLabels;
 use Goal\Legacy\Devtools\Presentation\CareerPresentationService;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
+use Goal\Legacy\Modules\Match\Domain\MatchStatus;
+use Goal\Legacy\Modules\Match\Domain\GameMatch;
+use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
 use Goal\Legacy\Modules\World\Domain\SeasonStatus;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -42,15 +45,63 @@ final class CareerContinueCommand implements CommandInterface
         $summary = $query->summary($database, $career->playerId(), $date, $world->currentSeasonId());
 
         if (($summary['pending_decisions'] ?? []) !== []) {
-            $this->decision($output, $summary['pending_decisions']);
+            $presentation = new CareerPresentationService($this->services);
+            $decision = $presentation->decision($summary, $database);
+            if ($decision === null) {
+                $this->decision($output, $summary['pending_decisions']);
+            } else {
+                foreach ((new CareerFormatter())->decision($decision) as $line) { $output->write($line); }
+            }
             return 0;
         }
         $next = $summary['next_scheduled_match'] ?? null;
-        if (!is_array($next) || !isset($next['date'])) {
+        while (!is_array($next) || !isset($next['date'])) {
             $season = $worldService->seasonRepository($database)->get($world->currentSeasonId());
-            if ($world->currentSeasonId() !== null && $season->status() === SeasonStatus::Active && !$date->isBefore($season->endDate())) {
+            $competitionIds = array_fill_keys($world->competitionIds(), true);
+            $scheduled = array_values(array_filter(
+                (new MatchRepository($database))->byStatus(MatchStatus::Scheduled),
+                static fn ($match): bool => $world->currentSeasonId() !== null
+                    && $match->seasonId()->value() === $world->currentSeasonId()->value()
+                    && isset($competitionIds[$match->competitionId()->value()]),
+            ));
+            usort($scheduled, static fn ($left, $right): int => strcmp($left->scheduledDate()->toIsoString() . $left->id()->value(), $right->scheduledDate()->toIsoString() . $right->id()->value()));
+            $nextWorldMatch = null;
+            foreach ($scheduled as $candidate) {
+                if (!$candidate->scheduledDate()->isBefore($date)) { $nextWorldMatch = $candidate; break; }
+            }
+            if ($nextWorldMatch !== null && $season->status() === SeasonStatus::Active) {
+                $targetWorldDate = $nextWorldMatch->scheduledDate();
+                if ($targetWorldDate->toIsoString() !== $date->toIsoString()) {
+                    $worldService->advanceToDate($database, $saveId, $targetWorldDate);
+                }
+                $completed = $this->services->matchModule()->service()->simulateDue($database, $targetWorldDate);
+                $clubId = $summary['current_club']['id'] ?? null;
+                $controlled = array_values(array_filter($completed, static fn ($match): bool => $clubId !== null && ($match->homeClubId()->value() === $clubId || $match->awayClubId()->value() === $clubId)));
+                if ($controlled !== []) {
+                    $this->renderMatch($database, $saveId, $output, $career->playerId()->value(), $controlled[array_key_last($controlled)], is_string($clubId) ? $clubId : null);
+                    return 0;
+                }
+                $world = $worldService->load($database, $saveId);
+                $date = $world->currentDate($worldService->calendar());
+                $summary = $query->summary($database, $career->playerId(), $date, $world->currentSeasonId());
+                if (($summary['pending_decisions'] ?? []) !== []) {
+                    $presentation = new CareerPresentationService($this->services);
+                    $decision = $presentation->decision($summary, $database);
+                    if ($decision !== null) {
+                        foreach ((new CareerFormatter())->decision($decision) as $line) { $output->write($line); }
+                    }
+                    return 0;
+                }
+                $next = $summary['next_scheduled_match'] ?? null;
+                continue;
+            }
+            if ($world->currentSeasonId() !== null && $season->status() === SeasonStatus::Active && $worldService->seasonRollover()?->competitionsComplete($database, $world, $season) === true) {
                 $worldService->advanceToDate($database, $saveId, $season->endDate()->addDays(1));
+                $snapshot = (new CareerPresentationService($this->services))->snapshot($database, $saveId);
                 $output->write(sprintf('SEASON END — %s completed; rollover preparation is persisted.', $season->label()));
+                foreach ((new CareerFormatter())->seasonSummary((new CareerPresentationService($this->services))->seasonSummary($database, $snapshot['summary'], $season->id()->value())) as $line) {
+                    $output->write($line);
+                }
                 return 0;
             }
             if ($world->currentSeasonId() !== null && $season->status() === SeasonStatus::Completed) {
@@ -58,6 +109,11 @@ final class CareerContinueCommand implements CommandInterface
                 if ($nextSeason !== null) {
                     $worldService->advanceToDate($database, $saveId, $nextSeason->startDate());
                     $output->write(sprintf('SEASON ROLLOVER — %s is now active.', $nextSeason->label()));
+                    $snapshot = (new CareerPresentationService($this->services))->snapshot($database, $saveId);
+                    $presentation = new CareerPresentationService($this->services);
+                    foreach ((new CareerFormatter())->rollover($presentation->rolloverSummary($snapshot['summary'], $season->id()->value())) as $line) {
+                        $output->write($line);
+                    }
                     return 0;
                 }
             }
@@ -78,9 +134,16 @@ final class CareerContinueCommand implements CommandInterface
             throw new RuntimeException('Career Continue advanced to a date without completing the controlled Club fixture.');
         }
         $match = $controlled[array_key_last($controlled)];
+        $this->renderMatch($database, $saveId, $output, $career->playerId()->value(), $match, is_string($clubId) ? $clubId : null);
+
+        return 0;
+    }
+
+    private function renderMatch(DatabaseInterface $database, string $saveId, ConsoleOutputInterface $output, string $playerId, GameMatch $match, ?string $clubId): void
+    {
         $presentation = new CareerPresentationService($this->services);
         $formatter = new CareerFormatter();
-        foreach ($formatter->matchday($presentation->matchday($database, $match, $career->playerId()->value(), is_string($clubId) ? $clubId : null)) as $line) {
+        foreach ($formatter->matchday($presentation->matchday($database, $match, $playerId, $clubId)) as $line) {
             $output->write($line);
         }
         $newSnapshot = $presentation->snapshot($database, $saveId);
@@ -92,8 +155,6 @@ final class CareerContinueCommand implements CommandInterface
         ) as $line) {
             $output->write($line);
         }
-
-        return 0;
     }
 
     /** @param list<array<string, mixed>> $decisions */

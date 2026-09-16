@@ -51,6 +51,33 @@ final class PlayerMatchStatRepository
 
         return $evidence;
     }
+
+    /**
+     * Stream completed Season rating evidence to the canonical consumer.
+     * Keeping the cursor open avoids materializing every Player row during
+     * Season rollover on the full World save.
+     *
+     * @param callable(array{player_id:string,club_id:string,position:string,stat:PlayerMatchStat}):void $consumer
+     */
+    public function eachCompletedSeasonRatingEvidence(SeasonId $seasonId, callable $consumer): void
+    {
+        $statement = $this->database->connection()->prepare(
+            'SELECT stats.*, players.primary_position FROM ' . self::TABLE . ' stats '
+            . 'JOIN match_records matches ON matches.id = stats.match_id '
+            . 'JOIN player_records players ON players.id = stats.player_id '
+            . 'WHERE matches.season_id = :season_id AND matches.status = :status AND stats.appeared = 1 '
+            . 'ORDER BY stats.player_id ASC, stats.match_id ASC'
+        );
+        $statement->execute(['season_id' => $seasonId->value(), 'status' => 'completed']);
+        while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $consumer([
+                'player_id' => (string) $row['player_id'],
+                'club_id' => (string) $row['club_id'],
+                'position' => (string) $row['primary_position'],
+                'stat' => $this->hydrateRows([$row])[0],
+            ]);
+        }
+    }
     /** @return list<array{player_id:string,club_id:string,position:string,stat:PlayerMatchStat}> */
     public function recentCompletedRatingEvidence(PlayerId $playerId, int $limit): array
     {

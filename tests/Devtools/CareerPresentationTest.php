@@ -102,4 +102,47 @@ final class CareerPresentationTest extends TestCase
             self::assertStringNotContainsString('Rating:', $text);
         }
     }
+
+    public function testDecisionAndNewsStayPlayerFacing(): void
+    {
+        $formatter = new CareerFormatter();
+        $decision = implode("\n", $formatter->decision([
+            'decision_kind' => 'contract_boundary',
+            'current_club' => 'FC Example',
+            'current_competition' => ['name' => 'Premier League', 'tier' => 1],
+            'contract' => 'Active through 2025-06-30',
+            'options' => [
+                ['label' => 'Renew with your current Club', 'club' => ['name' => 'FC Example', 'country' => 'England', 'competition' => 'Premier League', 'tier' => 1], 'role' => 'Regular'],
+                ['label' => 'Enter free agency', 'club' => null],
+            ],
+        ]));
+        self::assertStringContainsString('CAREER DECISION', $decision);
+        self::assertStringContainsString('Renew with your current Club', $decision);
+        self::assertStringContainsString('England', $decision);
+        self::assertStringNotContainsString('contract_boundary', $decision);
+        self::assertStringNotContainsString('club-id-', $decision);
+
+        $news = implode("\n", $formatter->news([
+            ['date' => '2024-08-01', 'headline' => 'RESULT — FC Example 2-1 United'],
+            ['date' => '2024-08-02', 'headline' => 'DEVELOPMENT — OVR 62 -> 63'],
+        ]));
+        self::assertStringContainsString('NEWS', $news);
+        self::assertStringContainsString('RESULT — FC Example 2-1 United', $news);
+        self::assertStringContainsString('OVR 62 -> 63', $news);
+    }
+
+    public function testWorldShowsBoundedResultsAndUpcomingFixtures(): void
+    {
+        $text = implode("\n", (new CareerFormatter())->world([
+            'competition' => 'Premier League',
+            'standings' => [],
+            'recent_results' => ['* 2024-08-01: FC Example 2-1 United'],
+            'recent_result' => '* 2024-08-01: FC Example 2-1 United',
+            'upcoming_fixtures' => ['* 2024-08-08: FC Example vs United'],
+            'next_fixture' => '2024-08-08: FC Example vs United',
+        ]));
+        self::assertStringContainsString('RECENT RESULTS', $text);
+        self::assertStringContainsString('UPCOMING FIXTURES', $text);
+        self::assertStringContainsString('* 2024-08-08: FC Example vs United', $text);
+    }
 }

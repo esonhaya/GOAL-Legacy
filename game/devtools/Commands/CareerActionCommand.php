@@ -16,7 +16,8 @@ use RuntimeException;
 /** Player-facing career actions backed by the existing transfer boundary. */
 final class CareerActionCommand implements CommandInterface
 {
-    public function __construct(private readonly CoreServices $services, private readonly ?SaveStore $saveStore = null)
+    /** @param resource|null $input */
+    public function __construct(private readonly CoreServices $services, private readonly ?SaveStore $saveStore = null, private $input = null)
     {
     }
 
@@ -29,7 +30,7 @@ final class CareerActionCommand implements CommandInterface
         $action = trim((string) ($arguments[0] ?? ''));
         $saveId = trim((string) ($arguments[1] ?? ''));
         if ($action === '' || $saveId === '') { $output->error('Usage: career:action <request-transfer|withdraw-transfer|decide> <save-id> [option-number]'); return 1; }
-        $database = $this->services->saveStore()->openDatabase($saveId);
+        $database = ($this->saveStore ?? $this->services->saveStore())->openDatabase($saveId);
         $worldService = $this->services->worldModule()->service();
         $world = $worldService->load($database, $saveId);
         $date = $world->currentDate($worldService->calendar());
@@ -37,6 +38,13 @@ final class CareerActionCommand implements CommandInterface
         $movement = $this->services->transferModule()->service()->careerMovement();
         $season = $worldService->seasonRepository($database)->get($world->currentSeasonId());
         if ($action === 'request-transfer') {
+            $output->write('REQUEST TRANSFER — ask Clubs to consider you for a move.');
+            $output->write('Confirm? 1. Confirm 2. Cancel');
+            if ($this->readChoice() !== '1') {
+                $output->write('CAREER ACTION — transfer request cancelled.');
+                $this->home($saveId, $output);
+                return 0;
+            }
             $movement->requestTransfer($database, $career->playerId(), $season, $date);
             $output->write('CAREER ACTION — transfer request submitted.');
             $this->home($saveId, $output);
@@ -71,5 +79,13 @@ final class CareerActionCommand implements CommandInterface
     private function home(string $saveId, ConsoleOutputInterface $output): void
     {
         (new CareerHomeCommand($this->services, $this->saveStore))->execute([$saveId], $output);
+    }
+
+    private function readChoice(): ?string
+    {
+        $input = $this->input ?? STDIN;
+        $line = fgets($input);
+
+        return $line === false ? null : trim($line);
     }
 }

@@ -25,13 +25,32 @@ final class PlayerSeasonPerformanceService
         $season = $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId);
         new PlayerRepository($database);
         $expected = (new MatchRepository($database))->completedCountsByClub($season);
-        $byPlayer = [];
-        foreach ((new PlayerMatchStatRepository($database))->completedSeasonRatingEvidence($season) as $row) {
-            $byPlayer[$row['player_id']][] = $row;
-        }
+        $aggregates = [];
+        $clubsByPlayer = [];
+        $ratings = new PlayerMatchRatingService();
+        (new PlayerMatchStatRepository($database))->eachCompletedSeasonRatingEvidence($season, function (array $row) use (&$aggregates, &$clubsByPlayer, $ratings): void {
+            $playerId = $row['player_id'];
+            if (!isset($aggregates[$playerId])) {
+                $aggregates[$playerId] = $this->emptyAggregate(null, 0);
+                $clubsByPlayer[$playerId] = [];
+            }
+            $stat = $row['stat'];
+            $clubsByPlayer[$playerId][$row['club_id']] = true;
+            ++$aggregates[$playerId]['appearances'];
+            $aggregates[$playerId]['starts'] += $stat->started() ? 1 : 0;
+            $aggregates[$playerId]['minutes'] += $stat->minutes();
+            $aggregates[$playerId]['goals'] += $stat->goals();
+            $rating = $ratings->rate($stat, PlayerPosition::from($row['position']));
+            if ($rating !== null) {
+                $aggregates[$playerId]['rating_total'] += $rating;
+                ++$aggregates[$playerId]['rated_appearances'];
+            }
+        });
         $result = [];
-        foreach ($byPlayer as $playerId => $evidence) {
-            $result[$playerId] = $this->build($this->aggregate($evidence, $expected));
+        foreach ($aggregates as $playerId => $aggregate) {
+            $aggregate['expected_matches'] = max(array_map(static fn (string $club): int => $expected[$club] ?? 0, array_keys($clubsByPlayer[$playerId])) ?: [0]);
+            $aggregate['average_match_rating'] = $aggregate['rated_appearances'] === 0 ? null : $aggregate['rating_total'] / $aggregate['rated_appearances'];
+            $result[$playerId] = $this->build($aggregate);
         }
 
         return $result;

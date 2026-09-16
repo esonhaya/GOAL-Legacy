@@ -140,6 +140,14 @@ final class WorldService
         }
         if ($season !== null && $transitionSeason !== null && $transitionSeason->id()->value() !== $season->id()->value() && $this->seasonRollover !== null) {
             $this->seasonRollover->assertControlledContractDecisionsResolved($database, $transitionSeason);
+            // A save may be reloaded after the outgoing Season was marked
+            // complete but before next-Season squad continuity finished. The
+            // persisted Upcoming Season is safe to prepare again only when
+            // it has no squad memberships at all; normal prepared saves skip
+            // this and continue directly to materialization.
+            if ($this->clubService->squadRepository($database)->bySeason($transitionSeason->id()) === []) {
+                $this->seasonRollover->prepareNext($database, $world, $season, $transitionSeason, $date);
+            }
             $this->seasonRollover->materializeNext($database, $world, $season, $transitionSeason, $date);
         }
         $transition = $transitionSeason === null ? null : $this->seasonLifecycle->evaluate($transitionSeason, $date);

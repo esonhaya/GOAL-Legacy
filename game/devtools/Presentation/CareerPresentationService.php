@@ -9,13 +9,22 @@ use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Competition\Persistence\CompetitionRepository;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
+use Goal\Legacy\Modules\Match\Domain\MatchStatus;
 use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
+use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSubstitutionRepository;
+use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
+use Goal\Legacy\Modules\Match\PlayerMatchRatingService;
+use Goal\Legacy\Modules\Nation\Persistence\NationRepository;
+use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
+use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
+use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
+use Goal\Legacy\Modules\World\Domain\SeasonId;
 
 /** Assembles presentation input from canonical services and persisted facts. */
 final class CareerPresentationService
@@ -164,7 +173,7 @@ final class CareerPresentationService
         $club = is_array($summary['current_club'] ?? null) ? $summary['current_club'] : null;
         $seasonId = $this->seasonId($summary);
         if ($competition === null || $club === null || $seasonId === null) {
-            return ['competition' => 'No current competition', 'standings' => [], 'recent_result' => null, 'next_fixture' => null];
+            return ['competition' => 'No current competition', 'standings' => [], 'recent_result' => null, 'next_fixture' => null, 'recent_results' => [], 'upcoming_fixtures' => []];
         }
         $competitionRecord = (new CompetitionRepository($database))->get((string) $competition['id']);
         $matchService = $this->services->matchModule()->service();
@@ -178,19 +187,279 @@ final class CareerPresentationService
                 ];
             }
         }
-        $recent = null;
-        foreach (array_reverse($matchService->repository($database)->byClub((string) $club['id'], $seasonId)) as $match) {
-            if ($match->status()->value !== 'completed' || $match->scheduledDate()->isAfter($date)) { continue; }
-            $recent = $this->fixtureText($database, $match, (string) $club['id']);
-            break;
+        $matches = $matchService->repository($database)->byCompetition($competitionRecord->id(), $seasonId);
+        $recentResults = [];
+        foreach (array_reverse($matches) as $match) {
+            if ($match->status() !== MatchStatus::Completed || $match->scheduledDate()->isAfter($date)) { continue; }
+            $recentResults[] = $this->fixtureText($database, $match, (string) $club['id']);
+            if (count($recentResults) >= 5) { break; }
         }
+        $upcomingMatches = [];
+        foreach ($matches as $match) {
+            if ($match->status() !== MatchStatus::Scheduled || $match->scheduledDate()->isBefore($date)) { continue; }
+            $upcomingMatches[] = $match;
+        }
+        usort($upcomingMatches, static function (GameMatch $left, GameMatch $right) use ($club): int {
+            $leftControlled = $left->homeClubId()->value() === (string) $club['id'] || $left->awayClubId()->value() === (string) $club['id'];
+            $rightControlled = $right->homeClubId()->value() === (string) $club['id'] || $right->awayClubId()->value() === (string) $club['id'];
+            return (($rightControlled <=> $leftControlled) ?: strcmp($left->scheduledDate()->toIsoString() . $left->id()->value(), $right->scheduledDate()->toIsoString() . $right->id()->value()));
+        });
+        $upcomingFixtures = array_map(fn (GameMatch $match): string => $this->fixtureText($database, $match, (string) $club['id']), array_slice($upcomingMatches, 0, 5));
 
         return [
             'competition' => $competitionRecord->name(),
             'standings' => $standings,
-            'recent_result' => $recent,
+            'recent_result' => $recentResults[0] ?? null,
+            'recent_results' => array_reverse($recentResults),
+            'upcoming_fixtures' => $upcomingFixtures,
             'next_fixture' => ($next = $this->nextMatch($database, $summary)) === null ? null : $this->fixtureTextFromView($next),
         ];
+    }
+
+    /** @param array<string, mixed> $summary @return array<string, mixed>|null */
+    public function decision(array $summary, DatabaseInterface $database): ?array
+    {
+        $pending = is_array($summary['pending_decisions'] ?? null) ? $summary['pending_decisions'] : [];
+        $pending = array_values(array_filter($pending, 'is_array'));
+        if ($pending === []) {
+            return null;
+        }
+        $decision = $pending[0];
+        $options = is_array($decision['options'] ?? null) ? $decision['options'] : [];
+        $context = $this->opportunityContext($database, (string) ($decision['id'] ?? ''));
+        $seasonId = isset($context['season_id']) && is_string($context['season_id']) ? new SeasonId($context['season_id']) : null;
+        $clubs = $this->services->clubModule()->service()->repository($database);
+        $competitions = new CompetitionRepository($database);
+        $nations = new NationRepository($database);
+        $membershipRepository = new ClubMembershipRepository($database);
+        $formatted = [];
+        foreach ($options as $option) {
+            if (!is_array($option)) { continue; }
+            $kind = (string) ($option['kind'] ?? '');
+            $clubId = isset($option['club_id']) && is_string($option['club_id']) && $option['club_id'] !== '' ? $option['club_id'] : null;
+            $clubView = null;
+            if ($clubId !== null) {
+                $club = $clubs->get($clubId);
+                $competition = null;
+                if ($seasonId !== null) {
+                    foreach ($membershipRepository->bySeason($seasonId) as $membership) {
+                        if ($membership->clubId()->value() === $clubId) {
+                            $competition = $competitions->get($membership->competitionId());
+                            break;
+                        }
+                    }
+                }
+                $nation = $nations->find($club->nationId());
+                $clubView = [
+                    'name' => $club->canonicalName(),
+                    'country' => $nation?->displayName() ?? CareerLabels::nationality($club->nationId()->value()),
+                    'competition' => $competition?->name(),
+                    'tier' => $competition?->tier(),
+                ];
+            }
+            $label = match ($kind) {
+                'stay' => 'Stay at your current Club',
+                'accept_transfer' => 'Accept transfer',
+                'renew_current_club' => 'Renew with your current Club',
+                'sign_with_club' => 'Join Club',
+                'enter_free_agency' => 'Enter free agency',
+                default => CareerLabels::value($kind, 'Available choice'),
+            };
+            $formatted[] = [
+                'id' => $option['id'] ?? null,
+                'label' => $label,
+                'club' => $clubView,
+                'role' => isset($option['role']) ? CareerLabels::value($option['role']) : null,
+            ];
+        }
+        $currentClub = is_array($summary['current_club'] ?? null) ? ($summary['current_club']['name'] ?? null) : null;
+        $currentCompetition = is_array($summary['current_competition'] ?? null) ? $summary['current_competition'] : null;
+        $contextCurrentClubId = (string) ($context['current_club_id'] ?? $context['source_club_id'] ?? '');
+        if ($currentClub === null && $contextCurrentClubId !== '') {
+            $currentClubRecord = $clubs->get($contextCurrentClubId);
+            $currentClub = $currentClubRecord->canonicalName();
+            if ($seasonId !== null) {
+                foreach ($membershipRepository->bySeason($seasonId) as $membership) {
+                    if ($membership->clubId()->value() !== $contextCurrentClubId) { continue; }
+                    $currentCompetitionRecord = $competitions->get($membership->competitionId());
+                    $currentCompetition = ['name' => $currentCompetitionRecord->name(), 'tier' => $currentCompetitionRecord->tier()];
+                    break;
+                }
+            }
+        }
+
+        return [
+            'id' => $decision['id'] ?? null,
+            'type' => $decision['type'] ?? null,
+            'decision_kind' => $context['decision_kind'] ?? $decision['type'] ?? null,
+            'current_club' => $currentClub,
+            'current_competition' => $currentCompetition,
+            'contract' => $this->contractText($summary['current_contract'] ?? null),
+            'options' => $formatted,
+        ];
+    }
+
+    /** @param array<string, mixed> $summary @return list<array{date:string,headline:string}> */
+    public function news(DatabaseInterface $database, array $summary, SimulationDate $date): array
+    {
+        $player = is_array($summary['player'] ?? null) ? $summary['player'] : [];
+        $playerId = (string) ($player['id'] ?? '');
+        if ($playerId === '') { return []; }
+        $clubs = $this->services->clubModule()->service()->repository($database);
+        $matches = new MatchRepository($database);
+        $items = [];
+        $club = is_array($summary['current_club'] ?? null) ? $summary['current_club'] : null;
+        $currentClubId = is_array($club) ? (string) ($club['id'] ?? '') : '';
+        $currentSeasonId = $this->seasonId($summary);
+        if ($currentClubId !== '' && $currentSeasonId !== null) {
+            foreach (array_reverse($matches->byClub($currentClubId, $currentSeasonId)) as $match) {
+                if ($match->status() !== MatchStatus::Completed || $match->scheduledDate()->isAfter($date)) { continue; }
+                $result = $match->result();
+                if ($result === null) { continue; }
+                $items[] = ['date' => $match->scheduledDate()->toIsoString(), 'headline' => 'RESULT — ' . $clubs->get($match->homeClubId())->canonicalName() . ' ' . $result->homeGoals() . '-' . $result->awayGoals() . ' ' . $clubs->get($match->awayClubId())->canonicalName()];
+                if (count($items) >= 8) { break; }
+            }
+        }
+        $players = new PlayerRepository($database);
+        $playerRecord = $players->get($playerId);
+        $ratingService = new PlayerMatchRatingService();
+        $ratingEvidence = (new PlayerMatchStatRepository($database))->recentCompletedRatingEvidence(new PlayerId($playerId), 12);
+        foreach ($ratingEvidence as $evidence) {
+            $stat = $evidence['stat'];
+            $match = $matches->get($stat->matchId());
+            if ($match->scheduledDate()->isAfter($date) || !$stat->appeared()) { continue; }
+            $rating = $ratingService->rate($stat, $playerRecord->primaryPosition());
+            $ratingText = $rating === null ? '' : ', Rating ' . number_format($rating, 1);
+            $items[] = ['date' => $match->scheduledDate()->toIsoString(), 'headline' => 'YOUR PERFORMANCE — ' . ($stat->started() ? 'Started' : 'Appeared') . ' for ' . $clubs->get($stat->clubId())->canonicalName() . $ratingText];
+            if (count($items) >= 12) { break; }
+        }
+        foreach (array_reverse((array) ($summary['movement_history'] ?? [])) as $event) {
+            if (!is_array($event)) { continue; }
+            $headline = $event['type'] === 'transfer'
+                ? 'TRANSFER — ' . (string) ($event['from_club'] ?? 'Previous Club') . ' to ' . (string) ($event['to_club'] ?? 'New Club')
+                : CareerLabels::value($event['type'] ?? null) . ' — ' . (string) ($event['club']['name'] ?? 'Club');
+            $items[] = ['date' => (string) ($event['date'] ?? ''), 'headline' => $headline];
+        }
+        foreach (array_reverse((array) ($summary['development_history'] ?? [])) as $entry) {
+            if (!is_array($entry)) { continue; }
+            $items[] = ['date' => (string) ($entry['occurred_date'] ?? ''), 'headline' => 'DEVELOPMENT — OVR ' . (string) ($entry['before_ovr'] ?? '?') . ' -> ' . (string) ($entry['after_ovr'] ?? '?')];
+        }
+        $roleHistory = is_array($summary['role_history'] ?? null) ? $summary['role_history'] : [];
+        foreach (array_reverse($roleHistory) as $role) {
+            if (!is_array($role)) { continue; }
+            $items[] = ['date' => (string) ($role['occurred_date'] ?? ''), 'headline' => 'ROLE — ' . CareerLabels::value($role['role'] ?? null)];
+        }
+        $request = is_array($summary['transfer_request'] ?? null) ? $summary['transfer_request'] : [];
+        if (($request['status'] ?? null) === 'requested') {
+            $items[] = ['date' => $date->toIsoString(), 'headline' => 'TRANSFER REQUEST — Active'];
+        }
+        usort($items, static fn (array $left, array $right): int => strcmp($right['date'] . $right['headline'], $left['date'] . $left['headline']));
+        $unique = [];
+        foreach ($items as $item) {
+            $key = $item['date'] . '|' . $item['headline'];
+            if (isset($unique[$key])) { continue; }
+            $unique[$key] = true;
+            if (count($unique) >= 20) { break; }
+        }
+
+        return array_map(static fn (string $key): array => ['date' => explode('|', $key, 2)[0], 'headline' => explode('|', $key, 2)[1]], array_keys($unique));
+    }
+
+    /** @param array<string, mixed> $summary @return array<string, mixed> */
+    public function seasonSummary(DatabaseInterface $database, array $summary, ?string $seasonId = null): array
+    {
+        $seasonId ??= is_string($summary['current_season_id'] ?? null) ? $summary['current_season_id'] : null;
+        $history = is_array($summary['season_history'] ?? null) ? $summary['season_history'] : [];
+        $row = null;
+        foreach ($history as $candidate) {
+            if (is_array($candidate) && ($seasonId === null || ($candidate['season_id'] ?? null) === $seasonId)) {
+                $row = $candidate;
+                break;
+            }
+        }
+        $stats = $seasonId !== null && is_array($summary['season_stats'] ?? null) ? $summary['season_stats'] : [];
+        $ovrBefore = null;
+        $development = is_array($summary['development_history'] ?? null) ? $summary['development_history'] : [];
+        $seasonStart = is_array($row) ? (string) ($row['season_start_date'] ?? '') : '';
+        foreach ($development as $entry) {
+            if (!is_array($entry) || ($seasonStart !== '' && strcmp((string) ($entry['occurred_date'] ?? ''), $seasonStart) < 0)) { continue; }
+            $ovrBefore = (int) ($entry['before_ovr'] ?? 0);
+            break;
+        }
+        $roleChange = null;
+        $roles = [];
+        foreach ((array) ($summary['role_history'] ?? []) as $entry) {
+            if (!is_array($entry) || ($seasonId !== null && ($entry['season_id'] ?? null) !== $seasonId)) { continue; }
+            $role = (string) ($entry['role'] ?? '');
+            if ($role !== '' && ($roles === [] || $roles[array_key_last($roles)] !== $role)) { $roles[] = $role; }
+        }
+        if (count($roles) > 1) {
+            $roleChange = CareerLabels::value($roles[0]) . ' -> ' . CareerLabels::value($roles[array_key_last($roles)]);
+        }
+        $clubContext = $this->clubContext($database, $summary);
+
+        return [
+            'season' => is_array($row) ? ($row['season'] ?? $seasonId) : $seasonId,
+            'club' => is_array($row) ? ($row['club']['name'] ?? null) : (is_array($summary['current_club'] ?? null) ? ($summary['current_club']['name'] ?? null) : null),
+            'competition' => is_array($row) ? ($row['competition']['name'] ?? null) : (is_array($summary['current_competition'] ?? null) ? ($summary['current_competition']['name'] ?? null) : null),
+            'position' => $clubContext['position'] ?? null,
+            'stats' => $stats,
+            'performance' => is_array($summary['season_performance'] ?? null) ? ($summary['season_performance']['classification'] ?? null) : null,
+            'ovr_before' => $ovrBefore,
+            'ovr_after' => $ovrBefore === null ? null : ($summary['current_ovr'] ?? null),
+            'role_change' => $roleChange,
+        ];
+    }
+
+    /** @param array<string, mixed> $summary @return array<string, mixed> */
+    public function rolloverSummary(array $summary, string $previousSeasonId): array
+    {
+        $currentSeasonId = is_string($summary['current_season_id'] ?? null) ? $summary['current_season_id'] : null;
+        $history = is_array($summary['season_history'] ?? null) ? $summary['season_history'] : [];
+        $previous = null;
+        $current = null;
+        foreach ($history as $row) {
+            if (!is_array($row)) { continue; }
+            if (($row['season_id'] ?? null) === $previousSeasonId) { $previous = $row; }
+            if ($currentSeasonId !== null && ($row['season_id'] ?? null) === $currentSeasonId) { $current = $row; }
+        }
+        $tierOutcome = null;
+        if (is_array($previous) && is_array($current) && isset($previous['tier'], $current['tier']) && $previous['tier'] !== null && $current['tier'] !== null && $previous['tier'] !== $current['tier']) {
+            $tierOutcome = (int) $current['tier'] < (int) $previous['tier']
+                ? 'PROMOTED — ' . (string) ($current['club']['name'] ?? 'Your Club') . ' will play in ' . (string) ($current['competition']['name'] ?? 'a higher tier') . ' this Season.'
+                : 'RELEGATED — ' . (string) ($current['club']['name'] ?? 'Your Club') . ' will play in ' . (string) ($current['competition']['name'] ?? 'a lower tier') . ' this Season.';
+        }
+        $roleChange = null;
+        if (is_array($previous) && is_array($current) && ($previous['role'] ?? null) !== ($current['role'] ?? null)) {
+            $roleChange = CareerLabels::value($previous['role'] ?? null) . ' -> ' . CareerLabels::value($current['role'] ?? null);
+        }
+
+        return [
+            'season' => is_array($current) ? ($current['season'] ?? $currentSeasonId) : $currentSeasonId,
+            'club' => is_array($current) ? ($current['club']['name'] ?? null) : (is_array($summary['current_club'] ?? null) ? ($summary['current_club']['name'] ?? null) : null),
+            'competition' => is_array($current) ? ($current['competition']['name'] ?? null) : (is_array($summary['current_competition'] ?? null) ? ($summary['current_competition']['name'] ?? null) : null),
+            'tier_outcome' => $tierOutcome,
+            'role_change' => $roleChange,
+            'ovr' => $summary['current_ovr'] ?? null,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function opportunityContext(DatabaseInterface $database, string $id): array
+    {
+        if ($id === '') { return []; }
+        $opportunity = (new CareerOpportunityRepository($database))->get($id);
+
+        return $opportunity?->context() ?? [];
+    }
+
+    private function contractText(mixed $contract): string
+    {
+        if (!is_array($contract)) { return ''; }
+        $status = CareerLabels::value($contract['status'] ?? null);
+        $end = trim((string) ($contract['end_date'] ?? ''));
+
+        return $end === '' ? $status : $status . ' through ' . $end;
     }
 
     /** @return object|null */
@@ -260,7 +529,9 @@ final class CareerPresentationService
         $result = $match->result();
         $score = $result === null ? '' : ' ' . $result->homeGoals() . '-' . $result->awayGoals();
 
-        return $match->scheduledDate()->toIsoString() . ': ' . $home . $score . ' ' . $away . ' (' . $competition->name() . ')';
+        $mark = $match->homeClubId()->value() === $controlledClubId || $match->awayClubId()->value() === $controlledClubId ? '* ' : '';
+
+        return $mark . $match->scheduledDate()->toIsoString() . ': ' . $home . $score . ' ' . $away . ' (' . $competition->name() . ')';
     }
 
     /** @param array<string, mixed> $view */

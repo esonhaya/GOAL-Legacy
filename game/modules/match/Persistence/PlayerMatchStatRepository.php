@@ -51,6 +51,28 @@ final class PlayerMatchStatRepository
 
         return $evidence;
     }
+    /** @return list<array{player_id:string,club_id:string,position:string,stat:PlayerMatchStat}> */
+    public function recentCompletedRatingEvidence(PlayerId $playerId, int $limit): array
+    {
+        $statement = $this->database->connection()->prepare(
+            'SELECT stats.*, players.primary_position FROM ' . self::TABLE . ' stats '
+            . 'JOIN match_records matches ON matches.id = stats.match_id '
+            . 'JOIN player_records players ON players.id = stats.player_id '
+            . 'WHERE stats.player_id = :player_id AND matches.status = :status AND stats.appeared = 1 '
+            . 'ORDER BY matches.scheduled_date DESC, matches.id DESC LIMIT :limit'
+        );
+        $statement->bindValue(':player_id', $playerId->value());
+        $statement->bindValue(':status', 'completed');
+        $statement->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
+        $statement->execute();
+
+        $evidence = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $evidence[] = ['player_id' => (string) $row['player_id'], 'club_id' => (string) $row['club_id'], 'position' => (string) $row['primary_position'], 'stat' => $this->hydrateRows([$row])[0]];
+        }
+
+        return $evidence;
+    }
     /** @return array<string, array{club_id:string,appearances:int,starts:int,minutes:int,goals:int,assists:int,shots:int,shots_on_target:int,saves:int,clean_sheets:int,tackles:int,interceptions:int,blocks:int,passes_attempted:int,passes_completed:int}> */
     public function seasonAggregates(SeasonId $seasonId): array
     {

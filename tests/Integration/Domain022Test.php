@@ -143,13 +143,20 @@ final class Domain022Test extends TestCase
         $weak = $players->create($this->request('rating-weak', new PlayerAttributeSet(60, 40, 50, 50, 50, 50), 90, 'CM'));
         $volume = $players->create($this->request('rating-volume', new PlayerAttributeSet(60, 50, 70, 50, 50, 50), 90, 'CM'));
         $transfer = $players->create($this->request('rating-transfer', new PlayerAttributeSet(65, 45, 70, 60, 90, 85), 90, 'CB'));
-        foreach ([$attacker, $midfielder, $defender, $goalkeeper, $ordinary, $short, $weak, $volume, $transfer] as $player) { $players->repository($database)->save($player); }
+        $improving = $players->create($this->request('rating-improving', new PlayerAttributeSet(60, 85, 70, 60, 60, 60), 90, 'CM'));
+        $declining = $players->create($this->request('rating-declining', new PlayerAttributeSet(60, 85, 70, 60, 60, 60), 90, 'CM'));
+        $strongSeasonPoorRecent = $players->create($this->request('rating-strong-season-poor-recent', new PlayerAttributeSet(60, 85, 70, 60, 60, 60), 90, 'CM'));
+        $weakSeasonStrongRecent = $players->create($this->request('rating-weak-season-strong-recent', new PlayerAttributeSet(60, 85, 70, 60, 60, 60), 90, 'CM'));
+        foreach ([$attacker, $midfielder, $defender, $goalkeeper, $ordinary, $short, $weak, $volume, $transfer, $improving, $declining, $strongSeasonPoorRecent, $weakSeasonStrongRecent] as $player) { $players->repository($database)->save($player); }
 
         $matches = $services->matchModule()->service()->generateFixtures($database, 'premier-league', $season->id());
         $arsenal = array_values(array_filter($matches, static fn ($match): bool => $match->homeClubId()->value() === 'arsenal' || $match->awayClubId()->value() === 'arsenal'));
         $chelsea = array_values(array_filter($matches, static fn ($match): bool => ($match->homeClubId()->value() === 'chelsea' || $match->awayClubId()->value() === 'chelsea') && !in_array($match->id()->value(), array_map(static fn ($match): string => $match->id()->value(), array_slice($arsenal, 0, 10)), true)));
         $matchesRepository = new MatchRepository($database);
         $stats = new PlayerMatchStatRepository($database);
+        $formCandidates = [...array_slice($arsenal, 0, 10), ...array_slice($chelsea, 4, 5)];
+        usort($formCandidates, static fn ($left, $right): int => strcmp($right->scheduledDate()->toIsoString(), $left->scheduledDate()->toIsoString()));
+        $recentStrongMatchIds = array_map(static fn ($match): string => $match->id()->value(), array_slice($formCandidates, 0, 5));
         foreach (array_slice($arsenal, 0, 10) as $index => $match) {
             $matchesRepository->save($match->complete(new MatchResult(1, 0)));
             $rows = [
@@ -161,6 +168,19 @@ final class Domain022Test extends TestCase
                 new PlayerMatchStat($match->id(), $weak->id(), new ClubId('arsenal'), true, true, 90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 10, 4, 2, 1),
                 new PlayerMatchStat($match->id(), $volume->id(), new ClubId('arsenal'), true, true, 90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 70),
             ];
+            if ($index < 5) {
+                $strong = static fn ($player): PlayerMatchStat => new PlayerMatchStat($match->id(), $player->id(), new ClubId('arsenal'), true, true, 90, 2, 0, 2, 2);
+                $weakStat = static fn ($player): PlayerMatchStat => new PlayerMatchStat($match->id(), $player->id(), new ClubId('arsenal'), true, true, 90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 10, 4, 2, 1);
+                $neutral = static fn ($player): PlayerMatchStat => new PlayerMatchStat($match->id(), $player->id(), new ClubId('arsenal'), true, true, 90, 0);
+                $rows[] = $index < 2 ? $weakStat($improving) : ($index === 2 ? $neutral($improving) : $strong($improving));
+                $rows[] = $index < 2 ? $strong($declining) : ($index === 2 ? $neutral($declining) : $weakStat($declining));
+            }
+            $rows[] = $index < 5
+                ? new PlayerMatchStat($match->id(), $strongSeasonPoorRecent->id(), new ClubId('arsenal'), true, true, 90, 2, 0, 2, 2)
+                : new PlayerMatchStat($match->id(), $strongSeasonPoorRecent->id(), new ClubId('arsenal'), true, true, 90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 10, 4, 2, 1);
+            $rows[] = in_array($match->id()->value(), $recentStrongMatchIds, true)
+                ? new PlayerMatchStat($match->id(), $weakSeasonStrongRecent->id(), new ClubId('arsenal'), true, true, 90, 2, 0, 2, 2)
+                : new PlayerMatchStat($match->id(), $weakSeasonStrongRecent->id(), new ClubId('arsenal'), true, true, 90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 10, 4, 2, 1);
             if ($index === 0) { $rows[] = new PlayerMatchStat($match->id(), $short->id(), new ClubId('arsenal'), true, false, 15, 2, 0, 2, 2); }
             if ($index < 4) { $rows[] = new PlayerMatchStat($match->id(), $transfer->id(), new ClubId('arsenal'), true, true, 90, 0, 0, 0, 0, 0, 1, 4, 3, 2, 35, 30); }
             $stats->replaceForMatch($rows);
@@ -171,6 +191,12 @@ final class Domain022Test extends TestCase
         }
         $incomplete = $arsenal[10];
         $stats->replaceForMatch([new PlayerMatchStat($incomplete->id(), $attacker->id(), new ClubId('arsenal'), true, true, 90, 9, 0, 9, 9)]);
+        foreach (array_slice($chelsea, 4, 5) as $match) {
+            $matchesRepository->save($match->complete(new MatchResult(1, 0)));
+            $stats->replaceForMatch([in_array($match->id()->value(), $recentStrongMatchIds, true)
+                ? new PlayerMatchStat($match->id(), $weakSeasonStrongRecent->id(), new ClubId('chelsea'), true, true, 90, 2, 0, 2, 2)
+                : new PlayerMatchStat($match->id(), $weakSeasonStrongRecent->id(), new ClubId('chelsea'), true, true, 90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 10, 4, 2, 1)]);
+        }
 
         $service = new PlayerSeasonPerformanceService();
         foreach ([$attacker, $midfielder, $defender, $goalkeeper] as $player) { self::assertSame('breakout', $service->assess($database, $player->id(), $season->id())->classification()); }
@@ -186,8 +212,22 @@ final class Domain022Test extends TestCase
         self::assertSame(10, $attackerAssessment->statistics()['rated_appearances']);
         $attackerStat = array_values(array_filter($stats->byMatch($arsenal[0]->id()), static fn (PlayerMatchStat $stat): bool => $stat->playerId()->value() === 'rating-attacker'))[0];
         self::assertSame((new \Goal\Legacy\Modules\Match\PlayerMatchRatingService())->rate($attackerStat, $attacker->primaryPosition()), $attackerAssessment->statistics()['average_match_rating']);
+        $form = new \Goal\Legacy\Modules\Player\PlayerFormService();
+        self::assertSame('insufficient_evidence', $form->recent($database, $short->id())['classification']);
+        foreach ([$attacker, $midfielder, $defender, $goalkeeper] as $player) { self::assertContains($form->recent($database, $player->id())['classification'], ['good', 'excellent']); }
+        self::assertSame('neutral', $form->recent($database, $ordinary->id())['classification']);
+        self::assertSame('poor', $form->recent($database, $weak->id())['classification']);
+        self::assertGreaterThan($form->recent($database, $declining->id())['average_match_rating'], $form->recent($database, $improving->id())['average_match_rating']);
+        self::assertSame('strong', $service->assess($database, $strongSeasonPoorRecent->id(), $season->id())->classification());
+        self::assertSame('poor', $form->recent($database, $strongSeasonPoorRecent->id())['classification']);
+        self::assertContains($service->assess($database, $weakSeasonStrongRecent->id(), $season->id())->classification(), ['steady', 'limited', 'stagnant']);
+        self::assertContains($form->recent($database, $weakSeasonStrongRecent->id())['classification'], ['good', 'excellent']);
+        self::assertSame(5, $form->recent($database, $transfer->id())['rated_appearances']);
+        $attackerForm = $form->recent($database, $attacker->id());
+        self::assertSame(5, $attackerForm['appearances']);
         $players->repository($database)->save($attacker->withAttributes(new PlayerAttributeSet(90, 90, 90, 90, 90, 90)));
         self::assertSame($attackerAssessment->toArray(), $service->assess($database, $attacker->id(), $season->id())->toArray());
+        self::assertSame($attackerForm, $form->recent($database, $attacker->id()));
     }
 
     /** @return array{0:\Goal\Legacy\Core\Bootstrap\CoreServices,1:\Goal\Legacy\Core\Persistence\DatabaseInterface,2:Season,3:SqliteSaveStore} */

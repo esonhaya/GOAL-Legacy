@@ -127,19 +127,21 @@ final class Domain028Test extends TestCase
         self::assertSame(1, $legacy->shots());
         self::assertSame(1, $legacy->shotsOnTarget());
         self::assertSame(0, $legacy->saves());
+        self::assertSame(0, $legacy->passesAttempted());
+        self::assertSame(0, $legacy->passesCompleted());
         $p1 = new PlayerId('domain-028-shooter');
         $p2 = new PlayerId('domain-028-assister');
         $p3 = new PlayerId('domain-028-keeper');
         $p4 = new PlayerId('domain-028-defender');
         $stats = [
-            new PlayerMatchStat($match->id(), $p1, new ClubId('arsenal'), true, true, 90, 1, 0, 3, 2),
+            new PlayerMatchStat($match->id(), $p1, new ClubId('arsenal'), true, true, 90, 1, 0, 3, 2, 0, 0, 0, 0, 0, 30, 24),
             new PlayerMatchStat($match->id(), $p2, new ClubId('arsenal'), true, true, 90, 0, 1, 2, 1),
             new PlayerMatchStat($match->id(), $p3, new ClubId('chelsea'), true, true, 90, 0, 0, 0, 0, 1),
             new PlayerMatchStat($match->id(), $p4, new ClubId('chelsea'), true, true, 90, 0, 0, 0, 0, 0, 1),
         ];
         $repository->replaceForMatch($stats);
         $aggregate = $repository->seasonAggregatesForPlayer($p1, $season->id())['arsenal'];
-        self::assertSame(['club_id' => 'arsenal', 'appearances' => 1, 'starts' => 1, 'minutes' => 90, 'goals' => 1, 'assists' => 0, 'shots' => 3, 'shots_on_target' => 2, 'saves' => 0, 'clean_sheets' => 0, 'tackles' => 0, 'interceptions' => 0, 'blocks' => 0], $aggregate);
+        self::assertSame(['club_id' => 'arsenal', 'appearances' => 1, 'starts' => 1, 'minutes' => 90, 'goals' => 1, 'assists' => 0, 'shots' => 3, 'shots_on_target' => 2, 'saves' => 0, 'clean_sheets' => 0, 'tackles' => 0, 'interceptions' => 0, 'blocks' => 0, 'passes_attempted' => 30, 'passes_completed' => 24], $aggregate);
         $repository->replaceForMatch($stats);
         self::assertCount(4, $repository->byMatch($match->id()));
     }

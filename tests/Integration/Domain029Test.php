@@ -54,6 +54,11 @@ final class Domain029Test extends TestCase
             self::assertGreaterThanOrEqual(0.0, $summary['rating']);
             self::assertLessThanOrEqual(10.0, $summary['rating']);
             self::assertSame($summary['rating'], $matchService->playerSummary($database, $completed->id(), $stat->playerId())['rating']);
+            self::assertGreaterThanOrEqual(0, $stat->passesAttempted());
+            self::assertGreaterThanOrEqual(0, $stat->passesCompleted());
+            self::assertLessThanOrEqual($stat->passesAttempted(), $stat->passesCompleted());
+            self::assertSame($stat->passesAttempted(), $summary['passes_attempted']);
+            self::assertSame($stat->passesCompleted(), $summary['passes_completed']);
             $group = match ($players->get($stat->playerId())->primaryPosition()->value) { 'GK' => 'GK', 'CB', 'LB', 'RB' => 'DEF', 'DM', 'CM', 'AM' => 'MID', default => 'ATT' };
             $ranges[$group][] = $summary['rating'];
         }
@@ -66,11 +71,19 @@ final class Domain029Test extends TestCase
         $unusedBench = array_values(array_filter($matchService->selectionRepository($database)->byMatch($completed->id()), fn ($selection): bool => $selection->status()->value === 'bench' && $matchService->playerSummary($database, $completed->id(), $selection->playerId()) === null));
         self::assertNotEmpty($unusedBench);
 
+        $shortSubstitute = array_values(array_filter($matchService->statRepository($database)->byMatch($completed->id()), static fn (PlayerMatchStat $stat): bool => !$stat->started() && $stat->minutes() <= 35))[0] ?? null;
+        self::assertNotNull($shortSubstitute);
+        self::assertLessThanOrEqual(25, $shortSubstitute->passesAttempted());
+
         $sample = $matchService->statRepository($database)->byMatch($completed->id())[0];
         $before = $matchService->playerSummary($database, $completed->id(), $sample->playerId())['rating'];
+        $passingBefore = [$sample->passesAttempted(), $sample->passesCompleted()];
         unset($database);
         $database = $store->openDatabase('domain-029-production');
         self::assertSame($before, $matchService->playerSummary($database, $completed->id(), $sample->playerId())['rating']);
+        $reloaded = (new \Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository($database))->byMatch($completed->id());
+        $reloadedSample = array_values(array_filter($reloaded, static fn (PlayerMatchStat $stat): bool => $stat->playerId()->value() === $sample->playerId()->value()))[0];
+        self::assertSame($passingBefore, [$reloadedSample->passesAttempted(), $reloadedSample->passesCompleted()]);
     }
 
     /** @return array{0:\Goal\Legacy\Core\Bootstrap\CoreServices,1:\Goal\Legacy\Core\Persistence\DatabaseInterface,2:Season,3:SqliteSaveStore} */

@@ -22,6 +22,8 @@ final class PlayerMatchDefensiveStatTest extends TestCase
         self::assertSame(0, $stat->toArray()['tackles']);
         self::assertSame(0, $stat->toArray()['interceptions']);
         self::assertSame(0, $stat->toArray()['blocks']);
+        self::assertSame(0, $stat->passesAttempted());
+        self::assertSame(0, $stat->passesCompleted());
         $withActions = new PlayerMatchStat(new MatchId('defensive-match-actions'), new PlayerId('defensive-player-actions'), new ClubId('arsenal'), true, true, 90, 0, 0, 0, 0, 0, 0, 3, 2, 1);
         self::assertSame([3, 2, 1], [$withActions->tackles(), $withActions->interceptions(), $withActions->blocks()]);
     }

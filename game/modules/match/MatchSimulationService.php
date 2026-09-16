@@ -321,16 +321,36 @@ final class MatchSimulationService
         $stats = [];
         foreach ($starters as $starter) {
             $id = $starter->id()->value();
-            $stats[] = new PlayerMatchStat($match->id(), $starter->id(), $clubId, true, true, $outgoingMinutes[$id] ?? 90, $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0, $shotCounts[$id] ?? 0, $shotsOnTargetCounts[$id] ?? 0, $saveCounts[$id] ?? 0, $cleanSheetCounts[$id] ?? 0, $tackleCounts[$id] ?? 0, $interceptionCounts[$id] ?? 0, $blockCounts[$id] ?? 0);
+            $minutes = $outgoingMinutes[$id] ?? 90;
+            [$attempted, $completed] = $this->passingEvidence($match->id()->value(), $starter, $minutes);
+            $stats[] = new PlayerMatchStat($match->id(), $starter->id(), $clubId, true, true, $minutes, $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0, $shotCounts[$id] ?? 0, $shotsOnTargetCounts[$id] ?? 0, $saveCounts[$id] ?? 0, $cleanSheetCounts[$id] ?? 0, $tackleCounts[$id] ?? 0, $interceptionCounts[$id] ?? 0, $blockCounts[$id] ?? 0, $attempted, $completed);
         }
         foreach ($substitutions as $substitution) {
             $incoming = $playersById[$substitution->incomingPlayerId()->value()] ?? null;
             if ($incoming === null) { continue; }
             $id = $incoming->id()->value();
-            $stats[] = new PlayerMatchStat($match->id(), $incoming->id(), $clubId, true, false, 90 - $substitution->minute(), $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0, $shotCounts[$id] ?? 0, $shotsOnTargetCounts[$id] ?? 0, $saveCounts[$id] ?? 0, $cleanSheetCounts[$id] ?? 0, $tackleCounts[$id] ?? 0, $interceptionCounts[$id] ?? 0, $blockCounts[$id] ?? 0);
+            $minutes = 90 - $substitution->minute();
+            [$attempted, $completed] = $this->passingEvidence($match->id()->value(), $incoming, $minutes);
+            $stats[] = new PlayerMatchStat($match->id(), $incoming->id(), $clubId, true, false, $minutes, $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0, $shotCounts[$id] ?? 0, $shotsOnTargetCounts[$id] ?? 0, $saveCounts[$id] ?? 0, $cleanSheetCounts[$id] ?? 0, $tackleCounts[$id] ?? 0, $interceptionCounts[$id] ?? 0, $blockCounts[$id] ?? 0, $attempted, $completed);
         }
 
         return $stats;
+    }
+
+    /** @return array{int, int} */
+    private function passingEvidence(string $matchId, Player $player, int $minutes): array
+    {
+        if ($minutes < 1) { return [0, 0]; }
+        $involvement = match ($player->primaryPosition()->value) {
+            'GK' => 22, 'CB', 'LB', 'RB' => 38, 'DM' => 55, 'CM' => 58,
+            'AM' => 52, 'LW', 'RW' => 38, 'ST' => 32,
+        };
+        $variation = (int) floor($this->unit($matchId . '|passing-volume|' . $player->id()->value()) * 7) - 3;
+        $attempted = max(1, (int) round(max(1, $involvement + $variation) * $minutes / 90));
+        $completionRate = min(0.95, max(0.55, 0.58 + ($player->attributes()->passing() / 250) + (($this->unit($matchId . '|passing-completion|' . $player->id()->value()) - 0.5) * 0.06)));
+        $completed = min($attempted, max(0, (int) floor($attempted * $completionRate)));
+
+        return [$attempted, $completed];
     }
 
     /** @param list<Player> $players */

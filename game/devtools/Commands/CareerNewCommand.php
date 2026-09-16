@@ -12,6 +12,7 @@ use Goal\Legacy\Core\Persistence\SqliteSaveStore;
 use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
+use Goal\Legacy\Devtools\Presentation\CareerLabels;
 use Goal\Legacy\Modules\Player\Domain\CareerId;
 use Goal\Legacy\Modules\Player\Domain\CareerStartRequest;
 use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
@@ -75,9 +76,10 @@ final class CareerNewCommand implements CommandInterface
                 throw new RuntimeException('Youth Camp could not produce a legitimate starting Club opportunity.');
             }
             if ($preview) {
-                $output->write(sprintf('Youth Camp preview for %s (%s, %s, OVR %d, potential %d):', $player->preferredName(), $player->primaryPosition()->value, $player->developmentProfile()->value, $player->overallRating(), $player->potential()));
+                $output->write(sprintf('Youth Camp preview for %s (%s, %s, OVR %d, potential %d):', $player->preferredName(), $player->primaryPosition()->value, CareerLabels::value($player->developmentProfile()->value), $player->overallRating(), $player->potential()));
                 foreach ($opportunities as $opportunity) {
-                    $output->write(sprintf('  %s — %s, %s (tier %d), role: %s, %s. Re-run with --club=%s.', $opportunity['club'], $opportunity['nation_id'], $opportunity['competition'], $opportunity['tier'], $opportunity['role'], $opportunity['context'], $opportunity['club_id']));
+                    $nation = ucwords(str_replace(['_', '-'], ' ', (string) $opportunity['nation_id']));
+                    $output->write(sprintf('  %s — %s, %s (tier %d), role: %s, %s. Re-run with --club=%s.', $opportunity['club'], $nation, $opportunity['competition'], $opportunity['tier'], CareerLabels::value($opportunity['role']), $opportunity['context'], $opportunity['club_id']));
                 }
                 return 0;
             }
@@ -93,7 +95,7 @@ final class CareerNewCommand implements CommandInterface
                 $this->services->matchModule()->service()->generateFixtures($database, $competition->id()->value(), $season->id());
             }
             $summary = (new PlayerCareerProgressionQuery($this->services->clubModule()->service()))->summary($database, $player->id(), SimulationDate::fromIsoString('2024-07-31'), $season->id());
-            $output->write(sprintf('Career started: save=%s player=%s club=%s role=%s. Open with: php game/devtools/console.php career:home %s; Continue with: php game/devtools/console.php career:continue %s', $careerId->value(), $player->preferredName(), $summary['current_club']['name'] ?? 'unknown', $summary['current_role'] ?? 'unknown', $careerId->value(), $careerId->value()));
+            $output->write(sprintf('Career started for %s at %s. Open Career Home with: php game/devtools/console.php career:play %s', $player->preferredName(), $summary['current_club']['name'] ?? 'your Club', $careerId->value()));
 
             return 0;
         } catch (\Throwable $exception) {

@@ -65,6 +65,7 @@ final class PlayerCareerProgressionQuery
             'player' => $player->toArray(),
             'age' => $player->ageAt($date),
             'current_ovr' => $player->overallRating(),
+            'current_season_id' => $seasonId?->value(),
             'career_state' => $player->careerState()->value,
             'potential' => $player->potential(),
             'development_profile' => $player->developmentProfile()->value,
@@ -91,7 +92,7 @@ final class PlayerCareerProgressionQuery
             'season_id' => $careerReference->transferRequestSeasonId()?->value(),
         ];
         if ($seasonId !== null) {
-            $summary['season_stats'] = $statistics->season($database, $id, $seasonId);
+            $summary['season_stats'] = $statistics->seasonDetailed($database, $id, $seasonId);
         }
         $memberships = $seasonId === null ? $allMemberships : array_values(array_filter($allMemberships, static fn (ClubSquadMembership $membership): bool => $membership->seasonId()->value() === $seasonId->value()));
         $summary['club_ids'] = array_map(static fn ($membership): string => $membership->clubId()->value(), $memberships);
@@ -209,7 +210,7 @@ final class PlayerCareerProgressionQuery
                 }
             }
             $assessment = $performance->assess($database, $playerId, $membership->seasonId());
-            $statistics = $assessment->statistics();
+            $factualStatistics = (new PlayerCareerStatisticsService())->seasonDetailed($database, $playerId, $membership->seasonId());
             $history[] = [
                 'season_id' => $membership->seasonId()->value(),
                 'season' => $season?->label() ?? $membership->seasonId()->value(),
@@ -219,12 +220,13 @@ final class PlayerCareerProgressionQuery
                 'competition' => $this->competitionView($competition),
                 'tier' => $competition?->tier(),
                 'role' => $membership->role()->value,
-                'appearances' => (int) ($statistics['appearances'] ?? 0),
-                'starts' => (int) ($statistics['starts'] ?? 0),
-                'minutes' => (int) ($statistics['minutes'] ?? 0),
-                'goals' => (int) ($statistics['goals'] ?? 0),
-                'rated_appearances' => (int) ($statistics['rated_appearances'] ?? 0),
-                'average_match_rating' => $statistics['average_match_rating'] ?? null,
+                'appearances' => (int) ($factualStatistics['appearances'] ?? 0),
+                'starts' => (int) ($factualStatistics['starts'] ?? 0),
+                'minutes' => (int) ($factualStatistics['minutes'] ?? 0),
+                'goals' => (int) ($factualStatistics['goals'] ?? 0),
+                'assists' => (int) ($factualStatistics['assists'] ?? 0),
+                'rated_appearances' => (int) ($factualStatistics['rated_appearances'] ?? 0),
+                'average_match_rating' => $factualStatistics['average_match_rating'] ?? null,
                 'performance' => $assessment->toArray(),
             ];
         }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Goal\Legacy\Devtools\Commands;
 
 use Goal\Legacy\Core\Bootstrap\CoreServices;
+use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
@@ -15,7 +16,7 @@ use RuntimeException;
 /** Player-facing career actions backed by the existing transfer boundary. */
 final class CareerActionCommand implements CommandInterface
 {
-    public function __construct(private readonly CoreServices $services)
+    public function __construct(private readonly CoreServices $services, private readonly ?SaveStore $saveStore = null)
     {
     }
 
@@ -38,11 +39,13 @@ final class CareerActionCommand implements CommandInterface
         if ($action === 'request-transfer') {
             $movement->requestTransfer($database, $career->playerId(), $season, $date);
             $output->write('CAREER ACTION — transfer request submitted.');
+            $this->home($saveId, $output);
             return 0;
         }
         if ($action === 'withdraw-transfer') {
             $movement->withdrawTransferRequest($database, $career->playerId(), $date);
             $output->write('CAREER ACTION — transfer request withdrawn.');
+            $this->home($saveId, $output);
             return 0;
         }
         if ($action !== 'decide') { throw new RuntimeException(sprintf('Unknown career action "%s".', $action)); }
@@ -61,6 +64,12 @@ final class CareerActionCommand implements CommandInterface
             throw new RuntimeException('This Career decision has no player-facing resolver.');
         }
         $output->write(sprintf('CAREER DECISION — resolved as %s.', $resolved->context()['offer_status'] ?? 'complete'));
+        $this->home($saveId, $output);
         return 0;
+    }
+
+    private function home(string $saveId, ConsoleOutputInterface $output): void
+    {
+        (new CareerHomeCommand($this->services, $this->saveStore))->execute([$saveId], $output);
     }
 }

@@ -1,0 +1,85 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Goal\Legacy\Devtools\Presentation;
+
+/** Human-facing labels for persisted career values. */
+final class CareerLabels
+{
+    /** @var array<string, string> */
+    private const LABELS = [
+        'active' => 'Active',
+        'approaching_decision' => 'Decision approaching',
+        'breakout' => 'Breakout',
+        'breaking_through' => 'Breaking Through',
+        'blocked_path' => 'Blocked Path',
+        'cancelled' => 'Cancelled',
+        'club_promoted' => 'Promoted',
+        'club_relegated' => 'Relegated',
+        'competing_for_role' => 'Competing for a Role',
+        'contract_uncertainty' => 'Contract Uncertain',
+        'contract_renewal' => 'Contract renewal',
+        'draw' => 'Draw',
+        'excellent' => 'Excellent',
+        'expired' => 'Expired',
+        'free_agent' => 'Free Agent',
+        'good' => 'Good',
+        'good_situation' => 'Good Situation',
+        'insufficient_evidence' => 'Not enough evidence',
+        'key_player' => 'Key Player',
+        'late_bloomer' => 'Late Bloomer',
+        'limited' => 'Limited',
+        'loss' => 'Loss',
+        'needs_minutes' => 'Needs More Minutes',
+        'neutral' => 'Neutral',
+        'none' => 'None',
+        'not_selected' => 'Not selected',
+        'poor' => 'Poor',
+        'prospect' => 'Prospect',
+        'regular' => 'Regular',
+        'released' => 'Released',
+        'request_transfer' => 'Request transfer',
+        'requested' => 'Transfer requested',
+        'rotation' => 'Rotation',
+        'stagnant' => 'Stagnant',
+        'steady' => 'Steady',
+        'strong' => 'Strong',
+        'substitute_used' => 'Substitute',
+        'terminated' => 'Terminated',
+        'transfer' => 'Transferred',
+        'transfer_opportunity' => 'Transfer Interest',
+        'transfer_requested' => 'Transfer requested',
+        'unavailable' => 'Unavailable',
+        'very_poor' => 'Very Poor',
+        'win' => 'Win',
+    ];
+
+    public static function value(mixed $value, string $fallback = 'Not available'): string
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return $fallback;
+        }
+
+        $key = strtolower(trim($value));
+        if (isset(self::LABELS[$key])) {
+            return self::LABELS[$key];
+        }
+
+        return ucwords(str_replace(['_', '-'], ' ', $key));
+    }
+
+    public static function nationality(mixed $value): string
+    {
+        return self::value($value, 'Not available');
+    }
+
+    public static function position(mixed $value): string
+    {
+        if (is_string($value) && preg_match('/^[A-Za-z]{2}$/', trim($value)) === 1) {
+            return strtoupper(trim($value));
+        }
+
+        return self::value($value, 'Not available');
+    }
+}

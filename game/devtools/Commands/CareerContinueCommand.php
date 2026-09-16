@@ -5,21 +5,23 @@ declare(strict_types=1);
 namespace Goal\Legacy\Devtools\Commands;
 
 use Goal\Legacy\Core\Bootstrap\CoreServices;
+use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
-use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
-use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
-use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
+use Goal\Legacy\Devtools\Presentation\CareerFormatter;
+use Goal\Legacy\Devtools\Presentation\CareerLabels;
+use Goal\Legacy\Devtools\Presentation\CareerPresentationService;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
-use Goal\Legacy\Modules\World\Domain\SimulationDate;
+use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
 use Goal\Legacy\Modules\World\Domain\SeasonStatus;
+use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use RuntimeException;
 
 /** Advance one controlled-career meaningful stop through canonical services. */
 final class CareerContinueCommand implements CommandInterface
 {
-    public function __construct(private readonly CoreServices $services, private readonly ?SaveStore $saveStore = null)
+    public function __construct(public readonly CoreServices $services, private readonly ?SaveStore $saveStore = null)
     {
     }
 
@@ -59,39 +61,48 @@ final class CareerContinueCommand implements CommandInterface
                     return 0;
                 }
             }
-            $output->write(sprintf('CONTINUE — no future controlled fixture is scheduled from %s. Review CAREER actions or wait for the next Season.', $date->toIsoString()));
+            $output->write('CONTINUE — no future controlled fixture is scheduled. Review Career actions or wait for the next Season.');
             return 0;
         }
         $target = SimulationDate::fromIsoString((string) $next['date']);
         if ($target->isBefore($date)) {
             throw new RuntimeException('Career Continue found a stale fixture in the past.');
         }
-        if ($target->toIsoString() === $date->toIsoString()) {
-            $completed = $this->services->matchModule()->service()->simulateDue($database, $target);
-        } else {
+        if ($target->toIsoString() !== $date->toIsoString()) {
             $worldService->advanceToDate($database, $saveId, $target);
-            $completed = $this->services->matchModule()->service()->simulateDue($database, $target);
         }
+        $completed = $this->services->matchModule()->service()->simulateDue($database, $target);
         $clubId = $summary['current_club']['id'] ?? null;
         $controlled = array_values(array_filter($completed, static fn ($match): bool => $clubId !== null && ($match->homeClubId()->value() === $clubId || $match->awayClubId()->value() === $clubId)));
         if ($controlled === []) {
             throw new RuntimeException('Career Continue advanced to a date without completing the controlled Club fixture.');
         }
         $match = $controlled[array_key_last($controlled)];
-        $this->matchResult($output, $database, $match, $career->playerId()->value());
-        $newWorld = $worldService->load($database, $saveId);
-        $fresh = $query->summary($database, $career->playerId(), $newWorld->currentDate($worldService->calendar()), $newWorld->currentSeasonId());
-        $this->home($output, $fresh, $newWorld->currentDate($worldService->calendar()));
+        $presentation = new CareerPresentationService($this->services);
+        $formatter = new CareerFormatter();
+        foreach ($formatter->matchday($presentation->matchday($database, $match, $career->playerId()->value(), is_string($clubId) ? $clubId : null)) as $line) {
+            $output->write($line);
+        }
+        $newSnapshot = $presentation->snapshot($database, $saveId);
+        foreach ($formatter->home(
+            $newSnapshot['summary'],
+            $newSnapshot['date']->toIsoString(),
+            $presentation->nextMatch($database, $newSnapshot['summary']),
+            $presentation->clubContext($database, $newSnapshot['summary']),
+        ) as $line) {
+            $output->write($line);
+        }
+
         return 0;
     }
 
     /** @param list<array<string, mixed>> $decisions */
     private function decision(ConsoleOutputInterface $output, array $decisions): void
     {
-        $output->write('CAREER DECISION — Continue is paused until the Player decision is resolved.');
+        $output->write('CAREER DECISION — Continue is paused until your decision is resolved.');
         foreach ($decisions as $decision) {
             $options = $decision['options'] ?? [];
-            $output->write(sprintf('  %s: %s', $decision['type'] ?? 'decision', $this->optionText($options)));
+            $output->write(sprintf('  %s: %s', CareerLabels::value($decision['type'] ?? null), $this->optionText($options)));
         }
     }
 
@@ -99,50 +110,10 @@ final class CareerContinueCommand implements CommandInterface
     {
         if (!is_array($options) || $options === []) { return 'review the available Career action'; }
         $labels = [];
-        foreach ($options as $key => $option) { $labels[] = is_array($option) ? (string) ($option['label'] ?? $option['id'] ?? $key) : (string) $key; }
-        return implode(', ', $labels);
-    }
-
-    private function matchResult(ConsoleOutputInterface $output, \Goal\Legacy\Core\Persistence\DatabaseInterface $database, object $match, string $playerId): void
-    {
-        $matches = $this->services->matchModule()->service();
-        $clubs = $this->services->clubModule()->service()->repository($database);
-        $home = $clubs->get($match->homeClubId())->canonicalName();
-        $away = $clubs->get($match->awayClubId())->canonicalName();
-        $result = $match->result();
-        $output->write(sprintf('MATCH RESULT — %s | %s %d-%d %s', $match->scheduledDate()->toIsoString(), $home, $result?->homeGoals() ?? 0, $result?->awayGoals() ?? 0, $away));
-        $performance = $matches->playerSummary($database, $match->id(), $playerId);
-        if ($performance === null) {
-            $selection = array_values(array_filter((new MatchSelectionRepository($database))->byMatch($match->id()), static fn ($row): bool => $row->playerId()->value() === $playerId))[0] ?? null;
-            $status = $selection?->status()->value ?? SelectionStatus::NotSelected->value;
-            $output->write(sprintf('YOUR PERFORMANCE — %s; no recorded appearance.', strtoupper(str_replace('_', ' ', $status))));
-        } else {
-            $output->write(sprintf('YOUR PERFORMANCE — %s | %d min | goals %d | assists %d | shots %d/%d | cards %dY/%dR | rating %s', $this->participation($performance), $performance['minutes'], $performance['goals'], $performance['assists'], $performance['shots'], $performance['shots_on_target'], $performance['yellow_cards'], $performance['red_cards'], $performance['rating'] === null ? 'n/a' : number_format((float) $performance['rating'], 2)));
+        foreach (array_values($options) as $index => $option) {
+            $label = is_array($option) ? ($option['label'] ?? null) : null;
+            $labels[] = ($index + 1) . '. ' . (is_string($label) && trim($label) !== '' ? $label : 'available choice');
         }
-        $highlights = $matches->highlightRepository($database)->byMatch($match->id());
-        $output->write('HIGHLIGHTS — ' . ($highlights === [] ? 'none recorded.' : implode('; ', array_map(static fn ($highlight): string => sprintf('%d\' %s', $highlight->minute(), $highlight->type()), $highlights))));
-        $table = $matches->standings($database, $match->competitionId(), $match->seasonId());
-        $position = null;
-        foreach ($table as $index => $row) { if (($row['club_id'] ?? null) === $match->homeClubId()->value() || ($row['club_id'] ?? null) === $match->awayClubId()->value()) { $position = $index + 1; break; } }
-        if ($position !== null) { $output->write(sprintf('TABLE — position %d after this result.', $position)); }
-    }
-
-    /** @param array<string, mixed> $performance */
-    private function participation(array $performance): string
-    {
-        if (!$performance['appeared']) { return 'UNUSED_SUBSTITUTE'; }
-
-        return $performance['started'] ? 'STARTER' : 'SUBSTITUTE_USED';
-    }
-
-    /** @param array<string, mixed> $summary */
-    private function home(ConsoleOutputInterface $output, array $summary, SimulationDate $date): void
-    {
-        $player = $summary['player'];
-        $next = $summary['next_scheduled_match'] ?? null;
-        $nextText = is_array($next) ? sprintf('%s vs %s', $next['date'], $next['opponent_club_id']) : 'not scheduled';
-        $output->write(sprintf('CAREER HOME — %s | date %s | age %d | %s | %s cm / %s kg | %s | OVR %d | potential %d | %s', $player['preferred_name'], $date->toIsoString(), $summary['age'], $player['primary_nation_id'], $player['height_cm'], $player['weight_kg'], $player['primary_position'], $summary['current_ovr'], $summary['potential'], $summary['development_profile']));
-        $output->write(sprintf('Club: %s | role: %s | contract: %s', $summary['current_club']['name'] ?? 'none', $summary['current_role'] ?? 'none', $summary['current_contract']['status'] ?? 'none'));
-        $output->write(sprintf('Recent form: %s | Season: %s | Next fixture: %s', $summary['recent_form']['classification'], $summary['season_performance']['classification'] ?? 'insufficient_evidence', $nextText));
+        return implode(', ', $labels);
     }
 }

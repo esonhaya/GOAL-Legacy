@@ -11,30 +11,23 @@ use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Devtools\Presentation\CareerFormatter;
 use Goal\Legacy\Devtools\Presentation\CareerPresentationService;
 
-final class CareerHomeCommand implements CommandInterface
+final class CareerViewCommand implements CommandInterface
 {
     public function __construct(private readonly CoreServices $services, private readonly ?SaveStore $saveStore = null)
     {
     }
 
-    public function name(): string { return 'career:home'; }
+    public function name(): string { return 'career:view'; }
 
-    public function description(): string { return 'Open the player-facing Career Home for a save ID.'; }
+    public function description(): string { return 'Open the player-facing Career view for a save ID.'; }
 
     public function execute(array $arguments, ConsoleOutputInterface $output): int
     {
         $saveId = trim((string) ($arguments[0] ?? ''));
-        if ($saveId === '') { $output->error('Usage: career:home <save-id>'); return 1; }
+        if ($saveId === '') { $output->error('Usage: career:view <save-id>'); return 1; }
         $database = ($this->saveStore ?? $this->services->saveStore())->openDatabase($saveId);
-        $presentation = new CareerPresentationService($this->services);
-        $snapshot = $presentation->snapshot($database, $saveId);
-        $formatter = new CareerFormatter();
-        foreach ($formatter->home(
-            $snapshot['summary'],
-            $snapshot['date']->toIsoString(),
-            $presentation->nextMatch($database, $snapshot['summary']),
-            $presentation->clubContext($database, $snapshot['summary']),
-        ) as $line) {
+        $snapshot = (new CareerPresentationService($this->services))->snapshot($database, $saveId);
+        foreach ((new CareerFormatter())->career($snapshot['summary']) as $line) {
             $output->write($line);
         }
 

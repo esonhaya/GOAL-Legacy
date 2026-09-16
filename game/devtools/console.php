@@ -34,6 +34,9 @@ use Goal\Legacy\Devtools\Commands\CareerNewCommand;
 use Goal\Legacy\Devtools\Commands\CareerHomeCommand;
 use Goal\Legacy\Devtools\Commands\CareerContinueCommand;
 use Goal\Legacy\Devtools\Commands\CareerActionCommand;
+use Goal\Legacy\Devtools\Commands\CareerViewCommand;
+use Goal\Legacy\Devtools\Commands\CareerWorldCommand;
+use Goal\Legacy\Devtools\Commands\CareerPlayCommand;
 
 $projectRoot = dirname(__DIR__, 2);
 $services = (new Bootstrap())->create($projectRoot);
@@ -64,6 +67,9 @@ $commands->register(new CareerNewCommand($services, $projectRoot));
 $commands->register(new CareerHomeCommand($services));
 $commands->register(new CareerContinueCommand($services));
 $commands->register(new CareerActionCommand($services));
+$commands->register(new CareerViewCommand($services));
+$commands->register(new CareerWorldCommand($services));
+$commands->register(new CareerPlayCommand($services));
 
 $application = new ConsoleApplication($commands);
 exit($application->run($argv, new StreamConsoleOutput(STDOUT, STDERR)));

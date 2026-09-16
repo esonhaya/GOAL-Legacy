@@ -122,6 +122,15 @@ final class ClubSquadRepository
     }
 
     /** @return list<ClubSquadMembership> */
+    public function bySeason(SeasonId $seasonId): array
+    {
+        $statement = $this->database->connection()->prepare('SELECT * FROM ' . self::TABLE . ' WHERE season_id = :season_id ORDER BY club_id ASC, player_id ASC');
+        $statement->execute(['season_id' => $seasonId->value()]);
+
+        return $this->hydrateRows($statement->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /** @return list<ClubSquadMembership> */
     private function byColumn(string $column, string $value, ?SeasonId $seasonId, string $orderColumn): array
     {
         $sql = 'SELECT * FROM ' . self::TABLE . ' WHERE ' . $column . ' = :value';

@@ -121,6 +121,26 @@ final class PlayerDevelopmentService
         return (new PlayerDevelopmentRepository($database))->state($id);
     }
 
+    public function setTrainingFocus(DatabaseInterface $database, PlayerId|string $playerId, TrainingFocus|string $focus, SimulationDate $date): DevelopmentState
+    {
+        $id = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        $value = $focus instanceof TrainingFocus ? $focus : TrainingFocus::fromInput($focus);
+        $state = $database->transaction(fn (): DevelopmentState => $this->setTrainingFocusInTransaction($database, $id, $value, $date));
+
+        return $state;
+    }
+
+    /** Must be called inside the caller's existing transaction. */
+    public function setTrainingFocusInTransaction(DatabaseInterface $database, PlayerId $playerId, TrainingFocus $focus, SimulationDate $date): DevelopmentState
+    {
+        $repository = new PlayerDevelopmentRepository($database);
+        $state = $repository->state($playerId);
+        $updated = $state->withProgress($state->progress(), $date, $focus);
+        $repository->saveStateInTransaction($updated);
+
+        return $updated;
+    }
+
     /** @return list<DevelopmentHistoryEntry> */
     public function history(DatabaseInterface $database, PlayerId|string $playerId): array
     {

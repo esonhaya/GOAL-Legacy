@@ -52,6 +52,11 @@ final class PlayerService
         return new TrainingService($this->developmentService(), $this->availabilityService);
     }
 
+    public function careerExperienceService(): CareerExperienceService
+    {
+        return new CareerExperienceService($this->developmentService(), $this->trainingService());
+    }
+
     public function populationService(): PlayerPopulationService
     {
         if ($this->populationService === null) {

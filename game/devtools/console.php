@@ -38,6 +38,8 @@ use Goal\Legacy\Devtools\Commands\CareerViewCommand;
 use Goal\Legacy\Devtools\Commands\CareerWorldCommand;
 use Goal\Legacy\Devtools\Commands\CareerPlayCommand;
 use Goal\Legacy\Devtools\Commands\CareerNewsCommand;
+use Goal\Legacy\Devtools\Commands\CareerTrainingCommand;
+use Goal\Legacy\Devtools\Commands\CareerEventCommand;
 
 $projectRoot = dirname(__DIR__, 2);
 $services = (new Bootstrap())->create($projectRoot);
@@ -71,6 +73,8 @@ $commands->register(new CareerActionCommand($services));
 $commands->register(new CareerViewCommand($services));
 $commands->register(new CareerWorldCommand($services));
 $commands->register(new CareerNewsCommand($services));
+$commands->register(new CareerTrainingCommand($services));
+$commands->register(new CareerEventCommand($services));
 $commands->register(new CareerPlayCommand($services));
 
 $application = new ConsoleApplication($commands);

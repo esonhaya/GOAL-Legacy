@@ -43,6 +43,7 @@ final class CareerContinueCommand implements CommandInterface
         $date = $world->currentDate($worldService->calendar());
         $query = new PlayerCareerProgressionQuery($this->services->clubModule()->service());
         $summary = $query->summary($database, $career->playerId(), $date, $world->currentSeasonId());
+        $experience = $this->services->playerModule()->service()->careerExperienceService();
 
         if (($summary['pending_decisions'] ?? []) !== []) {
             $presentation = new CareerPresentationService($this->services);
@@ -54,7 +55,19 @@ final class CareerContinueCommand implements CommandInterface
             }
             return 0;
         }
+        $pendingEvent = $experience->pendingEvent($database, $career->playerId());
+        if ($pendingEvent !== null) {
+            $this->renderEvent($output, $pendingEvent->toArray());
+            return 0;
+        }
         $next = $summary['next_scheduled_match'] ?? null;
+        if (is_array($next) && isset($next['date'], $next['match_id']) && $world->currentSeasonId() !== null) {
+            $event = $experience->ensureEvent($database, $career->playerId(), $world->currentSeasonId(), $date, $summary);
+            if ($event !== null) {
+                $this->renderEvent($output, $event->toArray());
+                return 0;
+            }
+        }
         while (!is_array($next) || !isset($next['date'])) {
             $season = $worldService->seasonRepository($database)->get($world->currentSeasonId());
             $competitionIds = array_fill_keys($world->competitionIds(), true);
@@ -71,11 +84,20 @@ final class CareerContinueCommand implements CommandInterface
             }
             if ($nextWorldMatch !== null && $season->status() === SeasonStatus::Active) {
                 $targetWorldDate = $nextWorldMatch->scheduledDate();
+                $clubId = $summary['current_club']['id'] ?? null;
+                $isControlledFixture = is_string($clubId) && ($nextWorldMatch->homeClubId()->value() === $clubId || $nextWorldMatch->awayClubId()->value() === $clubId);
+                if ($isControlledFixture && $world->currentSeasonId() !== null) {
+                    $event = $experience->ensureEvent($database, $career->playerId(), $world->currentSeasonId(), $date, $summary);
+                    if ($event !== null) {
+                        $this->renderEvent($output, $event->toArray());
+                        return 0;
+                    }
+                    $experience->prepareTraining($database, $career->playerId(), $nextWorldMatch->id()->value(), $date, $targetWorldDate);
+                }
                 if ($targetWorldDate->toIsoString() !== $date->toIsoString()) {
                     $worldService->advanceToDate($database, $saveId, $targetWorldDate);
                 }
                 $completed = $this->services->matchModule()->service()->simulateDue($database, $targetWorldDate);
-                $clubId = $summary['current_club']['id'] ?? null;
                 $controlled = array_values(array_filter($completed, static fn ($match): bool => $clubId !== null && ($match->homeClubId()->value() === $clubId || $match->awayClubId()->value() === $clubId)));
                 if ($controlled !== []) {
                     $this->renderMatch($database, $saveId, $output, $career->playerId()->value(), $controlled[array_key_last($controlled)], is_string($clubId) ? $clubId : null);
@@ -93,6 +115,13 @@ final class CareerContinueCommand implements CommandInterface
                     return 0;
                 }
                 $next = $summary['next_scheduled_match'] ?? null;
+                if (is_array($next) && isset($next['date'], $next['match_id']) && $world->currentSeasonId() !== null) {
+                    $event = $experience->ensureEvent($database, $career->playerId(), $world->currentSeasonId(), $date, $summary);
+                    if ($event !== null) {
+                        $this->renderEvent($output, $event->toArray());
+                        return 0;
+                    }
+                }
                 continue;
             }
             if ($world->currentSeasonId() !== null && $season->status() === SeasonStatus::Active && $worldService->seasonRollover()?->competitionsComplete($database, $world, $season) === true) {
@@ -125,7 +154,10 @@ final class CareerContinueCommand implements CommandInterface
             throw new RuntimeException('Career Continue found a stale fixture in the past.');
         }
         if ($target->toIsoString() !== $date->toIsoString()) {
+            $experience->prepareTraining($database, $career->playerId(), (string) $next['match_id'], $date, $target);
             $worldService->advanceToDate($database, $saveId, $target);
+        } else {
+            $experience->prepareTraining($database, $career->playerId(), (string) $next['match_id'], $date, $target);
         }
         $completed = $this->services->matchModule()->service()->simulateDue($database, $target);
         $clubId = $summary['current_club']['id'] ?? null;
@@ -155,6 +187,12 @@ final class CareerContinueCommand implements CommandInterface
         ) as $line) {
             $output->write($line);
         }
+    }
+
+    /** @param array<string, mixed> $event */
+    private function renderEvent(ConsoleOutputInterface $output, array $event): void
+    {
+        foreach ((new CareerFormatter())->careerEvent($event) as $line) { $output->write($line); }
     }
 
     /** @param list<array<string, mixed>> $decisions */

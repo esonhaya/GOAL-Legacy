@@ -37,6 +37,8 @@ final class CareerFormatter
         $lines[] = 'Potential: ' . $this->number($summary['potential'] ?? null);
         $lines[] = 'Development: ' . CareerLabels::value($summary['development_profile'] ?? null);
         $lines[] = 'Squad Role: ' . CareerLabels::value($summary['current_role'] ?? null);
+        $lines[] = 'Training Focus: ' . CareerLabels::value($summary['training_focus'] ?? 'balanced');
+        $lines[] = 'Priority: ' . CareerLabels::value($summary['priority'] ?? 'balanced');
 
         $lines[] = '';
         $latestSeason = $history === [] ? null : $history[array_key_last($history)];
@@ -54,6 +56,10 @@ final class CareerFormatter
         $transferRequest = is_array($summary['transfer_request'] ?? null) ? $summary['transfer_request'] : [];
         $lines[] = 'Transfer Request: ' . CareerLabels::value($transferRequest['status'] ?? 'none');
         $lines[] = 'Career Outlook: ' . CareerLabels::value($outlook['category'] ?? null);
+        $pendingEvent = is_array($summary['pending_career_event'] ?? null) ? $summary['pending_career_event'] : null;
+        if ($pendingEvent !== null) {
+            $lines[] = 'Career Event: ' . $this->text($pendingEvent['title'] ?? null, 'Decision waiting');
+        }
 
         $lines[] = '';
         $lines[] = 'NEXT MATCH';
@@ -80,7 +86,8 @@ final class CareerFormatter
         $lines[] = '2. Career';
         $lines[] = '3. World';
         $lines[] = '4. News';
-        $actionNumber = 5;
+        $lines[] = '5. Training & Priorities';
+        $actionNumber = 6;
         $hasDecision = false;
         foreach (($summary['available_actions'] ?? []) as $action) {
             $type = is_array($action) ? ($action['type'] ?? null) : null;
@@ -220,6 +227,10 @@ final class CareerFormatter
         $lines[] = 'Club: ' . ($club['name'] ?? 'Free Agent') . ' | Role: ' . CareerLabels::value($summary['current_role'] ?? null);
         $lines[] = 'Contract: ' . $this->contract($contract);
         $lines[] = '';
+        $lines[] = 'TRAINING & PRIORITY';
+        $lines[] = 'Training Focus: ' . CareerLabels::value($summary['training_focus'] ?? 'balanced');
+        $lines[] = 'Priority: ' . CareerLabels::value($summary['priority'] ?? 'balanced');
+        $lines[] = '';
         $latestSeason = $history === [] ? null : $history[array_key_last($history)];
         $seasonLabel = $this->text($summary['current_season_label'] ?? null, is_array($latestSeason) ? (string) ($latestSeason['season'] ?? 'Current') : 'Current');
         $lines[] = 'CURRENT SEASON' . ($seasonLabel === 'Current' ? '' : ' — ' . $seasonLabel);
@@ -270,13 +281,77 @@ final class CareerFormatter
         } else {
             foreach ($development as $entry) {
                 if (!is_array($entry)) { continue; }
-                $lines[] = sprintf('%s: %s -> %s', $this->text($entry['occurred_date'] ?? null), $this->number($entry['before_ovr'] ?? null), $this->number($entry['after_ovr'] ?? null));
+                $lines[] = sprintf('%s: %s -> %s', $this->text($entry['date'] ?? $entry['occurred_date'] ?? null), $this->number($entry['before_ovr'] ?? null), $this->number($entry['after_ovr'] ?? null));
+            }
+        }
+
+        $lines[] = '';
+        $lines[] = 'OFF-PITCH LIFE HISTORY';
+        $life = is_array($summary['career_life_history'] ?? null) ? $summary['career_life_history'] : [];
+        if ($life === []) {
+            $lines[] = 'No off-pitch milestones yet.';
+        } else {
+            foreach ($life as $event) {
+                if (!is_array($event)) { continue; }
+                $consequence = is_array($event['consequence'] ?? null) ? $event['consequence'] : [];
+                $lines[] = $this->text($event['date'] ?? null) . ': ' . $this->text($consequence['history'] ?? null, $this->text($event['title'] ?? null, 'Career event'));
             }
         }
 
         $lines[] = '';
         $lines[] = 'ACTIONS';
         $lines[] = '1. Back to Career Home';
+        return $lines;
+    }
+
+    /** @param array<string, mixed> $event */
+    public function careerEvent(array $event): array
+    {
+        $lines = $this->title('CAREER EVENT');
+        $lines[] = 'Date: ' . $this->text($event['date'] ?? null);
+        $lines[] = 'Category: ' . CareerLabels::value($event['category'] ?? null);
+        $lines[] = 'Title: ' . $this->text($event['title'] ?? null, 'Career moment');
+        $lines[] = $this->text($event['description'] ?? null, 'A decision is waiting.');
+        $lines[] = '';
+        $lines[] = 'CHOICES';
+        $choices = is_array($event['choices'] ?? null) ? $event['choices'] : [];
+        foreach ($choices as $index => $choice) {
+            if (is_array($choice)) {
+                $lines[] = ($index + 1) . '. ' . $this->text($choice['label'] ?? null, 'Available choice');
+            }
+        }
+
+        return $lines;
+    }
+
+    /** @param array<string, mixed> $event */
+    public function careerEventResolved(array $event): array
+    {
+        $lines = $this->title('CAREER EVENT RESOLVED');
+        $lines[] = $this->text($event['title'] ?? null, 'Career event');
+        $consequence = is_array($event['consequence'] ?? null) ? $event['consequence'] : [];
+        $lines[] = $this->text($consequence['history'] ?? null, 'Your choice has been recorded.');
+        if (isset($consequence['training_focus']) && is_string($consequence['training_focus'])) {
+            $lines[] = 'Training Focus: ' . CareerLabels::value($consequence['training_focus']);
+        }
+        if (isset($consequence['priority']) && is_string($consequence['priority'])) {
+            $lines[] = 'Priority: ' . CareerLabels::value($consequence['priority']);
+        }
+
+        return $lines;
+    }
+
+    /** @param array<string, mixed> $summary */
+    public function training(array $summary): array
+    {
+        $lines = $this->title('TRAINING & PRIORITIES');
+        $lines[] = 'Training Focus: ' . CareerLabels::value($summary['training_focus'] ?? 'balanced');
+        $lines[] = 'Priority: ' . CareerLabels::value($summary['priority'] ?? 'balanced');
+        $lines[] = '';
+        $lines[] = '1. Change Training Focus';
+        $lines[] = '2. Change Priority';
+        $lines[] = '3. Back to Career Home';
+
         return $lines;
     }
 

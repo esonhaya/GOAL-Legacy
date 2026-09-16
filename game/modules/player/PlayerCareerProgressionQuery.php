@@ -18,8 +18,10 @@ use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
+use Goal\Legacy\Modules\Player\Persistence\CareerEventRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
+use Goal\Legacy\Modules\Player\Persistence\PlayerPriorityRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Transfer\Domain\TransferStatus;
 use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
@@ -71,6 +73,8 @@ final class PlayerCareerProgressionQuery
             'potential' => $player->potential(),
             'development_profile' => $player->developmentProfile()->value,
             'training_focus' => $development->state($database, $id)->currentFocus()?->value,
+            'priority' => (new PlayerPriorityRepository($database))->current($id)->value,
+            'career_life_history' => array_map(static fn ($event): array => $event->toArray(), (new CareerEventRepository($database))->resolvedForPlayer($id, 20)),
             'career_stats' => $statistics->career($database, $id),
             'transfer_history' => array_map(static fn ($transfer): array => $transfer->toArray(), (new TransferRepository($database))->byPlayer($id)),
             'recent_development' => array_map(static fn ($entry): array => $entry->toArray(), array_slice(array_reverse($developmentHistory), 0, 5)),
@@ -125,6 +129,8 @@ final class PlayerCareerProgressionQuery
             'options' => $opportunity->context()['options'] ?? [],
         ], $openOpportunities);
         $summary['available_actions'] = $this->availableActions($careerReference, $activeContract, $currentMembership, $openOpportunities);
+        $pendingCareerEvent = (new CareerEventRepository($database))->pendingForPlayer($id)[0] ?? null;
+        $summary['pending_career_event'] = $pendingCareerEvent?->toArray();
         $summary['career_outlook'] = (new CareerOutlookService())->derive($summary, $date);
         $next = null;
         if ($currentMembership !== null) {

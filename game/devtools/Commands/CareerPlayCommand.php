@@ -10,6 +10,7 @@ use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Devtools\Presentation\CareerFormatter;
 use Goal\Legacy\Devtools\Presentation\CareerPresentationService;
+use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 
 /** Small stdin menu for CLI Phase 1 career navigation. */
 final class CareerPlayCommand implements CommandInterface
@@ -40,8 +41,13 @@ final class CareerPlayCommand implements CommandInterface
             if ($choice === '1') {
                 if ($this->hasPendingDecision($saveId)) {
                     $this->resolvePendingDecision($saveId, $output);
+                } elseif ($this->hasPendingEvent($saveId)) {
+                    $this->resolvePendingEvent($saveId, $output);
                 } else {
                     (new CareerContinueCommand($this->services, $this->saveStore))->execute([$saveId], $output);
+                    if ($this->hasPendingEvent($saveId)) {
+                        $this->resolvePendingEvent($saveId, $output, false);
+                    }
                 }
                 continue;
             }
@@ -60,6 +66,11 @@ final class CareerPlayCommand implements CommandInterface
             if ($choice === '4') {
                 (new CareerNewsCommand($this->services, $this->saveStore))->execute([$saveId], $output);
                 $this->returnToHome($output);
+                $this->home($saveId, $output);
+                continue;
+            }
+            if ($choice === '5') {
+                (new CareerTrainingCommand($this->services, $this->saveStore, $this->input))->execute([$saveId], $output);
                 $this->home($saveId, $output);
                 continue;
             }
@@ -107,7 +118,7 @@ final class CareerPlayCommand implements CommandInterface
     {
         $database = ($this->saveStore ?? $this->services->saveStore())->openDatabase($saveId);
         $snapshot = (new CareerPresentationService($this->services))->snapshot($database, $saveId);
-        $number = 5;
+        $number = 6;
         $hasDecision = false;
         foreach (($snapshot['summary']['available_actions'] ?? []) as $action) {
             $type = is_array($action) ? ($action['type'] ?? null) : null;
@@ -133,7 +144,7 @@ final class CareerPlayCommand implements CommandInterface
     {
         $database = ($this->saveStore ?? $this->services->saveStore())->openDatabase($saveId);
         $snapshot = (new CareerPresentationService($this->services))->snapshot($database, $saveId);
-        $number = 5;
+        $number = 6;
         if ($this->hasDecision($snapshot['summary'])) { ++$number; }
         foreach (($snapshot['summary']['available_actions'] ?? []) as $action) {
             $type = is_array($action) ? ($action['type'] ?? null) : null;
@@ -161,6 +172,47 @@ final class CareerPlayCommand implements CommandInterface
         $snapshot = (new CareerPresentationService($this->services))->snapshot($database, $saveId);
 
         return $this->hasDecision($snapshot['summary']);
+    }
+
+    private function hasPendingEvent(string $saveId): bool
+    {
+        $database = ($this->saveStore ?? $this->services->saveStore())->openDatabase($saveId);
+        $career = (new CareerPlayerRepository($database))->get($saveId);
+
+        return $this->services->playerModule()->service()->careerExperienceService()->pendingEvent($database, $career->playerId()) !== null;
+    }
+
+    private function resolvePendingEvent(string $saveId, ConsoleOutputInterface $output, bool $display = true): void
+    {
+        $database = ($this->saveStore ?? $this->services->saveStore())->openDatabase($saveId);
+        $career = (new CareerPlayerRepository($database))->get($saveId);
+        $experience = $this->services->playerModule()->service()->careerExperienceService();
+        $formatter = new CareerFormatter();
+        while (true) {
+            $event = $experience->pendingEvent($database, $career->playerId());
+            if ($event === null) { return; }
+            if ($display) {
+                foreach ($formatter->careerEvent($event->toArray()) as $line) { $output->write($line); }
+            }
+            $display = true;
+            $choice = $this->readChoice();
+            if ($choice === null) {
+                $output->write('SAVE & EXIT — progress is saved automatically.');
+                return;
+            }
+            $option = filter_var($choice, FILTER_VALIDATE_INT);
+            if ($option === false || $option < 1 || $option > count($event->choices())) {
+                $output->write('Please choose one of the listed event choices.');
+                continue;
+            }
+            $worldService = $this->services->worldModule()->service();
+            $world = $worldService->load($database, $saveId);
+            $date = $world->currentDate($worldService->calendar());
+            $resolved = $experience->resolve($database, $event->id(), $option, $date);
+            foreach ($formatter->careerEventResolved($resolved->toArray()) as $line) { $output->write($line); }
+            $this->home($saveId, $output);
+            return;
+        }
     }
 
     private function resolvePendingDecision(string $saveId, ConsoleOutputInterface $output): void

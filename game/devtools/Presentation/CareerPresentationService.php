@@ -342,12 +342,19 @@ final class CareerPresentationService
         }
         foreach (array_reverse((array) ($summary['development_history'] ?? [])) as $entry) {
             if (!is_array($entry)) { continue; }
-            $items[] = ['date' => (string) ($entry['occurred_date'] ?? ''), 'headline' => 'DEVELOPMENT — OVR ' . (string) ($entry['before_ovr'] ?? '?') . ' -> ' . (string) ($entry['after_ovr'] ?? '?')];
+            $items[] = ['date' => (string) ($entry['date'] ?? $entry['occurred_date'] ?? ''), 'headline' => 'DEVELOPMENT — OVR ' . (string) ($entry['before_ovr'] ?? '?') . ' -> ' . (string) ($entry['after_ovr'] ?? '?')];
         }
         $roleHistory = is_array($summary['role_history'] ?? null) ? $summary['role_history'] : [];
         foreach (array_reverse($roleHistory) as $role) {
             if (!is_array($role)) { continue; }
             $items[] = ['date' => (string) ($role['occurred_date'] ?? ''), 'headline' => 'ROLE — ' . CareerLabels::value($role['role'] ?? null)];
+        }
+        foreach (array_reverse((array) ($summary['career_life_history'] ?? [])) as $event) {
+            if (!is_array($event) || !is_array($event['context'] ?? null) || ($event['context']['newsworthy'] ?? false) !== true) { continue; }
+            $consequence = is_array($event['consequence'] ?? null) ? $event['consequence'] : [];
+            $history = trim((string) ($consequence['history'] ?? ''));
+            if ($history === '') { continue; }
+            $items[] = ['date' => (string) ($event['date'] ?? ''), 'headline' => 'CAREER — ' . $history];
         }
         $request = is_array($summary['transfer_request'] ?? null) ? $summary['transfer_request'] : [];
         if (($request['status'] ?? null) === 'requested') {
@@ -382,7 +389,7 @@ final class CareerPresentationService
         $development = is_array($summary['development_history'] ?? null) ? $summary['development_history'] : [];
         $seasonStart = is_array($row) ? (string) ($row['season_start_date'] ?? '') : '';
         foreach ($development as $entry) {
-            if (!is_array($entry) || ($seasonStart !== '' && strcmp((string) ($entry['occurred_date'] ?? ''), $seasonStart) < 0)) { continue; }
+            if (!is_array($entry) || ($seasonStart !== '' && strcmp((string) ($entry['date'] ?? $entry['occurred_date'] ?? ''), $seasonStart) < 0)) { continue; }
             $ovrBefore = (int) ($entry['before_ovr'] ?? 0);
             break;
         }

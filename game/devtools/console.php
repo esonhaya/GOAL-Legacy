@@ -30,6 +30,8 @@ use Goal\Legacy\Devtools\Commands\PopulationSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\RecruitmentSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\CareerTransferSelfCheckCommand;
 use Goal\Legacy\Devtools\Commands\CareerMultiSeasonAuditCommand;
+use Goal\Legacy\Devtools\Commands\CareerNewCommand;
+use Goal\Legacy\Devtools\Commands\CareerHomeCommand;
 
 $projectRoot = dirname(__DIR__, 2);
 $services = (new Bootstrap())->create($projectRoot);
@@ -56,6 +58,8 @@ $commands->register(new PopulationSelfCheckCommand($services));
 $commands->register(new RecruitmentSelfCheckCommand($services));
 $commands->register(new CareerTransferSelfCheckCommand($services));
 $commands->register(new CareerMultiSeasonAuditCommand($services));
+$commands->register(new CareerNewCommand($services, $projectRoot));
+$commands->register(new CareerHomeCommand($services));
 
 $application = new ConsoleApplication($commands);
 exit($application->run($argv, new StreamConsoleOutput(STDOUT, STDERR)));

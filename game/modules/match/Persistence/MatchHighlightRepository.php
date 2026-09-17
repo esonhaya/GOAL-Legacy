@@ -16,7 +16,7 @@ final class MatchHighlightRepository
 {
     private const TABLE = 'match_highlights';
     public function __construct(private readonly DatabaseInterface $database)
-    { SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void { $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, sequence_number INTEGER NOT NULL, minute INTEGER NOT NULL, type TEXT NOT NULL, club_id TEXT NULL, player_id TEXT NULL, data_json TEXT NOT NULL, PRIMARY KEY (match_id, sequence_number))'); $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_highlights_player ON ' . self::TABLE . ' (player_id, match_id, sequence_number)'); }); }
+    { SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void { $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, sequence_number INTEGER NOT NULL, minute INTEGER NOT NULL, type TEXT NOT NULL, club_id TEXT NULL, player_id TEXT NULL, data_json TEXT NOT NULL, PRIMARY KEY (match_id, sequence_number))'); }); }
     /** @param list<MatchHighlight> $highlights */
     public function replaceForMatch(array $highlights): void { $this->database->transaction(function () use ($highlights): void { $this->replaceForMatchInTransaction($highlights); }); }
     /** @param list<MatchHighlight> $highlights */

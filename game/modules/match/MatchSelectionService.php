@@ -158,9 +158,21 @@ final class MatchSelectionService
     private function formBonus(DatabaseInterface $database, string $playerId, GameMatch $match): int
     {
         try {
+            $summary = $database->connection()->prepare('SELECT COALESCE(SUM(evaluation_count), 0) AS evaluation_count, COALESCE(SUM(evaluation_total), 0) AS evaluation_total FROM player_form_summaries WHERE player_id = :player_id');
+            $summary->execute(['player_id' => $playerId]);
+            $archived = $summary->fetch(\PDO::FETCH_ASSOC) ?: ['evaluation_count' => 0, 'evaluation_total' => 0];
+            $current = $database->connection()->prepare('SELECT COUNT(*) AS evaluation_count, COALESCE(SUM(evaluation_score), 0) AS evaluation_total FROM career_match_evaluations WHERE player_id = :player_id AND occurred_date < :date');
+            $current->execute(['player_id' => $playerId, 'date' => $match->scheduledDate()->toIsoString()]);
+            $live = $current->fetch(\PDO::FETCH_ASSOC) ?: ['evaluation_count' => 0, 'evaluation_total' => 0];
+            $count = (int) $archived['evaluation_count'] + (int) $live['evaluation_count'];
+            $total = (int) $archived['evaluation_total'] + (int) $live['evaluation_total'];
+            $average = $count === 0 ? 0.0 : $total / $count;
+        } catch (\PDOException) {
             $statement = $database->connection()->prepare('SELECT COALESCE(AVG(evaluation_score), 0) FROM career_match_evaluations WHERE player_id = :player_id AND occurred_date < :date');
             $statement->execute(['player_id' => $playerId, 'date' => $match->scheduledDate()->toIsoString()]);
-        } catch (\PDOException) { return 0; }
-        return (int) round(((float) $statement->fetchColumn() - 60) * 2);
+            $average = (float) $statement->fetchColumn();
+        }
+
+        return (int) round(($average - 60) * 2);
     }
 }

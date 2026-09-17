@@ -20,7 +20,6 @@ final class CareerEvaluationRepository
         SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
             $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, player_id TEXT NOT NULL, club_id TEXT NOT NULL, occurred_date TEXT NOT NULL, evaluation_score INTEGER NOT NULL, expectation_status TEXT NOT NULL, PRIMARY KEY (match_id, player_id))');
             $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_career_evaluations_player ON ' . self::TABLE . ' (player_id, occurred_date, match_id)');
-            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_career_evaluations_club ON ' . self::TABLE . ' (club_id, occurred_date, player_id)');
         });
     }
 

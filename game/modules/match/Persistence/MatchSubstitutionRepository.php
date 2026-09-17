@@ -20,8 +20,6 @@ final class MatchSubstitutionRepository
     {
         SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
             $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, club_id TEXT NOT NULL, sequence_number INTEGER NOT NULL, outgoing_player_id TEXT NOT NULL, incoming_player_id TEXT NOT NULL, minute INTEGER NOT NULL, PRIMARY KEY (match_id, club_id, sequence_number))');
-            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_substitutions_player ON ' . self::TABLE . ' (outgoing_player_id, incoming_player_id, match_id)');
-            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_substitutions_club ON ' . self::TABLE . ' (club_id, match_id, sequence_number)');
         });
     }
 

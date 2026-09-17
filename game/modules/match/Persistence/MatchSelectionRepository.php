@@ -22,7 +22,6 @@ final class MatchSelectionRepository
         SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
             $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, player_id TEXT NOT NULL, club_id TEXT NOT NULL, status TEXT NOT NULL, PRIMARY KEY (match_id, player_id))');
             $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_selection_player ON ' . self::TABLE . ' (player_id, match_id)');
-            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_selection_club_status ON ' . self::TABLE . ' (club_id, status, match_id)');
             $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_selection_match_order ON ' . self::TABLE . ' (match_id, club_id, status, player_id)');
         });
     }

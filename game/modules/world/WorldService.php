@@ -146,7 +146,7 @@ final class WorldService
             // it has no squad memberships at all; normal prepared saves skip
             // this and continue directly to materialization.
             if ($this->clubService->squadRepository($database)->bySeason($transitionSeason->id()) === []) {
-                $this->seasonRollover->prepareNext($database, $world, $season, $transitionSeason, $date);
+                $this->seasonRollover->prepareNext($database, $world, $season, $date);
             }
             $this->seasonRollover->materializeNext($database, $world, $season, $transitionSeason, $date);
         }

@@ -107,7 +107,7 @@ final class PlayerDevelopmentService
                 'match',
                 $match->id()->value() . ':' . $stat->playerId()->value(),
                 $stat->minutes() * 12,
-                TrainingFocus::Balanced,
+                null,
             );
         }
 

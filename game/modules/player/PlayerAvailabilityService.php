@@ -47,18 +47,19 @@ final class PlayerAvailabilityService
     }
 
     /** @return list<array{event:string,payload:array<string,mixed>}> */
-    public function applyMatchInTransaction(DatabaseInterface $database, GameMatch $match): array
+    /** @param list<\Goal\Legacy\Modules\Match\Domain\PlayerMatchStat>|null $stats */
+    public function applyMatchInTransaction(DatabaseInterface $database, GameMatch $match, ?array $stats = null, bool $persistMatchSources = true): array
     {
         $repository = new PlayerAvailabilityRepository($database);
         $changes = [];
-        foreach ((new PlayerMatchStatRepository($database))->byMatch($match->id()) as $stat) {
+        foreach ($stats ?? (new PlayerMatchStatRepository($database))->byMatch($match->id()) as $stat) {
             if (!$stat->appeared() || $stat->minutes() < 1) {
                 continue;
             }
             $player = $stat->playerId();
             $sourceId = $match->id()->value() . ':' . $player->value();
             $before = $repository->fatigueAt($player, $match->scheduledDate());
-            $this->applyLoadInTransaction($repository, $player, $match->scheduledDate(), 'match', $sourceId, (int) round($stat->minutes() * self::MATCH_LOAD_PER_MINUTE));
+            $this->applyLoadInTransaction($repository, $player, $match->scheduledDate(), 'match', $sourceId, (int) round($stat->minutes() * self::MATCH_LOAD_PER_MINUTE), $persistMatchSources);
             if ($repository->activeInjuryAt($player, $match->scheduledDate()) !== null || $repository->hasSource($player, 'injury', $sourceId)) {
                 continue;
             }
@@ -124,15 +125,17 @@ final class PlayerAvailabilityService
         return (new PlayerAvailabilityRepository($database))->byPlayer($id);
     }
 
-    private function applyLoadInTransaction(PlayerAvailabilityRepository $repository, PlayerId $playerId, SimulationDate $date, string $sourceType, string $sourceId, int $load): void
+    private function applyLoadInTransaction(PlayerAvailabilityRepository $repository, PlayerId $playerId, SimulationDate $date, string $sourceType, string $sourceId, int $load, bool $persistSource = true): void
     {
-        if ($repository->hasSource($playerId, $sourceType, $sourceId)) {
+        if ($persistSource && $repository->hasSource($playerId, $sourceType, $sourceId)) {
             return;
         }
         $state = $repository->state($playerId);
         $before = $repository->fatigueAt($playerId, $date);
         $repository->saveStateInTransaction($playerId, $before + max(0, $load), $date, $state['revision'] + 1);
-        $repository->recordSourceInTransaction($playerId, $sourceType, $sourceId, max(0, $load), $date);
+        if ($persistSource) {
+            $repository->recordSourceInTransaction($playerId, $sourceType, $sourceId, max(0, $load), $date);
+        }
     }
 
     private function determineInjury(PlayerId $playerId, GameMatch $match, int $fatigueBefore, string $sourceId): ?Injury

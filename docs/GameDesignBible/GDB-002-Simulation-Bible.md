@@ -79,3 +79,32 @@ The population phase supplies broad positional coverage and bounded Club
 reputation-based ability variation. Reserves, youth academies, retirement,
 transfer-market AI, and exact licensed rosters remain deferred. Sparse legacy
 saves retain the aggregate Club-strength fallback until explicitly populated.
+
+## PHASE 2 Player-Centric Simulation Fidelity
+
+The controlled Player's experienced career path receives the highest Match
+simulation and persistence fidelity. NPC-only world Matches remain real,
+deterministic football driven by the same Club strength, eligible squad,
+home-advantage, score, scorer, assist, discipline, and competition-result
+rules, but retain only the evidence that has a gameplay or historical
+consumer.
+
+Controlled Matches keep complete Matchday selections, substitutions, Player
+stat lines, highlights, ratings, form inputs, development idempotency, and
+career evaluation evidence. NPC-only Matches keep authoritative results and
+decisive events, current availability/development consequences, discipline
+facts, and compact Season Player aggregates. Detailed NPC action evidence is
+not a player-facing requirement and is not persisted when no downstream
+consumer needs it.
+
+This is a detail and persistence boundary inside one Match architecture, not
+a second NPC engine. Stable deterministic namespaces ensure omitting unused
+world evidence cannot perturb controlled-player outcomes.
+
+The permanent rules are:
+
+- No computation without a gameplay consumer.
+- No persistence without a historical or future consumer.
+
+These rules still permit cheap transient computation where it is needed to
+produce a believable canonical world result.

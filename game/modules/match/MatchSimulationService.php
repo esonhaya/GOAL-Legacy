@@ -16,12 +16,13 @@ use Goal\Legacy\Modules\Match\Domain\TeamStrength;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
+use Goal\Legacy\Modules\Match\Domain\SimulationFidelity;
 
 final class MatchSimulationService
 {
     public function __construct(private readonly ClubService $clubService, private readonly MatchSelectionService $selectionService) {}
 
-    public function simulate(DatabaseInterface $database, GameMatch $match): MatchSimulation
+    public function simulate(DatabaseInterface $database, GameMatch $match, SimulationFidelity $fidelity = SimulationFidelity::Player): MatchSimulation
     {
         $playerRepository = new PlayerRepository($database);
         $selections = $this->selectionService->select($database, $match);
@@ -75,12 +76,17 @@ final class MatchSimulationService
         $tackleCounts = [];
         $interceptionCounts = [];
         $blockCounts = [];
-        $this->additionalAttempts($match->id()->value(), 'home', $homeStarters, $homeSubstitutions, $awayStarters, $awaySubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts, $dismissals);
-        $this->additionalAttempts($match->id()->value(), 'away', $awayStarters, $awaySubstitutions, $homeStarters, $homeSubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts, $dismissals);
+        $fullDetail = $fidelity === SimulationFidelity::Player;
+        if ($fullDetail) {
+            $this->additionalAttempts($match->id()->value(), 'home', $homeStarters, $homeSubstitutions, $awayStarters, $awaySubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts, $dismissals);
+            $this->additionalAttempts($match->id()->value(), 'away', $awayStarters, $awaySubstitutions, $homeStarters, $homeSubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts, $dismissals);
+            $this->defensiveActions($match->id()->value(), 'home', $homeStarters, $homeSubstitutions, $playersById, $tackleCounts, $interceptionCounts, $blockCounts, $dismissals);
+            $this->defensiveActions($match->id()->value(), 'away', $awayStarters, $awaySubstitutions, $playersById, $tackleCounts, $interceptionCounts, $blockCounts, $dismissals);
+        }
+        // Clean-sheet participation is a compact world fact used by the
+        // season aggregate path and is cheap enough to retain in both modes.
         $this->applyCleanSheet($awayGoals === 0, $homeStarters, $homeSubstitutions, $playersById, $cleanSheetCounts);
         $this->applyCleanSheet($homeGoals === 0, $awayStarters, $awaySubstitutions, $playersById, $cleanSheetCounts);
-        $this->defensiveActions($match->id()->value(), 'home', $homeStarters, $homeSubstitutions, $playersById, $tackleCounts, $interceptionCounts, $blockCounts, $dismissals);
-        $this->defensiveActions($match->id()->value(), 'away', $awayStarters, $awaySubstitutions, $playersById, $tackleCounts, $interceptionCounts, $blockCounts, $dismissals);
         foreach ($disciplineEvents as $event) { $goalEvents[] = $event; }
         foreach ($substitutions as $substitution) {
             $goalEvents[] = ['club' => $substitution->clubId()->value(), 'player' => $substitution->incomingPlayerId()->value(), 'minute' => $substitution->minute(), 'side' => $substitution->clubId()->value(), 'type' => 'substitution', 'substitution' => $substitution];
@@ -109,8 +115,8 @@ final class MatchSimulationService
             }
         }
         $stats = [];
-        foreach ($this->participantStats($match, $match->homeClubId(), $homeStarters, $homeSubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $foulCounts, $yellowCounts, $redCounts, $dismissals, $playersById) as $stat) { $stats[] = $stat; }
-        foreach ($this->participantStats($match, $match->awayClubId(), $awayStarters, $awaySubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $foulCounts, $yellowCounts, $redCounts, $dismissals, $playersById) as $stat) { $stats[] = $stat; }
+        foreach ($this->participantStats($match, $match->homeClubId(), $homeStarters, $homeSubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $foulCounts, $yellowCounts, $redCounts, $dismissals, $playersById, $fullDetail) as $stat) { $stats[] = $stat; }
+        foreach ($this->participantStats($match, $match->awayClubId(), $awayStarters, $awaySubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $foulCounts, $yellowCounts, $redCounts, $dismissals, $playersById, $fullDetail) as $stat) { $stats[] = $stat; }
         return new MatchSimulation($result, $stats, $highlights, $selections, $substitutions);
     }
 
@@ -371,7 +377,7 @@ final class MatchSimulationService
     }
 
     /** @param list<Player> $starters @param list<MatchSubstitution> $substitutions @param array<string, int> $goalCounts @param array<string, int> $assistCounts @param array<string, int> $shotCounts @param array<string, int> $shotsOnTargetCounts @param array<string, int> $saveCounts @param array<string, int> $cleanSheetCounts @param array<string, int> $tackleCounts @param array<string, int> $interceptionCounts @param array<string, int> $blockCounts @return list<PlayerMatchStat> */
-    private function participantStats(GameMatch $match, \Goal\Legacy\Modules\Club\Domain\ClubId $clubId, array $starters, array $substitutions, array $goalCounts, array $assistCounts, array $shotCounts, array $shotsOnTargetCounts, array $saveCounts, array $cleanSheetCounts, array $tackleCounts, array $interceptionCounts, array $blockCounts, array $foulCounts, array $yellowCounts, array $redCounts, array $dismissals, array $playersById): array
+    private function participantStats(GameMatch $match, \Goal\Legacy\Modules\Club\Domain\ClubId $clubId, array $starters, array $substitutions, array $goalCounts, array $assistCounts, array $shotCounts, array $shotsOnTargetCounts, array $saveCounts, array $cleanSheetCounts, array $tackleCounts, array $interceptionCounts, array $blockCounts, array $foulCounts, array $yellowCounts, array $redCounts, array $dismissals, array $playersById, bool $fullDetail = true): array
     {
         $outgoingMinutes = [];
         foreach ($substitutions as $substitution) {
@@ -381,7 +387,7 @@ final class MatchSimulationService
         foreach ($starters as $starter) {
             $id = $starter->id()->value();
             $minutes = min($outgoingMinutes[$id] ?? 90, $dismissals[$id] ?? 90);
-            [$attempted, $completed] = $this->passingEvidence($match->id()->value(), $starter, $minutes);
+            [$attempted, $completed] = $fullDetail ? $this->passingEvidence($match->id()->value(), $starter, $minutes) : [0, 0];
             $stats[] = new PlayerMatchStat($match->id(), $starter->id(), $clubId, true, true, $minutes, $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0, $shotCounts[$id] ?? 0, $shotsOnTargetCounts[$id] ?? 0, $saveCounts[$id] ?? 0, $cleanSheetCounts[$id] ?? 0, $tackleCounts[$id] ?? 0, $interceptionCounts[$id] ?? 0, $blockCounts[$id] ?? 0, $attempted, $completed, $foulCounts[$id] ?? 0, $yellowCounts[$id] ?? 0, $redCounts[$id] ?? 0);
         }
         foreach ($substitutions as $substitution) {
@@ -390,7 +396,7 @@ final class MatchSimulationService
             $id = $incoming->id()->value();
             $minutes = max(0, min(90, $dismissals[$id] ?? 90) - $substitution->minute());
             if ($minutes < 1) { continue; }
-            [$attempted, $completed] = $this->passingEvidence($match->id()->value(), $incoming, $minutes);
+            [$attempted, $completed] = $fullDetail ? $this->passingEvidence($match->id()->value(), $incoming, $minutes) : [0, 0];
             $stats[] = new PlayerMatchStat($match->id(), $incoming->id(), $clubId, true, false, $minutes, $goalCounts[$id] ?? 0, $assistCounts[$id] ?? 0, $shotCounts[$id] ?? 0, $shotsOnTargetCounts[$id] ?? 0, $saveCounts[$id] ?? 0, $cleanSheetCounts[$id] ?? 0, $tackleCounts[$id] ?? 0, $interceptionCounts[$id] ?? 0, $blockCounts[$id] ?? 0, $attempted, $completed, $foulCounts[$id] ?? 0, $yellowCounts[$id] ?? 0, $redCounts[$id] ?? 0);
         }
 

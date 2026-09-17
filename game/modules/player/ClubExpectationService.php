@@ -15,6 +15,8 @@ use Goal\Legacy\Modules\Match\Domain\PlayerSelection;
 use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
+use Goal\Legacy\Modules\Match\Domain\MatchSimulation;
+use Goal\Legacy\Modules\Match\Domain\SimulationFidelity;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunity;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunityType;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunityStatus;
@@ -36,13 +38,13 @@ final class ClubExpectationService
     }
 
     /** @return list<array<string, mixed>> */
-    public function evaluateMatch(DatabaseInterface $database, GameMatch $match): array
+    public function evaluateMatch(DatabaseInterface $database, GameMatch $match, ?MatchSimulation $simulation = null, SimulationFidelity $fidelity = SimulationFidelity::Player): array
     {
         $selectionRepository = new MatchSelectionRepository($database);
-        $selections = $selectionRepository->byMatch($match->id());
+        $selections = $simulation?->selections() ?? $selectionRepository->byMatch($match->id());
         $stats = [];
-        foreach ((new PlayerMatchStatRepository($database))->byMatch($match->id()) as $stat) { $stats[$stat->playerId()->value()] = $stat; }
-        $evaluations = $database->transaction(function () use ($database, $match, $selections, $stats): array {
+        foreach ($simulation?->playerStats() ?? (new PlayerMatchStatRepository($database))->byMatch($match->id()) as $stat) { $stats[$stat->playerId()->value()] = $stat; }
+        $evaluations = $database->transaction(function () use ($database, $match, $selections, $stats, $fidelity): array {
             $evaluationRepository = new CareerEvaluationRepository($database);
             $playerRepository = new PlayerRepository($database);
             $squadRepository = $this->clubService->squadRepository($database);
@@ -58,7 +60,12 @@ final class ClubExpectationService
                 $evaluation = (new PlayerPerformanceEvaluator())->evaluate($stat, $match);
                 $expected = $membership->role()->expectationScore();
                 $status = $evaluation->score() >= $expected + 10 ? 'exceeding' : ($evaluation->score() >= $expected - 5 ? 'meeting' : ($evaluation->score() >= $expected - 15 ? 'below' : 'significantly_below'));
-                $evaluationRepository->saveInTransaction(['match_id' => $match->id()->value(), 'player_id' => $selection->playerId()->value(), 'club_id' => $selection->clubId()->value(), 'occurred_date' => $match->scheduledDate()->toIsoString(), 'evaluation_score' => $evaluation->score(), 'expectation_status' => $status]);
+                $values = ['match_id' => $match->id()->value(), 'player_id' => $selection->playerId()->value(), 'club_id' => $selection->clubId()->value(), 'occurred_date' => $match->scheduledDate()->toIsoString(), 'evaluation_score' => $evaluation->score(), 'expectation_status' => $status, 'started' => $selection->status() === SelectionStatus::Starter ? 1 : 0];
+                if ($fidelity === SimulationFidelity::World) {
+                    $evaluationRepository->saveSummaryInTransaction($values);
+                } else {
+                    $evaluationRepository->saveInTransaction(array_diff_key($values, ['started' => true]));
+                }
                 $row = ['player_id' => $selection->playerId()->value(), 'club_id' => $selection->clubId()->value(), 'score' => $evaluation->score(), 'status' => $status, 'role' => $membership->role()->value];
                 $roleChange = $this->transitionRole($database, $match, $membership, $opportunities);
                 if ($roleChange !== null) { $row['role_change'] = $roleChange; }
@@ -130,14 +137,18 @@ final class ClubExpectationService
     /** @return array<string, string>|null */
     private function transitionRole(DatabaseInterface $database, GameMatch $match, ClubSquadMembership $membership, CareerOpportunityService $opportunities): ?array
     {
-        $rows = array_slice((new CareerEvaluationRepository($database))->byPlayer($membership->playerId(), $membership->clubId()), 0, 2);
+        $rows = (new CareerEvaluationRepository($database))->recentForPlayer($membership->playerId(), $membership->clubId());
         if (count($rows) < 2) { return null; }
         $appearances = 0; $starts = 0; $scores = [];
         $selectionRepository = new MatchSelectionRepository($database);
         foreach ($rows as $row) {
             $scores[] = (int) $row['evaluation_score'];
-            $selection = array_values(array_filter($selectionRepository->byMatch((string) $row['match_id']), static fn (PlayerSelection $value): bool => $value->playerId()->value() === $membership->playerId()->value()))[0] ?? null;
-            if ($selection?->status() === SelectionStatus::Starter) { ++$starts; }
+            if (array_key_exists('started', $row)) {
+                $starts += (int) $row['started'] === 1 ? 1 : 0;
+            } elseif ($row['match_id'] !== null) {
+                $selection = array_values(array_filter($selectionRepository->byMatch((string) $row['match_id']), static fn (PlayerSelection $value): bool => $value->playerId()->value() === $membership->playerId()->value()))[0] ?? null;
+                if ($selection?->status() === SelectionStatus::Starter) { ++$starts; }
+            }
             if ((int) $row['evaluation_score'] > 0) { ++$appearances; }
         }
         $average = (int) round(array_sum($scores) / count($scores));

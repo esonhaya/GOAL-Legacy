@@ -172,6 +172,17 @@ expected SimulationDate recovery boundary. Availability is a derived/current
 projection; recovery does not require a serialized callback or a daily global
 Player tick.
 
+✓ The Match Module applies an explicit Player/World simulation-fidelity
+boundary. Controlled-player Match evidence remains detailed. NPC-only Match
+results and decisive events remain durable, while replay-only NPC stat,
+selection, substitution, and development-history rows are replaced by compact
+Season aggregates and rolling evaluation summaries where their consumers
+require them.
+
+✓ Compact world aggregates are Career-durable and owned by the World/Player
+statistics boundary. They are additive and rebuildable from legacy detailed
+Match rows; existing detailed saves remain compatible.
+
 ---
 
 ## Revision History

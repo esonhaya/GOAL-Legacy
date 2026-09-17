@@ -15,6 +15,7 @@ use Goal\Legacy\Modules\Match\Domain\MatchId;
 use Goal\Legacy\Modules\Match\Domain\MatchStatus;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
 use Goal\Legacy\Modules\Match\Domain\PlayerMatchStat;
+use Goal\Legacy\Modules\Match\Domain\SimulationFidelity;
 use Goal\Legacy\Modules\Match\Persistence\MatchHighlightRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
@@ -30,6 +31,7 @@ use Goal\Legacy\Modules\Player\Persistence\PlayerDevelopmentRepository;
 use Goal\Legacy\Modules\Player\ClubExpectationService;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
+use Goal\Legacy\Modules\World\Persistence\PlayerSeasonStatisticsRepository;
 
 final class MatchService
 {
@@ -49,15 +51,40 @@ final class MatchService
     public function selectionRepository(DatabaseInterface $database): MatchSelectionRepository { return new MatchSelectionRepository($database); }
     public function substitutionRepository(DatabaseInterface $database): MatchSubstitutionRepository { return new MatchSubstitutionRepository($database); }
     public function generateFixtures(DatabaseInterface $database, string|CompetitionId $competitionId, string|SeasonId $seasonId): array { $competition = $competitionId instanceof CompetitionId ? $competitionId : new CompetitionId($competitionId); $season = $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId); $matches = $this->fixtureGenerator->generate($database, $competition, $season); $this->events->dispatch(new GenericEvent(MatchEventNames::FIXTURES_GENERATED, ['competition_id' => $competition->value(), 'season_id' => $season->value(), 'match_count' => count($matches)])); return $matches; }
-    public function simulate(DatabaseInterface $database, string|MatchId $matchId): GameMatch
+    public function simulate(DatabaseInterface $database, string|MatchId $matchId, ?SimulationFidelity $fidelity = null): GameMatch
     {
         $repository = $this->repository($database); $match = $repository->get($matchId); if ($match->status() !== MatchStatus::Scheduled) { throw new MatchException('Only scheduled Matches can be simulated.'); }
-        $simulation = $this->simulator->simulate($database, $match); $stats = $simulation->playerStats(); $highlights = $simulation->highlights(); $selections = $simulation->selections(); $substitutions = $simulation->substitutions();
+        // Direct Match callers retain the historical full-evidence contract.
+        // Production world progression resolves the boundary explicitly in
+        // simulateDue(), where a controlled career reference is available.
+        $fidelity ??= SimulationFidelity::Player;
+        $simulation = $this->simulator->simulate($database, $match, $fidelity); $stats = $simulation->playerStats(); $highlights = $simulation->highlights(); $selections = $simulation->selections(); $substitutions = $simulation->substitutions();
+        $positions = [];
+        if ($fidelity === SimulationFidelity::World) {
+            $players = new PlayerRepository($database);
+            foreach ($stats as $stat) { $positions[$stat->playerId()->value()] = $players->get($stat->playerId())->primaryPosition(); }
+        }
         // Match persistence repositories are constructed again inside the
         // atomic write. Warm their schemas before the transaction so guarded
         // DDL can never become part of a rollback-prone Match transaction.
         new MatchSelectionRepository($database); new MatchSubstitutionRepository($database); new PlayerMatchStatRepository($database); new MatchHighlightRepository($database); new PlayerAvailabilityRepository($database); new PlayerDevelopmentRepository($database); new CareerEvaluationRepository($database);
-        $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database): array { $completed = $match->complete($simulation->result()); $repository->saveInTransaction($completed); (new MatchSelectionRepository($database))->replaceForMatchInTransaction($selections); (new MatchSubstitutionRepository($database))->replaceForMatchInTransaction($substitutions); (new PlayerMatchStatRepository($database))->replaceForMatchInTransaction($stats); (new MatchHighlightRepository($database))->replaceForMatchInTransaction($highlights); $availability = $this->availability?->reconcileInTransaction($database, $completed->scheduledDate()) ?? []; $availability = array_merge($availability, $this->availability?->applyMatchInTransaction($database, $completed) ?? []); $development = $this->development?->applyMatchInTransaction($database, $completed) ?? []; return [$completed, $development, $availability]; });
+        if ($fidelity === SimulationFidelity::World) { new PlayerSeasonStatisticsRepository($database); }
+        $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database, $fidelity, $positions): array {
+            $completed = $match->complete($simulation->result());
+            $repository->saveInTransaction($completed);
+            if ($fidelity === SimulationFidelity::Player) {
+                (new MatchSelectionRepository($database))->replaceForMatchInTransaction($selections);
+                (new MatchSubstitutionRepository($database))->replaceForMatchInTransaction($substitutions);
+                (new PlayerMatchStatRepository($database))->replaceForMatchInTransaction($stats);
+            } else {
+                (new PlayerSeasonStatisticsRepository($database))->addMatchInTransaction($completed, $stats, $positions);
+            }
+            (new MatchHighlightRepository($database))->replaceForMatchInTransaction($highlights);
+            $availability = $this->availability?->reconcileInTransaction($database, $completed->scheduledDate()) ?? [];
+            $availability = array_merge($availability, $this->availability?->applyMatchInTransaction($database, $completed, $stats, $fidelity === SimulationFidelity::Player) ?? []);
+            $development = $this->development?->applyMatchInTransaction($database, $completed, $stats, $fidelity === SimulationFidelity::Player) ?? [];
+            return [$completed, $development, $availability];
+        });
         [$completed, $development, $availability] = $transactionResult;
         foreach ($development as $application) {
             if ($application->applied()) { $this->events->dispatch(new GenericEvent('player.developed', $application->toArray())); }
@@ -65,14 +92,33 @@ final class MatchService
         $this->availability?->dispatchChanges($availability);
         $this->events->dispatch(new GenericEvent(MatchEventNames::COMPLETED, ['match_id' => $completed->id()->value(), 'competition_id' => $completed->competitionId()->value(), 'season_id' => $completed->seasonId()->value(), 'home_club_id' => $completed->homeClubId()->value(), 'away_club_id' => $completed->awayClubId()->value(), 'home_goals' => $completed->result()?->homeGoals(), 'away_goals' => $completed->result()?->awayGoals()]));
         $this->events->dispatch(new GenericEvent(MatchEventNames::STANDINGS_UPDATED, ['competition_id' => $completed->competitionId()->value(), 'season_id' => $completed->seasonId()->value()]));
-        $this->expectations?->evaluateMatch($database, $completed);
+        $this->expectations?->evaluateMatch($database, $completed, $fidelity === SimulationFidelity::World ? $simulation : null, $fidelity);
         return $completed;
     }
     /** @return list<GameMatch> */
-    public function simulateDue(DatabaseInterface $database, SimulationDate $date): array { $completed = []; foreach ($this->repository($database)->dueScheduled($date) as $match) { $completed[] = $this->simulate($database, $match->id()); } return $completed; }
+    public function simulateDue(DatabaseInterface $database, SimulationDate $date): array { $completed = []; foreach ($this->repository($database)->dueScheduled($date) as $match) { $completed[] = $this->simulate($database, $match->id(), $this->fidelityFor($database, $match)); } return $completed; }
     /** @return list<array<string, int|string>> */
     public function standings(DatabaseInterface $database, string|CompetitionId $competitionId, string|SeasonId $seasonId): array { return $this->standings->table($database, $competitionId instanceof CompetitionId ? $competitionId : new CompetitionId($competitionId), $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId)); }
     public function competitionComplete(DatabaseInterface $database, string|CompetitionId $competitionId, string|SeasonId $seasonId): bool { $matches = $this->repository($database)->byCompetition($competitionId, $seasonId); return $matches !== [] && count(array_filter($matches, static fn ($match): bool => $match->status() === MatchStatus::Completed)) === count($matches); }
+
+    private function fidelityFor(DatabaseInterface $database, GameMatch $match): SimulationFidelity
+    {
+        $tables = $database->connection()->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('career_player_references', 'club_squad_memberships')")->fetchAll(\PDO::FETCH_COLUMN);
+        if (count($tables) < 2) {
+            return SimulationFidelity::Player;
+        }
+        $referenceCount = (int) $database->connection()->query('SELECT COUNT(*) FROM career_player_references')->fetchColumn();
+        if ($referenceCount === 0) {
+            return SimulationFidelity::Player;
+        }
+        $statement = $database->connection()->prepare(
+            'SELECT 1 FROM career_player_references careers JOIN club_squad_memberships squads ON squads.player_id = careers.player_id '
+            . 'WHERE squads.season_id = :season_id AND squads.club_id IN (:home_club_id, :away_club_id) LIMIT 1'
+        );
+        $statement->execute(['season_id' => $match->seasonId()->value(), 'home_club_id' => $match->homeClubId()->value(), 'away_club_id' => $match->awayClubId()->value()]);
+
+        return $statement->fetchColumn() === false ? SimulationFidelity::World : SimulationFidelity::Player;
+    }
     /** @return array<string, mixed>|null */
     public function playerSummary(DatabaseInterface $database, string|MatchId $matchId, string|PlayerId $playerId): ?array
     {

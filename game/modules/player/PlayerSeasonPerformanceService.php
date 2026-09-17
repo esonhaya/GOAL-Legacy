@@ -15,6 +15,7 @@ use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Domain\SeasonPerformanceAssessment;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
+use Goal\Legacy\Modules\World\Persistence\PlayerSeasonStatisticsRepository;
 
 /** Derives the canonical player-season assessment from completed Match evidence. */
 final class PlayerSeasonPerformanceService
@@ -27,9 +28,11 @@ final class PlayerSeasonPerformanceService
         $expected = (new MatchRepository($database))->completedCountsByClub($season);
         $aggregates = [];
         $clubsByPlayer = [];
+        $detailedPlayers = [];
         $ratings = new PlayerMatchRatingService();
-        (new PlayerMatchStatRepository($database))->eachCompletedSeasonRatingEvidence($season, function (array $row) use (&$aggregates, &$clubsByPlayer, $ratings): void {
+        (new PlayerMatchStatRepository($database))->eachCompletedSeasonRatingEvidence($season, function (array $row) use (&$aggregates, &$clubsByPlayer, &$detailedPlayers, $ratings): void {
             $playerId = $row['player_id'];
+            $detailedPlayers[$playerId] = true;
             if (!isset($aggregates[$playerId])) {
                 $aggregates[$playerId] = $this->emptyAggregate(null, 0);
                 $clubsByPlayer[$playerId] = [];
@@ -46,6 +49,27 @@ final class PlayerSeasonPerformanceService
                 ++$aggregates[$playerId]['rated_appearances'];
             }
         });
+        // World-only Matches intentionally do not retain per-Player stat
+        // lines. Their canonical participation/performance signal is kept in
+        // the one-row-per-Player/Club/Season aggregate instead.
+        foreach ((new PlayerSeasonStatisticsRepository($database))->bySeason($season) as $row) {
+            $playerId = (string) $row['player_id'];
+            // A controlled-Player Match is always full fidelity. Avoid
+            // counting an aggregate if a legacy or mixed save also contains
+            // detailed evidence for the same Player.
+            if (isset($detailedPlayers[$playerId])) {
+                continue;
+            }
+            $aggregates[$playerId] ??= $this->emptyAggregate(null, 0);
+            $clubsByPlayer[$playerId] ??= [];
+            $clubsByPlayer[$playerId][(string) $row['club_id']] = true;
+            $aggregates[$playerId]['appearances'] += (int) $row['appearances'];
+            $aggregates[$playerId]['starts'] += (int) $row['starts'];
+            $aggregates[$playerId]['minutes'] += (int) $row['minutes'];
+            $aggregates[$playerId]['goals'] += (int) $row['goals'];
+            $aggregates[$playerId]['rating_total'] += (float) $row['rating_total'];
+            $aggregates[$playerId]['rated_appearances'] += (int) $row['rated_appearances'];
+        }
         $result = [];
         foreach ($aggregates as $playerId => $aggregate) {
             $aggregate['expected_matches'] = max(array_map(static fn (string $club): int => $expected[$club] ?? 0, array_keys($clubsByPlayer[$playerId])) ?: [0]);
@@ -64,6 +88,24 @@ final class PlayerSeasonPerformanceService
         $expected = (new MatchRepository($database))->completedCountsByClub($season);
         $evidence = (new PlayerMatchStatRepository($database))->completedSeasonRatingEvidence($season, $id);
         if ($evidence === []) {
+            $aggregateRows = (new PlayerSeasonStatisticsRepository($database))->byPlayerSeason($id->value(), $season);
+            if ($aggregateRows !== []) {
+                $aggregate = $this->emptyAggregate(null, 0);
+                $clubs = [];
+                foreach ($aggregateRows as $row) {
+                    $clubs[(string) $row['club_id']] = true;
+                    $aggregate['appearances'] += (int) $row['appearances'];
+                    $aggregate['starts'] += (int) $row['starts'];
+                    $aggregate['minutes'] += (int) $row['minutes'];
+                    $aggregate['goals'] += (int) $row['goals'];
+                    $aggregate['rating_total'] += (float) $row['rating_total'];
+                    $aggregate['rated_appearances'] += (int) $row['rated_appearances'];
+                }
+                $aggregate['expected_matches'] = max(array_map(static fn (string $club): int => $expected[$club] ?? 0, array_keys($clubs)) ?: [0]);
+                $aggregate['average_match_rating'] = $aggregate['rated_appearances'] === 0 ? null : $aggregate['rating_total'] / $aggregate['rated_appearances'];
+
+                return $this->build($aggregate);
+            }
             $membership = (new ClubSquadRepository($database))->byPlayer($id, $season)[0] ?? null;
             $club = $clubId?->value() ?? $membership?->clubId()->value();
             return $this->build($this->emptyAggregate($club, $club === null ? 0 : ($expected[$club] ?? 0)));

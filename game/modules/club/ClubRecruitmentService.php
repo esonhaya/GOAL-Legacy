@@ -28,6 +28,7 @@ use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
 use Goal\Legacy\Modules\Transfer\TransferService;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
+use Goal\Legacy\Modules\World\Persistence\PlayerSeasonStatisticsRepository;
 
 /** Bounded Club-owned squad maintenance at Season boundaries. */
 final class ClubRecruitmentService
@@ -451,6 +452,28 @@ final class ClubRecruitmentService
         $usage = [];
         foreach ($statement->fetchAll(\PDO::FETCH_ASSOC) as $row) {
             $usage[(string) $row['player_id']] = ['appearances' => (int) $row['appearances'], 'starts' => (int) $row['starts'], 'minutes' => (int) $row['minutes']];
+        }
+
+        // Optimized world Matches keep the same usage signal in compact
+        // Season aggregates instead of replay-only per-Match stat rows.
+        try {
+            $previous = $database->connection()->prepare('SELECT id FROM season_records WHERE start_date = (SELECT MAX(previous.start_date) FROM season_records previous WHERE previous.start_date < :start_date)');
+            $previous->execute(['start_date' => $season->startDate()->toIsoString()]);
+            $previousId = $previous->fetchColumn();
+            if ($previousId === false) {
+                return $usage;
+            }
+            $aggregates = (new PlayerSeasonStatisticsRepository($database))->bySeason((string) $previousId);
+            foreach ($aggregates as $row) {
+                $playerId = (string) $row['player_id'];
+                if (isset($usage[$playerId])) {
+                    continue;
+                }
+                $usage[$playerId] = ['appearances' => (int) $row['appearances'], 'starts' => (int) $row['starts'], 'minutes' => (int) $row['minutes']];
+            }
+        } catch (\PDOException) {
+            // Legacy saves created before compact Season aggregates remain
+            // fully supported through the detailed Match query above.
         }
 
         return $usage;

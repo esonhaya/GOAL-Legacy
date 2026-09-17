@@ -92,9 +92,10 @@ final class PlayerDevelopmentService
 
     /** Must be called inside the caller's existing transaction. */
     /** @return list<DevelopmentApplicationResult> */
-    public function applyMatchInTransaction(DatabaseInterface $database, GameMatch $match): array
+    /** @param list<\Goal\Legacy\Modules\Match\Domain\PlayerMatchStat>|null $stats */
+    public function applyMatchInTransaction(DatabaseInterface $database, GameMatch $match, ?array $stats = null, bool $persistHistory = true): array
     {
-        $players = new PlayerMatchStatRepository($database)->byMatch($match->id());
+        $players = $stats ?? new PlayerMatchStatRepository($database)->byMatch($match->id());
         $results = [];
         foreach ($players as $stat) {
             if (!$stat->appeared() || $stat->minutes() < 1) {
@@ -108,6 +109,7 @@ final class PlayerDevelopmentService
                 $match->id()->value() . ':' . $stat->playerId()->value(),
                 $stat->minutes() * 12,
                 null,
+                $persistHistory,
             );
         }
 
@@ -254,9 +256,10 @@ final class PlayerDevelopmentService
         string $sourceId,
         int|float $stimulus,
         ?TrainingFocus $focus,
+        bool $persistHistory = true,
     ): DevelopmentApplicationResult {
         $development = new PlayerDevelopmentRepository($database);
-        if ($development->hasSource($playerId, $source, $sourceId)) {
+        if ($persistHistory && $development->hasSource($playerId, $source, $sourceId)) {
             $entry = $development->bySource($playerId, $source, $sourceId);
             if ($entry === null) {
                 throw new \RuntimeException('Development source was reported as processed but could not be loaded.');
@@ -279,6 +282,9 @@ final class PlayerDevelopmentService
         $players->saveInTransaction($updated);
         $development->saveStateInTransaction($state->withProgress($nextProgress, $date, $focus));
         $after = $updated->overallRating();
+        if (!$persistHistory) {
+            return new DevelopmentApplicationResult($playerId, $source, $sourceId, $deltas, $before, $after, true);
+        }
         $entry = new DevelopmentHistoryEntry(
             hash('sha256', $playerId->value() . '|' . $source . '|' . $sourceId),
             $playerId,

@@ -227,6 +227,24 @@ payroll uses a Contract-and-period source key, making Continue and reload
 retries idempotent. NPC Players never receive these rows. Rendered lifestyle
 artifacts remain outside the Career SQLite database.
 
+## P2-006 Finance and Lifestyle Lifecycle
+
+The player_lifestyle_ownership.active column is an additive migration column.
+Older ownership rows default to active and remain readable; new permanent
+purchases deactivate older items in the same category before inserting the
+new ownership row. Activating an already-owned item is a no-charge
+transactional ownership update. Experience items do not use an active slot.
+The stored purchase price is historical and is never rewritten when catalog
+prices change.
+
+Financial context is derived at read time from canonical finance summary
+values and installed catalog metadata. Browsing Career Home, Finances,
+Lifestyle, or Player Profile never processes payroll, creates ledger rows, or
+changes active ownership. Payroll remains calendar-driven and its Contract /
+week source identity remains the replay boundary. The controlled Player is
+the only finance subject; NPC world simulation has no personal finance
+tables or payroll work.
+
 ## DOMAIN-013 Season Rollover
 
 `SeasonRolloverService` owns the single recurring Season transition. The

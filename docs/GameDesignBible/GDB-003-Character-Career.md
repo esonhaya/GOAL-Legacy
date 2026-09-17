@@ -164,4 +164,27 @@ retains those aggregates. They do not reveal potential, hidden simulation
 weights, or other internal development information for NPCs. This is an
 information view over existing world data, not a scouting system.
 
+## P2-006 Financial Progression
+
+The controlled Player's financial context develops with the football career.
+The opening career is deliberately modest; future catalog prices use the
+existing wage model so early choices matter while established and elite
+Players can reach comfort and luxury through football success. The derived
+states are Starting out, Stable, Comfortable, Wealthy, and Elite. They are
+context for presentation and event selection, not a hidden attribute or a
+second progression engine.
+
+Permanent lifestyle categories have one active choice per category while
+older purchases remain historical ownership. Experiences are recorded as
+completed moments and are not active equipment. Upgrades never change
+attributes, OVR, potential, Match outcomes, or development ownership.
+Routine living costs are intentionally deferred: one predictable periodic
+expense would add bookkeeping without a stronger football decision in the
+current game.
+
+P2-006 adds asset-aware, transfer-aware, free-agent-aware, and Contract-
+boundary event context. Monetary event effects still route through the
+controlled Player finance ledger, use stable source identities, and are
+replay-safe. Contract wages remain the canonical source of income.
+
 END OF DOCUMENT

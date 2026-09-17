@@ -49,8 +49,7 @@ final class PlayerFinanceService
             $item = LifestyleCatalog::find($row['item_id']);
             $owned[] = $item === null ? $row : array_merge($item, $row);
         }
-
-        return [
+        $summary = [
             'currency' => self::CURRENCY,
             'balance' => $state['balance'] ?? 0,
             'initialized' => $state !== null,
@@ -65,6 +64,33 @@ final class PlayerFinanceService
             'owned' => $owned,
             'transactions' => $repository->transactions($id, 20),
         ];
+        $summary['financial_context'] = $this->contextFromSummary($summary);
+
+        return $summary;
+    }
+
+    /** @param array<string,mixed> $summary @return array{code:string,label:string,description:string,score:int,max_tier:string} */
+    public function contextFromSummary(array $summary): array
+    {
+        $wage = (int) ($summary['current_wage'] ?? 0);
+        $balance = (int) ($summary['balance'] ?? 0);
+        $wageIncome = (int) ($summary['wage_income'] ?? 0);
+        $assetRank = 0;
+        foreach ((array) ($summary['owned'] ?? []) as $item) {
+            if (is_array($item)) { $assetRank = max($assetRank, LifestyleCatalog::tierRank((string) ($item['tier'] ?? ''))); }
+        }
+        $score = ($wage >= 1500 ? 3 : ($wage >= 500 ? 2 : ($wage >= 100 ? 1 : 0)))
+            + ($balance >= 2500 ? 3 : ($balance >= 750 ? 2 : ($balance >= 150 ? 1 : 0)))
+            + ($wageIncome >= 10000 ? 2 : ($wageIncome >= 2500 ? 1 : 0))
+            + ($assetRank >= 4 ? 2 : ($assetRank >= 3 ? 1 : 0));
+        $context = match (true) {
+            $score <= 1 => ['code' => 'starting_out', 'label' => 'Starting out', 'description' => 'The early career is about protecting a small foundation and choosing the next step carefully.'],
+            $score <= 3 => ['code' => 'stable', 'label' => 'Stable', 'description' => 'The football routine is beginning to provide room for practical choices.'],
+            $score <= 5 => ['code' => 'comfortable', 'label' => 'Comfortable', 'description' => 'Your career can support comfort while football remains the priority.'],
+            $score <= 7 => ['code' => 'wealthy', 'label' => 'Wealthy', 'description' => 'Success has created real choice; long-term identity matters more than basic comfort.'],
+            default => ['code' => 'elite', 'label' => 'Elite', 'description' => 'Money is no longer the main limit, so choices can express ambition, balance, and legacy.'],
+        };
+        return $context + ['score' => $score, 'max_tier' => match ($assetRank) { 4 => 'Elite', 3 => 'Premium', 2 => 'Comfortable', 1 => 'Modest', default => 'None' }];
     }
 
     /** Initialize legacy state at feature activation, then pay only newly due periods. */
@@ -148,9 +174,27 @@ final class PlayerFinanceService
             }
             $transaction = $this->recordInTransaction($database, $id, $date, 'purchase', -$price, 'purchase:' . $item['id'], 'Purchased ' . $item['label']);
             $after = (int) $transaction['balance_after'];
-            $repository->saveOwnershipInTransaction($id, (string) $item['id'], $date->toIsoString(), $price);
+            $group = LifestyleCatalog::activeGroup($item);
+            if ($group !== null) { $repository->deactivateCategoryInTransaction($id, $group); }
+            $repository->saveOwnershipInTransaction($id, (string) $item['id'], $date->toIsoString(), $price, $group !== null);
 
-            return ['item_id' => (string) $item['id'], 'price' => $price, 'balance' => $after];
+            return ['item_id' => (string) $item['id'], 'price' => $price, 'balance' => $after, 'active' => $group !== null];
+        });
+    }
+
+    /** Activate an owned permanent lifestyle item without another charge. */
+    public function activate(DatabaseInterface $database, PlayerId|string $playerId, string $itemId): array
+    {
+        $id = $this->id($playerId);
+        $item = LifestyleCatalog::find($itemId);
+        if ($item === null || LifestyleCatalog::isExperience($item)) { throw new RuntimeException('That item cannot be activated.'); }
+        $repository = new PlayerFinanceRepository($database, true);
+        return $database->transaction(function () use ($repository, $id, $item, $itemId): array {
+            if (!$repository->ownershipExistsInTransaction($id, $itemId)) { throw new RuntimeException('You do not own that item.'); }
+            $group = LifestyleCatalog::activeGroup($item);
+            if ($group !== null) { $repository->deactivateCategoryInTransaction($id, $group); }
+            $repository->activateItemInTransaction($id, $itemId);
+            return ['item_id' => $itemId, 'active' => true];
         });
     }
 

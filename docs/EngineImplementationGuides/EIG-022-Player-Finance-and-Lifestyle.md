@@ -42,6 +42,19 @@ consumer is added. They never directly change attributes, OVR, potential, or
 Match outcomes. Duplicate effect stacking is not used in V1; consumers should
 use the strongest relevant owned context if they later consume these values.
 
+P2-006 adds a derived financial_context to finance summaries. It combines
+current wage, wage income, balance, and the highest owned tier into bounded
+presentation/event states. It is not persisted as a second balance or
+attribute. The catalog has 20 items: permanent categories expose one active
+item per category, while Experience entries remain completed ownership
+history. Replacing or activating a permanent item updates only ownership
+flags; it creates no charge and no ledger row.
+
+Future catalog prices are authoritative for future purchases. Ownership rows
+retain the price paid, so catalog rebalance never rewrites history or
+retroactively refunds/debits a Player. There is no resale market or recurring
+living-cost system in this slice.
+
 ## Runtime and persistence rules
 
 World calendar advancement is the only automatic payroll trigger. Finance
@@ -50,5 +63,11 @@ and do not process payroll. Event money choices call the finance service with
 an event-and-choice source key, so event replay cannot duplicate a debit or
 credit. Finance rows are compact controlled-career state; portraits and other
 rendered assets never enter the Career SQLite file.
+
+All finance-triggered event consequences use the same transaction owner and
+stable source identity as purchases and payroll. Career Experience may test
+financial context, owned categories, and owned effects, but it never writes
+finance tables directly. NPC Contracts remain wage metadata only and never
+create finance state, ledger, or ownership rows.
 
 END OF DOCUMENT

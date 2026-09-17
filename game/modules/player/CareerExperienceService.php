@@ -210,7 +210,12 @@ final class CareerExperienceService
         if (isset($requirements['income_min']) && $signals['income'] < (int) $requirements['income_min']) { return false; }
         if (isset($requirements['wage_income_min']) && $signals['wage_income'] < (int) $requirements['wage_income_min']) { return false; }
         if (isset($requirements['balance_min']) && $signals['balance'] < (int) $requirements['balance_min']) { return false; }
+        if (isset($requirements['financial_context'])) {
+            $allowed = is_array($requirements['financial_context']) ? $requirements['financial_context'] : [$requirements['financial_context']];
+            if (!in_array($signals['financial_context'] ?? 'starting_out', $allowed, true)) { return false; }
+        }
         if (isset($requirements['owned_item']) && !isset($signals['owned_item'][(string) $requirements['owned_item']])) { return false; }
+        if (isset($requirements['owned_category']) && !isset($signals['owned_categories'][(string) $requirements['owned_category']])) { return false; }
         if (isset($requirements['owned_effect']) && is_array($requirements['owned_effect'])) {
             $effect = (string) ($requirements['owned_effect']['effect'] ?? '');
             $minimum = (int) ($requirements['owned_effect']['min'] ?? 1);
@@ -324,11 +329,14 @@ final class CareerExperienceService
         $finance = $this->finance?->summary($database, $playerId, $date) ?? ['balance' => 0, 'income' => 0, 'wage_income' => 0, 'owned_ids' => [], 'owned' => []];
         $ownedIds = is_array($finance['owned_ids'] ?? null) ? $finance['owned_ids'] : [];
         $ownedEffects = [];
+        $ownedCategories = [];
         foreach ((array) ($finance['owned'] ?? []) as $item) {
+            if (is_string($item['category'] ?? null)) { $ownedCategories[(string) $item['category']] = true; }
             foreach ((array) ($item['effects'] ?? []) as $effect => $value) {
                 $ownedEffects[$effect] = max((int) ($ownedEffects[$effect] ?? 0), (int) $value);
             }
         }
+        $financialContext = is_array($finance['financial_context'] ?? null) ? $finance['financial_context'] : [];
         return [
             'season_id' => (string) ($summary['current_season_id'] ?? ''),
             'role' => $role, 'form' => $form, 'appearances' => $appearances, 'starts' => $starts,
@@ -337,8 +345,9 @@ final class CareerExperienceService
             'transfer_request' => (string) (($summary['transfer_request']['status'] ?? 'none')),
             'recent_transfer' => $recentTransfer, 'contract_expiring' => $contractExpiring,
             'recent_team_result' => $recentTeamResult, 'season_phase' => $phase, 'competition_pressure' => $competitionPressure,
-            'income' => (int) ($finance['income'] ?? 0), 'wage_income' => (int) ($finance['wage_income'] ?? 0), 'balance' => (int) ($finance['balance'] ?? 0), 'owned_item' => $ownedIds, 'owned_effects' => $ownedEffects,
-            'context_keys' => array_values(array_filter([$role, $form, $recentTeamResult, $recentTransfer ? 'recent_transfer' : null, $contractExpiring ? 'contract_expiring' : null, ((int) ($finance['wage_income'] ?? 0)) > 0 ? 'wage_received' : null, $ownedEffects === [] ? null : 'lifestyle_owned'])),
+            'income' => (int) ($finance['income'] ?? 0), 'wage_income' => (int) ($finance['wage_income'] ?? 0), 'balance' => (int) ($finance['balance'] ?? 0), 'owned_item' => $ownedIds, 'owned_effects' => $ownedEffects, 'owned_categories' => $ownedCategories,
+            'financial_context' => (string) ($financialContext['code'] ?? 'starting_out'),
+            'context_keys' => array_values(array_filter([$role, $form, $recentTeamResult, $recentTransfer ? 'recent_transfer' : null, $contractExpiring ? 'contract_expiring' : null, ((int) ($finance['wage_income'] ?? 0)) > 0 ? 'wage_received' : null, $ownedEffects === [] ? null : 'lifestyle_owned', $financialContext['code'] ?? null])),
         ];
     }
 }

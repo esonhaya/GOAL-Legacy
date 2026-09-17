@@ -225,6 +225,45 @@ final class CareerEventCatalog
                 self::choice('keep-grounded', 'Keep the money for your next step', 'Kept the first wage focused on the next career step', 'first_wage_perspective'),
                 self::choice('support-community', 'Support a local football session', 'Used part of the first wage to support a local football session', 'community_support', null, 'professional', null, ['amount' => -10, 'type' => 'event_expense', 'context' => 'Supported a local football session']),
             ], ['requires' => ['wage_income_min' => 1, 'history_absent' => 'first_wage_perspective'], 'priority_categories' => ['professional', 'lifestyle'], 'newsworthy' => false, 'context_weight' => 9]),
+            self::event('lifestyle-first-home', 'lifestyle', 'A place that feels like yours', 'The first home you have chosen around {club} changes how the football week feels. You can settle into it or keep your routine deliberately simple.', [
+                self::choice('make-it-home', 'Build a calm home routine', 'Made a first home feel like part of the football routine', 'first_home_routine', null, 'recovery'),
+                self::choice('keep-it-simple', 'Keep the routine light and flexible', 'Kept a simple home routine while the career was still moving', 'first_home_routine', null, 'balanced'),
+            ], ['requires' => ['owned_category' => 'Home', 'history_absent' => 'first_home_routine'], 'priority_categories' => ['recovery', 'lifestyle'], 'repeatability' => 'once_per_career', 'context_weight' => 11]),
+            self::event('lifestyle-first-transport', 'lifestyle', 'More freedom between fixtures', 'A new way to get around {club} has made the small parts of the football week easier. The choice is how much convenience you want to build into the routine.', [
+                self::choice('use-the-freedom', 'Use the freedom to protect recovery', 'Used new travel freedom to protect recovery time', 'first_transport_routine', null, 'recovery'),
+                self::choice('stay-grounded', 'Keep the old routine where it works', 'Kept a grounded travel routine after a lifestyle upgrade', 'first_transport_routine', null, 'balanced'),
+            ], ['requires' => ['owned_category' => 'Transport', 'history_absent' => 'first_transport_routine'], 'priority_categories' => ['recovery', 'lifestyle'], 'repeatability' => 'once_per_career', 'context_weight' => 9]),
+            self::event('lifestyle-training-investment', 'training', 'The work away from the Club', 'The training support you have built around {club} gives you a choice about how seriously to structure the next development block.', [
+                self::choice('share-the-plan', 'Share the plan with the staff', 'Connected an off-pitch training investment to the Club plan', 'training_investment', null, 'professional'),
+                self::choice('keep-it-personal', 'Keep it as a personal routine', 'Kept an off-pitch training investment as a personal routine', 'training_investment', null, 'development'),
+            ], ['requires' => ['owned_effect' => ['effect' => 'training_support', 'min' => 1], 'history_absent' => 'training_investment'], 'priority_categories' => ['development', 'professional'], 'repeatability' => 'once_per_career', 'context_weight' => 10]),
+            self::event('lifestyle-community-choice', 'community', 'A chance to give something back', 'A local football project asks whether you can support one session while your career is moving forward at {club}.', [
+                self::choice('make-time', 'Give time without making a show of it', 'Gave time to a local football project', 'community_time', null, 'professional'),
+                self::choice('make-a-small-gift', 'Make a small practical contribution', 'Made a small contribution to a local football project', 'community_support_p2', null, 'professional', null, ['amount' => -25, 'type' => 'event_expense', 'context' => 'Supported a local football project']),
+                self::choice('protect-the-football-week', 'Keep the next football block clear', 'Kept the football week clear while supporting the project in spirit', 'community_time', null, 'balanced'),
+            ], ['requires' => ['balance_min' => 25, 'history_absent' => 'community_time'], 'priority_categories' => ['professional', 'lifestyle'], 'repeatability' => 'once_per_season', 'context_weight' => 6]),
+            self::event('lifestyle-wealth-pressure', 'financial', 'Success changes the outside noise', 'People around {club} have noticed that your career is going well. You can enjoy the visibility, protect your routine, or keep your next move private.', [
+                self::choice('enjoy-the-moment', 'Enjoy the moment with the group', 'Enjoyed a successful career moment without losing the football focus', 'wealth_pressure', null, 'lifestyle'),
+                self::choice('protect-the-routine', 'Protect the routine', 'Protected the football routine as attention increased', 'wealth_pressure', null, 'professional'),
+                self::choice('keep-it-private', 'Keep the next step private', 'Kept financial progress private and focused on the next step', 'wealth_pressure', null, 'balanced'),
+            ], ['requires' => ['financial_context' => ['wealthy', 'elite'], 'current_club' => true, 'history_absent' => 'wealth_pressure'], 'priority_categories' => ['lifestyle', 'professional'], 'repeatability' => 'once_per_season', 'context_weight' => 13]),
+            self::event('lifestyle-free-agent-caution', 'financial', 'A quieter financial week', 'Without a current Club, the balance you have built gives you room to choose patience rather than rush the next football decision.', [
+                self::choice('protect-the-buffer', 'Protect the buffer', 'Protected a financial buffer while waiting for the next Club', 'free_agent_buffer', null, 'balanced'),
+                self::choice('invest-in-readiness', 'Keep readiness at the centre', 'Kept the professional routine going while between Clubs', 'free_agent_buffer', null, 'development'),
+            ], ['requires' => ['free_agent' => true, 'history_absent' => 'free_agent_buffer'], 'priority_categories' => ['development'], 'repeatability' => 'once_per_season', 'context_weight' => 10]),
+            self::event('lifestyle-contract-buffer', 'contract', 'The next Contract is on the horizon', 'With the current Contract entering its final stretch at {club}, a large lifestyle decision would carry a different kind of weight.', [
+                self::choice('wait-for-clarity', 'Wait until the Contract picture is clearer', 'Waited before making a major lifestyle commitment', 'contract_lifestyle_caution', null, 'balanced'),
+                self::choice('choose-the-routine', 'Choose the routine that serves football now', 'Chose a practical routine while the Contract picture developed', 'contract_lifestyle_caution', null, 'professional'),
+            ], ['requires' => ['contract_expiring' => true, 'history_absent' => 'contract_lifestyle_caution'], 'priority_categories' => ['balanced', 'professional'], 'repeatability' => 'once_per_season', 'context_weight' => 12]),
+            self::event('lifestyle-relocation-home', 'adaptation', 'Making a new city workable', 'After the move to {club}, the home and travel routines you already own need to fit a different football week.', [
+                self::choice('adapt-the-routine', 'Adapt the routine to the new city', 'Adapted an existing lifestyle routine after a transfer', 'relocation_routine', null, 'lifestyle'),
+                self::choice('keep-football-first', 'Let the Club routine lead', 'Let the new Club routine lead after a transfer', 'relocation_routine', null, 'professional'),
+            ], ['requires' => ['recent_transfer' => true, 'history_absent' => 'relocation_routine'], 'priority_categories' => ['lifestyle', 'professional'], 'repeatability' => 'once_per_club', 'context_weight' => 15]),
+            self::event('lifestyle-home-gathering', 'social', 'A home base for the squad', 'A few teammates at {club} suggest using your home base for a quiet gathering before the next block.', [
+                self::choice('host-quietly', 'Host a quiet evening', 'Hosted a quiet teammate gathering away from the pitch', 'home_gathering', null, 'lifestyle'),
+                self::choice('meet-outside', 'Meet somewhere simple instead', 'Met teammates simply without turning home into a social hub', 'home_gathering', null, 'balanced'),
+                self::choice('protect-recovery', 'Keep the home space for recovery', 'Kept the home space focused on recovery', 'home_gathering', null, 'recovery'),
+            ], ['requires' => ['owned_category' => 'Home', 'history_absent' => 'home_gathering'], 'priority_categories' => ['lifestyle', 'recovery', 'balanced'], 'repeatability' => 'once_per_season', 'context_weight' => 7]),
         ];
     }
 

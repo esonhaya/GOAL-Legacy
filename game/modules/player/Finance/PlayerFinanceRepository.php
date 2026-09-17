@@ -26,7 +26,15 @@ final class PlayerFinanceRepository
             $connection = $this->database->connection();
             $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::STATE_TABLE . ' (player_id TEXT PRIMARY KEY, balance INTEGER NOT NULL, initialized_date TEXT NOT NULL, last_payroll_date TEXT NOT NULL)');
             $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::TRANSACTION_TABLE . ' (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, occurred_date TEXT NOT NULL, type TEXT NOT NULL, amount INTEGER NOT NULL, balance_before INTEGER NOT NULL, balance_after INTEGER NOT NULL, source_id TEXT NOT NULL, context TEXT NOT NULL, UNIQUE (player_id, source_id))');
-            $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::OWNERSHIP_TABLE . ' (player_id TEXT NOT NULL, item_id TEXT NOT NULL, purchased_date TEXT NOT NULL, price INTEGER NOT NULL, PRIMARY KEY (player_id, item_id))');
+            $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::OWNERSHIP_TABLE . ' (player_id TEXT NOT NULL, item_id TEXT NOT NULL, purchased_date TEXT NOT NULL, price INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (player_id, item_id))');
+            $columns = $connection->query('PRAGMA table_info(' . self::OWNERSHIP_TABLE . ')')->fetchAll(PDO::FETCH_ASSOC);
+            $hasActive = false;
+            foreach ($columns as $column) {
+                if (($column['name'] ?? null) === 'active') { $hasActive = true; break; }
+            }
+            if (!$hasActive) {
+                $connection->exec('ALTER TABLE ' . self::OWNERSHIP_TABLE . ' ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
+            }
             $connection->exec('CREATE INDEX IF NOT EXISTS idx_player_finance_transactions_player_date ON ' . self::TRANSACTION_TABLE . ' (player_id, occurred_date DESC, id DESC)');
         });
     }
@@ -80,13 +88,15 @@ final class PlayerFinanceRepository
         }, $statement->fetchAll(PDO::FETCH_ASSOC));
     }
 
-    /** @return list<array{player_id:string,item_id:string,purchased_date:string,price:int}> */
+    /** @return list<array{player_id:string,item_id:string,purchased_date:string,price:int,active:bool}> */
     public function ownership(string $playerId): array
     {
         if (!$this->available()) {
             return [];
         }
-        $statement = $this->database->connection()->prepare('SELECT player_id, item_id, purchased_date, price FROM ' . self::OWNERSHIP_TABLE . ' WHERE player_id = :player_id ORDER BY purchased_date ASC, item_id ASC');
+        $hasActive = $this->hasOwnershipActiveColumn();
+        $activeColumn = $hasActive ? ', active' : '';
+        $statement = $this->database->connection()->prepare('SELECT player_id, item_id, purchased_date, price' . $activeColumn . ' FROM ' . self::OWNERSHIP_TABLE . ' WHERE player_id = :player_id ORDER BY purchased_date ASC, item_id ASC');
         $statement->execute(['player_id' => $playerId]);
 
         return array_map(static fn (array $row): array => [
@@ -94,6 +104,7 @@ final class PlayerFinanceRepository
             'item_id' => (string) $row['item_id'],
             'purchased_date' => (string) $row['purchased_date'],
             'price' => (int) $row['price'],
+            'active' => (bool) ($row['active'] ?? true),
         ], $statement->fetchAll(PDO::FETCH_ASSOC));
     }
 
@@ -132,10 +143,31 @@ final class PlayerFinanceRepository
         $statement->execute($values);
     }
 
-    public function saveOwnershipInTransaction(string $playerId, string $itemId, string $date, int $price): void
+    public function saveOwnershipInTransaction(string $playerId, string $itemId, string $date, int $price, bool $active = true): void
     {
-        $statement = $this->database->connection()->prepare('INSERT INTO ' . self::OWNERSHIP_TABLE . ' (player_id, item_id, purchased_date, price) VALUES (:player_id, :item_id, :purchased_date, :price)');
-        $statement->execute(['player_id' => $playerId, 'item_id' => $itemId, 'purchased_date' => $date, 'price' => $price]);
+        $statement = $this->database->connection()->prepare('INSERT INTO ' . self::OWNERSHIP_TABLE . ' (player_id, item_id, purchased_date, price, active) VALUES (:player_id, :item_id, :purchased_date, :price, :active)');
+        $statement->execute(['player_id' => $playerId, 'item_id' => $itemId, 'purchased_date' => $date, 'price' => $price, 'active' => $active ? 1 : 0]);
+    }
+
+    public function deactivateCategoryInTransaction(string $playerId, string $category): void
+    {
+        $statement = $this->database->connection()->prepare('UPDATE ' . self::OWNERSHIP_TABLE . ' SET active = 0 WHERE player_id = :player_id AND item_id LIKE :prefix');
+        $statement->execute(['player_id' => $playerId, 'prefix' => strtolower($category) . '.%']);
+    }
+
+    public function activateItemInTransaction(string $playerId, string $itemId): void
+    {
+        $statement = $this->database->connection()->prepare('UPDATE ' . self::OWNERSHIP_TABLE . ' SET active = 1 WHERE player_id = :player_id AND item_id = :item_id');
+        $statement->execute(['player_id' => $playerId, 'item_id' => $itemId]);
+    }
+
+    private function hasOwnershipActiveColumn(): bool
+    {
+        foreach ($this->database->connection()->query('PRAGMA table_info(' . self::OWNERSHIP_TABLE . ')')->fetchAll(PDO::FETCH_ASSOC) as $column) {
+            if (($column['name'] ?? null) === 'active') { return true; }
+        }
+
+        return false;
     }
 
     /** @return array{income:int,spending:int,wage_income:int} */

@@ -86,4 +86,24 @@ ledger rather than Career History or News.
 |---|---|---|
 | 1.0 | 2026-09-17 | Added Phase 1 between-match event guidance. |
 
+## P2-006 Financial and Lifestyle Context
+
+Phase 2 events may respond to the controlled Player's derived financial
+context, owned lifestyle category/effect, active Club, transfer movement,
+free-agent state, and Contract boundary. These signals create situations
+about saving, relocation, training investment, community involvement, and
+the visibility that can accompany success. They do not simulate NPC money,
+relationships, sponsorship contracts, or a recurring household budget.
+
+Financial choices use fixed GC amounts in the initial content set. Every
+debit or credit is applied by PlayerFinanceService with an event-and-choice
+source key. A purchase or event may become a meaningful Career History item;
+ordinary payroll and minor purchases remain in the finance ledger.
+
+The catalog distinguishes permanent assets from Experience items. Asset-aware
+events must remain occasional and contextual; ownership changes eligibility
+and weighting but does not make every purchase generate a popup. Choice copy
+must make the football/life tradeoff clear without moral scoring or a
+universally correct answer.
+
 END OF DOCUMENT

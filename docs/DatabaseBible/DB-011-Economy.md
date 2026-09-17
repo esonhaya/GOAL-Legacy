@@ -296,4 +296,27 @@ These additions extend the architecture without breaking compatibility.
 
 ---
 
+## P2-006 Controlled Career Progression
+
+The personal finance boundary remains controlled-Player only. The current
+Contract wage model is intentionally retained: generated-world wages are
+derived from Club reputation, Player OVR, role, and deterministic generation
+inputs, while a new controlled career starts at its modest canonical wage.
+The observed low wage is an early-career state rather than an NPC economy
+defect.
+
+The lifestyle catalog uses normalized integer GC prices across Modest,
+Comfortable, Premium, and Elite tiers. Prices describe meaningful career
+milestones and apply only to future purchases; the recorded purchase price in
+an existing ownership row remains historical truth. Home, Transport,
+Recovery, Training, Tech, and Style items can be owned historically with one
+active item per category. Experience items are completed career moments and
+have no active slot.
+
+Financial context is derived from current wage, accumulated wage income,
+balance, and owned tier. It is bounded to Starting out, Stable, Comfortable,
+Wealthy, and Elite and is used for event/presentation context only. There is
+no recurring living-cost transaction in P2-006 because it would add
+bookkeeping without a sufficiently meaningful football choice.
+
 END OF DOCUMENT

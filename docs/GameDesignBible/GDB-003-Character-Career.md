@@ -131,4 +131,14 @@ and seasonal registration are rebuilt.
 
 ---
 
+## Player-Facing Information Boundary
+
+The graphical career lets a Player explore the football world through
+competition standings, Clubs, squads, and public Player profiles. Profiles
+show recognizable identity and canonical current-Season facts such as
+appearances, minutes, goals, assists, discipline, and form where the world
+retains those aggregates. They do not reveal potential, hidden simulation
+weights, or other internal development information for NPCs. This is an
+information view over existing world data, not a scouting system.
+
 END OF DOCUMENT

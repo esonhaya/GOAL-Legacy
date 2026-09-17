@@ -79,6 +79,15 @@ final class WebView
         return '<img class="' . self::e($class) . '" src="' . self::e($url) . '" alt="' . self::e($alt) . '" loading="lazy">';
     }
 
+    public static function playerCard(string $url, string $portraitUrl, string $name, string $meta, string $context = ''): string
+    {
+        $contextHtml = $context === '' ? '' : '<small class="player-card-context">' . self::e($context) . '</small>';
+
+        return '<a class="player-card" href="' . self::e($url) . '">'
+            . self::portrait($portraitUrl, $name, 'portrait portrait-small')
+            . '<span class="player-card-info"><strong>' . self::e($name) . '</strong><small>' . self::e($meta) . '</small>' . $contextHtml . '</span></a>';
+    }
+
     public static function emptyState(string $message): string
     {
         return '<p class="empty-state">' . self::e($message) . '</p>';

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Goal\Legacy\Tests\Web;
 
 use Goal\Legacy\Core\Bootstrap\Bootstrap;
+use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Web\WebApplication;
 use PHPUnit\Framework\TestCase;
 
@@ -91,5 +92,54 @@ final class GraphicalShellTest extends TestCase
 
         $menu = $this->application->handle('GET', '/', ['page' => 'menu'], [], $session);
         self::assertStringContainsString('That saved career could not be found.', $menu['body']);
+    }
+
+    public function testPlayerProfilesUsePublicFieldsAndTheWorldDrillDownRoutes(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $services = (new Bootstrap())->create($root, ['APP_ENV' => 'test']);
+        $save = 'p2-004-profile-test';
+        $session = [];
+        try {
+            $nation = $services->nationModule()->service()->loadSelected()[0]->id()->value();
+            $this->application->handle('POST', '/', [], [
+                'action' => 'new_identity', 'save' => $save, 'name' => 'Profile Test Player', 'nation' => $nation,
+            ], $session);
+            $this->application->handle('POST', '/', [], ['action' => 'new_body', 'height' => '180', 'weight' => '75'], $session);
+            $this->application->handle('POST', '/', [], [
+                'action' => 'new_profile', 'position' => 'CM', 'archetype' => 'regular', 'seed' => '24004',
+            ], $session);
+            $this->application->handle('POST', '/', [], ['action' => 'new_youth_view'], $session);
+            $youth = $this->application->handle('GET', '/', ['page' => 'new', 'step' => 'youth'], [], $session);
+            preg_match('/name="club" value="([^"]+)"/', $youth['body'], $clubMatch);
+            preg_match('/name="token" value="([^"]+)"/', $youth['body'], $tokenMatch);
+            self::assertNotEmpty($clubMatch[1] ?? null);
+            self::assertNotEmpty($tokenMatch[1] ?? null);
+            $this->application->handle('POST', '/', [], [
+                'action' => 'select_club', 'club' => $clubMatch[1], 'token' => $tokenMatch[1],
+            ], $session);
+
+            $database = $services->saveStore()->openDatabase($save);
+            $career = (new CareerPlayerRepository($database))->get($save);
+            $controlled = $this->application->handle('GET', '/', ['page' => 'profile', 'save' => $save, 'player' => $career->playerId()->value()], [], $session);
+            self::assertSame(200, $controlled['status']);
+            self::assertStringContainsString('CURRENT SEASON', $controlled['body']);
+            self::assertStringContainsString('Training focus', $controlled['body']);
+            self::assertStringNotContainsString('Potential', $controlled['body']);
+
+            $npc = (string) $database->connection()->query("SELECT id FROM player_records WHERE id <> '" . $career->playerId()->value() . "' ORDER BY id LIMIT 1")->fetchColumn();
+            $npcProfile = $this->application->handle('GET', '/', ['page' => 'profile', 'save' => $save, 'player' => $npc], [], $session);
+            self::assertSame(200, $npcProfile['status']);
+            self::assertStringContainsString('MATCH HISTORY', $npcProfile['body']);
+            self::assertStringNotContainsString('Potential', $npcProfile['body']);
+
+            $world = $this->application->handle('GET', '/', ['page' => 'world', 'save' => $save], [], $session);
+            self::assertStringContainsString('page=competition', $world['body']);
+            $clubPage = $this->application->handle('GET', '/', ['page' => 'club', 'save' => $save, 'club' => $clubMatch[1]], [], $session);
+            self::assertStringContainsString('Open Squad', $clubPage['body']);
+        } finally {
+            $path = $root . '/game/saves/' . $save . '.sqlite';
+            if (is_file($path)) { unlink($path); }
+        }
     }
 }

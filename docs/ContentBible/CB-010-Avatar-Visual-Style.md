@@ -59,3 +59,9 @@ Career Home, Squad, Player Profile, and Matchday.
 |---|---|---|
 | 1.0 | 2026-09-17 | Defined Avatar V1 visual and authoring rules. |
 | 1.1 | 2026-09-17 | Added graphical creator and production visual-QA guidance. |
+
+Player cards are deliberately compact: portrait, name, position, OVR, Club,
+and one factual contextual line. Club and kit context can change after a
+transfer while the saved face remains stable. Public profile presentation
+must remain readable on a phone and must not expose hidden potential or
+simulation implementation fields merely because a portrait is present.

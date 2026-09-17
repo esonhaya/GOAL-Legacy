@@ -183,6 +183,21 @@ require them.
 statistics boundary. They are additive and rebuildable from legacy detailed
 Match rows; existing detailed saves remain compatible.
 
+## Presentation Read Safety and Generated Saves
+
+Graphical Career Home, World, Competition, Club, Squad, and Player Profile
+routes consume canonical repositories and read models. A GET used for
+browsing must not mutate career facts, advance simulation time, or persist
+presentation caches. Portrait output remains disposable cache data outside a
+career SQLite database.
+
+Repository-local runtime saves live in `game/saves/` and are ignored by Git.
+Temporary benchmark databases, journals, preview directories, and old
+development saves are generated artifacts. Keep only a useful current local
+save and explicitly required test or migration fixtures; remove other
+generated files individually after checking references. Ambiguous files are
+retained.
+
 ---
 
 ## Revision History

@@ -75,3 +75,18 @@ NPC, and squad review; generated sheets and cache files remain disposable.
 | Version | Date | Notes |
 |---|---|---|
 | 1.0 | 2026-09-17 | Added the first graphical career shell and launch contract. |
+
+## P2-004 Player and World Browsing
+
+The graphical shell exposes the canonical read path `World → Competition →
+Club → Squad → Player`. `CareerPresentationService` owns these composed read
+models; templates do not calculate standings, statistics, form, or roles.
+Squad cards use one canonical squad query and compact
+`player_season_statistics` aggregates for world-simulated Players.
+
+NPC profiles expose public identity, current Club, role, OVR, and factual
+current-Season aggregates. Potential and other development or simulation
+internals remain outside the Player information boundary. All browsing routes
+are read-only with respect to career facts. Generated saves and preview
+databases belong under `game/saves/`, which is ignored by Git; temporary
+benchmark databases are removed individually after use.

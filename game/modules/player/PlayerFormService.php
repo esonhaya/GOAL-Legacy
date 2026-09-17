@@ -10,11 +10,13 @@ use Goal\Legacy\Modules\Match\PlayerMatchRatingService;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
+use Goal\Legacy\Modules\Player\Persistence\CareerEvaluationRepository;
+use Goal\Legacy\Modules\Club\Domain\ClubId;
 
 final class PlayerFormService
 {
     /** @return array{appearances:int,goals:int,average_score:int,last_score:int|null,average_match_rating:float|null,rated_appearances:int,classification:string} */
-    public function recent(DatabaseInterface $database, PlayerId|string $playerId, int $limit = 5): array
+    public function recent(DatabaseInterface $database, PlayerId|string $playerId, int $limit = 5, ?string $clubId = null): array
     {
         $id = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
         new PlayerRepository($database);
@@ -36,6 +38,31 @@ final class PlayerFormService
         }
         $average = $weights === 0.0 ? null : $weighted / $weights;
         $ratedAppearances = $weights === 0.0 ? 0 : count($chronological);
+        if ($ratedAppearances === 0 && $clubId !== null) {
+            $compact = (new CareerEvaluationRepository($database))->recentForPlayer($id, new ClubId($clubId));
+            if ($compact !== []) {
+                $scores = array_map(static fn (array $row): int => (int) ($row['evaluation_score'] ?? 0), $compact);
+                $averageScore = (int) round(array_sum($scores) / count($scores));
+                $latestScore = $scores[0] ?? null;
+
+                return [
+                    'appearances' => count($scores),
+                    'goals' => 0,
+                    'average_score' => $averageScore,
+                    'last_score' => $latestScore,
+                    'average_match_rating' => null,
+                    'rated_appearances' => 0,
+                    'classification' => count($scores) < 2 ? 'insufficient_evidence' : match (true) {
+                        $averageScore >= 85 => 'excellent',
+                        $averageScore >= 75 => 'good',
+                        $averageScore >= 60 => 'neutral',
+                        $averageScore >= 45 => 'poor',
+                        default => 'very_poor',
+                    },
+                    'source' => 'compact_evaluation',
+                ];
+            }
+        }
         $classification = $ratedAppearances < 2 ? 'insufficient_evidence' : match (true) {
             $average >= 7.5 => 'excellent',
             $average >= 6.5 => 'good',

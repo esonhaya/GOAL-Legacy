@@ -9,6 +9,7 @@ use Goal\Legacy\Core\Persistence\SchemaInitializationGuard;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
 use Goal\Legacy\Modules\Match\Domain\PlayerMatchStat;
 use Goal\Legacy\Modules\Match\PlayerMatchRatingService;
+use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use PDO;
@@ -24,8 +25,11 @@ final class PlayerSeasonStatisticsRepository
 {
     private const TABLE = 'player_season_statistics';
 
-    public function __construct(private readonly DatabaseInterface $database)
+    public function __construct(private readonly DatabaseInterface $database, bool $initialize = true)
     {
+        if (!$initialize) {
+            return;
+        }
         SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
             $this->database->connection()->exec(
                 'CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' ('
@@ -99,6 +103,7 @@ final class PlayerSeasonStatisticsRepository
     /** @return list<array<string, int|float|string>> */
     public function bySeason(SeasonId|string $seasonId): array
     {
+        if (!$this->available()) { return []; }
         $id = $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId);
         $statement = $this->database->connection()->prepare('SELECT * FROM ' . self::TABLE . ' WHERE season_id = :season_id ORDER BY player_id ASC, club_id ASC');
         $statement->execute(['season_id' => $id->value()]);
@@ -121,6 +126,7 @@ final class PlayerSeasonStatisticsRepository
     /** @return list<array<string, int|float|string>> */
     public function byPlayerSeason(string $playerId, SeasonId|string $seasonId): array
     {
+        if (!$this->available()) { return []; }
         $id = $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId);
         $statement = $this->database->connection()->prepare('SELECT * FROM ' . self::TABLE . ' WHERE player_id = :player_id AND season_id = :season_id ORDER BY club_id ASC');
         $statement->execute(['player_id' => $playerId, 'season_id' => $id->value()]);
@@ -138,5 +144,37 @@ final class PlayerSeasonStatisticsRepository
 
             return $row;
         }, $statement->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /** @return list<array<string, int|float|string>> */
+    public function byPlayer(string|PlayerId $playerId): array
+    {
+        if (!$this->available()) { return []; }
+        $statement = $this->database->connection()->prepare(
+            'SELECT * FROM ' . self::TABLE . ' WHERE player_id = :player_id ORDER BY season_id ASC, club_id ASC'
+        );
+        $statement->execute(['player_id' => $playerId instanceof PlayerId ? $playerId->value() : $playerId]);
+
+        return array_map(static function (array $row): array {
+            foreach ($row as $key => $value) {
+                if (in_array($key, ['player_id', 'season_id', 'club_id'], true)) {
+                    $row[$key] = (string) $value;
+                } elseif ($key !== 'rating_total') {
+                    $row[$key] = (int) $value;
+                } else {
+                    $row[$key] = (float) $value;
+                }
+            }
+
+            return $row;
+        }, $statement->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    private function available(): bool
+    {
+        $statement = $this->database->connection()->prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = :table");
+        $statement->execute(['table' => self::TABLE]);
+
+        return $statement->fetchColumn() !== false;
     }
 }

@@ -25,6 +25,7 @@ use Goal\Legacy\Modules\Player\Domain\PlayerAttributeSet;
 use Goal\Legacy\Modules\Player\Domain\PlayerCreationRequest;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\PlayerSeasonPerformanceService;
+use Goal\Legacy\Modules\Player\PlayerCareerStatisticsService;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -108,6 +109,9 @@ final class PlayerCentricSimulationTest extends TestCase
         $assessment = (new PlayerSeasonPerformanceService())->assess($database, $row, $season->id());
         self::assertSame(1, $assessment->statistics()['appearances']);
         self::assertGreaterThan(0, $assessment->statistics()['rated_appearances']);
+        $line = (new PlayerCareerStatisticsService())->seasonDetailed($database, $row, $season->id());
+        self::assertSame(1, $line['appearances']);
+        self::assertGreaterThanOrEqual(0, $line['minutes']);
         self::assertFileExists($root . '/p2-003-aggregate.sqlite');
     }
 

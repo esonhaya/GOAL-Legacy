@@ -11,6 +11,7 @@ use Goal\Legacy\Modules\Match\PlayerMatchRatingService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
+use Goal\Legacy\Modules\World\Persistence\PlayerSeasonStatisticsRepository;
 
 final class PlayerCareerStatisticsService
 {
@@ -28,6 +29,7 @@ final class PlayerCareerStatisticsService
         $matches = new MatchRepository($database);
         $stats = new PlayerMatchStatRepository($database);
         $result = ['appearances' => 0, 'starts' => 0, 'minutes' => 0, 'goals' => 0];
+        $detailedKeys = [];
         foreach ($stats->byPlayer($id) as $stat) {
             $match = $matches->get($stat->matchId());
             if ($match->seasonId()->value() !== $season->value() || !$stat->appeared()) {
@@ -37,6 +39,14 @@ final class PlayerCareerStatisticsService
             $result['starts'] += $stat->started() ? 1 : 0;
             $result['minutes'] += $stat->minutes();
             $result['goals'] += $stat->goals();
+            $detailedKeys[$season->value() . ':' . $stat->clubId()->value()] = true;
+        }
+        foreach ((new PlayerSeasonStatisticsRepository($database, false))->byPlayerSeason($id->value(), $season) as $row) {
+            if (isset($detailedKeys[$this->compactKey($row)])) { continue; }
+            $result['appearances'] += (int) ($row['appearances'] ?? 0);
+            $result['starts'] += (int) ($row['starts'] ?? 0);
+            $result['minutes'] += (int) ($row['minutes'] ?? 0);
+            $result['goals'] += (int) ($row['goals'] ?? 0);
         }
 
         return $result;
@@ -66,10 +76,13 @@ final class PlayerCareerStatisticsService
         $stats = new PlayerMatchStatRepository($database);
         $players = new PlayerRepository($database);
         $ratings = new PlayerMatchRatingService();
+        $matches = new MatchRepository($database);
         $result = $this->emptyDetailed();
         $ratingTotal = 0.0;
+        $detailedKeys = [];
 
         foreach ($stats->byPlayer($id) as $stat) {
+            $match = $matches->get($stat->matchId());
             if (!$stat->appeared()) {
                 continue;
             }
@@ -77,11 +90,16 @@ final class PlayerCareerStatisticsService
             $result['starts'] += $stat->started() ? 1 : 0;
             $result['minutes'] += $stat->minutes();
             $this->addStatEvidence($result, $stat);
+            $detailedKeys[$match->seasonId()->value() . ':' . $stat->clubId()->value()] = true;
             $rating = $ratings->rate($stat, $players->get($id)->primaryPosition());
             if ($rating !== null) {
                 $ratingTotal += $rating;
                 ++$result['rated_appearances'];
             }
+        }
+        foreach ((new PlayerSeasonStatisticsRepository($database, false))->byPlayer($id) as $row) {
+            if (isset($detailedKeys[$this->compactKey($row)])) { continue; }
+            $this->addCompactRow($result, $row, $ratingTotal);
         }
         $result['average_match_rating'] = $result['rated_appearances'] === 0
             ? null
@@ -100,6 +118,7 @@ final class PlayerCareerStatisticsService
         $result = $this->emptyDetailed();
         $ratingTotal = 0.0;
         $position = $players->get($playerId)->primaryPosition();
+        $detailedKeys = [];
 
         foreach ($stats->byPlayer($playerId) as $stat) {
             $match = $matches->get($stat->matchId());
@@ -110,11 +129,16 @@ final class PlayerCareerStatisticsService
             $result['starts'] += $stat->started() ? 1 : 0;
             $result['minutes'] += $stat->minutes();
             $this->addStatEvidence($result, $stat);
+            $detailedKeys[$match->seasonId()->value() . ':' . $stat->clubId()->value()] = true;
             $rating = $ratings->rate($stat, $position);
             if ($rating !== null) {
                 $ratingTotal += $rating;
                 ++$result['rated_appearances'];
             }
+        }
+        foreach ((new PlayerSeasonStatisticsRepository($database, false))->byPlayerSeason($playerId->value(), $seasonId) as $row) {
+            if (isset($detailedKeys[$this->compactKey($row)])) { continue; }
+            $this->addCompactRow($result, $row, $ratingTotal);
         }
         $result['average_match_rating'] = $result['rated_appearances'] === 0
             ? null
@@ -172,12 +196,56 @@ final class PlayerCareerStatisticsService
         }
     }
 
+    /** @param list<array<string, int|float|string>> $rows @return array<string, int|float|null> */
+    private function compactRowsToDetailed(array $rows): array
+    {
+        $result = $this->emptyDetailed();
+        $ratingTotal = 0.0;
+        foreach ($rows as $row) {
+            foreach (array_keys($result) as $key) {
+                if (in_array($key, ['average_match_rating'], true)) {
+                    continue;
+                }
+                if ($key === 'rated_appearances') {
+                    $result[$key] += (int) ($row[$key] ?? 0);
+                    continue;
+                }
+                $result[$key] += (int) ($row[$key] ?? 0);
+            }
+            $ratingTotal += (float) ($row['rating_total'] ?? 0.0);
+            $result['average_match_rating'] = ($result['rated_appearances'] ?? 0) > 0
+                ? round($ratingTotal / (int) $result['rated_appearances'], 2)
+                : null;
+        }
+
+        return $result;
+    }
+
+    /** @param array<string, int|float|null> $result @param array<string, int|float|string> $row */
+    private function addCompactRow(array &$result, array $row, float &$ratingTotal): void
+    {
+        foreach (array_keys($result) as $key) {
+            if ($key === 'average_match_rating') { continue; }
+            $result[$key] += (int) ($row[$key] ?? 0);
+        }
+        $ratingTotal += (float) ($row['rating_total'] ?? 0.0);
+    }
+
+    /** @param array<string, int|float|string> $row */
+    private function compactKey(array $row): string
+    {
+        return (string) $row['season_id'] . ':' . (string) $row['club_id'];
+    }
+
     /** @return array{appearances:int, starts:int, minutes:int, goals:int} */
     private function aggregate(DatabaseInterface $database, PlayerId|string $playerId): array
     {
         $id = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
         $result = ['appearances' => 0, 'starts' => 0, 'minutes' => 0, 'goals' => 0];
+        $matches = new MatchRepository($database);
+        $detailedKeys = [];
         foreach ((new PlayerMatchStatRepository($database))->byPlayer($id) as $stat) {
+            $match = $matches->get($stat->matchId());
             if (!$stat->appeared()) {
                 continue;
             }
@@ -185,6 +253,14 @@ final class PlayerCareerStatisticsService
             $result['starts'] += $stat->started() ? 1 : 0;
             $result['minutes'] += $stat->minutes();
             $result['goals'] += $stat->goals();
+            $detailedKeys[$match->seasonId()->value() . ':' . $stat->clubId()->value()] = true;
+        }
+        foreach ((new PlayerSeasonStatisticsRepository($database, false))->byPlayer($id) as $row) {
+            if (isset($detailedKeys[$this->compactKey($row)])) { continue; }
+            $result['appearances'] += (int) ($row['appearances'] ?? 0);
+            $result['starts'] += (int) ($row['starts'] ?? 0);
+            $result['minutes'] += (int) ($row['minutes'] ?? 0);
+            $result['goals'] += (int) ($row['goals'] ?? 0);
         }
 
         return $result;

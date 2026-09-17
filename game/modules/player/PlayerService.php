@@ -69,13 +69,10 @@ final class PlayerService
     /** @return list<Player> */
     public function byClub(DatabaseInterface $database, string $clubId, ?SeasonId $seasonId = null): array
     {
-        $players = [];
         $repository = $this->repository($database);
-        foreach ($this->clubService->squadRepository($database)->byClub($clubId, $seasonId) as $membership) {
-            $players[] = $repository->get($membership->playerId());
-        }
+        $memberships = $this->clubService->squadRepository($database)->byClub($clubId, $seasonId);
 
-        return $players;
+        return $repository->byIds(array_map(static fn (ClubSquadMembership $membership): string => $membership->playerId()->value(), $memberships));
     }
 
     public function initializeCareer(

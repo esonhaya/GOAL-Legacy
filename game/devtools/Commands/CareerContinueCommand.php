@@ -60,6 +60,13 @@ final class CareerContinueCommand implements CommandInterface
             $this->renderEvent($output, $pendingEvent->toArray());
             return 0;
         }
+        if (($summary['current_club'] ?? null) === null && $world->currentSeasonId() !== null) {
+            $event = $experience->ensureEvent($database, $career->playerId(), $world->currentSeasonId(), $date, $summary);
+            if ($event !== null) {
+                $this->renderEvent($output, $event->toArray());
+                return 0;
+            }
+        }
         $next = $summary['next_scheduled_match'] ?? null;
         if (is_array($next) && isset($next['date'], $next['match_id']) && $world->currentSeasonId() !== null) {
             $event = $experience->ensureEvent($database, $career->playerId(), $world->currentSeasonId(), $date, $summary);

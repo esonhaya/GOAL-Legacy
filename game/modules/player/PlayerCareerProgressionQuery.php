@@ -74,7 +74,13 @@ final class PlayerCareerProgressionQuery
             'development_profile' => $player->developmentProfile()->value,
             'training_focus' => $development->state($database, $id)->currentFocus()?->value,
             'priority' => (new PlayerPriorityRepository($database))->current($id)->value,
-            'career_life_history' => array_map(static fn ($event): array => $event->toArray(), (new CareerEventRepository($database))->resolvedForPlayer($id, 20)),
+            'career_life_history' => array_map(
+                static fn ($event): array => $event->toArray(),
+                array_values(array_filter(
+                    (new CareerEventRepository($database))->resolvedForPlayer($id, 40),
+                    static fn ($event): bool => ($event->context()['historyworthy'] ?? true) === true,
+                )),
+            ),
             'career_stats' => $statistics->career($database, $id),
             'transfer_history' => array_map(static fn ($transfer): array => $transfer->toArray(), (new TransferRepository($database))->byPlayer($id)),
             'recent_development' => array_map(static fn ($entry): array => $entry->toArray(), array_slice(array_reverse($developmentHistory), 0, 5)),

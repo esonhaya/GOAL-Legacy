@@ -1,0 +1,86 @@
+# GOAL: Legacy
+# Content Bible
+
+Document ID: CB-009
+Title: Between-Match Career Events
+Version: 1.0
+Status: Phase 1 content guidance
+
+## Purpose
+
+Between-match events add texture to a football career while keeping football
+as the centre of the experience. They describe bounded situations that arise
+from the Player's current Club, role, form, movement, training focus, and
+career stage.
+
+## Categories
+
+Phase 1 may use training, recovery, teammates, manager, family, friends,
+social life, media, fans, community, adaptation, career, form, role,
+transfer, contract, season, and Club culture situations. A category is a
+content label; it is not a second simulation system.
+
+## Event writing
+
+- Titles are short and concrete.
+- Descriptions identify the football context and avoid unsupported facts.
+- Choices are two to four concise actions.
+- Choices should express plausible tradeoffs rather than a correct and an
+  obviously foolish answer.
+- Consequences describe what the Player chose in ordinary football language.
+- Raw enum names, internal IDs, progress units, and implementation terms do
+  not appear in player-facing copy.
+- Family and social situations remain abstract and respectful. Phase 1 does
+  not simulate relationships, dating, money, or social popularity.
+
+## Context and continuity
+
+Eligibility may use canonical current state such as role, recent form,
+participation, goals, movement, Contract boundary, transfer request, Club
+membership, or free-agent status. A fresh Player receives early-career and
+Club context rather than commentary about performances that do not exist.
+
+A small number of event chains may use structured memory flags. Chains have
+two or three stages and callbacks reference an earlier choice without
+creating a quest engine or a personality meter. Transfer and rollover logic
+must discard stale Club-specific eligibility while preserving resolved
+history.
+
+## Repeatability and cadence
+
+Events use one of these policies:
+
+- `once_per_career`
+- `once_per_club`
+- `once_per_season`
+- `cooldown`
+
+Continue creates at most one event per calendar month and only before a
+controlled fixture. Deterministic selection prefers a current contextual
+event, then a priority-relevant event, then a generic event. Recent
+categories receive a small cooldown so the event layer does not overwhelm
+Matches.
+
+## History and News
+
+Every resolved choice is durable for replay protection and future
+eligibility. Career History displays meaningful milestones. News reports a
+small subset: firsts, notable performances, movement, Contract milestones,
+promotion/relegation, and substantial media or community moments. Routine
+recovery, private family time, and ordinary training choices remain private
+career context.
+
+## Locked Phase 1 boundary
+
+Events may change training focus or career priority through their existing
+owners and may leave small narrative memory flags. They do not create
+attributes, ratings, form, money, purchases, assets, relationships,
+followers, reputation, or a second event ledger.
+
+## Revision History
+
+| Version | Date | Notes |
+|---|---|---|
+| 1.0 | 2026-09-17 | Added Phase 1 between-match event guidance. |
+
+END OF DOCUMENT

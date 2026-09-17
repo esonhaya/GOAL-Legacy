@@ -20,3 +20,9 @@
 - TB-004 Module Specifications
 - TB-005 Save System
 - TB-006 Developer Tools
+
+## Content Bible
+- CB-009 Between-Match Career Events
+
+## Engine Implementation Guides
+- EIG-018 Career Experience Boundary

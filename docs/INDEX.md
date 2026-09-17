@@ -11,6 +11,7 @@
 - GDB-001 Vision
 - GDB-002 Simulation Bible
 - GDB-003 Character & Career
+- GDB-004 Phase 1 Release Scope (current reconciliation)
 
 ## Technical Bible
 - TB-001 Technical Architecture

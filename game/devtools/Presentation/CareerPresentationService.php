@@ -534,11 +534,13 @@ final class CareerPresentationService
         $home = $clubs->get($match->homeClubId())->canonicalName();
         $away = $clubs->get($match->awayClubId())->canonicalName();
         $result = $match->result();
-        $score = $result === null ? '' : ' ' . $result->homeGoals() . '-' . $result->awayGoals();
+        $fixture = $result === null
+            ? $home . ' vs ' . $away
+            : $home . ' ' . $result->homeGoals() . '-' . $result->awayGoals() . ' ' . $away;
 
         $mark = $match->homeClubId()->value() === $controlledClubId || $match->awayClubId()->value() === $controlledClubId ? '* ' : '';
 
-        return $mark . $match->scheduledDate()->toIsoString() . ': ' . $home . $score . ' ' . $away . ' (' . $competition->name() . ')';
+        return $mark . $match->scheduledDate()->toIsoString() . ': ' . $fixture . ' (' . $competition->name() . ')';
     }
 
     /** @param array<string, mixed> $view */

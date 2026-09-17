@@ -1,9 +1,9 @@
 # GOAL: Legacy
 # Engine Implementation Guide
 
-Document ID: EIG-019  
-Title: Avatar and Portrait Engine  
-Version: 1.0  
+Document ID: EIG-019
+Title: Avatar and Portrait Engine
+Version: 1.0
 Status: Phase 2 implementation guide
 
 ## Ownership

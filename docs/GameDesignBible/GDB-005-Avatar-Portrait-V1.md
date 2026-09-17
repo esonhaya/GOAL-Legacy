@@ -1,9 +1,9 @@
 # GOAL: Legacy
 # Avatar and Portrait V1
 
-Document ID: GDB-005  
-Title: Avatar and Portrait V1  
-Version: 1.0  
+Document ID: GDB-005
+Title: Avatar and Portrait V1
+Version: 1.0
 Status: Phase 2 foundation
 
 ## Purpose

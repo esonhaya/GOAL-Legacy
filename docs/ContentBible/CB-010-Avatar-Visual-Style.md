@@ -1,9 +1,9 @@
 # GOAL: Legacy
 # Content Bible
 
-Document ID: CB-010  
-Title: Avatar V1 Visual Style and Asset Authoring  
-Version: 1.0  
+Document ID: CB-010
+Title: Avatar V1 Visual Style and Asset Authoring
+Version: 1.0
 Status: Phase 2 content guidance
 
 ## Art direction

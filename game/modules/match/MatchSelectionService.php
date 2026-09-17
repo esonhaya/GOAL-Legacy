@@ -168,9 +168,16 @@ final class MatchSelectionService
             $total = (int) $archived['evaluation_total'] + (int) $live['evaluation_total'];
             $average = $count === 0 ? 0.0 : $total / $count;
         } catch (\PDOException) {
-            $statement = $database->connection()->prepare('SELECT COALESCE(AVG(evaluation_score), 0) FROM career_match_evaluations WHERE player_id = :player_id AND occurred_date < :date');
-            $statement->execute(['player_id' => $playerId, 'date' => $match->scheduledDate()->toIsoString()]);
-            $average = (float) $statement->fetchColumn();
+            try {
+                $statement = $database->connection()->prepare('SELECT COALESCE(AVG(evaluation_score), 0) FROM career_match_evaluations WHERE player_id = :player_id AND occurred_date < :date');
+                $statement->execute(['player_id' => $playerId, 'date' => $match->scheduledDate()->toIsoString()]);
+                $average = (float) $statement->fetchColumn();
+            } catch (\PDOException) {
+                // Early Match selection can run before the evaluation
+                // repository has warmed its schema. No evidence means no
+                // form bonus; later Match persistence creates the table.
+                $average = 0.0;
+            }
         }
 
         return (int) round(($average - 60) * 2);

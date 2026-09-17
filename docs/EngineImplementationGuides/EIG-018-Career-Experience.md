@@ -59,6 +59,9 @@ Rollover resets only seasonal repeatability through the existing Season ID.
 Phase 1 does not add a balance, salary-payment, purchase, asset, relationship,
 morale, reputation, follower, social, or generic event ledger system. It also
 does not add a daily event scheduler, training minigame, or new Match facts.
+That is the historical Phase 1 boundary; P2-005 adds a separate
+controlled-Player finance owner without changing event ownership or
+introducing NPC personal finance.
 
 ## Revision History
 

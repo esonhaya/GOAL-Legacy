@@ -18,6 +18,7 @@ use Goal\Legacy\Modules\Competition\CompetitionModule;
 use Goal\Legacy\Modules\Contract\ContractModule;
 use Goal\Legacy\Modules\Nation\NationModule;
 use Goal\Legacy\Modules\Player\PlayerModule;
+use Goal\Legacy\Modules\Player\Finance\PlayerFinanceService;
 use Goal\Legacy\Modules\Match\MatchModule;
 use Goal\Legacy\Modules\Transfer\TransferModule;
 use Goal\Legacy\Modules\World\WorldModule;
@@ -38,6 +39,7 @@ final class CoreServices
         private readonly ClubModule $clubModule,
         private readonly ClubRecruitmentService $clubRecruitmentService,
         private readonly PlayerModule $playerModule,
+        private readonly PlayerFinanceService $playerFinanceService,
         private readonly ContractModule $contractModule,
         private readonly TransferModule $transferModule,
         private readonly MatchModule $matchModule,
@@ -70,6 +72,8 @@ final class CoreServices
     public function clubRecruitmentService(): ClubRecruitmentService { return $this->clubRecruitmentService; }
 
     public function playerModule(): PlayerModule { return $this->playerModule; }
+
+    public function playerFinanceService(): PlayerFinanceService { return $this->playerFinanceService; }
 
     public function contractModule(): ContractModule { return $this->contractModule; }
 

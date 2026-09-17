@@ -127,11 +127,35 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('Training focus', $controlled['body']);
             self::assertStringNotContainsString('Potential', $controlled['body']);
 
+            $finances = $this->application->handle('GET', '/', ['page' => 'finances', 'save' => $save], [], $session);
+            self::assertSame(200, $finances['status']);
+            self::assertStringContainsString('GC 50', $finances['body']);
+            self::assertStringContainsString('Wages arrive through simulated calendar time', $finances['body']);
+            $lifestyle = $this->application->handle('GET', '/', ['page' => 'lifestyle', 'save' => $save], [], $session);
+            self::assertSame(200, $lifestyle['status']);
+            self::assertStringContainsString('Training bicycle', $lifestyle['body']);
+            preg_match('/name="token" value="([^"]+)"/', $lifestyle['body'], $purchaseToken);
+            self::assertNotEmpty($purchaseToken[1] ?? null);
+            $purchase = $this->application->handle('POST', '/', [], [
+                'action' => 'purchase_lifestyle', 'save' => $save, 'item' => 'transport.bicycle', 'price' => '1', 'confirm' => '1', 'token' => $purchaseToken[1],
+            ], $session);
+            self::assertSame(303, $purchase['status']);
+            $afterPurchase = $this->application->handle('GET', '/', ['page' => 'finances', 'save' => $save], [], $session);
+            self::assertStringContainsString('GC 20', $afterPurchase['body']);
+            self::assertStringContainsString('Training bicycle', $afterPurchase['body']);
+            $duplicatePurchase = $this->application->handle('POST', '/', [], [
+                'action' => 'purchase_lifestyle', 'save' => $save, 'item' => 'transport.bicycle', 'confirm' => '1', 'token' => $purchaseToken[1],
+            ], $session);
+            self::assertSame(303, $duplicatePurchase['status']);
+            $afterDuplicate = $this->application->handle('GET', '/', ['page' => 'finances', 'save' => $save], [], $session);
+            self::assertStringContainsString('GC 20', $afterDuplicate['body']);
+
             $npc = (string) $database->connection()->query("SELECT id FROM player_records WHERE id <> '" . $career->playerId()->value() . "' ORDER BY id LIMIT 1")->fetchColumn();
             $npcProfile = $this->application->handle('GET', '/', ['page' => 'profile', 'save' => $save, 'player' => $npc], [], $session);
             self::assertSame(200, $npcProfile['status']);
             self::assertStringContainsString('MATCH HISTORY', $npcProfile['body']);
             self::assertStringNotContainsString('Potential', $npcProfile['body']);
+            self::assertStringNotContainsString('Balance', $npcProfile['body']);
 
             $world = $this->application->handle('GET', '/', ['page' => 'world', 'save' => $save], [], $session);
             self::assertStringContainsString('page=competition', $world['body']);

@@ -216,6 +216,17 @@ replace existing Players. Name pools and generation rules are static/runtime
 configuration; generated Contracts are normal Career history and
 Competition registrations remain Season-bound.
 
+## P2-005 Controlled Player Finance
+
+Personal finance is additive controlled-career state. `player_finance_state`
+stores the current balance and payroll cursor, `player_finance_transactions`
+stores traceable balance changes, and `player_lifestyle_ownership` stores
+stable catalog ownership. These tables are created lazily for a new or
+legacy controlled Player; loading a page never advances payroll. Weekly
+payroll uses a Contract-and-period source key, making Continue and reload
+retries idempotent. NPC Players never receive these rows. Rendered lifestyle
+artifacts remain outside the Career SQLite database.
+
 ## DOMAIN-013 Season Rollover
 
 `SeasonRolloverService` owns the single recurring Season transition. The

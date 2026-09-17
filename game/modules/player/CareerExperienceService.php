@@ -20,6 +20,7 @@ use Goal\Legacy\Modules\Player\Domain\TrainingFocus;
 use Goal\Legacy\Modules\Player\Domain\TrainingRequest;
 use Goal\Legacy\Modules\Player\Persistence\CareerEventRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerPriorityRepository;
+use Goal\Legacy\Modules\Player\Finance\PlayerFinanceService;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use RuntimeException;
@@ -27,7 +28,7 @@ use RuntimeException;
 /** Owns the persisted, bounded layer between controlled Matches. */
 final class CareerExperienceService
 {
-    public function __construct(private readonly PlayerDevelopmentService $development, private readonly TrainingService $training, private readonly ?ClubService $clubs = null) {}
+    public function __construct(private readonly PlayerDevelopmentService $development, private readonly TrainingService $training, private readonly ?ClubService $clubs = null, private readonly ?PlayerFinanceService $finance = null) {}
 
     public function priority(DatabaseInterface $database, PlayerId|string $playerId): CareerPriority
     {
@@ -141,6 +142,11 @@ final class CareerExperienceService
             $priority = isset($choice['priority']) ? CareerPriority::fromInput((string) $choice['priority']) : null;
             if ($focus !== null) { $this->development->setTrainingFocusInTransaction($database, $event->playerId(), $focus, $date); }
             if ($priority !== null) { (new PlayerPriorityRepository($database))->saveInTransaction($event->playerId(), $priority, $date); }
+            $financeResult = null;
+            if (is_array($choice['finance'] ?? null) && $this->finance !== null) {
+                $effect = $choice['finance'];
+                $financeResult = $this->finance->applyEventEffectInTransaction($database, $event->playerId(), $date, 'event:' . $event->id() . ':' . (string) $choice['id'], (int) ($effect['amount'] ?? 0), (string) ($effect['type'] ?? 'event_expense'), (string) ($effect['context'] ?? 'Career event'));
+            }
             $memory = is_string($choice['memory'] ?? null) && trim((string) $choice['memory']) !== '' ? [(string) $choice['memory']] : [];
             $resolved = $event->resolved((string) $choice['id'], [
                 'history' => (string) ($choice['history'] ?? 'Career event resolved'),
@@ -148,6 +154,7 @@ final class CareerExperienceService
                 'priority' => $priority?->value,
                 'memory' => $memory,
                 'newsworthy' => (bool) (($event->context()['newsworthy'] ?? false)),
+                'finance' => $financeResult === null ? null : ['amount' => $financeResult['amount'], 'balance_after' => $financeResult['balance_after']],
             ]);
             $repository->resolveInTransaction($resolved);
             return $resolved;
@@ -200,6 +207,15 @@ final class CareerExperienceService
         if (($requirements['recent_team_result'] ?? null) !== null && $signals['recent_team_result'] !== $requirements['recent_team_result']) { return false; }
         if (($requirements['season_phase'] ?? null) !== null && $signals['season_phase'] !== $requirements['season_phase']) { return false; }
         if (($requirements['competition_pressure'] ?? null) !== null && $signals['competition_pressure'] !== $requirements['competition_pressure']) { return false; }
+        if (isset($requirements['income_min']) && $signals['income'] < (int) $requirements['income_min']) { return false; }
+        if (isset($requirements['wage_income_min']) && $signals['wage_income'] < (int) $requirements['wage_income_min']) { return false; }
+        if (isset($requirements['balance_min']) && $signals['balance'] < (int) $requirements['balance_min']) { return false; }
+        if (isset($requirements['owned_item']) && !isset($signals['owned_item'][(string) $requirements['owned_item']])) { return false; }
+        if (isset($requirements['owned_effect']) && is_array($requirements['owned_effect'])) {
+            $effect = (string) ($requirements['owned_effect']['effect'] ?? '');
+            $minimum = (int) ($requirements['owned_effect']['min'] ?? 1);
+            if ($effect === '' || (int) (($signals['owned_effects'] ?? [])[$effect] ?? 0) < $minimum) { return false; }
+        }
         if (isset($requirements['history_absent']) && $this->hasMemory($resolved, (string) $requirements['history_absent'])) { return false; }
         foreach ((array) ($requirements['history_absent_any'] ?? []) as $memory) { if ($this->hasMemory($resolved, (string) $memory)) { return false; } }
         if (isset($requirements['history_present']) && !$this->hasMemory($resolved, (string) $requirements['history_present'])) { return false; }
@@ -305,6 +321,14 @@ final class CareerExperienceService
                 break;
             }
         }
+        $finance = $this->finance?->summary($database, $playerId, $date) ?? ['balance' => 0, 'income' => 0, 'wage_income' => 0, 'owned_ids' => [], 'owned' => []];
+        $ownedIds = is_array($finance['owned_ids'] ?? null) ? $finance['owned_ids'] : [];
+        $ownedEffects = [];
+        foreach ((array) ($finance['owned'] ?? []) as $item) {
+            foreach ((array) ($item['effects'] ?? []) as $effect => $value) {
+                $ownedEffects[$effect] = max((int) ($ownedEffects[$effect] ?? 0), (int) $value);
+            }
+        }
         return [
             'season_id' => (string) ($summary['current_season_id'] ?? ''),
             'role' => $role, 'form' => $form, 'appearances' => $appearances, 'starts' => $starts,
@@ -313,7 +337,8 @@ final class CareerExperienceService
             'transfer_request' => (string) (($summary['transfer_request']['status'] ?? 'none')),
             'recent_transfer' => $recentTransfer, 'contract_expiring' => $contractExpiring,
             'recent_team_result' => $recentTeamResult, 'season_phase' => $phase, 'competition_pressure' => $competitionPressure,
-            'context_keys' => array_values(array_filter([$role, $form, $recentTeamResult, $recentTransfer ? 'recent_transfer' : null, $contractExpiring ? 'contract_expiring' : null])),
+            'income' => (int) ($finance['income'] ?? 0), 'wage_income' => (int) ($finance['wage_income'] ?? 0), 'balance' => (int) ($finance['balance'] ?? 0), 'owned_item' => $ownedIds, 'owned_effects' => $ownedEffects,
+            'context_keys' => array_values(array_filter([$role, $form, $recentTeamResult, $recentTransfer ? 'recent_transfer' : null, $contractExpiring ? 'contract_expiring' : null, ((int) ($finance['wage_income'] ?? 0)) > 0 ? 'wage_received' : null, $ownedEffects === [] ? null : 'lifestyle_owned'])),
         ];
     }
 }

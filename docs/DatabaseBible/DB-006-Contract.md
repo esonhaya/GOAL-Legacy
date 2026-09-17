@@ -207,9 +207,12 @@ Contract records do not contain Player or Club snapshots, squad membership,
 competition registration, or Transfer state. A Player has at most one active
 permanent Contract at a time.
 
-Phase 1 wage is a non-negative integer in the project's smallest currency
-unit. It is a Contract term only; no Club balance or finance ledger is
-modified.
+Phase 1 wage was a non-negative integer in the project's smallest currency
+unit and was a Contract term only. P2-005 now consumes the same canonical
+weekly wage for the controlled Player's separate personal finance ledger;
+Contract remains the owner of the wage term and does not own the balance,
+transactions, or lifestyle purchases. NPC Contracts continue to expose wage
+metadata without creating personal finance records.
 
 ---
 

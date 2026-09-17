@@ -24,6 +24,7 @@ use Goal\Legacy\Modules\Player\Domain\CareerStartRequest;
 use Goal\Legacy\Modules\Player\Domain\PlayerAppearance;
 use Goal\Legacy\Modules\Player\Domain\TrainingFocus;
 use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
+use Goal\Legacy\Modules\Player\Finance\LifestyleCatalog;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
@@ -88,6 +89,8 @@ final class WebApplication
             'club' => $this->club($saveId, (string) ($query['club'] ?? ''), $session),
             'news' => $this->news($saveId, $session),
             'training' => $this->training($saveId, $session),
+            'finances' => $this->finances($saveId, $session),
+            'lifestyle' => $this->lifestyle($saveId, $session),
             'event' => $this->event($saveId, $session),
             'decision' => $this->decision($saveId, $session),
             'matchday' => $this->matchday($saveId, (string) ($query['match'] ?? ''), $session),
@@ -109,6 +112,7 @@ final class WebApplication
                 'select_club' => $this->selectClub($post, $session),
                 'set_training' => $this->setTraining($post, $session),
                 'set_priority' => $this->setPriority($post, $session),
+                'purchase_lifestyle' => $this->purchaseLifestyle($post, $session),
                 'continue' => $this->continueCareer($post, $session),
                 'save_exit' => $this->saveExit($session),
                 'resolve_event' => $this->resolveEvent($post, $session),
@@ -260,6 +264,28 @@ final class WebApplication
         $session['web_flash'] = 'Career priority updated.';
 
         return $this->redirect(WebView::url('training', ['save' => $saveId]));
+    }
+
+    /** @param array<string,mixed> $post @param array<string,mixed> $session */
+    private function purchaseLifestyle(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        if (!$this->consumeToken($session, 'purchase_' . $saveId, (string) ($post['token'] ?? ''))) {
+            throw new RuntimeException('That purchase action has already been handled.');
+        }
+        if ((string) ($post['confirm'] ?? '') !== '1') {
+            throw new RuntimeException('Confirm the purchase before continuing.');
+        }
+        $database = $this->database($saveId);
+        $career = (new CareerPlayerRepository($database))->get($saveId);
+        $worldService = $this->services->worldModule()->service();
+        $world = $worldService->load($database, $saveId);
+        $itemId = trim((string) ($post['item'] ?? ''));
+        $result = $this->services->playerFinanceService()->purchase($database, $career->playerId(), $itemId, $world->currentDate($worldService->calendar()));
+        $item = LifestyleCatalog::find($itemId);
+        $session['web_flash'] = sprintf('%s purchased for %s. Balance: %s.', $item['label'] ?? 'Item', $this->money((int) ($result['price'] ?? 0)), $this->money((int) ($result['balance'] ?? 0)));
+
+        return $this->redirect(WebView::url('lifestyle', ['save' => $saveId]));
     }
 
     /** @param array<string,mixed> $post @param array<string,mixed> $session */
@@ -535,14 +561,15 @@ final class WebApplication
         $season = (array) ($summary['season_stats'] ?? []);
         $form = (array) ($summary['recent_form'] ?? []);
         $performance = (array) ($summary['season_performance'] ?? []);
+        $finance = $this->services->playerFinanceService()->summary($database, (string) ($player['id'] ?? ''), $snapshot['date']);
         $next = (new CareerPresentationService($this->services))->nextMatch($database, $summary);
         $clubContext = (new CareerPresentationService($this->services))->clubContext($database, $summary);
         $profile = '<div class="profile-hero">' . WebView::portrait($portrait, (string) ($player['preferred_name'] ?? 'Player'), 'portrait portrait-large') . '<div><div class="eyebrow">CAREER HOME · ' . WebView::e($snapshot['date']->toIsoString()) . '</div><h1>' . WebView::e($player['preferred_name'] ?? 'Player') . '</h1><p>' . WebView::e(CareerLabels::position($player['primary_position'] ?? null)) . ' · ' . WebView::e(CareerLabels::nationality($player['primary_nation_id'] ?? null)) . '</p><div class="tag-row"><span class="tag">OVR ' . WebView::e($summary['current_ovr'] ?? '—') . '</span><span class="tag">' . WebView::e($club['name'] ?? 'Free Agent') . '</span><span class="tag">' . WebView::e(CareerLabels::value($summary['current_role'] ?? null)) . '</span></div></div></div>';
         $seasonBody = '<div class="stat-grid">' . WebView::stat('Appearances', $season['appearances'] ?? 0) . WebView::stat('Starts', $season['starts'] ?? 0) . WebView::stat('Minutes', $season['minutes'] ?? 0) . WebView::stat('Goals', $season['goals'] ?? 0) . WebView::stat('Assists', $season['assists'] ?? 0) . WebView::stat('Rating', $this->rating($season['average_match_rating'] ?? null)) . '</div><div class="metric-lines"><p><strong>Recent form</strong> ' . WebView::e($this->formLabel($form)) . '</p><p><strong>Season performance</strong> ' . WebView::e(CareerLabels::value($performance['classification'] ?? null, 'Not enough evidence')) . '</p></div>';
-        $situation = '<div class="split-list"><p><span>Training focus</span><strong>' . WebView::e(CareerLabels::value($summary['training_focus'] ?? 'balanced')) . '</strong></p><p><span>Career priority</span><strong>' . WebView::e(CareerLabels::value($summary['priority'] ?? 'balanced')) . '</strong></p><p><span>Contract</span><strong>' . WebView::e($this->contractText($summary['current_contract'] ?? null)) . '</strong></p><p><span>Career outlook</span><strong>' . WebView::e(CareerLabels::value(((array) ($summary['career_outlook'] ?? []))['category'] ?? null, 'Not available')) . '</strong></p></div>';
+        $situation = '<div class="split-list"><p><span>Training focus</span><strong>' . WebView::e(CareerLabels::value($summary['training_focus'] ?? 'balanced')) . '</strong></p><p><span>Career priority</span><strong>' . WebView::e(CareerLabels::value($summary['priority'] ?? 'balanced')) . '</strong></p><p><span>Contract</span><strong>' . WebView::e($this->contractText($summary['current_contract'] ?? null)) . '</strong></p><p><span>Career outlook</span><strong>' . WebView::e(CareerLabels::value(((array) ($summary['career_outlook'] ?? []))['category'] ?? null, 'Not available')) . '</strong></p><p><span>Balance</span><strong>' . WebView::e($this->money((int) ($finance['balance'] ?? 0))) . '</strong></p></div>';
         $nextBody = $next === null ? WebView::emptyState('No upcoming fixture currently scheduled.') : '<div class="fixture-card"><span class="eyebrow">' . WebView::e($next['competition'] ?? 'Fixture') . '</span><strong>' . WebView::e($next['home_club'] ?? '') . ' <span>vs</span> ' . WebView::e($next['away_club'] ?? '') . '</strong><small>' . WebView::e($next['date'] ?? '') . '</small></div>';
         $clubBody = $clubContext === null ? WebView::emptyState('League position is not available for this fixture context.') : '<div class="stat-grid compact">' . WebView::stat('Position', $clubContext['position'] ?? '—') . WebView::stat('Played', $clubContext['played'] ?? 0) . WebView::stat('Points', $clubContext['points'] ?? 0) . '</div>';
-        $actions = '<div class="action-grid">' . WebView::form('continue', 'Continue', ['save' => $saveId, 'token' => $this->issueToken($session, 'continue_' . $saveId)], 'button button-primary button-large', 'data-busy') . WebView::link('career', ['save' => $saveId], 'Career') . WebView::link('squad', ['save' => $saveId], 'Squad') . WebView::link('world', ['save' => $saveId], 'World') . WebView::link('news', ['save' => $saveId], 'News') . WebView::link('training', ['save' => $saveId], 'Training') . '</div>';
+        $actions = '<div class="action-grid">' . WebView::form('continue', 'Continue', ['save' => $saveId, 'token' => $this->issueToken($session, 'continue_' . $saveId)], 'button button-primary button-large', 'data-busy') . WebView::link('career', ['save' => $saveId], 'Career') . WebView::link('squad', ['save' => $saveId], 'Squad') . WebView::link('world', ['save' => $saveId], 'World') . WebView::link('news', ['save' => $saveId], 'News') . WebView::link('training', ['save' => $saveId], 'Training') . WebView::link('finances', ['save' => $saveId], 'Finances') . WebView::link('lifestyle', ['save' => $saveId], 'Lifestyle') . '</div>';
         $actions .= $this->contextActions($saveId, $summary) . WebView::form('save_exit', 'Save & Exit', ['save' => $saveId], 'button button-secondary', 'data-busy');
         $body = $profile . '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $seasonBody) . WebView::section('NEXT MATCH', 'What is coming next', $nextBody) . WebView::section('CLUB', $club['name'] ?? 'Free Agent', $clubBody) . '</div><aside class="dashboard-side">' . WebView::section('CAREER SITUATION', 'Your direction', $situation) . WebView::section('ACTIONS', 'Play', $actions) . '</aside></div>';
 
@@ -637,12 +664,14 @@ final class WebApplication
         $stats = (array) ($data['season_stats'] ?? []);
         $careerStats = (array) ($data['career_stats'] ?? []);
         $form = (array) ($data['recent_form'] ?? []);
+        $finance = ($data['controlled'] ?? false) === true ? $this->services->playerFinanceService()->summary($database, $playerId, $this->snapshot($saveId, $database)['date']) : null;
         $clubLink = $club === null ? 'Free Agent' : WebView::link('club', ['save' => $saveId, 'club' => $club->id()->value()], $club->canonicalName(), 'text-link');
         $facts = '<div class="stat-grid compact">' . WebView::stat('OVR', $player->overallRating()) . WebView::stat('Age', $data['age']) . WebView::stat('Position', CareerLabels::position($player->primaryPosition()->value)) . WebView::stat('Nationality', $data['nationality']) . WebView::stat('Role', CareerLabels::value($data['role'] ?? null, 'Not assigned')) . WebView::stat('Season', $data['season_id']) . '</div>';
         $seasonLine = '<div class="stat-grid compact">' . WebView::stat('Appearances', $stats['appearances'] ?? 0) . WebView::stat('Starts', $stats['starts'] ?? 0) . WebView::stat('Minutes', $stats['minutes'] ?? 0) . WebView::stat('Goals', $stats['goals'] ?? 0) . WebView::stat('Assists', $stats['assists'] ?? 0) . WebView::stat('Rating', $this->rating($stats['average_match_rating'] ?? null)) . '</div>';
         $extras = '<p><strong>Recent form:</strong> ' . WebView::e($this->formLabel($form)) . '</p>';
         if (($data['controlled'] ?? false) === true) {
-            $extras .= '<p><strong>Training focus:</strong> ' . WebView::e(CareerLabels::value($data['training_focus'] ?? null)) . ' · <strong>Priority:</strong> ' . WebView::e(CareerLabels::value($data['priority'] ?? null)) . ' · <strong>Contract:</strong> ' . WebView::e($this->contractText($data['contract'] ?? null)) . '</p>';
+            $extras .= '<p><strong>Training focus:</strong> ' . WebView::e(CareerLabels::value($data['training_focus'] ?? null)) . ' · <strong>Priority:</strong> ' . WebView::e(CareerLabels::value($data['priority'] ?? null)) . ' · <strong>Contract:</strong> ' . WebView::e($this->contractText($data['contract'] ?? null)) . ' · <strong>Balance:</strong> ' . WebView::e($this->money((int) (($finance['balance'] ?? 0)))) . '</p>';
+            $extras .= '<p>' . WebView::link('lifestyle', ['save' => $saveId], 'View Lifestyle', 'button button-secondary') . '</p>';
         }
         $careerLine = '<div class="stat-grid compact">' . WebView::stat('Career apps', $careerStats['appearances'] ?? 0) . WebView::stat('Career goals', $careerStats['goals'] ?? 0) . WebView::stat('Career assists', $careerStats['assists'] ?? 0) . WebView::stat('Cards', ((int) ($careerStats['yellow_cards'] ?? 0)) . 'Y / ' . ((int) ($careerStats['red_cards'] ?? 0)) . 'R') . '</div>';
         $history = '';
@@ -742,6 +771,56 @@ final class WebApplication
         $body = '<div class="page-heading"><div><div class="eyebrow">TRAINING & PRIORITIES</div><h1>Shape the next block</h1><p>These choices feed the canonical development and career-event systems.</p></div></div><div class="two-column"><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_training"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Training focus<select name="focus">' . $focusOptions . '</select></label><p class="muted">Focus influences where existing development progress is directed.</p><button class="button button-primary" type="submit">Save training focus</button></form><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_priority"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Career priority<select name="priority">' . $priorityOptions . '</select></label><p class="muted">Priority shapes the emphasis of bounded off-pitch opportunities.</p><button class="button button-primary" type="submit">Save priority</button></form></div>';
 
         return $this->html('Training', $body, $saveId, 'training', 200, $session);
+    }
+
+    private function finances(string $saveId, array &$session): array
+    {
+        $database = $this->database($saveId);
+        $snapshot = $this->snapshot($saveId, $database);
+        $playerId = (string) (($snapshot['summary']['player']['id'] ?? ''));
+        $finance = $this->services->playerFinanceService()->summary($database, $playerId, $snapshot['date']);
+        $transactionRows = '';
+        foreach ((array) ($finance['transactions'] ?? []) as $transaction) {
+            if (!is_array($transaction)) { continue; }
+            $amount = (int) ($transaction['amount'] ?? 0);
+            $transactionRows .= '<tr><td>' . WebView::e($transaction['occurred_date'] ?? '') . '</td><td>' . WebView::e($this->financeType((string) ($transaction['type'] ?? ''))) . '</td><td>' . WebView::e($transaction['context'] ?? '') . '</td><td class="money ' . ($amount < 0 ? 'money-out' : 'money-in') . '">' . WebView::e(($amount < 0 ? '-' : '+') . $this->money(abs($amount))) . '</td><td>' . WebView::e($this->money((int) ($transaction['balance_after'] ?? 0))) . '</td></tr>';
+        }
+        $transactions = $transactionRows === '' ? WebView::emptyState('No financial transactions yet.') : '<div class="table-scroll"><table><thead><tr><th>Date</th><th>Type</th><th>Context</th><th>Amount</th><th>Balance</th></tr></thead><tbody>' . $transactionRows . '</tbody></table></div>';
+        $owned = (array) ($finance['owned'] ?? []);
+        $ownedText = $owned === [] ? WebView::emptyState('No lifestyle assets owned yet.') : '<ul class="timeline">' . implode('', array_map(static fn (array $item): string => '<li>' . WebView::e($item['label'] ?? $item['item_id'] ?? 'Lifestyle asset') . '</li>', $owned)) . '</ul>';
+        $body = '<div class="page-heading"><div><div class="eyebrow">FINANCES</div><h1>Your football earnings</h1><p>Wages arrive through simulated calendar time. Browsing this page never processes payroll.</p></div></div>';
+        $body .= '<div class="stat-grid"><div class="stat stat-highlight"><span>Balance</span><strong>' . WebView::e($this->money((int) ($finance['balance'] ?? 0))) . '</strong></div>' . WebView::stat('Current wage', $finance['current_wage'] === null ? 'No active wage' : $this->money((int) $finance['current_wage']) . ' / week') . WebView::stat('Career income', $this->money((int) ($finance['income'] ?? 0))) . WebView::stat('Career spending', $this->money((int) ($finance['spending'] ?? 0))) . '</div>';
+        $body .= '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('RECENT ACTIVITY', 'Financial history', $transactions) . '</div><aside class="dashboard-side">' . WebView::section('LIFESTYLE', 'Owned assets', $ownedText) . WebView::section('NEXT STEP', 'Use your earnings', WebView::link('lifestyle', ['save' => $saveId], 'Browse Lifestyle', 'button button-primary')) . '</aside></div>';
+
+        return $this->html('Finances', $body, $saveId, 'finances', 200, $session);
+    }
+
+    private function lifestyle(string $saveId, array &$session): array
+    {
+        $database = $this->database($saveId);
+        $snapshot = $this->snapshot($saveId, $database);
+        $playerId = (string) (($snapshot['summary']['player']['id'] ?? ''));
+        $finance = $this->services->playerFinanceService()->summary($database, $playerId, $snapshot['date']);
+        $owned = (array) ($finance['owned_ids'] ?? []);
+        $groups = [];
+        foreach (LifestyleCatalog::all() as $item) { $groups[$item['category']][] = $item; }
+        $sections = '';
+        foreach ($groups as $category => $items) {
+            $cards = '';
+            foreach ($items as $item) {
+                $isOwned = isset($owned[$item['id']]);
+                $affordable = (int) ($finance['balance'] ?? 0) >= (int) $item['price'];
+                $status = $isOwned ? 'OWNED' : ($affordable ? 'AFFORDABLE' : 'LOCKED · EARN MORE');
+                $action = $isOwned ? '<span class="tag">Owned</span>' : ($affordable ? WebView::form('purchase_lifestyle', 'Purchase', ['save' => $saveId, 'item' => $item['id'], 'confirm' => '1', 'token' => $this->issueToken($session, 'purchase_' . $saveId)], 'button button-primary', 'onsubmit="return confirm(\'Purchase this item?\')" data-busy') : '<span class="muted">Not affordable yet</span>');
+                $effects = [];
+                foreach ((array) ($item['effects'] ?? []) as $effect => $value) { $effects[] = $this->effectLabel((string) $effect); }
+                $cards .= '<article class="lifestyle-card"><div><span class="eyebrow">' . WebView::e($item['tier']) . '</span><h2>' . WebView::e($item['label']) . '</h2><p>' . WebView::e($item['description']) . '</p><small>' . WebView::e($effects === [] ? 'Career flavor' : implode(' · ', $effects)) . '</small></div><div class="lifestyle-action"><strong>' . WebView::e($this->money((int) $item['price'])) . '</strong><span class="tag">' . WebView::e($status) . '</span>' . $action . '</div></article>';
+            }
+            $sections .= WebView::section('LIFESTYLE', $category, '<div class="lifestyle-list">' . $cards . '</div>');
+        }
+        $body = '<div class="page-heading"><div><div class="eyebrow">LIFESTYLE</div><h1>Build life around the football</h1><p>Balance: ' . WebView::e($this->money((int) ($finance['balance'] ?? 0))) . '. Purchases are optional, persistent, and never directly change attributes.</p></div></div>' . $sections . '<div class="form-actions">' . WebView::link('finances', ['save' => $saveId], 'Back to Finances') . WebView::link('home', ['save' => $saveId], 'Career Home') . '</div>';
+
+        return $this->html('Lifestyle', $body, $saveId, 'finances', 200, $session);
     }
 
     private function event(string $saveId, array &$session): array
@@ -883,6 +962,9 @@ final class WebApplication
         };
     }
     private function rating(mixed $value): string { return $value === null || $value === '' ? 'Not available' : number_format((float) $value, 1); }
+    private function money(int $amount): string { return 'GC ' . number_format($amount); }
+    private function financeType(string $type): string { return match ($type) { 'opening_balance' => 'Career start', 'wage' => 'Wage', 'purchase' => 'Purchase', 'event_income' => 'Career event income', 'event_expense' => 'Career event expense', default => 'Finance activity' }; }
+    private function effectLabel(string $effect): string { return match ($effect) { 'recovery_support' => 'Recovery support', 'training_support' => 'Training support', 'lifestyle_event_weight' => 'Lifestyle context', 'professional_event_weight' => 'Professional context', 'media_event_weight' => 'Media context', 'community_event_weight' => 'Community context', 'travel_convenience' => 'Travel convenience', default => 'Career context' }; }
     private function formLabel(array $form): string { return isset($form['classification']) ? CareerLabels::value($form['classification'], 'Not enough matches yet') : 'Not enough matches yet'; }
     private function contractText(mixed $contract): string { if (!is_array($contract)) { return 'No active Contract'; } $status = CareerLabels::value($contract['status'] ?? 'Contract'); $end = trim((string) ($contract['end_date'] ?? '')); return $end === '' ? $status : $status . ' through ' . $end; }
     private function issueToken(array &$session, string $key): string { if (!isset($session['web_tokens'][$key])) { $session['web_tokens'][$key] = bin2hex(random_bytes(16)); } return (string) $session['web_tokens'][$key]; }

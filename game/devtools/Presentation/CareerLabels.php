@@ -27,6 +27,7 @@ final class CareerLabels
         'dribbling' => 'Dribbling',
         'free_agent_contract' => 'Free-agent decision',
         'family' => 'Family',
+        'financial' => 'Financial',
         'draw' => 'Draw',
         'excellent' => 'Excellent',
         'expired' => 'Expired',

@@ -45,6 +45,8 @@ final class WebView
                 'world' => ['World', 'world'],
                 'news' => ['News', 'news'],
                 'training' => ['Training', 'training'],
+                'finances' => ['Finances', 'finances'],
+                'lifestyle' => ['Lifestyle', 'lifestyle'],
             ];
             foreach ($items as $key => [$label, $page]) {
                 $class = $active === $key ? 'nav-link active' : 'nav-link';

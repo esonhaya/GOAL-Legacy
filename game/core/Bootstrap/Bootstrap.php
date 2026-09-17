@@ -27,6 +27,7 @@ use Goal\Legacy\Modules\Nation\NationModule;
 use Goal\Legacy\Modules\Nation\NationService;
 use Goal\Legacy\Modules\Player\PlayerModule;
 use Goal\Legacy\Modules\Player\PlayerService;
+use Goal\Legacy\Modules\Player\Finance\PlayerFinanceService;
 use Goal\Legacy\Modules\Player\PlayerDevelopmentService;
 use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
 use Goal\Legacy\Modules\Player\PlayerPopulationService;
@@ -89,7 +90,8 @@ final class Bootstrap
         $contractModule = new ContractModule(new ContractService());
         $populationService = new PlayerPopulationService($nationModule->service(), $clubModule->service(), $contractModule->service());
         $playerLifecycleService = new PlayerLifecycleService($developmentService, $contractModule->service());
-        $playerModule = new PlayerModule(new PlayerService($nationModule->service(), $clubModule->service(), $developmentService, $availabilityService, $populationService));
+        $playerFinanceService = new PlayerFinanceService();
+        $playerModule = new PlayerModule(new PlayerService($nationModule->service(), $clubModule->service(), $developmentService, $availabilityService, $populationService, $playerFinanceService));
         $transferModule = new TransferModule(new TransferService($contractModule->service(), $clubModule->service(), $competitionModule->service(), $dispatcher));
         $clubRecruitmentService = new ClubRecruitmentService($clubModule->service(), $contractModule->service(), $competitionModule->service(), $transferModule->service());
         $expectationService = new ClubExpectationService($clubModule->service(), $dispatcher);
@@ -104,6 +106,7 @@ final class Bootstrap
             $clubModule->service(),
             contractService: $contractModule->service(),
             seasonRollover: $seasonRollover,
+            playerFinance: $playerFinanceService,
         ));
         $registry->register($nationModule);
         $registry->register($competitionModule);
@@ -130,7 +133,7 @@ final class Bootstrap
             'environment' => $configuration->string('app.environment'),
         ]);
 
-        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule, $competitionModule, $clubModule, $clubRecruitmentService, $playerModule, $contractModule, $transferModule, $matchModule, $worldModule);
+        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule, $competitionModule, $clubModule, $clubRecruitmentService, $playerModule, $playerFinanceService, $contractModule, $transferModule, $matchModule, $worldModule);
     }
 
     /** @return array<string, string> */

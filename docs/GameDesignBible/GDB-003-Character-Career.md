@@ -129,6 +129,29 @@ career transfer remains continuous because Player identity, development,
 availability, and historical Matches survive while the new Club-scoped role
 and seasonal registration are rebuilt.
 
+## P2-005 Controlled Player Finance and Lifestyle
+
+Phase 1 deliberately deferred personal earnings and spending. Phase 2
+P2-005 activates that layer for the controlled career Player only. Contract
+wage remains a Contract-owned weekly term; `PlayerFinanceService` consumes
+that term as elapsed-calendar payroll and records every balance change in a
+small controlled-Player ledger. The accounting display uses normalized `GC`
+units, with a modest deterministic opening balance for new Careers.
+
+Legacy Careers initialize at feature activation without historical wage
+backfill. Payroll is keyed by Contract and weekly period, so repeated
+Continue, reload, and refresh operations cannot pay the same period twice.
+Transfers, renewals, expiry, free agency, and new signings continue to be
+owned by the Contract and Transfer modules; finance consumes their canonical
+date-bounded state.
+
+P2-005 adds a bounded generic lifestyle catalog and persistent controlled-
+Player ownership. Purchases are optional, atomic, server-priced, and recorded
+as ledger transactions. Their declarative effects provide small contextual
+signals for career presentation and events; they never directly change
+attributes, OVR, potential, or Match outcomes. NPC Players have no personal
+finance rows, payroll, transactions, or lifestyle ownership.
+
 ---
 
 ## Player-Facing Information Boundary

@@ -109,6 +109,7 @@ final class WebCareerStartWorkflow
             $this->services->clubModule()->service(),
             $this->services->competitionModule()->service(),
             $this->services->contractModule()->service(),
+            $this->services->playerFinanceService(),
         );
     }
 

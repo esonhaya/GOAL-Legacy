@@ -165,6 +165,16 @@ Examples
 
 Budgets are planning tools and do not replace actual balances.
 
+## Controlled Player Finance Boundary (P2-005)
+
+The Economy module remains the owner of organizational football finance. The
+controlled career Player has a separate, intentionally small `PlayerFinance`
+boundary for personal balance, weekly Contract-wage receipts, meaningful
+expenses, and bounded lifestyle ownership. It is not an NPC economy and does
+not create personal rows for the generated Player population. Its ledger is
+controlled-Player career state and consumes Contract dates and wage metadata;
+it does not mutate Club balances or replace Contract ownership.
+
 ---
 
 # Financial Health

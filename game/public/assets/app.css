@@ -147,6 +147,15 @@ th { color: var(--muted); font-size: .75rem; letter-spacing: .06em; text-transfo
 .error-page p { color: var(--muted); margin-bottom: 24px; }
 .flash { margin-bottom: 18px; padding: 13px 16px; border-radius: 10px; background: var(--soft-gold); color: #6e5000; border: 1px solid #efd58f; font-weight: 700; }
 .empty-state { margin: 0; padding: 16px; border-radius: 10px; background: #f7f9fc; color: var(--muted); }
+.stat-highlight { background: var(--soft-gold); border-color: #efd58f; }
+.money-in { color: #18754b; font-weight: 800; }
+.money-out { color: #a33c3c; font-weight: 800; }
+.lifestyle-list { display: grid; gap: 12px; }
+.lifestyle-card { display: flex; justify-content: space-between; gap: 18px; align-items: center; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.lifestyle-card h2 { margin: 3px 0 4px; font-size: 1.05rem; }
+.lifestyle-card p { margin: 0 0 5px; color: var(--muted); }
+.lifestyle-card small { color: var(--blue); font-weight: 700; }
+.lifestyle-action { min-width: 150px; display: grid; gap: 7px; justify-items: end; }
 
 @media (max-width: 900px) {
     .dashboard-grid, .match-grid, .creator-layout { grid-template-columns: 1fr; }
@@ -173,4 +182,6 @@ th { color: var(--muted); font-size: .75rem; letter-spacing: .06em; text-transfo
     .action-grid { grid-template-columns: 1fr; }
     .action-grid .button-large { grid-column: auto; }
     .squad-grid { grid-template-columns: 1fr; }
+    .lifestyle-card { align-items: flex-start; flex-direction: column; }
+    .lifestyle-action { width: 100%; min-width: 0; justify-items: start; }
 }

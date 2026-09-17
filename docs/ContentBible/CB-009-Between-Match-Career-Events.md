@@ -75,7 +75,10 @@ career context.
 Events may change training focus or career priority through their existing
 owners and may leave small narrative memory flags. They do not create
 attributes, ratings, form, money, purchases, assets, relationships,
-followers, reputation, or a second event ledger.
+followers, reputation, or a second event ledger. P2-005 may use controlled-
+Player financial context and bounded purchase milestones; money changes route
+through PlayerFinanceService and routine payroll remains in the finance
+ledger rather than Career History or News.
 
 ## Revision History
 

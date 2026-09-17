@@ -70,7 +70,7 @@ final class CareerNewCommand implements CommandInterface
             $database = $store->openDatabase($careerId->value());
             $this->services->worldModule()->service()->initialize($database, $world, $season);
             $this->services->playerModule()->service()->populationService()->populate($database, $season, $request->seed);
-            $start = new YouthCareerStartService($this->services->playerModule()->service(), $this->services->clubModule()->service(), $this->services->competitionModule()->service(), $this->services->contractModule()->service());
+        $start = new YouthCareerStartService($this->services->playerModule()->service(), $this->services->clubModule()->service(), $this->services->competitionModule()->service(), $this->services->contractModule()->service(), $this->services->playerFinanceService());
             $player = $start->createProspect($request);
             $opportunities = $start->opportunities($database, $player, $season);
             if ($opportunities === []) {

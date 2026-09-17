@@ -217,6 +217,14 @@ final class CareerEventCatalog
                 self::choice('join-in', 'Join the tradition', 'Joined a Club tradition after arriving at the Club', null, null, 'lifestyle', 'club_culture'),
                 self::choice('observe-first', 'Observe before joining in', 'Observed a Club tradition before joining in', null, null, 'balanced', 'club_culture'),
             ], ['requires' => ['history_absent' => 'club_culture', 'current_club' => true], 'newsworthy' => false, 'repeatability' => 'once_per_club', 'context_weight' => 4]),
+            self::event('lifestyle-recovery-routine', 'recovery', 'Your off-pitch routine takes shape', 'The recovery support you have built at home gives the next stretch around {club} a little more structure.', [
+                self::choice('protect-the-routine', 'Protect the routine', 'Built a steadier recovery routine around the football week', null, null, 'recovery', 'lifestyle_recovery_routine'),
+                self::choice('share-what-works', 'Share what works with the staff', 'Shared an off-pitch recovery routine with the staff', null, null, 'professional', 'lifestyle_recovery_routine'),
+            ], ['requires' => ['owned_effect' => ['effect' => 'recovery_support', 'min' => 1], 'history_absent' => 'lifestyle_recovery_routine'], 'priority_categories' => ['recovery', 'professional'], 'newsworthy' => false, 'repeatability' => 'once_per_career', 'context_weight' => 7]),
+            self::event('first-wage-perspective', 'financial', 'Your first wage changes the week', 'The first real wage from {club} makes the career feel more concrete. You can keep the money close or use a small part of it to support something beyond yourself.', [
+                self::choice('keep-grounded', 'Keep the money for your next step', 'Kept the first wage focused on the next career step', 'first_wage_perspective'),
+                self::choice('support-community', 'Support a local football session', 'Used part of the first wage to support a local football session', 'community_support', null, 'professional', null, ['amount' => -10, 'type' => 'event_expense', 'context' => 'Supported a local football session']),
+            ], ['requires' => ['wage_income_min' => 1, 'history_absent' => 'first_wage_perspective'], 'priority_categories' => ['professional', 'lifestyle'], 'newsworthy' => false, 'context_weight' => 9]),
         ];
     }
 
@@ -241,13 +249,14 @@ final class CareerEventCatalog
         ];
     }
 
-    private static function choice(string $id, string $label, string $history, ?string $memory = null, ?string $focus = null, ?string $priority = null, ?string $alsoMemory = null): array
+    private static function choice(string $id, string $label, string $history, ?string $memory = null, ?string $focus = null, ?string $priority = null, ?string $alsoMemory = null, ?array $finance = null): array
     {
         $choice = ['id' => $id, 'label' => $label, 'history' => $history];
         if ($memory !== null) { $choice['memory'] = $memory; }
         if ($alsoMemory !== null) { $choice['memory'] = $alsoMemory; }
         if ($focus !== null) { $choice['focus'] = $focus; }
         if ($priority !== null) { $choice['priority'] = $priority; }
+        if ($finance !== null) { $choice['finance'] = $finance; }
 
         return $choice;
     }

@@ -14,6 +14,7 @@ use Goal\Legacy\Modules\Player\Domain\PlayerCreationRequest;
 use Goal\Legacy\Modules\Player\Domain\PlayerException;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
+use Goal\Legacy\Modules\Player\Finance\PlayerFinanceService;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 
 final class PlayerService
@@ -24,6 +25,7 @@ final class PlayerService
         private readonly ?PlayerDevelopmentService $developmentService = null,
         private readonly ?PlayerAvailabilityService $availabilityService = null,
         private readonly ?PlayerPopulationService $populationService = null,
+        private readonly ?PlayerFinanceService $financeService = null,
     ) {
     }
 
@@ -54,7 +56,7 @@ final class PlayerService
 
     public function careerExperienceService(): CareerExperienceService
     {
-        return new CareerExperienceService($this->developmentService(), $this->trainingService(), $this->clubService);
+        return new CareerExperienceService($this->developmentService(), $this->trainingService(), $this->clubService, $this->financeService());
     }
 
     public function populationService(): PlayerPopulationService
@@ -64,6 +66,11 @@ final class PlayerService
         }
 
         return $this->populationService;
+    }
+
+    public function financeService(): PlayerFinanceService
+    {
+        return $this->financeService ?? new PlayerFinanceService();
     }
 
     /** @return list<Player> */

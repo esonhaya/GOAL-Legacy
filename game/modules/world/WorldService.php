@@ -29,6 +29,7 @@ use Goal\Legacy\Modules\World\Domain\WorldException;
 use Goal\Legacy\Modules\World\Domain\WorldId;
 use Goal\Legacy\Modules\World\Persistence\SeasonRepository;
 use Goal\Legacy\Modules\World\Persistence\WorldRepository;
+use Goal\Legacy\Modules\Player\Finance\PlayerFinanceService;
 use InvalidArgumentException;
 
 final class WorldService
@@ -43,6 +44,7 @@ final class WorldService
         private readonly SeasonLifecycleService $seasonLifecycle = new SeasonLifecycleService(),
         private readonly ?ContractService $contractService = null,
         private readonly ?SeasonRolloverService $seasonRollover = null,
+        private readonly ?PlayerFinanceService $playerFinance = null,
     ) {
     }
 
@@ -189,6 +191,7 @@ final class WorldService
         if ($transition?->started() && !$transition->completed() && $this->seasonRollover !== null) {
             $this->seasonRollover->activateNext($database, $transition->season());
         }
+        $this->playerFinance?->processControlledPayroll($database, $date);
         $timestamp = $date->atStartOfDay();
         $this->events->dispatch(new GenericEvent(WorldEventNames::TIME_ADVANCED, [
             'from_date' => $world->currentDate($this->calendar)->toIsoString(),

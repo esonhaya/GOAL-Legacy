@@ -37,6 +37,7 @@ final class YouthCareerStartService
         private readonly ClubService $clubs,
         private readonly CompetitionService $competitions,
         private readonly ContractService $contracts,
+        private readonly ?\Goal\Legacy\Modules\Player\Finance\PlayerFinanceService $finance = null,
     ) {
     }
 
@@ -137,6 +138,7 @@ final class YouthCareerStartService
             $this->contracts->repository($database)->saveInTransaction($contract);
             $this->competitions->registrationRepository($database)->registerInTransaction($registration);
             $careerRepository->save(new CareerPlayerReference($careerId, $player->id(), $startDate));
+            $this->finance?->initializeInTransaction($database, $player->id(), $startDate);
         });
     }
 

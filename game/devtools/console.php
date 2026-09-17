@@ -41,6 +41,10 @@ use Goal\Legacy\Devtools\Commands\CareerNewsCommand;
 use Goal\Legacy\Devtools\Commands\CareerTrainingCommand;
 use Goal\Legacy\Devtools\Commands\CareerEventCommand;
 use Goal\Legacy\Devtools\Commands\CareerCompactCommand;
+use Goal\Legacy\Devtools\Commands\CareerPortraitCommand;
+use Goal\Legacy\Devtools\Commands\CareerAppearanceCommand;
+use Goal\Legacy\Devtools\Commands\AvatarValidateCommand;
+use Goal\Legacy\Devtools\Commands\AvatarContactSheetCommand;
 
 $projectRoot = dirname(__DIR__, 2);
 $services = (new Bootstrap())->create($projectRoot);
@@ -77,6 +81,10 @@ $commands->register(new CareerNewsCommand($services));
 $commands->register(new CareerTrainingCommand($services));
 $commands->register(new CareerEventCommand($services));
 $commands->register(new CareerCompactCommand($services));
+$commands->register(new CareerPortraitCommand($services));
+$commands->register(new CareerAppearanceCommand($services));
+$commands->register(new AvatarValidateCommand($services));
+$commands->register(new AvatarContactSheetCommand($services));
 $commands->register(new CareerPlayCommand($services));
 
 $application = new ConsoleApplication($commands);

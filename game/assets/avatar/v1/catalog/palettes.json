@@ -1,0 +1,219 @@
+{
+  "schema_version": 1,
+  "palettes": {
+    "skin": [
+      {
+        "id": "palette.skin.01",
+        "label": "Skin tone 1",
+        "base": "#F2D1B3",
+        "shadow": "#D29B78",
+        "highlight": "#FFE7CE"
+      },
+      {
+        "id": "palette.skin.02",
+        "label": "Skin tone 2",
+        "base": "#E8B894",
+        "shadow": "#B97958",
+        "highlight": "#F5D1B2"
+      },
+      {
+        "id": "palette.skin.03",
+        "label": "Skin tone 3",
+        "base": "#D99A70",
+        "shadow": "#A96749",
+        "highlight": "#F0B58B"
+      },
+      {
+        "id": "palette.skin.04",
+        "label": "Skin tone 4",
+        "base": "#C9865A",
+        "shadow": "#945331",
+        "highlight": "#E3AA7C"
+      },
+      {
+        "id": "palette.skin.05",
+        "label": "Skin tone 5",
+        "base": "#B96F48",
+        "shadow": "#7D412A",
+        "highlight": "#D79561"
+      },
+      {
+        "id": "palette.skin.06",
+        "label": "Skin tone 6",
+        "base": "#A65D3B",
+        "shadow": "#703521",
+        "highlight": "#C98258"
+      },
+      {
+        "id": "palette.skin.07",
+        "label": "Skin tone 7",
+        "base": "#92502F",
+        "shadow": "#5E2E1B",
+        "highlight": "#B86E45"
+      },
+      {
+        "id": "palette.skin.08",
+        "label": "Skin tone 8",
+        "base": "#7D4329",
+        "shadow": "#4D2518",
+        "highlight": "#A65D3A"
+      },
+      {
+        "id": "palette.skin.09",
+        "label": "Skin tone 9",
+        "base": "#67351F",
+        "shadow": "#3E1D14",
+        "highlight": "#8E4C2C"
+      },
+      {
+        "id": "palette.skin.10",
+        "label": "Skin tone 10",
+        "base": "#502718",
+        "shadow": "#2E140D",
+        "highlight": "#79412B"
+      },
+      {
+        "id": "palette.skin.11",
+        "label": "Skin tone 11",
+        "base": "#3C1B12",
+        "shadow": "#24100B",
+        "highlight": "#5D2B1A"
+      },
+      {
+        "id": "palette.skin.12",
+        "label": "Skin tone 12",
+        "base": "#2B130D",
+        "shadow": "#190A06",
+        "highlight": "#4B2115"
+      }
+    ],
+    "eye": [
+      {
+        "id": "palette.eye.brown",
+        "label": "Brown",
+        "color": "#4A291A"
+      },
+      {
+        "id": "palette.eye.dark_brown",
+        "label": "Dark Brown",
+        "color": "#24140D"
+      },
+      {
+        "id": "palette.eye.hazel",
+        "label": "Hazel",
+        "color": "#927348"
+      },
+      {
+        "id": "palette.eye.green",
+        "label": "Green",
+        "color": "#4C7A58"
+      },
+      {
+        "id": "palette.eye.blue",
+        "label": "Blue",
+        "color": "#527FA2"
+      },
+      {
+        "id": "palette.eye.grey",
+        "label": "Grey",
+        "color": "#7C8790"
+      },
+      {
+        "id": "palette.eye.amber",
+        "label": "Amber",
+        "color": "#B8792F"
+      },
+      {
+        "id": "palette.eye.dark_grey",
+        "label": "Dark Grey",
+        "color": "#3C4B55"
+      }
+    ],
+    "hair": [
+      {
+        "id": "palette.hair.01",
+        "label": "Hair color 1",
+        "base": "#161311",
+        "shadow": "#17120F",
+        "highlight": "#E7C08A"
+      },
+      {
+        "id": "palette.hair.02",
+        "label": "Hair color 2",
+        "base": "#2A1A15",
+        "shadow": "#17120F",
+        "highlight": "#E7C08A"
+      },
+      {
+        "id": "palette.hair.03",
+        "label": "Hair color 3",
+        "base": "#43271B",
+        "shadow": "#17120F",
+        "highlight": "#E7C08A"
+      },
+      {
+        "id": "palette.hair.04",
+        "label": "Hair color 4",
+        "base": "#5B3421",
+        "shadow": "#17120F",
+        "highlight": "#E7C08A"
+      },
+      {
+        "id": "palette.hair.05",
+        "label": "Hair color 5",
+        "base": "#77482B",
+        "shadow": "#17120F",
+        "highlight": "#E7C08A"
+      },
+      {
+        "id": "palette.hair.06",
+        "label": "Hair color 6",
+        "base": "#91613A",
+        "shadow": "#17120F",
+        "highlight": "#E7C08A"
+      },
+      {
+        "id": "palette.hair.07",
+        "label": "Hair color 7",
+        "base": "#B27A48",
+        "shadow": "#17120F",
+        "highlight": "#E7C08A"
+      },
+      {
+        "id": "palette.hair.08",
+        "label": "Hair color 8",
+        "base": "#D0A16B",
+        "shadow": "#17120F",
+        "highlight": "#E7C08A"
+      },
+      {
+        "id": "palette.hair.09",
+        "label": "Hair color 9",
+        "base": "#D6B979",
+        "shadow": "#17120F",
+        "highlight": "#E7C08A"
+      },
+      {
+        "id": "palette.hair.10",
+        "label": "Hair color 10",
+        "base": "#B6B1A4",
+        "shadow": "#17120F",
+        "highlight": "#E7C08A"
+      },
+      {
+        "id": "palette.hair.11",
+        "label": "Hair color 11",
+        "base": "#E1E0DA",
+        "shadow": "#17120F",
+        "highlight": "#E7C08A"
+      },
+      {
+        "id": "palette.hair.12",
+        "label": "Hair color 12",
+        "base": "#F0E7D2",
+        "shadow": "#17120F",
+        "highlight": "#E7C08A"
+      }
+    ]
+  }
+}

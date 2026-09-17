@@ -17,6 +17,7 @@ use Goal\Legacy\Modules\Player\Domain\CareerId;
 use Goal\Legacy\Modules\Player\Domain\CareerStartRequest;
 use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
 use Goal\Legacy\Modules\Player\YouthCareerStartService;
+use Goal\Legacy\Modules\Player\Avatar\PlayerAppearanceService;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -33,7 +34,7 @@ final class CareerNewCommand implements CommandInterface
 
     public function name(): string { return 'career:new'; }
 
-    public function description(): string { return 'Preview Youth Camp offers or create a playable career with --save, --name, --nation, --height, --weight, --position, --archetype, --seed, and --club.'; }
+    public function description(): string { return 'Preview Youth Camp offers or create a playable career with optional --appearance-preset.'; }
 
     public function execute(array $arguments, ConsoleOutputInterface $output): int
     {
@@ -90,6 +91,14 @@ final class CareerNewCommand implements CommandInterface
             $database = $destinationStore->openDatabase($careerId->value());
             $this->services->worldModule()->service()->initialize($database, $world, $season);
             $start->accept($database, $player, $careerId, $season, SimulationDate::fromIsoString('2024-07-31'), $opportunities, (string) $options['club']);
+            $appearanceService = new PlayerAppearanceService();
+            $appearance = isset($options['appearance-preset'])
+                ? $appearanceService->preset((string) $options['appearance-preset'])
+                : $appearanceService->generator()->generate($player, SimulationDate::fromIsoString('2024-07-31'));
+            if ($appearance === null) {
+                throw new RuntimeException('Unknown Avatar preset.');
+            }
+            $appearanceService->save($database, $player, $appearance);
             $this->services->playerModule()->service()->populationService()->populate($database, $season, $request->seed);
             foreach ($this->services->competitionModule()->service()->repository($database)->bySeason($season->id()) as $competition) {
                 $this->services->matchModule()->service()->generateFixtures($database, $competition->id()->value(), $season->id());

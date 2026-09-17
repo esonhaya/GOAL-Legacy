@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id_pattern": "avatar.<category>.<family>.<variant>",
+  "palette_pattern": "palette.<category>.<variant>",
+  "stable_fields": [
+    "skin_tone",
+    "face",
+    "jaw",
+    "ears",
+    "eyes",
+    "eye_color",
+    "brows",
+    "nose",
+    "mouth"
+  ],
+  "mutable_fields": [
+    "hair",
+    "hair_color",
+    "facial_hair",
+    "facial_hair_color",
+    "skin_detail",
+    "scar",
+    "accessory"
+  ]
+}

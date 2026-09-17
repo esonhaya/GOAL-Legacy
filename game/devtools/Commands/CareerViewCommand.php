@@ -10,6 +10,10 @@ use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Devtools\Presentation\CareerFormatter;
 use Goal\Legacy\Devtools\Presentation\CareerPresentationService;
+use Goal\Legacy\Modules\Player\Avatar\PlayerAppearanceService;
+use Goal\Legacy\Modules\Player\Avatar\PortraitContext;
+use Goal\Legacy\Modules\Player\Avatar\PortraitRenderer;
+use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 
 final class CareerViewCommand implements CommandInterface
 {
@@ -30,6 +34,15 @@ final class CareerViewCommand implements CommandInterface
         foreach ((new CareerFormatter())->career($snapshot['summary']) as $line) {
             $output->write($line);
         }
+        $worldService = $this->services->worldModule()->service();
+        $world = $worldService->load($database, $saveId);
+        $career = (new CareerPlayerRepository($database))->get($saveId);
+        $player = $this->services->playerModule()->service()->repository($database)->get($career->playerId());
+        $date = $world->currentDate($worldService->calendar());
+        $club = isset($snapshot['summary']['current_club']['id']) ? $this->services->clubModule()->service()->repository($database)->get((string) $snapshot['summary']['current_club']['id']) : null;
+        $appearance = (new PlayerAppearanceService())->getOrGenerate($database, $player, $date);
+        $portrait = (new PortraitRenderer())->render($appearance, PortraitContext::forPlayer($player, $date, $club), 128);
+        $output->write('Portrait file: ' . $portrait);
 
         return 0;
     }

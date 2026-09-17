@@ -12,6 +12,7 @@
 - GDB-002 Simulation Bible
 - GDB-003 Character & Career
 - GDB-004 Phase 1 Release Scope (current reconciliation)
+- GDB-005 Avatar and Portrait V1
 
 ## Technical Bible
 - TB-001 Technical Architecture
@@ -23,6 +24,8 @@
 
 ## Content Bible
 - CB-009 Between-Match Career Events
+- CB-010 Avatar V1 Visual Style and Asset Authoring
 
 ## Engine Implementation Guides
 - EIG-018 Career Experience Boundary
+- EIG-019 Avatar and Portrait Engine

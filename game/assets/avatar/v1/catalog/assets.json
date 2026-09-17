@@ -1,0 +1,5105 @@
+{
+  "schema_version": 1,
+  "assets": [
+    {
+      "id": "avatar.face.oval.01",
+      "version": 1,
+      "category": "face",
+      "family": "oval",
+      "label": "Oval",
+      "layers": [
+        "face"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 0,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/face/avatar_face_oval_01.svg"
+    },
+    {
+      "id": "avatar.face.round.02",
+      "version": 1,
+      "category": "face",
+      "family": "round",
+      "label": "Round",
+      "layers": [
+        "face"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 0,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/face/avatar_face_round_02.svg"
+    },
+    {
+      "id": "avatar.face.square.03",
+      "version": 1,
+      "category": "face",
+      "family": "square",
+      "label": "Square",
+      "layers": [
+        "face"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 0,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/face/avatar_face_square_03.svg"
+    },
+    {
+      "id": "avatar.face.long.04",
+      "version": 1,
+      "category": "face",
+      "family": "long",
+      "label": "Long",
+      "layers": [
+        "face"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 0,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/face/avatar_face_long_04.svg"
+    },
+    {
+      "id": "avatar.face.heart.05",
+      "version": 1,
+      "category": "face",
+      "family": "heart",
+      "label": "Heart",
+      "layers": [
+        "face"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 0,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/face/avatar_face_heart_05.svg"
+    },
+    {
+      "id": "avatar.face.diamond.06",
+      "version": 1,
+      "category": "face",
+      "family": "diamond",
+      "label": "Diamond",
+      "layers": [
+        "face"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 0,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/face/avatar_face_diamond_06.svg"
+    },
+    {
+      "id": "avatar.face.soft.07",
+      "version": 1,
+      "category": "face",
+      "family": "soft",
+      "label": "Soft",
+      "layers": [
+        "face"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 0,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/face/avatar_face_soft_07.svg"
+    },
+    {
+      "id": "avatar.face.angular.08",
+      "version": 1,
+      "category": "face",
+      "family": "angular",
+      "label": "Angular",
+      "layers": [
+        "face"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 0,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/face/avatar_face_angular_08.svg"
+    },
+    {
+      "id": "avatar.face.youthful.09",
+      "version": 1,
+      "category": "face",
+      "family": "youthful",
+      "label": "Youthful",
+      "layers": [
+        "face"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 0,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/face/avatar_face_youthful_09.svg"
+    },
+    {
+      "id": "avatar.face.mature.10",
+      "version": 1,
+      "category": "face",
+      "family": "mature",
+      "label": "Mature",
+      "layers": [
+        "face"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 0,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/face/avatar_face_mature_10.svg"
+    },
+    {
+      "id": "avatar.face.broad.11",
+      "version": 1,
+      "category": "face",
+      "family": "broad",
+      "label": "Broad",
+      "layers": [
+        "face"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 0,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/face/avatar_face_broad_11.svg"
+    },
+    {
+      "id": "avatar.face.narrow.12",
+      "version": 1,
+      "category": "face",
+      "family": "narrow",
+      "label": "Narrow",
+      "layers": [
+        "face"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 0,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/face/avatar_face_narrow_12.svg"
+    },
+    {
+      "id": "avatar.jaw.soft.01",
+      "version": 1,
+      "category": "jaw",
+      "family": "soft",
+      "label": "Soft",
+      "layers": [
+        "jaw"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 1,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/jaw/avatar_jaw_soft_01.svg"
+    },
+    {
+      "id": "avatar.jaw.defined.02",
+      "version": 1,
+      "category": "jaw",
+      "family": "defined",
+      "label": "Defined",
+      "layers": [
+        "jaw"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 1,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/jaw/avatar_jaw_defined_02.svg"
+    },
+    {
+      "id": "avatar.jaw.square.03",
+      "version": 1,
+      "category": "jaw",
+      "family": "square",
+      "label": "Square",
+      "layers": [
+        "jaw"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 1,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/jaw/avatar_jaw_square_03.svg"
+    },
+    {
+      "id": "avatar.jaw.tapered.04",
+      "version": 1,
+      "category": "jaw",
+      "family": "tapered",
+      "label": "Tapered",
+      "layers": [
+        "jaw"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 1,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/jaw/avatar_jaw_tapered_04.svg"
+    },
+    {
+      "id": "avatar.jaw.wide.05",
+      "version": 1,
+      "category": "jaw",
+      "family": "wide",
+      "label": "Wide",
+      "layers": [
+        "jaw"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 1,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/jaw/avatar_jaw_wide_05.svg"
+    },
+    {
+      "id": "avatar.jaw.pointed.06",
+      "version": 1,
+      "category": "jaw",
+      "family": "pointed",
+      "label": "Pointed",
+      "layers": [
+        "jaw"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 1,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/jaw/avatar_jaw_pointed_06.svg"
+    },
+    {
+      "id": "avatar.jaw.strong.07",
+      "version": 1,
+      "category": "jaw",
+      "family": "strong",
+      "label": "Strong",
+      "layers": [
+        "jaw"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 1,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/jaw/avatar_jaw_strong_07.svg"
+    },
+    {
+      "id": "avatar.jaw.rounded.08",
+      "version": 1,
+      "category": "jaw",
+      "family": "rounded",
+      "label": "Rounded",
+      "layers": [
+        "jaw"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 1,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/jaw/avatar_jaw_rounded_08.svg"
+    },
+    {
+      "id": "avatar.ears.small.01",
+      "version": 1,
+      "category": "ears",
+      "family": "small",
+      "label": "Small",
+      "layers": [
+        "ears"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 2,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/ears/avatar_ears_small_01.svg"
+    },
+    {
+      "id": "avatar.ears.medium.02",
+      "version": 1,
+      "category": "ears",
+      "family": "medium",
+      "label": "Medium",
+      "layers": [
+        "ears"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 2,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/ears/avatar_ears_medium_02.svg"
+    },
+    {
+      "id": "avatar.ears.large.03",
+      "version": 1,
+      "category": "ears",
+      "family": "large",
+      "label": "Large",
+      "layers": [
+        "ears"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 2,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/ears/avatar_ears_large_03.svg"
+    },
+    {
+      "id": "avatar.ears.round.04",
+      "version": 1,
+      "category": "ears",
+      "family": "round",
+      "label": "Round",
+      "layers": [
+        "ears"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 2,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/ears/avatar_ears_round_04.svg"
+    },
+    {
+      "id": "avatar.ears.pointed.05",
+      "version": 1,
+      "category": "ears",
+      "family": "pointed",
+      "label": "Pointed",
+      "layers": [
+        "ears"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 2,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/ears/avatar_ears_pointed_05.svg"
+    },
+    {
+      "id": "avatar.ears.close.06",
+      "version": 1,
+      "category": "ears",
+      "family": "close",
+      "label": "Close",
+      "layers": [
+        "ears"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 2,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/ears/avatar_ears_close_06.svg"
+    },
+    {
+      "id": "avatar.eyes.almond.01",
+      "version": 1,
+      "category": "eyes",
+      "family": "almond",
+      "label": "Almond",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_almond_01.svg"
+    },
+    {
+      "id": "avatar.eyes.round.02",
+      "version": 1,
+      "category": "eyes",
+      "family": "round",
+      "label": "Round",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_round_02.svg"
+    },
+    {
+      "id": "avatar.eyes.hooded.03",
+      "version": 1,
+      "category": "eyes",
+      "family": "hooded",
+      "label": "Hooded",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_hooded_03.svg"
+    },
+    {
+      "id": "avatar.eyes.upturned.04",
+      "version": 1,
+      "category": "eyes",
+      "family": "upturned",
+      "label": "Upturned",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_upturned_04.svg"
+    },
+    {
+      "id": "avatar.eyes.downturned.05",
+      "version": 1,
+      "category": "eyes",
+      "family": "downturned",
+      "label": "Downturned",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_downturned_05.svg"
+    },
+    {
+      "id": "avatar.eyes.wide.06",
+      "version": 1,
+      "category": "eyes",
+      "family": "wide",
+      "label": "Wide",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_wide_06.svg"
+    },
+    {
+      "id": "avatar.eyes.deep.07",
+      "version": 1,
+      "category": "eyes",
+      "family": "deep",
+      "label": "Deep",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_deep_07.svg"
+    },
+    {
+      "id": "avatar.eyes.monolid.08",
+      "version": 1,
+      "category": "eyes",
+      "family": "monolid",
+      "label": "Monolid",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_monolid_08.svg"
+    },
+    {
+      "id": "avatar.eyes.sleepy.09",
+      "version": 1,
+      "category": "eyes",
+      "family": "sleepy",
+      "label": "Sleepy",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_sleepy_09.svg"
+    },
+    {
+      "id": "avatar.eyes.sharp.10",
+      "version": 1,
+      "category": "eyes",
+      "family": "sharp",
+      "label": "Sharp",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_sharp_10.svg"
+    },
+    {
+      "id": "avatar.eyes.soft.11",
+      "version": 1,
+      "category": "eyes",
+      "family": "soft",
+      "label": "Soft",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_soft_11.svg"
+    },
+    {
+      "id": "avatar.eyes.large.12",
+      "version": 1,
+      "category": "eyes",
+      "family": "large",
+      "label": "Large",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_large_12.svg"
+    },
+    {
+      "id": "avatar.eyes.close.13",
+      "version": 1,
+      "category": "eyes",
+      "family": "close",
+      "label": "Close",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_close_13.svg"
+    },
+    {
+      "id": "avatar.eyes.focused.14",
+      "version": 1,
+      "category": "eyes",
+      "family": "focused",
+      "label": "Focused",
+      "layers": [
+        "eyes"
+      ],
+      "tint_mode": "eye",
+      "creator_enabled": true,
+      "creator_order": 3,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/eyes/avatar_eyes_focused_14.svg"
+    },
+    {
+      "id": "avatar.brows.straight.01",
+      "version": 1,
+      "category": "brows",
+      "family": "straight",
+      "label": "Straight",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_straight_01.svg"
+    },
+    {
+      "id": "avatar.brows.arched.02",
+      "version": 1,
+      "category": "brows",
+      "family": "arched",
+      "label": "Arched",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_arched_02.svg"
+    },
+    {
+      "id": "avatar.brows.soft.03",
+      "version": 1,
+      "category": "brows",
+      "family": "soft",
+      "label": "Soft",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_soft_03.svg"
+    },
+    {
+      "id": "avatar.brows.thick.04",
+      "version": 1,
+      "category": "brows",
+      "family": "thick",
+      "label": "Thick",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_thick_04.svg"
+    },
+    {
+      "id": "avatar.brows.short.05",
+      "version": 1,
+      "category": "brows",
+      "family": "short",
+      "label": "Short",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_short_05.svg"
+    },
+    {
+      "id": "avatar.brows.high.06",
+      "version": 1,
+      "category": "brows",
+      "family": "high",
+      "label": "High",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_high_06.svg"
+    },
+    {
+      "id": "avatar.brows.low.07",
+      "version": 1,
+      "category": "brows",
+      "family": "low",
+      "label": "Low",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_low_07.svg"
+    },
+    {
+      "id": "avatar.brows.angled.08",
+      "version": 1,
+      "category": "brows",
+      "family": "angled",
+      "label": "Angled",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_angled_08.svg"
+    },
+    {
+      "id": "avatar.brows.rounded.09",
+      "version": 1,
+      "category": "brows",
+      "family": "rounded",
+      "label": "Rounded",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_rounded_09.svg"
+    },
+    {
+      "id": "avatar.brows.bold.10",
+      "version": 1,
+      "category": "brows",
+      "family": "bold",
+      "label": "Bold",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_bold_10.svg"
+    },
+    {
+      "id": "avatar.brows.fine.11",
+      "version": 1,
+      "category": "brows",
+      "family": "fine",
+      "label": "Fine",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_fine_11.svg"
+    },
+    {
+      "id": "avatar.brows.wide.12",
+      "version": 1,
+      "category": "brows",
+      "family": "wide",
+      "label": "Wide",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_wide_12.svg"
+    },
+    {
+      "id": "avatar.brows.close.13",
+      "version": 1,
+      "category": "brows",
+      "family": "close",
+      "label": "Close",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_close_13.svg"
+    },
+    {
+      "id": "avatar.brows.expressive.14",
+      "version": 1,
+      "category": "brows",
+      "family": "expressive",
+      "label": "Expressive",
+      "layers": [
+        "brows"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 4,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/brows/avatar_brows_expressive_14.svg"
+    },
+    {
+      "id": "avatar.nose.straight.01",
+      "version": 1,
+      "category": "nose",
+      "family": "straight",
+      "label": "Straight",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_straight_01.svg"
+    },
+    {
+      "id": "avatar.nose.button.02",
+      "version": 1,
+      "category": "nose",
+      "family": "button",
+      "label": "Button",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_button_02.svg"
+    },
+    {
+      "id": "avatar.nose.wide.03",
+      "version": 1,
+      "category": "nose",
+      "family": "wide",
+      "label": "Wide",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_wide_03.svg"
+    },
+    {
+      "id": "avatar.nose.slender.04",
+      "version": 1,
+      "category": "nose",
+      "family": "slender",
+      "label": "Slender",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_slender_04.svg"
+    },
+    {
+      "id": "avatar.nose.roman.05",
+      "version": 1,
+      "category": "nose",
+      "family": "roman",
+      "label": "Roman",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_roman_05.svg"
+    },
+    {
+      "id": "avatar.nose.short.06",
+      "version": 1,
+      "category": "nose",
+      "family": "short",
+      "label": "Short",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_short_06.svg"
+    },
+    {
+      "id": "avatar.nose.long.07",
+      "version": 1,
+      "category": "nose",
+      "family": "long",
+      "label": "Long",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_long_07.svg"
+    },
+    {
+      "id": "avatar.nose.rounded.08",
+      "version": 1,
+      "category": "nose",
+      "family": "rounded",
+      "label": "Rounded",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_rounded_08.svg"
+    },
+    {
+      "id": "avatar.nose.angular.09",
+      "version": 1,
+      "category": "nose",
+      "family": "angular",
+      "label": "Angular",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_angular_09.svg"
+    },
+    {
+      "id": "avatar.nose.soft.10",
+      "version": 1,
+      "category": "nose",
+      "family": "soft",
+      "label": "Soft",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_soft_10.svg"
+    },
+    {
+      "id": "avatar.nose.high.11",
+      "version": 1,
+      "category": "nose",
+      "family": "high",
+      "label": "High",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_high_11.svg"
+    },
+    {
+      "id": "avatar.nose.low.12",
+      "version": 1,
+      "category": "nose",
+      "family": "low",
+      "label": "Low",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_low_12.svg"
+    },
+    {
+      "id": "avatar.nose.compact.13",
+      "version": 1,
+      "category": "nose",
+      "family": "compact",
+      "label": "Compact",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_compact_13.svg"
+    },
+    {
+      "id": "avatar.nose.distinct.14",
+      "version": 1,
+      "category": "nose",
+      "family": "distinct",
+      "label": "Distinct",
+      "layers": [
+        "nose"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 5,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/nose/avatar_nose_distinct_14.svg"
+    },
+    {
+      "id": "avatar.mouth.neutral.01",
+      "version": 1,
+      "category": "mouth",
+      "family": "neutral",
+      "label": "Neutral",
+      "layers": [
+        "mouth"
+      ],
+      "tint_mode": "mouth",
+      "creator_enabled": true,
+      "creator_order": 6,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/mouth/avatar_mouth_neutral_01.svg"
+    },
+    {
+      "id": "avatar.mouth.smile.02",
+      "version": 1,
+      "category": "mouth",
+      "family": "smile",
+      "label": "Smile",
+      "layers": [
+        "mouth"
+      ],
+      "tint_mode": "mouth",
+      "creator_enabled": true,
+      "creator_order": 6,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/mouth/avatar_mouth_smile_02.svg"
+    },
+    {
+      "id": "avatar.mouth.full.03",
+      "version": 1,
+      "category": "mouth",
+      "family": "full",
+      "label": "Full",
+      "layers": [
+        "mouth"
+      ],
+      "tint_mode": "mouth",
+      "creator_enabled": true,
+      "creator_order": 6,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/mouth/avatar_mouth_full_03.svg"
+    },
+    {
+      "id": "avatar.mouth.thin.04",
+      "version": 1,
+      "category": "mouth",
+      "family": "thin",
+      "label": "Thin",
+      "layers": [
+        "mouth"
+      ],
+      "tint_mode": "mouth",
+      "creator_enabled": true,
+      "creator_order": 6,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/mouth/avatar_mouth_thin_04.svg"
+    },
+    {
+      "id": "avatar.mouth.wide.05",
+      "version": 1,
+      "category": "mouth",
+      "family": "wide",
+      "label": "Wide",
+      "layers": [
+        "mouth"
+      ],
+      "tint_mode": "mouth",
+      "creator_enabled": true,
+      "creator_order": 6,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/mouth/avatar_mouth_wide_05.svg"
+    },
+    {
+      "id": "avatar.mouth.soft.06",
+      "version": 1,
+      "category": "mouth",
+      "family": "soft",
+      "label": "Soft",
+      "layers": [
+        "mouth"
+      ],
+      "tint_mode": "mouth",
+      "creator_enabled": true,
+      "creator_order": 6,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/mouth/avatar_mouth_soft_06.svg"
+    },
+    {
+      "id": "avatar.mouth.defined.07",
+      "version": 1,
+      "category": "mouth",
+      "family": "defined",
+      "label": "Defined",
+      "layers": [
+        "mouth"
+      ],
+      "tint_mode": "mouth",
+      "creator_enabled": true,
+      "creator_order": 6,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/mouth/avatar_mouth_defined_07.svg"
+    },
+    {
+      "id": "avatar.mouth.upturned.08",
+      "version": 1,
+      "category": "mouth",
+      "family": "upturned",
+      "label": "Upturned",
+      "layers": [
+        "mouth"
+      ],
+      "tint_mode": "mouth",
+      "creator_enabled": true,
+      "creator_order": 6,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/mouth/avatar_mouth_upturned_08.svg"
+    },
+    {
+      "id": "avatar.mouth.downturned.09",
+      "version": 1,
+      "category": "mouth",
+      "family": "downturned",
+      "label": "Downturned",
+      "layers": [
+        "mouth"
+      ],
+      "tint_mode": "mouth",
+      "creator_enabled": true,
+      "creator_order": 6,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/mouth/avatar_mouth_downturned_09.svg"
+    },
+    {
+      "id": "avatar.mouth.open.10",
+      "version": 1,
+      "category": "mouth",
+      "family": "open",
+      "label": "Open",
+      "layers": [
+        "mouth"
+      ],
+      "tint_mode": "mouth",
+      "creator_enabled": true,
+      "creator_order": 6,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/mouth/avatar_mouth_open_10.svg"
+    },
+    {
+      "id": "avatar.mouth.bow.11",
+      "version": 1,
+      "category": "mouth",
+      "family": "bow",
+      "label": "Bow",
+      "layers": [
+        "mouth"
+      ],
+      "tint_mode": "mouth",
+      "creator_enabled": true,
+      "creator_order": 6,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/mouth/avatar_mouth_bow_11.svg"
+    },
+    {
+      "id": "avatar.mouth.compact.12",
+      "version": 1,
+      "category": "mouth",
+      "family": "compact",
+      "label": "Compact",
+      "layers": [
+        "mouth"
+      ],
+      "tint_mode": "mouth",
+      "creator_enabled": true,
+      "creator_order": 6,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/mouth/avatar_mouth_compact_12.svg"
+    },
+    {
+      "id": "avatar.hair.bald.01",
+      "version": 1,
+      "category": "hair",
+      "family": "bald",
+      "label": "Bald 1",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "bald"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/bald/avatar_hair_bald_01.svg"
+    },
+    {
+      "id": "avatar.hair.bald.02",
+      "version": 1,
+      "category": "hair",
+      "family": "bald",
+      "label": "Bald 2",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "bald"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/bald/avatar_hair_bald_02.svg"
+    },
+    {
+      "id": "avatar.hair.bald.03",
+      "version": 1,
+      "category": "hair",
+      "family": "bald",
+      "label": "Bald 3",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "bald"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/bald/avatar_hair_bald_03.svg"
+    },
+    {
+      "id": "avatar.hair.bald.04",
+      "version": 1,
+      "category": "hair",
+      "family": "bald",
+      "label": "Bald 4",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "bald"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/bald/avatar_hair_bald_04.svg"
+    },
+    {
+      "id": "avatar.hair.shaved.01",
+      "version": 1,
+      "category": "hair",
+      "family": "shaved",
+      "label": "Shaved 1",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "shaved"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/shaved/avatar_hair_shaved_01.svg"
+    },
+    {
+      "id": "avatar.hair.shaved.02",
+      "version": 1,
+      "category": "hair",
+      "family": "shaved",
+      "label": "Shaved 2",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "shaved"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/shaved/avatar_hair_shaved_02.svg"
+    },
+    {
+      "id": "avatar.hair.shaved.03",
+      "version": 1,
+      "category": "hair",
+      "family": "shaved",
+      "label": "Shaved 3",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "shaved"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/shaved/avatar_hair_shaved_03.svg"
+    },
+    {
+      "id": "avatar.hair.shaved.04",
+      "version": 1,
+      "category": "hair",
+      "family": "shaved",
+      "label": "Shaved 4",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "shaved"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/shaved/avatar_hair_shaved_04.svg"
+    },
+    {
+      "id": "avatar.hair.straight.01",
+      "version": 1,
+      "category": "hair",
+      "family": "straight",
+      "label": "Straight 1",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "straight"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/straight/avatar_hair_straight_01.svg"
+    },
+    {
+      "id": "avatar.hair.straight.02",
+      "version": 1,
+      "category": "hair",
+      "family": "straight",
+      "label": "Straight 2",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "straight"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/straight/avatar_hair_straight_02.svg"
+    },
+    {
+      "id": "avatar.hair.straight.03",
+      "version": 1,
+      "category": "hair",
+      "family": "straight",
+      "label": "Straight 3",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "straight"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/straight/avatar_hair_straight_03.svg"
+    },
+    {
+      "id": "avatar.hair.straight.04",
+      "version": 1,
+      "category": "hair",
+      "family": "straight",
+      "label": "Straight 4",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "straight"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/straight/avatar_hair_straight_04.svg"
+    },
+    {
+      "id": "avatar.hair.wavy.01",
+      "version": 1,
+      "category": "hair",
+      "family": "wavy",
+      "label": "Wavy 1",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "wavy"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/wavy/avatar_hair_wavy_01.svg"
+    },
+    {
+      "id": "avatar.hair.wavy.02",
+      "version": 1,
+      "category": "hair",
+      "family": "wavy",
+      "label": "Wavy 2",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "wavy"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/wavy/avatar_hair_wavy_02.svg"
+    },
+    {
+      "id": "avatar.hair.wavy.03",
+      "version": 1,
+      "category": "hair",
+      "family": "wavy",
+      "label": "Wavy 3",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "wavy"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/wavy/avatar_hair_wavy_03.svg"
+    },
+    {
+      "id": "avatar.hair.wavy.04",
+      "version": 1,
+      "category": "hair",
+      "family": "wavy",
+      "label": "Wavy 4",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "wavy"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/wavy/avatar_hair_wavy_04.svg"
+    },
+    {
+      "id": "avatar.hair.curly.01",
+      "version": 1,
+      "category": "hair",
+      "family": "curly",
+      "label": "Curly 1",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "curly"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/curly/avatar_hair_curly_01.svg"
+    },
+    {
+      "id": "avatar.hair.curly.02",
+      "version": 1,
+      "category": "hair",
+      "family": "curly",
+      "label": "Curly 2",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "curly"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/curly/avatar_hair_curly_02.svg"
+    },
+    {
+      "id": "avatar.hair.curly.03",
+      "version": 1,
+      "category": "hair",
+      "family": "curly",
+      "label": "Curly 3",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "curly"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/curly/avatar_hair_curly_03.svg"
+    },
+    {
+      "id": "avatar.hair.curly.04",
+      "version": 1,
+      "category": "hair",
+      "family": "curly",
+      "label": "Curly 4",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "curly"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/curly/avatar_hair_curly_04.svg"
+    },
+    {
+      "id": "avatar.hair.coily.01",
+      "version": 1,
+      "category": "hair",
+      "family": "coily",
+      "label": "Coily 1",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "coily"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/coily/avatar_hair_coily_01.svg"
+    },
+    {
+      "id": "avatar.hair.coily.02",
+      "version": 1,
+      "category": "hair",
+      "family": "coily",
+      "label": "Coily 2",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "coily"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/coily/avatar_hair_coily_02.svg"
+    },
+    {
+      "id": "avatar.hair.coily.03",
+      "version": 1,
+      "category": "hair",
+      "family": "coily",
+      "label": "Coily 3",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "coily"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/coily/avatar_hair_coily_03.svg"
+    },
+    {
+      "id": "avatar.hair.coily.04",
+      "version": 1,
+      "category": "hair",
+      "family": "coily",
+      "label": "Coily 4",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "coily"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/coily/avatar_hair_coily_04.svg"
+    },
+    {
+      "id": "avatar.hair.afro.01",
+      "version": 1,
+      "category": "hair",
+      "family": "afro",
+      "label": "Afro 1",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "afro"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/afro/avatar_hair_afro_01.svg"
+    },
+    {
+      "id": "avatar.hair.afro.02",
+      "version": 1,
+      "category": "hair",
+      "family": "afro",
+      "label": "Afro 2",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "afro"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/afro/avatar_hair_afro_02.svg"
+    },
+    {
+      "id": "avatar.hair.afro.03",
+      "version": 1,
+      "category": "hair",
+      "family": "afro",
+      "label": "Afro 3",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "afro"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/afro/avatar_hair_afro_03.svg"
+    },
+    {
+      "id": "avatar.hair.afro.04",
+      "version": 1,
+      "category": "hair",
+      "family": "afro",
+      "label": "Afro 4",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "afro"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/afro/avatar_hair_afro_04.svg"
+    },
+    {
+      "id": "avatar.hair.braids.01",
+      "version": 1,
+      "category": "hair",
+      "family": "braids",
+      "label": "Braids 1",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "braids",
+        "protective"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/protective/avatar_hair_braids_01.svg"
+    },
+    {
+      "id": "avatar.hair.braids.02",
+      "version": 1,
+      "category": "hair",
+      "family": "braids",
+      "label": "Braids 2",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "braids",
+        "protective"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/protective/avatar_hair_braids_02.svg"
+    },
+    {
+      "id": "avatar.hair.braids.03",
+      "version": 1,
+      "category": "hair",
+      "family": "braids",
+      "label": "Braids 3",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "braids",
+        "protective"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/protective/avatar_hair_braids_03.svg"
+    },
+    {
+      "id": "avatar.hair.braids.04",
+      "version": 1,
+      "category": "hair",
+      "family": "braids",
+      "label": "Braids 4",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "braids",
+        "protective"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/protective/avatar_hair_braids_04.svg"
+    },
+    {
+      "id": "avatar.hair.cornrows.01",
+      "version": 1,
+      "category": "hair",
+      "family": "cornrows",
+      "label": "Cornrows 1",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "cornrows",
+        "protective"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/protective/avatar_hair_cornrows_01.svg"
+    },
+    {
+      "id": "avatar.hair.cornrows.02",
+      "version": 1,
+      "category": "hair",
+      "family": "cornrows",
+      "label": "Cornrows 2",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "cornrows",
+        "protective"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/protective/avatar_hair_cornrows_02.svg"
+    },
+    {
+      "id": "avatar.hair.cornrows.03",
+      "version": 1,
+      "category": "hair",
+      "family": "cornrows",
+      "label": "Cornrows 3",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "cornrows",
+        "protective"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/protective/avatar_hair_cornrows_03.svg"
+    },
+    {
+      "id": "avatar.hair.cornrows.04",
+      "version": 1,
+      "category": "hair",
+      "family": "cornrows",
+      "label": "Cornrows 4",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "cornrows",
+        "protective"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/protective/avatar_hair_cornrows_04.svg"
+    },
+    {
+      "id": "avatar.hair.locs.01",
+      "version": 1,
+      "category": "hair",
+      "family": "locs",
+      "label": "Locs 1",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "locs",
+        "protective"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/protective/avatar_hair_locs_01.svg"
+    },
+    {
+      "id": "avatar.hair.locs.02",
+      "version": 1,
+      "category": "hair",
+      "family": "locs",
+      "label": "Locs 2",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "locs",
+        "protective"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/protective/avatar_hair_locs_02.svg"
+    },
+    {
+      "id": "avatar.hair.locs.03",
+      "version": 1,
+      "category": "hair",
+      "family": "locs",
+      "label": "Locs 3",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "locs",
+        "protective"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/protective/avatar_hair_locs_03.svg"
+    },
+    {
+      "id": "avatar.hair.locs.04",
+      "version": 1,
+      "category": "hair",
+      "family": "locs",
+      "label": "Locs 4",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "locs",
+        "protective"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/protective/avatar_hair_locs_04.svg"
+    },
+    {
+      "id": "avatar.hair.bun.01",
+      "version": 1,
+      "category": "hair",
+      "family": "bun",
+      "label": "Bun 1",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "bun"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/bun/avatar_hair_bun_01.svg"
+    },
+    {
+      "id": "avatar.hair.bun.02",
+      "version": 1,
+      "category": "hair",
+      "family": "bun",
+      "label": "Bun 2",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "bun"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/bun/avatar_hair_bun_02.svg"
+    },
+    {
+      "id": "avatar.hair.bun.03",
+      "version": 1,
+      "category": "hair",
+      "family": "bun",
+      "label": "Bun 3",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "bun"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/bun/avatar_hair_bun_03.svg"
+    },
+    {
+      "id": "avatar.hair.bun.04",
+      "version": 1,
+      "category": "hair",
+      "family": "bun",
+      "label": "Bun 4",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "bun"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/bun/avatar_hair_bun_04.svg"
+    },
+    {
+      "id": "avatar.hair.ponytail.01",
+      "version": 1,
+      "category": "hair",
+      "family": "ponytail",
+      "label": "Ponytail 1",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "ponytail"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/ponytail/avatar_hair_ponytail_01.svg"
+    },
+    {
+      "id": "avatar.hair.ponytail.02",
+      "version": 1,
+      "category": "hair",
+      "family": "ponytail",
+      "label": "Ponytail 2",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "ponytail"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/ponytail/avatar_hair_ponytail_02.svg"
+    },
+    {
+      "id": "avatar.hair.ponytail.03",
+      "version": 1,
+      "category": "hair",
+      "family": "ponytail",
+      "label": "Ponytail 3",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "ponytail"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/ponytail/avatar_hair_ponytail_03.svg"
+    },
+    {
+      "id": "avatar.hair.ponytail.04",
+      "version": 1,
+      "category": "hair",
+      "family": "ponytail",
+      "label": "Ponytail 4",
+      "layers": [
+        "hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 7,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [
+        "ponytail"
+      ],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/hair/ponytail/avatar_hair_ponytail_04.svg"
+    },
+    {
+      "id": "avatar.beard.none.01",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "none",
+      "label": "None",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_none_01.svg"
+    },
+    {
+      "id": "avatar.beard.stubble.02",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "stubble",
+      "label": "Stubble",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_stubble_02.svg"
+    },
+    {
+      "id": "avatar.beard.short.03",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "short",
+      "label": "Short",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_short_03.svg"
+    },
+    {
+      "id": "avatar.beard.full.04",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "full",
+      "label": "Full",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_full_04.svg"
+    },
+    {
+      "id": "avatar.beard.goatee.05",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "goatee",
+      "label": "Goatee",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_goatee_05.svg"
+    },
+    {
+      "id": "avatar.beard.chin.06",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "chin",
+      "label": "Chin",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_chin_06.svg"
+    },
+    {
+      "id": "avatar.beard.mustache.07",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "mustache",
+      "label": "Mustache",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_mustache_07.svg"
+    },
+    {
+      "id": "avatar.beard.mustache_full.08",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "mustache_full",
+      "label": "Mustache Full",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_mustache_full_08.svg"
+    },
+    {
+      "id": "avatar.beard.boxed.09",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "boxed",
+      "label": "Boxed",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_boxed_09.svg"
+    },
+    {
+      "id": "avatar.beard.rounded.10",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "rounded",
+      "label": "Rounded",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_rounded_10.svg"
+    },
+    {
+      "id": "avatar.beard.light.11",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "light",
+      "label": "Light",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_light_11.svg"
+    },
+    {
+      "id": "avatar.beard.heavy.12",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "heavy",
+      "label": "Heavy",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_heavy_12.svg"
+    },
+    {
+      "id": "avatar.beard.trimmed.13",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "trimmed",
+      "label": "Trimmed",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_trimmed_13.svg"
+    },
+    {
+      "id": "avatar.beard.sideburns.14",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "sideburns",
+      "label": "Sideburns",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_sideburns_14.svg"
+    },
+    {
+      "id": "avatar.beard.soul_patch.15",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "soul_patch",
+      "label": "Soul Patch",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_soul_patch_15.svg"
+    },
+    {
+      "id": "avatar.beard.van_dyke.16",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "van_dyke",
+      "label": "Van Dyke",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_van_dyke_16.svg"
+    },
+    {
+      "id": "avatar.beard.short_boxed.17",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "short_boxed",
+      "label": "Short Boxed",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_short_boxed_17.svg"
+    },
+    {
+      "id": "avatar.beard.long.18",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "long",
+      "label": "Long",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_long_18.svg"
+    },
+    {
+      "id": "avatar.beard.pointed.19",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "pointed",
+      "label": "Pointed",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_pointed_19.svg"
+    },
+    {
+      "id": "avatar.beard.five_oclock.20",
+      "version": 1,
+      "category": "facial_hair",
+      "family": "five_oclock",
+      "label": "Five Oclock",
+      "layers": [
+        "facial_hair"
+      ],
+      "tint_mode": "hair",
+      "creator_enabled": true,
+      "creator_order": 8,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/beard/avatar_beard_five_oclock_20.svg"
+    },
+    {
+      "id": "avatar.details.none.01",
+      "version": 1,
+      "category": "skin_detail",
+      "family": "none",
+      "label": "None",
+      "layers": [
+        "skin_detail"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 9,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/details/avatar_details_none_01.svg"
+    },
+    {
+      "id": "avatar.details.freckles.02",
+      "version": 1,
+      "category": "skin_detail",
+      "family": "freckles",
+      "label": "Freckles",
+      "layers": [
+        "skin_detail"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 9,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/details/avatar_details_freckles_02.svg"
+    },
+    {
+      "id": "avatar.details.cheek_freckles.03",
+      "version": 1,
+      "category": "skin_detail",
+      "family": "cheek_freckles",
+      "label": "Cheek Freckles",
+      "layers": [
+        "skin_detail"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 9,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/details/avatar_details_cheek_freckles_03.svg"
+    },
+    {
+      "id": "avatar.details.beauty_mark.04",
+      "version": 1,
+      "category": "skin_detail",
+      "family": "beauty_mark",
+      "label": "Beauty Mark",
+      "layers": [
+        "skin_detail"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 9,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/details/avatar_details_beauty_mark_04.svg"
+    },
+    {
+      "id": "avatar.details.under_eye.05",
+      "version": 1,
+      "category": "skin_detail",
+      "family": "under_eye",
+      "label": "Under Eye",
+      "layers": [
+        "skin_detail"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 9,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/details/avatar_details_under_eye_05.svg"
+    },
+    {
+      "id": "avatar.details.sun_kissed.06",
+      "version": 1,
+      "category": "skin_detail",
+      "family": "sun_kissed",
+      "label": "Sun Kissed",
+      "layers": [
+        "skin_detail"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 9,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/details/avatar_details_sun_kissed_06.svg"
+    },
+    {
+      "id": "avatar.details.soft_blush.07",
+      "version": 1,
+      "category": "skin_detail",
+      "family": "soft_blush",
+      "label": "Soft Blush",
+      "layers": [
+        "skin_detail"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 9,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/details/avatar_details_soft_blush_07.svg"
+    },
+    {
+      "id": "avatar.details.small_mark.08",
+      "version": 1,
+      "category": "skin_detail",
+      "family": "small_mark",
+      "label": "Small Mark",
+      "layers": [
+        "skin_detail"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 9,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/details/avatar_details_small_mark_08.svg"
+    },
+    {
+      "id": "avatar.details.dimples.09",
+      "version": 1,
+      "category": "skin_detail",
+      "family": "dimples",
+      "label": "Dimples",
+      "layers": [
+        "skin_detail"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 9,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/details/avatar_details_dimples_09.svg"
+    },
+    {
+      "id": "avatar.details.warm_cheeks.10",
+      "version": 1,
+      "category": "skin_detail",
+      "family": "warm_cheeks",
+      "label": "Warm Cheeks",
+      "layers": [
+        "skin_detail"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 9,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/details/avatar_details_warm_cheeks_10.svg"
+    },
+    {
+      "id": "avatar.details.light_texture.11",
+      "version": 1,
+      "category": "skin_detail",
+      "family": "light_texture",
+      "label": "Light Texture",
+      "layers": [
+        "skin_detail"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 9,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/details/avatar_details_light_texture_11.svg"
+    },
+    {
+      "id": "avatar.details.distinct_mark.12",
+      "version": 1,
+      "category": "skin_detail",
+      "family": "distinct_mark",
+      "label": "Distinct Mark",
+      "layers": [
+        "skin_detail"
+      ],
+      "tint_mode": "skin",
+      "creator_enabled": true,
+      "creator_order": 9,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/details/avatar_details_distinct_mark_12.svg"
+    },
+    {
+      "id": "avatar.scar.none.01",
+      "version": 1,
+      "category": "scar",
+      "family": "none",
+      "label": "None",
+      "layers": [
+        "scar"
+      ],
+      "tint_mode": "scar",
+      "creator_enabled": true,
+      "creator_order": 10,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/scars/avatar_scar_none_01.svg"
+    },
+    {
+      "id": "avatar.scar.brow.02",
+      "version": 1,
+      "category": "scar",
+      "family": "brow",
+      "label": "Brow",
+      "layers": [
+        "scar"
+      ],
+      "tint_mode": "scar",
+      "creator_enabled": true,
+      "creator_order": 10,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/scars/avatar_scar_brow_02.svg"
+    },
+    {
+      "id": "avatar.scar.cheek.03",
+      "version": 1,
+      "category": "scar",
+      "family": "cheek",
+      "label": "Cheek",
+      "layers": [
+        "scar"
+      ],
+      "tint_mode": "scar",
+      "creator_enabled": true,
+      "creator_order": 10,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/scars/avatar_scar_cheek_03.svg"
+    },
+    {
+      "id": "avatar.scar.lip.04",
+      "version": 1,
+      "category": "scar",
+      "family": "lip",
+      "label": "Lip",
+      "layers": [
+        "scar"
+      ],
+      "tint_mode": "scar",
+      "creator_enabled": true,
+      "creator_order": 10,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/scars/avatar_scar_lip_04.svg"
+    },
+    {
+      "id": "avatar.scar.chin.05",
+      "version": 1,
+      "category": "scar",
+      "family": "chin",
+      "label": "Chin",
+      "layers": [
+        "scar"
+      ],
+      "tint_mode": "scar",
+      "creator_enabled": true,
+      "creator_order": 10,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/scars/avatar_scar_chin_05.svg"
+    },
+    {
+      "id": "avatar.scar.temple.06",
+      "version": 1,
+      "category": "scar",
+      "family": "temple",
+      "label": "Temple",
+      "layers": [
+        "scar"
+      ],
+      "tint_mode": "scar",
+      "creator_enabled": true,
+      "creator_order": 10,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/scars/avatar_scar_temple_06.svg"
+    },
+    {
+      "id": "avatar.scar.small.07",
+      "version": 1,
+      "category": "scar",
+      "family": "small",
+      "label": "Small",
+      "layers": [
+        "scar"
+      ],
+      "tint_mode": "scar",
+      "creator_enabled": true,
+      "creator_order": 10,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/scars/avatar_scar_small_07.svg"
+    },
+    {
+      "id": "avatar.scar.long.08",
+      "version": 1,
+      "category": "scar",
+      "family": "long",
+      "label": "Long",
+      "layers": [
+        "scar"
+      ],
+      "tint_mode": "scar",
+      "creator_enabled": true,
+      "creator_order": 10,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/scars/avatar_scar_long_08.svg"
+    },
+    {
+      "id": "avatar.accessory.none.01",
+      "version": 1,
+      "category": "accessory",
+      "family": "none",
+      "label": "None",
+      "layers": [
+        "accessory"
+      ],
+      "tint_mode": "accessory",
+      "creator_enabled": true,
+      "creator_order": 11,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/accessories/avatar_accessory_none_01.svg"
+    },
+    {
+      "id": "avatar.accessory.glasses_round.02",
+      "version": 1,
+      "category": "accessory",
+      "family": "glasses_round",
+      "label": "Glasses Round",
+      "layers": [
+        "accessory"
+      ],
+      "tint_mode": "accessory",
+      "creator_enabled": true,
+      "creator_order": 11,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/accessories/avatar_accessory_glasses_round_02.svg"
+    },
+    {
+      "id": "avatar.accessory.glasses_square.03",
+      "version": 1,
+      "category": "accessory",
+      "family": "glasses_square",
+      "label": "Glasses Square",
+      "layers": [
+        "accessory"
+      ],
+      "tint_mode": "accessory",
+      "creator_enabled": true,
+      "creator_order": 11,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/accessories/avatar_accessory_glasses_square_03.svg"
+    },
+    {
+      "id": "avatar.accessory.headband.04",
+      "version": 1,
+      "category": "accessory",
+      "family": "headband",
+      "label": "Headband",
+      "layers": [
+        "accessory"
+      ],
+      "tint_mode": "accessory",
+      "creator_enabled": true,
+      "creator_order": 11,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/accessories/avatar_accessory_headband_04.svg"
+    },
+    {
+      "id": "avatar.accessory.earring_left.05",
+      "version": 1,
+      "category": "accessory",
+      "family": "earring_left",
+      "label": "Earring Left",
+      "layers": [
+        "accessory"
+      ],
+      "tint_mode": "accessory",
+      "creator_enabled": true,
+      "creator_order": 11,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/accessories/avatar_accessory_earring_left_05.svg"
+    },
+    {
+      "id": "avatar.accessory.earring_pair.06",
+      "version": 1,
+      "category": "accessory",
+      "family": "earring_pair",
+      "label": "Earring Pair",
+      "layers": [
+        "accessory"
+      ],
+      "tint_mode": "accessory",
+      "creator_enabled": true,
+      "creator_order": 11,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/accessories/avatar_accessory_earring_pair_06.svg"
+    },
+    {
+      "id": "avatar.accessory.cap.07",
+      "version": 1,
+      "category": "accessory",
+      "family": "cap",
+      "label": "Cap",
+      "layers": [
+        "accessory"
+      ],
+      "tint_mode": "accessory",
+      "creator_enabled": true,
+      "creator_order": 11,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/accessories/avatar_accessory_cap_07.svg"
+    },
+    {
+      "id": "avatar.accessory.neck_chain.08",
+      "version": 1,
+      "category": "accessory",
+      "family": "neck_chain",
+      "label": "Neck Chain",
+      "layers": [
+        "accessory"
+      ],
+      "tint_mode": "accessory",
+      "creator_enabled": true,
+      "creator_order": 11,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/accessories/avatar_accessory_neck_chain_08.svg"
+    },
+    {
+      "id": "avatar.age.youth.01",
+      "version": 1,
+      "category": "age",
+      "family": "youth",
+      "label": "Youth",
+      "layers": [
+        "age"
+      ],
+      "tint_mode": "age",
+      "creator_enabled": true,
+      "creator_order": 12,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/age/avatar_age_youth_01.svg"
+    },
+    {
+      "id": "avatar.age.young.02",
+      "version": 1,
+      "category": "age",
+      "family": "young",
+      "label": "Young",
+      "layers": [
+        "age"
+      ],
+      "tint_mode": "age",
+      "creator_enabled": true,
+      "creator_order": 12,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/age/avatar_age_young_02.svg"
+    },
+    {
+      "id": "avatar.age.mature.03",
+      "version": 1,
+      "category": "age",
+      "family": "mature",
+      "label": "Mature",
+      "layers": [
+        "age"
+      ],
+      "tint_mode": "age",
+      "creator_enabled": true,
+      "creator_order": 12,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/age/avatar_age_mature_03.svg"
+    },
+    {
+      "id": "avatar.age.veteran.04",
+      "version": 1,
+      "category": "age",
+      "family": "veteran",
+      "label": "Veteran",
+      "layers": [
+        "age"
+      ],
+      "tint_mode": "age",
+      "creator_enabled": true,
+      "creator_order": 12,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/age/avatar_age_veteran_04.svg"
+    },
+    {
+      "id": "avatar.age.late.05",
+      "version": 1,
+      "category": "age",
+      "family": "late",
+      "label": "Late",
+      "layers": [
+        "age"
+      ],
+      "tint_mode": "age",
+      "creator_enabled": true,
+      "creator_order": 12,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/age/avatar_age_late_05.svg"
+    },
+    {
+      "id": "avatar.body.slim.01",
+      "version": 1,
+      "category": "body",
+      "family": "slim",
+      "label": "Slim",
+      "layers": [
+        "body"
+      ],
+      "tint_mode": "body",
+      "creator_enabled": true,
+      "creator_order": 13,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/body/avatar_body_slim_01.svg"
+    },
+    {
+      "id": "avatar.body.average.02",
+      "version": 1,
+      "category": "body",
+      "family": "average",
+      "label": "Average",
+      "layers": [
+        "body"
+      ],
+      "tint_mode": "body",
+      "creator_enabled": true,
+      "creator_order": 13,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/body/avatar_body_average_02.svg"
+    },
+    {
+      "id": "avatar.body.athletic.03",
+      "version": 1,
+      "category": "body",
+      "family": "athletic",
+      "label": "Athletic",
+      "layers": [
+        "body"
+      ],
+      "tint_mode": "body",
+      "creator_enabled": true,
+      "creator_order": 13,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/body/avatar_body_athletic_03.svg"
+    },
+    {
+      "id": "avatar.body.broad.04",
+      "version": 1,
+      "category": "body",
+      "family": "broad",
+      "label": "Broad",
+      "layers": [
+        "body"
+      ],
+      "tint_mode": "body",
+      "creator_enabled": true,
+      "creator_order": 13,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/body/avatar_body_broad_04.svg"
+    },
+    {
+      "id": "avatar.kit.solid.01",
+      "version": 1,
+      "category": "kit",
+      "family": "solid",
+      "label": "Solid",
+      "layers": [
+        "kit"
+      ],
+      "tint_mode": "kit",
+      "creator_enabled": true,
+      "creator_order": 14,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/kit/avatar_kit_solid_01.svg"
+    },
+    {
+      "id": "avatar.kit.vertical_stripes.02",
+      "version": 1,
+      "category": "kit",
+      "family": "vertical_stripes",
+      "label": "Vertical Stripes",
+      "layers": [
+        "kit"
+      ],
+      "tint_mode": "kit",
+      "creator_enabled": true,
+      "creator_order": 14,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/kit/avatar_kit_vertical_stripes_02.svg"
+    },
+    {
+      "id": "avatar.kit.horizontal_stripes.03",
+      "version": 1,
+      "category": "kit",
+      "family": "horizontal_stripes",
+      "label": "Horizontal Stripes",
+      "layers": [
+        "kit"
+      ],
+      "tint_mode": "kit",
+      "creator_enabled": true,
+      "creator_order": 14,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/kit/avatar_kit_horizontal_stripes_03.svg"
+    },
+    {
+      "id": "avatar.kit.halves.04",
+      "version": 1,
+      "category": "kit",
+      "family": "halves",
+      "label": "Halves",
+      "layers": [
+        "kit"
+      ],
+      "tint_mode": "kit",
+      "creator_enabled": true,
+      "creator_order": 14,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/kit/avatar_kit_halves_04.svg"
+    },
+    {
+      "id": "avatar.kit.sash.05",
+      "version": 1,
+      "category": "kit",
+      "family": "sash",
+      "label": "Sash",
+      "layers": [
+        "kit"
+      ],
+      "tint_mode": "kit",
+      "creator_enabled": true,
+      "creator_order": 14,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/kit/avatar_kit_sash_05.svg"
+    },
+    {
+      "id": "avatar.kit.shoulders.06",
+      "version": 1,
+      "category": "kit",
+      "family": "shoulders",
+      "label": "Shoulders",
+      "layers": [
+        "kit"
+      ],
+      "tint_mode": "kit",
+      "creator_enabled": true,
+      "creator_order": 14,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/kit/avatar_kit_shoulders_06.svg"
+    },
+    {
+      "id": "avatar.kit.sleeves.07",
+      "version": 1,
+      "category": "kit",
+      "family": "sleeves",
+      "label": "Sleeves",
+      "layers": [
+        "kit"
+      ],
+      "tint_mode": "kit",
+      "creator_enabled": true,
+      "creator_order": 14,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/kit/avatar_kit_sleeves_07.svg"
+    },
+    {
+      "id": "avatar.kit.center_stripe.08",
+      "version": 1,
+      "category": "kit",
+      "family": "center_stripe",
+      "label": "Center Stripe",
+      "layers": [
+        "kit"
+      ],
+      "tint_mode": "kit",
+      "creator_enabled": true,
+      "creator_order": 14,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/kit/avatar_kit_center_stripe_08.svg"
+    },
+    {
+      "id": "avatar.kit.gradient.09",
+      "version": 1,
+      "category": "kit",
+      "family": "gradient",
+      "label": "Gradient",
+      "layers": [
+        "kit"
+      ],
+      "tint_mode": "kit",
+      "creator_enabled": true,
+      "creator_order": 14,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/kit/avatar_kit_gradient_09.svg"
+    },
+    {
+      "id": "avatar.kit.pinstripe.10",
+      "version": 1,
+      "category": "kit",
+      "family": "pinstripe",
+      "label": "Pinstripe",
+      "layers": [
+        "kit"
+      ],
+      "tint_mode": "kit",
+      "creator_enabled": true,
+      "creator_order": 14,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/kit/avatar_kit_pinstripe_10.svg"
+    },
+    {
+      "id": "avatar.kit.chevron.11",
+      "version": 1,
+      "category": "kit",
+      "family": "chevron",
+      "label": "Chevron",
+      "layers": [
+        "kit"
+      ],
+      "tint_mode": "kit",
+      "creator_enabled": true,
+      "creator_order": 14,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/kit/avatar_kit_chevron_11.svg"
+    },
+    {
+      "id": "avatar.kit.hoops.12",
+      "version": 1,
+      "category": "kit",
+      "family": "hoops",
+      "label": "Hoops",
+      "layers": [
+        "kit"
+      ],
+      "tint_mode": "kit",
+      "creator_enabled": true,
+      "creator_order": 14,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/kit/avatar_kit_hoops_12.svg"
+    },
+    {
+      "id": "avatar.background.neutral.01",
+      "version": 1,
+      "category": "background",
+      "family": "neutral",
+      "label": "Neutral",
+      "layers": [
+        "background"
+      ],
+      "tint_mode": "background",
+      "creator_enabled": true,
+      "creator_order": 15,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/backgrounds/avatar_background_neutral_01.svg"
+    },
+    {
+      "id": "avatar.background.club.02",
+      "version": 1,
+      "category": "background",
+      "family": "club",
+      "label": "Club",
+      "layers": [
+        "background"
+      ],
+      "tint_mode": "background",
+      "creator_enabled": true,
+      "creator_order": 15,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/backgrounds/avatar_background_club_02.svg"
+    },
+    {
+      "id": "avatar.background.matchday.03",
+      "version": 1,
+      "category": "background",
+      "family": "matchday",
+      "label": "Matchday",
+      "layers": [
+        "background"
+      ],
+      "tint_mode": "background",
+      "creator_enabled": true,
+      "creator_order": 15,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/backgrounds/avatar_background_matchday_03.svg"
+    },
+    {
+      "id": "avatar.background.transfer.04",
+      "version": 1,
+      "category": "background",
+      "family": "transfer",
+      "label": "Transfer",
+      "layers": [
+        "background"
+      ],
+      "tint_mode": "background",
+      "creator_enabled": true,
+      "creator_order": 15,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/backgrounds/avatar_background_transfer_04.svg"
+    },
+    {
+      "id": "avatar.background.news.05",
+      "version": 1,
+      "category": "background",
+      "family": "news",
+      "label": "News",
+      "layers": [
+        "background"
+      ],
+      "tint_mode": "background",
+      "creator_enabled": true,
+      "creator_order": 15,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/backgrounds/avatar_background_news_05.svg"
+    },
+    {
+      "id": "avatar.background.career.06",
+      "version": 1,
+      "category": "background",
+      "family": "career",
+      "label": "Career",
+      "layers": [
+        "background"
+      ],
+      "tint_mode": "background",
+      "creator_enabled": true,
+      "creator_order": 15,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/backgrounds/avatar_background_career_06.svg"
+    },
+    {
+      "id": "avatar.expression.neutral.01",
+      "version": 1,
+      "category": "expression",
+      "family": "neutral",
+      "label": "Neutral",
+      "layers": [
+        "expression"
+      ],
+      "tint_mode": "expression",
+      "creator_enabled": true,
+      "creator_order": 16,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/expression/avatar_expression_neutral_01.svg"
+    },
+    {
+      "id": "avatar.expression.happy.02",
+      "version": 1,
+      "category": "expression",
+      "family": "happy",
+      "label": "Happy",
+      "layers": [
+        "expression"
+      ],
+      "tint_mode": "expression",
+      "creator_enabled": true,
+      "creator_order": 16,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/expression/avatar_expression_happy_02.svg"
+    },
+    {
+      "id": "avatar.expression.focused.03",
+      "version": 1,
+      "category": "expression",
+      "family": "focused",
+      "label": "Focused",
+      "layers": [
+        "expression"
+      ],
+      "tint_mode": "expression",
+      "creator_enabled": true,
+      "creator_order": 16,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/expression/avatar_expression_focused_03.svg"
+    },
+    {
+      "id": "avatar.expression.disappointed.04",
+      "version": 1,
+      "category": "expression",
+      "family": "disappointed",
+      "label": "Disappointed",
+      "layers": [
+        "expression"
+      ],
+      "tint_mode": "expression",
+      "creator_enabled": true,
+      "creator_order": 16,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/expression/avatar_expression_disappointed_04.svg"
+    },
+    {
+      "id": "avatar.expression.celebrating.05",
+      "version": 1,
+      "category": "expression",
+      "family": "celebrating",
+      "label": "Celebrating",
+      "layers": [
+        "expression"
+      ],
+      "tint_mode": "expression",
+      "creator_enabled": true,
+      "creator_order": 16,
+      "npc_enabled": true,
+      "npc_weight": 1,
+      "compatibility": {
+        "schema_version": 1,
+        "requires": [],
+        "excludes": []
+      },
+      "tags": [],
+      "deprecated": false,
+      "replacement_id": null,
+      "file": "svg/expression/avatar_expression_celebrating_05.svg"
+    }
+  ]
+}

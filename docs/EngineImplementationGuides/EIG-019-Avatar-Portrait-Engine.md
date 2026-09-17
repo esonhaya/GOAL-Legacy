@@ -56,8 +56,16 @@ randomization. Existing careers use deterministic fallback generation.
 for faces, eyes, noses, mouths, hairstyles, facial hair, presets, and 100 NPC
 portraits without writing into career saves.
 
+The graphical creator and player-facing pages are implemented by the
+server-rendered `Goal\\Legacy\\Web\\WebApplication` adapter. It calls the
+same `PlayerAppearanceService`, `AvatarCatalog`, and `PortraitRenderer` used
+by CLI tooling. Draft previews use SVG composition directly; saved portraits
+use the disposable cache path. No rendered image is posted to or persisted in
+the career database.
+
 ## Revision History
 
 | Version | Date | Notes |
 |---|---|---|
 | 1.0 | 2026-09-17 | Added Avatar V1 ownership, persistence, rendering, and QA guidance. |
+| 1.1 | 2026-09-17 | Documented graphical creator/profile integration. |

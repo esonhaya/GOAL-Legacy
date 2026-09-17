@@ -6,3 +6,4 @@
 !/game/cache/.gitkeep
 !/game/logs/.gitkeep
 !/game/saves/.gitkeep
+/storage/cache/*

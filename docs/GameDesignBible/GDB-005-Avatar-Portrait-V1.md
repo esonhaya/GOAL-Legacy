@@ -43,6 +43,14 @@ SVG files are disposable cache artifacts. Career SQLite saves retain only the
 small appearance specification and never contain PNG, WebP, base64, or SVG
 portrait data.
 
+## Player-facing use
+
+The first graphical shell uses the same appearance specification and renderer
+for New Career, the Career Home, Squad, Player Profile, and Matchday. Creator
+controls use catalog labels while stable asset IDs remain persistence details.
+The graphical shell is a local, server-rendered adapter around the canonical
+career services; it does not create a second Player or simulation model.
+
 ## Phase 2 boundary
 
 V1 does not add a cosmetic economy, shops, licensed kits, 3D models,
@@ -56,3 +64,4 @@ IDs.
 | Version | Date | Notes |
 |---|---|---|
 | 1.0 | 2026-09-17 | Added the Phase 2 Avatar V1 foundation. |
+| 1.1 | 2026-09-17 | Added the first graphical creator and profile presentation boundary. |

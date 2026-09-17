@@ -29,3 +29,4 @@
 ## Engine Implementation Guides
 - EIG-018 Career Experience Boundary
 - EIG-019 Avatar and Portrait Engine
+- EIG-020 Graphical Career Shell

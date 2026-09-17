@@ -46,8 +46,16 @@ always saved. The contact-sheet tool renders every high-value component
 category, all presets, and 100 deterministic NPC samples. Catalog validation
 checks IDs, references, SVG structure, palettes, presets, and compatibility.
 
+The graphical creator presents human-readable catalog labels and a live
+portrait preview. Visual QA should inspect category sheets, preset sheets,
+100 deterministic NPC portraits, complete squad samples, and 64-pixel output.
+Review for alignment, clipping, contrast, and perceptual clones. Keep the
+first-pass style simple enough to remain readable on a phone and reusable in
+Career Home, Squad, Player Profile, and Matchday.
+
 ## Revision History
 
 | Version | Date | Notes |
 |---|---|---|
 | 1.0 | 2026-09-17 | Defined Avatar V1 visual and authoring rules. |
+| 1.1 | 2026-09-17 | Added graphical creator and production visual-QA guidance. |

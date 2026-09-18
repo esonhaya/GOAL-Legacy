@@ -14,7 +14,6 @@ use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
 use Goal\Legacy\Modules\Match\Domain\MatchId;
 use Goal\Legacy\Modules\Match\Domain\MatchStatus;
-use Goal\Legacy\Modules\Match\Domain\MatchResult;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\Season;
@@ -33,8 +32,11 @@ final class DomesticCupService
     private const ENTRIES = 'domestic_cup_entries';
     private const MATCHES = 'domestic_cup_match_states';
 
+    private readonly KnockoutResolutionService $knockout;
+
     public function __construct(private readonly ClubService $clubs)
     {
+        $this->knockout = new KnockoutResolutionService($clubs);
     }
 
     public function initializeSchema(DatabaseInterface $database): void
@@ -147,38 +149,15 @@ final class DomesticCupService
             return;
         }
         $this->initializeSchema($database);
-        $lookup = $database->connection()->prepare('SELECT * FROM ' . self::MATCHES . ' WHERE match_id = :match_id');
-        $lookup->execute(['match_id' => $match->id()->value()]);
-        $state = $lookup->fetch(PDO::FETCH_ASSOC);
-        if (!is_array($state) || $state['winner_club_id'] !== null) {
+        $resolution = $this->knockout->resolve($database, $match, self::MATCHES);
+        if (!is_array($resolution) || !is_string($resolution['winner_club_id'] ?? null)) {
             return;
         }
-        $result = $match->result();
-        if ($result === null) {
-            return;
-        }
-        $extraTime = [0, 0];
-        $shootout = [null, null];
-        $regulationHome = $result->homeGoals();
-        $regulationAway = $result->awayGoals();
-        if ($result->isDraw()) {
-            $extraTime = $this->extraTime($match);
-        }
-        $aetHome = $regulationHome + $extraTime[0];
-        $aetAway = $regulationAway + $extraTime[1];
-        $winner = $aetHome > $aetAway ? $match->homeClubId()->value() : ($aetAway > $aetHome ? $match->awayClubId()->value() : null);
-        if ($winner === null) {
-            $shootout = $this->shootout($database, $match);
-            $winner = $shootout[0] > $shootout[1] ? $match->homeClubId()->value() : $match->awayClubId()->value();
-        }
+        $winner = $resolution['winner_club_id'];
         $loser = $winner === $match->homeClubId()->value() ? $match->awayClubId()->value() : $match->homeClubId()->value();
-        $round = (int) $state['round_number'];
+        $round = (int) ($resolution['round'] ?? $match->round());
 
-        $database->transaction(function () use ($database, $match, $state, $winner, $loser, $round, $extraTime, $shootout): void {
-            $statement = $database->connection()->prepare(
-                'UPDATE ' . self::MATCHES . ' SET winner_club_id = :winner, extra_time_home_goals = :extra_home, extra_time_away_goals = :extra_away, shootout_home_goals = :home, shootout_away_goals = :away WHERE match_id = :match_id AND winner_club_id IS NULL'
-            );
-            $statement->execute(['winner' => $winner, 'extra_home' => $extraTime[0], 'extra_away' => $extraTime[1], 'home' => $shootout[0], 'away' => $shootout[1], 'match_id' => $match->id()->value()]);
+        $database->transaction(function () use ($database, $match, $winner, $loser, $round): void {
             $loserUpdate = $database->connection()->prepare(
                 'UPDATE ' . self::ENTRIES . ' SET status = :status, eliminated_round = :round WHERE competition_id = :competition_id AND season_id = :season_id AND club_id = :club_id AND status = :active'
             );
@@ -192,32 +171,7 @@ final class DomesticCupService
     public function matchResolution(DatabaseInterface $database, string $matchId): ?array
     {
         $this->initializeSchema($database);
-        $statement = $database->connection()->prepare('SELECT * FROM ' . self::MATCHES . ' WHERE match_id = :match_id');
-        $statement->execute(['match_id' => $matchId]);
-        $row = $statement->fetch(PDO::FETCH_ASSOC);
-        if (!is_array($row)) {
-            return null;
-        }
-        $match = (new MatchRepository($database))->get($matchId);
-        $regulationHome = $match->result()?->homeGoals() ?? 0;
-        $regulationAway = $match->result()?->awayGoals() ?? 0;
-        $extraHome = $row['extra_time_home_goals'] === null ? 0 : (int) $row['extra_time_home_goals'];
-        $extraAway = $row['extra_time_away_goals'] === null ? 0 : (int) $row['extra_time_away_goals'];
-
-        return [
-            'round' => (int) $row['round_number'],
-            'stage' => (string) $row['stage'],
-            'winner_club_id' => $row['winner_club_id'] === null ? null : (string) $row['winner_club_id'],
-            'regulation_home_goals' => $regulationHome,
-            'regulation_away_goals' => $regulationAway,
-            'extra_time_home_goals' => $extraHome,
-            'extra_time_away_goals' => $extraAway,
-            'aet_home_goals' => $regulationHome + $extraHome,
-            'aet_away_goals' => $regulationAway + $extraAway,
-            'shootout_home_goals' => $row['shootout_home_goals'] === null ? null : (int) $row['shootout_home_goals'],
-            'shootout_away_goals' => $row['shootout_away_goals'] === null ? null : (int) $row['shootout_away_goals'],
-            'decided_by' => $row['shootout_home_goals'] !== null ? 'penalties' : (($row['extra_time_home_goals'] ?? 0) !== 0 || ($row['extra_time_away_goals'] ?? 0) !== 0 ? 'extra_time' : 'regulation'),
-        ];
+        return $this->knockout->resolution($database, $matchId, self::MATCHES);
     }
 
     /** @return array<string, mixed> */
@@ -290,6 +244,19 @@ final class DomesticCupService
         if ((int) $matches->fetchColumn() === 0) { return true; }
 
         return $status === 'completed';
+    }
+
+    public function winnerClubId(DatabaseInterface $database, string $competitionId, SeasonId|string $seasonId): ?string
+    {
+        $seasonKey = $seasonId instanceof SeasonId ? $seasonId->value() : $seasonId;
+        $this->initializeSchema($database);
+        $statement = $database->connection()->prepare(
+            'SELECT winner_club_id FROM ' . self::SEASONS . ' WHERE competition_id = :competition_id AND season_id = :season_id'
+        );
+        $statement->execute(['competition_id' => $competitionId, 'season_id' => $seasonKey]);
+        $winner = $statement->fetchColumn();
+
+        return is_string($winner) && $winner !== '' ? $winner : null;
     }
 
     /** @return list<array<string, int|string|null>> */
@@ -446,30 +413,6 @@ final class DomesticCupService
             $match = (new MatchRepository($database))->get((string) $matchId);
             $this->recordCompletedMatch($database, $match);
         }
-    }
-
-    /** @return array{0:int,1:int} */
-    private function extraTime(GameMatch $match): array
-    {
-        $home = hexdec(substr(hash('sha256', 'cup-extra-time:v1|' . $match->id()->value() . '|home'), 0, 8)) % 5 === 0 ? 1 : 0;
-        $away = hexdec(substr(hash('sha256', 'cup-extra-time:v1|' . $match->id()->value() . '|away'), 0, 8)) % 5 === 0 ? 1 : 0;
-
-        return [$home, $away];
-    }
-
-    /** @return array{0:int,1:int} */
-    private function shootout(DatabaseInterface $database, GameMatch $match): array
-    {
-        $clubs = $this->clubs->repository($database);
-        $home = $clubs->get($match->homeClubId())->reputation();
-        $away = $clubs->get($match->awayClubId())->reputation();
-        $homeScore = min(5, max(2, 2 + intdiv($home, 30) + (hexdec(substr(hash('sha256', 'cup-penalty:v1|' . $match->id()->value() . '|home'), 0, 8)) % 2)));
-        $awayScore = min(5, max(2, 2 + intdiv($away, 30) + (hexdec(substr(hash('sha256', 'cup-penalty:v1|' . $match->id()->value() . '|away'), 0, 8)) % 2)));
-        if ($homeScore === $awayScore) {
-            if (hexdec(substr(hash('sha256', 'cup-sudden-death:v1|' . $match->id()->value()), 0, 8)) % 2 === 0) { ++$homeScore; } else { ++$awayScore; }
-        }
-
-        return [$homeScore, $awayScore];
     }
 
     private function freeDate(MatchRepository $matches, string $home, string $away, Season $season, SimulationDate $date): SimulationDate

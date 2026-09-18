@@ -71,7 +71,7 @@ final class Domain003Test extends TestCase
         $membershipRepository = new ClubMembershipRepository($database);
         self::assertCount(198, $clubs);
         self::assertCount(198, $clubRepository->all());
-        self::assertCount(396, $membershipRepository->all());
+        self::assertCount(428, $membershipRepository->all());
         self::assertSame([
             '2-bundesliga' => 18,
             'bundesliga' => 18,
@@ -81,6 +81,8 @@ final class Domain003Test extends TestCase
             'domestic-cup-germany' => 36,
             'domestic-cup-italy' => 40,
             'domestic-cup-spain' => 42,
+            'europe-tier-1' => 16,
+            'europe-tier-2' => 16,
             'la-liga' => 20,
             'ligue-1' => 18,
             'ligue-2' => 18,

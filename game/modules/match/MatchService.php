@@ -33,6 +33,7 @@ use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use Goal\Legacy\Modules\World\Persistence\PlayerSeasonStatisticsRepository;
 use Goal\Legacy\Modules\Competition\DomesticCupService;
+use Goal\Legacy\Modules\Competition\EuropeanCompetitionService;
 
 final class MatchService
 {
@@ -40,7 +41,7 @@ final class MatchService
     private readonly MatchSimulationService $simulator;
     private readonly StandingsService $standings;
 
-    public function __construct(private readonly ClubService $clubService, private readonly EventDispatcherInterface $events, private readonly ?PlayerDevelopmentService $development = null, private readonly ?ClubExpectationService $expectations = null, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?DomesticCupService $domesticCups = null)
+    public function __construct(private readonly ClubService $clubService, private readonly EventDispatcherInterface $events, private readonly ?PlayerDevelopmentService $development = null, private readonly ?ClubExpectationService $expectations = null, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?DomesticCupService $domesticCups = null, private readonly ?EuropeanCompetitionService $europeanCompetitions = null)
     {
         $this->fixtureGenerator = new FixtureGenerationService($clubService);
         $this->simulator = new MatchSimulationService($clubService, new MatchSelectionService($clubService, $availability));
@@ -51,15 +52,20 @@ final class MatchService
     public function highlightRepository(DatabaseInterface $database): MatchHighlightRepository { return new MatchHighlightRepository($database); }
     public function selectionRepository(DatabaseInterface $database): MatchSelectionRepository { return new MatchSelectionRepository($database); }
     public function substitutionRepository(DatabaseInterface $database): MatchSubstitutionRepository { return new MatchSubstitutionRepository($database); }
-    public function generateFixtures(DatabaseInterface $database, string|CompetitionId $competitionId, string|SeasonId $seasonId): array { $competition = $competitionId instanceof CompetitionId ? $competitionId : new CompetitionId($competitionId); $season = $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId); $matches = $this->domesticCups?->isDomesticCup($database, $competition->value()) === true ? $this->domesticCups->generateFixtures($database, $competition, $season) : $this->fixtureGenerator->generate($database, $competition, $season); $this->events->dispatch(new GenericEvent(MatchEventNames::FIXTURES_GENERATED, ['competition_id' => $competition->value(), 'season_id' => $season->value(), 'match_count' => count($matches)])); return $matches; }
+    public function generateFixtures(DatabaseInterface $database, string|CompetitionId $competitionId, string|SeasonId $seasonId): array { $competition = $competitionId instanceof CompetitionId ? $competitionId : new CompetitionId($competitionId); $season = $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId); $matches = $this->europeanCompetitions?->isEuropeanCompetition($database, $competition->value()) === true ? $this->europeanCompetitions->generateFixtures($database, $competition, $season) : ($this->domesticCups?->isDomesticCup($database, $competition->value()) === true ? $this->domesticCups->generateFixtures($database, $competition, $season) : $this->fixtureGenerator->generate($database, $competition, $season)); $this->events->dispatch(new GenericEvent(MatchEventNames::FIXTURES_GENERATED, ['competition_id' => $competition->value(), 'season_id' => $season->value(), 'match_count' => count($matches)])); return $matches; }
     /** @param list<string> $competitionIds @return list<GameMatch> */
     public function generateSeasonFixtures(DatabaseInterface $database, array $competitionIds, SeasonId|string $seasonId): array
     {
         $season = $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId);
         $ordered = $competitionIds;
         usort($ordered, function (string $left, string $right) use ($database): int {
-            $cups = [$this->domesticCups?->isDomesticCup($database, $left) === true, $this->domesticCups?->isDomesticCup($database, $right) === true];
-            return ($cups[0] <=> $cups[1]) ?: strcmp($left, $right);
+            $rank = function (string $competitionId) use ($database): int {
+                if ($this->domesticCups?->isDomesticCup($database, $competitionId) === true) { return 1; }
+                if ($this->europeanCompetitions?->isEuropeanCompetition($database, $competitionId) === true) { return 2; }
+
+                return 0;
+            };
+            return ($rank($left) <=> $rank($right)) ?: strcmp($left, $right);
         });
         $matches = [];
         foreach ($ordered as $competitionId) {
@@ -108,6 +114,7 @@ final class MatchService
         }
         $this->availability?->dispatchChanges($availability);
         $this->domesticCups?->recordCompletedMatch($database, $completed);
+        $this->europeanCompetitions?->recordCompletedMatch($database, $completed);
         $this->events->dispatch(new GenericEvent(MatchEventNames::COMPLETED, ['match_id' => $completed->id()->value(), 'competition_id' => $completed->competitionId()->value(), 'season_id' => $completed->seasonId()->value(), 'home_club_id' => $completed->homeClubId()->value(), 'away_club_id' => $completed->awayClubId()->value(), 'home_goals' => $completed->result()?->homeGoals(), 'away_goals' => $completed->result()?->awayGoals()]));
         $this->events->dispatch(new GenericEvent(MatchEventNames::STANDINGS_UPDATED, ['competition_id' => $completed->competitionId()->value(), 'season_id' => $completed->seasonId()->value()]));
         $this->expectations?->evaluateMatch($database, $completed, $fidelity === SimulationFidelity::World ? $simulation : null, $fidelity);
@@ -116,7 +123,7 @@ final class MatchService
     /** @return list<GameMatch> */
     public function simulateDue(DatabaseInterface $database, SimulationDate $date): array { $completed = []; foreach ($this->repository($database)->dueScheduled($date) as $match) { $completed[] = $this->simulate($database, $match->id(), $this->fidelityFor($database, $match)); } return $completed; }
     /** @return list<array<string, int|string>> */
-    public function standings(DatabaseInterface $database, string|CompetitionId $competitionId, string|SeasonId $seasonId): array { $competition = $competitionId instanceof CompetitionId ? $competitionId : new CompetitionId($competitionId); if ($this->domesticCups?->isDomesticCup($database, $competition->value()) === true) { return []; } return $this->standings->table($database, $competition, $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId)); }
+    public function standings(DatabaseInterface $database, string|CompetitionId $competitionId, string|SeasonId $seasonId): array { $competition = $competitionId instanceof CompetitionId ? $competitionId : new CompetitionId($competitionId); if ($this->domesticCups?->isDomesticCup($database, $competition->value()) === true || $this->europeanCompetitions?->isEuropeanCompetition($database, $competition->value()) === true) { return []; } return $this->standings->table($database, $competition, $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId)); }
     public function competitionComplete(DatabaseInterface $database, string|CompetitionId $competitionId, string|SeasonId $seasonId): bool { $matches = $this->repository($database)->byCompetition($competitionId, $seasonId); return $matches !== [] && count(array_filter($matches, static fn ($match): bool => $match->status() === MatchStatus::Completed)) === count($matches); }
 
     private function fidelityFor(DatabaseInterface $database, GameMatch $match): SimulationFidelity

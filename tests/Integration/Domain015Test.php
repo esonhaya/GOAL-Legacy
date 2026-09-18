@@ -68,7 +68,7 @@ final class Domain015Test extends TestCase
         self::assertSame(0, $second['free_agents_signed']);
         self::assertSame(1, count($squads->byPlayer($free->id(), $season->id())));
         self::assertSame(ContractStatus::Active, $contracts->activeForPlayer($free->id())?->status());
-        self::assertCount(2, array_filter($registrations->byPlayer($free->id()), static fn (PlayerRegistration $registration): bool => $registration->seasonId()->value() === $season->id()->value() && $registration->clubId()->value() === 'arsenal'));
+        self::assertCount(3, array_filter($registrations->byPlayer($free->id()), static fn (PlayerRegistration $registration): bool => $registration->seasonId()->value() === $season->id()->value() && $registration->clubId()->value() === 'arsenal'));
     }
 
     public function testContractedNpcMovementUsesTransferServiceAndLeavesSourcePlayable(): void

@@ -80,6 +80,22 @@
       "type": "domestic_cup",
       "nation_id": "spain",
       "tier": 3
+    },
+    {
+      "id": "europe-tier-1",
+      "name": "Continental Champions Competition",
+      "short_name": "Continental Tier 1",
+      "type": "continental",
+      "nation_id": "england",
+      "tier": 1
+    },
+    {
+      "id": "europe-tier-2",
+      "name": "Continental Challenge Competition",
+      "short_name": "Continental Tier 2",
+      "type": "continental",
+      "nation_id": "england",
+      "tier": 2
     }
   ]
 }

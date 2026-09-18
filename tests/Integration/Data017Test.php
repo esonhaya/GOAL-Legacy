@@ -11,6 +11,7 @@ use Goal\Legacy\Core\Persistence\SaveMetadata;
 use Goal\Legacy\Core\Persistence\SqliteSaveStore;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionId;
+use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Contract\Domain\ContractId;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Domain\CareerId;
@@ -50,8 +51,8 @@ final class Data017Test extends TestCase
         [$services, $database, $season] = $this->scenario('data-017-fixtures');
         $competitionService = $services->competitionModule()->service();
         $definitions = $competitionService->loadSelected();
-        self::assertCount(15, $definitions);
-        self::assertSame(5, count(array_filter($definitions, static fn ($definition): bool => $definition->tier() === 2)));
+        self::assertCount(17, $definitions);
+        self::assertSame(5, count(array_filter($definitions, static fn ($definition): bool => $definition->type() === CompetitionType::DomesticLeague && $definition->tier() === 2)));
 
         $expected = ['championship' => 24, 'segunda-division' => 22, '2-bundesliga' => 18, 'serie-b' => 20, 'ligue-2' => 18];
         $matchService = $services->matchModule()->service();
@@ -64,7 +65,7 @@ final class Data017Test extends TestCase
         }
 
         $reloaded = $services->worldModule()->service()->load($database, 'data-017-fixtures');
-        self::assertSame(15, count($competitionService->repository($database)->bySeason($season->id())));
+        self::assertSame(17, count($competitionService->repository($database)->bySeason($season->id())));
         self::assertSame($reloaded->toArray(), $services->worldModule()->service()->load($database, 'data-017-fixtures')->toArray());
         self::assertSame(2, $competitionService->repository($database)->get('championship')->tier());
     }

@@ -20,6 +20,7 @@ use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionId;
+use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Competition\Domain\PlayerRegistration;
 use Goal\Legacy\Modules\Contract\Domain\ContractCreationRequest;
 use Goal\Legacy\Modules\Contract\Domain\ContractId;
@@ -200,7 +201,7 @@ final class CareerSeasonAuditCommand implements CommandInterface
             $databaseSizeStart = filesize($directory . '/' . $saveId . '.sqlite') ?: 0;
             $matchService = $this->services->matchModule()->service();
             $fixtureCounts = [];
-            foreach (array_filter($competitions, static fn ($competition): bool => $competition->tier() === 1) as $competition) {
+            foreach (array_filter($competitions, static fn ($competition): bool => $competition->type() === CompetitionType::DomesticLeague && $competition->tier() === 1) as $competition) {
                 $competitionId = $competition->id()->value();
                 $fixtureCounts[$competitionId] = count($matchService->generateFixtures($database, $competitionId, $season->id()));
             }

@@ -15,6 +15,7 @@ use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
 use Goal\Legacy\Modules\Competition\CompetitionService;
 use Goal\Legacy\Modules\Competition\DomesticCupService;
+use Goal\Legacy\Modules\Competition\EuropeanCompetitionService;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Competition\PromotionRelegationService;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionDefinition;
@@ -69,6 +70,7 @@ final class SeasonRolloverService
         private readonly EventDispatcherInterface $events,
         private readonly ?TransferService $transferService = null,
         private readonly ?DomesticCupService $domesticCups = null,
+        private readonly ?EuropeanCompetitionService $europeanCompetitions = null,
     ) {
         $this->promotionRelegation = new PromotionRelegationService($clubService);
     }
@@ -232,6 +234,7 @@ final class SeasonRolloverService
     public function materializeNext(DatabaseInterface $database, World $world, Season $previous, Season $next, SimulationDate $asOfDate): array
     {
         $definitions = array_values(array_filter($this->competitionService->loadSelected(), fn (CompetitionDefinition $definition): bool => in_array($definition->id()->value(), $world->competitionIds(), true)));
+        $continentalIds = array_fill_keys(array_map(static fn (CompetitionDefinition $definition): string => $definition->id()->value(), array_filter($definitions, static fn (CompetitionDefinition $definition): bool => $definition->type() === CompetitionType::Continental)), true);
         $phaseStart = hrtime(true);
         $movement = $this->promotionRelegation->determine($database, $previous, $definitions);
         $this->lastPhaseTimings['promotion_standings_ms'] = $this->elapsedMilliseconds($phaseStart);
@@ -241,9 +244,12 @@ final class SeasonRolloverService
         }
 
         $phaseStart = hrtime(true);
-        $database->transaction(function () use ($database, $previous, $next, $definitions, $movesByClub): void {
+        $database->transaction(function () use ($database, $previous, $next, $definitions, $movesByClub, $continentalIds): void {
             $this->competitionService->materializeInTransaction($database, $definitions, $next->id());
-            $previousMemberships = $this->clubService->membershipRepository($database)->bySeason($previous->id());
+            $previousMemberships = array_values(array_filter(
+                $this->clubService->membershipRepository($database)->bySeason($previous->id()),
+                static fn (ClubCompetitionMembership $membership): bool => !isset($continentalIds[$membership->competitionId()->value()]),
+            ));
             $memberships = $this->clubService->membershipRepository($database);
             foreach ($previousMemberships as $membership) {
                 $clubId = $membership->clubId()->value();
@@ -297,17 +303,23 @@ final class SeasonRolloverService
         // before leagues.
         $leagueIds = [];
         $cupIds = [];
+        $europeIds = [];
         foreach ($world->competitionIds() as $competitionId) {
             $definition = $definitionsById[$competitionId] ?? null;
             if ($definition?->type() === CompetitionType::DomesticCup) {
                 $cupIds[] = $competitionId;
                 continue;
             }
+            if ($definition?->type() === CompetitionType::Continental) {
+                $europeIds[] = $competitionId;
+                continue;
+            }
             if ($matches->byCompetition($competitionId, $previous->id()) !== []) {
                 $leagueIds[] = $competitionId;
             }
         }
-        foreach (array_merge($leagueIds, $cupIds) as $competitionId) {
+        $this->europeanCompetitions?->ensureSeason($database, $next, $previous->id());
+        foreach (array_merge($leagueIds, $cupIds, $europeIds) as $competitionId) {
             $fixtures += count($this->matchService->generateFixtures($database, $competitionId, $next->id()));
         }
         $this->lastPhaseTimings['fixture_generation_ms'] = $this->elapsedMilliseconds($phaseStart);
@@ -401,6 +413,10 @@ final class SeasonRolloverService
     {
         $matches = new MatchRepository($database);
         foreach ($world->competitionIds() as $competitionId) {
+            if ($this->europeanCompetitions?->isEuropeanCompetition($database, $competitionId) === true) {
+                if (!$this->europeanCompetitions->complete($database, $competitionId, $season->id())) { return false; }
+                continue;
+            }
             if ($this->domesticCups?->isDomesticCup($database, $competitionId) === true) {
                 if (!$this->domesticCups->complete($database, $competitionId, $season->id())) { return false; }
                 continue;

@@ -8,6 +8,7 @@ use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Competition\DomesticCupService;
+use Goal\Legacy\Modules\Competition\EuropeanCompetitionService;
 use Goal\Legacy\Modules\Competition\Persistence\CompetitionRepository;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
 use Goal\Legacy\Modules\Match\Domain\MatchStatus;
@@ -52,6 +53,7 @@ final class CareerPresentationService
         );
         $currentClubId = is_array($summary['current_club'] ?? null) ? (string) ($summary['current_club']['id'] ?? '') : '';
         $summary['cup_history'] = $currentClubId === '' ? [] : (new DomesticCupService($this->services->clubModule()->service()))->historyForClub($database, $currentClubId);
+        $summary['europe_history'] = $currentClubId === '' ? [] : (new EuropeanCompetitionService($this->services->clubModule()->service(), new DomesticCupService($this->services->clubModule()->service())))->historyForClub($database, $currentClubId);
 
         return ['world' => $world, 'summary' => $summary, 'date' => $date];
     }
@@ -87,16 +89,24 @@ final class CareerPresentationService
         $nation = (new NationRepository($database))->find($player->primaryNationId());
         $cupStats = null;
         $cupHistory = [];
+        $europeStats = [];
+        $europeHistory = [];
         if ($club !== null) {
             $cups = new DomesticCupService($this->services->clubModule()->service());
+            $europe = new EuropeanCompetitionService($this->services->clubModule()->service(), $cups);
             foreach (array_filter((new ClubMembershipRepository($database))->byClub($club->id()), static fn ($candidate): bool => $candidate->seasonId()->value() === $seasonId->value()) as $clubMembership) {
                 $cup = (new CompetitionRepository($database))->get($clubMembership->competitionId());
-                if ($cup->type() !== CompetitionType::DomesticCup) { continue; }
-                $cupHistory = $cups->historyForClub($database, $club->id()->value());
-                if ($controlled) {
-                    $cupStats = $statistics->seasonCompetitionDetailed($database, $playerId, $seasonId, $cup->id()->value());
+                if ($cup->type() === CompetitionType::DomesticCup) {
+                    $cupHistory = $cups->historyForClub($database, $club->id()->value());
+                    if ($controlled) {
+                        $cupStats = $statistics->seasonCompetitionDetailed($database, $playerId, $seasonId, $cup->id()->value());
+                    }
+                } elseif ($cup->type() === CompetitionType::Continental) {
+                    $europeHistory = $europe->historyForClub($database, $club->id()->value());
+                    if ($controlled) {
+                        $europeStats[$cup->id()->value()] = $statistics->seasonCompetitionDetailed($database, $playerId, $seasonId, $cup->id()->value());
+                    }
                 }
-                break;
             }
         }
 
@@ -111,6 +121,8 @@ final class CareerPresentationService
             'season_stats' => $stats,
             'cup_stats' => $cupStats,
             'cup_history' => $cupHistory,
+            'europe_stats' => $europeStats,
+            'europe_history' => $europeHistory,
             'career_stats' => $careerStats,
             'recent_form' => $form,
             'match_history' => $this->playerMatchHistory($database, $playerId, $seasonId, $club?->id()->value()),
@@ -155,6 +167,9 @@ final class CareerPresentationService
         ];
         if ($competition->type() === CompetitionType::DomesticCup) {
             $view['cup'] = (new DomesticCupService($this->services->clubModule()->service()))->view($database, $competition->id()->value(), $seasonId, $controlledClubId);
+        } elseif ($competition->type() === CompetitionType::Continental) {
+            $cups = new DomesticCupService($this->services->clubModule()->service());
+            $view['europe'] = (new EuropeanCompetitionService($this->services->clubModule()->service(), $cups))->view($database, $competition->id()->value(), $seasonId, $controlledClubId);
         }
 
         return $view;
@@ -274,8 +289,10 @@ final class CareerPresentationService
             'competition_type' => $competition->type()->value,
             'competition_id' => $competition->id()->value(),
             'season_id' => $match->seasonId()->value(),
-            'round' => $competition->type() === CompetitionType::DomesticCup
-                ? ((new DomesticCupService($this->services->clubModule()->service()))->matchResolution($database, $match->id()->value())['stage'] ?? null)
+            'round' => in_array($competition->type(), [CompetitionType::DomesticCup, CompetitionType::Continental], true)
+                ? (($competition->type() === CompetitionType::DomesticCup
+                    ? (new DomesticCupService($this->services->clubModule()->service()))->matchResolution($database, $match->id()->value())
+                    : (new EuropeanCompetitionService($this->services->clubModule()->service(), new DomesticCupService($this->services->clubModule()->service())))->matchResolution($database, $match->id()->value()))['stage'] ?? null)
                 : null,
         ];
     }
@@ -342,6 +359,8 @@ final class CareerPresentationService
         $perspectiveResult = $controlledGoals === $opponentGoals ? 'draw' : ($controlledGoals > $opponentGoals ? 'win' : 'loss');
         $cupResolution = null;
         $cupProgression = null;
+        $europeResolution = null;
+        $europeProgression = null;
         if ($competition->type() === CompetitionType::DomesticCup) {
             $cups = new DomesticCupService($this->services->clubModule()->service());
             $cupResolution = $cups->matchResolution($database, $match->id()->value());
@@ -355,6 +374,17 @@ final class CareerPresentationService
                 } else {
                     $cupProgression = ($cupResolution['winner_club_id'] ?? null) === $controlledClubId ? 'ADVANCED' : 'ELIMINATED';
                 }
+            }
+        }
+        if ($competition->type() === CompetitionType::Continental) {
+            $europe = new EuropeanCompetitionService($this->services->clubModule()->service(), new DomesticCupService($this->services->clubModule()->service()));
+            $europeResolution = $europe->matchResolution($database, $match->id()->value());
+            if (is_array($europeResolution) && is_string($europeResolution['winner_club_id'] ?? null)) {
+                $perspectiveResult = $europeResolution['winner_club_id'] === $controlledClubId ? 'win' : 'loss';
+                $europeView = $europe->view($database, $competition->id()->value(), $match->seasonId(), $controlledClubId);
+                $europeProgression = ($europeView['status'] ?? null) === 'completed'
+                    ? (($europeView['winner_club_id'] ?? null) === $controlledClubId ? 'WINNER' : (($europeView['runner_up_club_id'] ?? null) === $controlledClubId ? 'RUNNER-UP' : 'ELIMINATED'))
+                    : ($europeResolution['winner_club_id'] === $controlledClubId ? 'ADVANCED' : 'ELIMINATED');
             }
         }
         $postDate = $match->scheduledDate();
@@ -380,6 +410,8 @@ final class CareerPresentationService
             'perspective_result' => $perspectiveResult,
             'cup_resolution' => $cupResolution,
             'cup_progression' => $cupProgression,
+            'europe_resolution' => $europeResolution,
+            'europe_progression' => $europeProgression,
             'performance' => $performance,
             'highlights' => $this->highlightLines($database, $match, $playerId),
             'post_match' => [
@@ -533,7 +565,7 @@ final class CareerPresentationService
                 $result = $match->result();
                 if ($result === null) { continue; }
                 $competition = (new CompetitionRepository($database))->get($match->competitionId());
-                $prefix = $competition->type() === CompetitionType::DomesticCup ? 'DOMESTIC CUP — ' : 'RESULT — ';
+                $prefix = $competition->type() === CompetitionType::DomesticCup ? 'DOMESTIC CUP — ' : ($competition->type() === CompetitionType::Continental ? 'EUROPE — ' : 'RESULT — ');
                 $items[] = ['date' => $match->scheduledDate()->toIsoString(), 'headline' => $prefix . $clubs->get($match->homeClubId())->canonicalName() . ' ' . $result->homeGoals() . '-' . $result->awayGoals() . ' ' . $clubs->get($match->awayClubId())->canonicalName() . ' (' . $competition->name() . ')'];
                 if (count($items) >= 8) { break; }
             }
@@ -761,6 +793,9 @@ final class CareerPresentationService
         if ($competition->type() === CompetitionType::DomesticCup) {
             $resolution = (new DomesticCupService($this->services->clubModule()->service()))->matchResolution($database, $match->id()->value());
             $round = is_array($resolution) ? ' · ' . (string) ($resolution['stage'] ?? 'Knockout round') : '';
+        } elseif ($competition->type() === CompetitionType::Continental) {
+            $resolution = (new EuropeanCompetitionService($this->services->clubModule()->service(), new DomesticCupService($this->services->clubModule()->service())))->matchResolution($database, $match->id()->value());
+            $round = is_array($resolution) ? ' · ' . (string) ($resolution['stage'] ?? 'European round') : '';
         }
 
         return $mark . $match->scheduledDate()->toIsoString() . ': ' . $fixture . ' (' . $competition->name() . $round . ')';

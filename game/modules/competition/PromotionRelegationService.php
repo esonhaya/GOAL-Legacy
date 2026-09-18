@@ -39,6 +39,9 @@ final class PromotionRelegationService
         }
         $byNation = [];
         foreach ($definitions as $definition) {
+            if ($definition->type() !== \Goal\Legacy\Modules\Competition\Domain\CompetitionType::DomesticLeague) {
+                continue;
+            }
             $nation = $definition->nationId()->value();
             $byNation[$nation][$definition->tier()][] = $definition;
         }

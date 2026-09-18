@@ -21,7 +21,17 @@ final class StandingsService
     {
         $rows = [];
         foreach ($this->clubService->membershipRepository($database)->byCompetition($competitionId, $seasonId) as $membership) {
-            $id = $membership->clubId()->value();
+            $rows[] = $membership->clubId()->value();
+        }
+
+        return $this->tableForClubs($database, $competitionId, $seasonId, $rows);
+    }
+
+    /** @param list<string> $clubIds @return list<array<string, int|string>> */
+    public function tableForClubs(DatabaseInterface $database, CompetitionId $competitionId, SeasonId $seasonId, array $clubIds): array
+    {
+        $rows = [];
+        foreach (array_values(array_unique(array_map('strval', $clubIds))) as $id) {
             $rows[$id] = ['club_id' => $id, 'played' => 0, 'wins' => 0, 'draws' => 0, 'losses' => 0, 'goals_for' => 0, 'goals_against' => 0, 'goal_difference' => 0, 'points' => 0];
         }
         foreach ((new MatchRepository($database))->completedByCompetition($competitionId, $seasonId) as $match) { $this->apply($rows, $match); }

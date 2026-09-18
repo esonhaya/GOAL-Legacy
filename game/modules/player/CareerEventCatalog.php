@@ -297,6 +297,37 @@ final class CareerEventCatalog
                 self::choice('prepare-for-the-stage', 'Prepare for the stage', 'Prepared for a late domestic cup round', 'cup_late_round', null, 'professional'),
                 self::choice('keep-developing', 'Keep developing through it', 'Used a late domestic cup round as a development opportunity', 'cup_late_round', null, 'development'),
             ], ['requires' => ['next_competition_type' => 'domestic_cup', 'recent_competition_round_min' => 4, 'history_absent' => 'cup_late_round'], 'priority_categories' => ['professional', 'development'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 17]),
+            self::event('europe-approaching-draw', 'europe', 'A continental week is coming', 'The next fixture takes {club} beyond the domestic calendar. The preparation feels different before a European night.', [
+                self::choice('prepare-for-europe', 'Prepare for the occasion', 'Prepared carefully for a first continental fixture', 'europe_preparation', null, 'professional'),
+                self::choice('protect-the-routine', 'Protect the routine', 'Protected the routine before a continental fixture', 'europe_preparation', null, 'recovery'),
+                self::choice('enjoy-the-step', 'Enjoy the step up', 'Enjoyed the build-up to continental football', 'europe_preparation', null, 'lifestyle'),
+            ], ['requires' => ['next_competition_type' => 'continental', 'history_absent' => 'europe_preparation'], 'priority_categories' => ['professional', 'recovery', 'lifestyle'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 18]),
+            self::event('europe-debut', 'europe', 'Your European debut', 'Your first continental appearance for {club} gives the Season a wider horizon.', [
+                self::choice('learn-the-level', 'Study the level carefully', 'Reflected on a first European appearance', 'europe_debut', null, 'development'),
+                self::choice('share-the-night', 'Share the night with the group', 'Shared the memory of a first European appearance with the group', 'europe_debut', null, 'lifestyle'),
+            ], ['requires' => ['recent_competition_type' => 'continental', 'appearances_min' => 1, 'history_absent' => 'europe_debut'], 'priority_categories' => ['development', 'lifestyle'], 'newsworthy' => true, 'repeatability' => 'once_per_career', 'context_weight' => 21]),
+            self::event('europe-group-pressure', 'europe', 'Every continental point matters', 'The group stage has become a test of concentration for {club}; the next result shapes the route ahead.', [
+                self::choice('focus-on-details', 'Focus on the details', 'Focused on the details during the European group stage', 'europe_group_pressure', null, 'development'),
+                self::choice('settle-the-team', 'Help settle the team', 'Helped the team stay composed in the European group stage', 'europe_group_pressure', null, 'professional'),
+                self::choice('keep-perspective', 'Keep the moment in perspective', 'Kept the European group-stage pressure in perspective', 'europe_group_pressure', null, 'balanced'),
+            ], ['requires' => ['next_competition_type' => 'continental', 'recent_competition_round_min' => 2, 'history_absent' => 'europe_group_pressure'], 'priority_categories' => ['development', 'professional', 'balanced'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 16]),
+            self::event('europe-knockout-night', 'europe', 'A continental knockout night', 'The group stage is behind {club}; one European knockout result now changes the shape of the run.', [
+                self::choice('prepare-for-the-tie', 'Prepare for the tie', 'Prepared for a European knockout tie', 'europe_knockout', null, 'professional'),
+                self::choice('embrace-the-pressure', 'Embrace the pressure', 'Embraced the pressure of a European knockout tie', 'europe_knockout', null, 'lifestyle'),
+            ], ['requires' => ['next_competition_type' => 'continental', 'recent_competition_round_min' => 7, 'history_absent' => 'europe_knockout'], 'priority_categories' => ['professional', 'lifestyle'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 20]),
+            self::event('europe-elimination', 'europe', 'The European run is over', 'The continental run has ended for {club}, but the experience remains part of the career.', [
+                self::choice('reset-domestically', 'Reset for the domestic week', 'Reset after European elimination and returned to domestic focus', 'europe_elimination', null, 'professional'),
+                self::choice('take-the-lesson', 'Take the lesson forward', 'Took a lesson from European elimination', 'europe_elimination', null, 'development'),
+                self::choice('make-space', 'Give yourself space', 'Gave yourself space after the European run ended', 'europe_elimination', null, 'recovery'),
+            ], ['requires' => ['recent_competition_type' => 'continental', 'recent_team_result' => 'loss', 'history_absent' => 'europe_elimination'], 'priority_categories' => ['professional', 'development', 'recovery'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 19]),
+            self::event('europe-final', 'europe', 'A continental final awaits', 'The final is close enough to touch now. {club} has made the largest stage of its European run.', [
+                self::choice('prepare-for-history', 'Prepare for the occasion', 'Prepared for a first continental final', 'europe_final', null, 'professional'),
+                self::choice('stay-grounded', 'Stay grounded in the routine', 'Stayed grounded before a continental final', 'europe_final', null, 'balanced'),
+            ], ['requires' => ['next_competition_type' => 'continental', 'recent_competition_round_min' => 8, 'history_absent' => 'europe_final'], 'priority_categories' => ['professional', 'balanced'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 23]),
+            self::event('europe-championship', 'europe', 'Champions of the continent', 'The European final has been won. The celebration at {club} will become one of the defining memories of the career.', [
+                self::choice('celebrate-together', 'Celebrate with the group', 'Celebrated a European championship with the group', 'europe_championship', null, 'lifestyle'),
+                self::choice('remember-the-work', 'Remember the work behind it', 'Remembered the work behind a European championship', 'europe_championship', null, 'professional'),
+            ], ['requires' => ['recent_competition_type' => 'continental', 'recent_team_result' => 'win', 'recent_competition_round_min' => 9, 'history_absent' => 'europe_championship'], 'priority_categories' => ['lifestyle', 'professional'], 'newsworthy' => true, 'repeatability' => 'once_per_career', 'context_weight' => 25]),
         ];
     }
 

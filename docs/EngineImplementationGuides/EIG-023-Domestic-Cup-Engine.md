@@ -43,8 +43,8 @@ requirement of the bracket.
 
 V1 is single elimination with preliminary rounds/byes and regulation followed
 by deterministic extra time and penalties when still level. Seeded draws,
-League cups, continental cups, and international tournaments remain future
-rule modules.
+League cups remain future rule modules. Continental Club football is
+implemented by EIG-024; international tournaments remain future rule modules.
 
 ---
 

@@ -157,6 +157,11 @@ final class Domain017Test extends TestCase
                 self::assertSame([], $services->matchModule()->service()->standings($database, $definition->id(), $next));
                 continue;
             }
+            if ($definition->type() === CompetitionType::Continental) {
+                self::assertSame(24, count($services->matchModule()->service()->repository($database)->byCompetition($definition->id(), $next)));
+                self::assertSame([], $services->matchModule()->service()->standings($database, $definition->id(), $next));
+                continue;
+            }
             self::assertSame($count * ($count - 1), count($services->matchModule()->service()->repository($database)->byCompetition($definition->id(), $next)));
             self::assertCount($count, $services->matchModule()->service()->standings($database, $definition->id(), $next));
         }

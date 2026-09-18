@@ -65,6 +65,7 @@ final class Domain005Test extends TestCase
         self::assertSame(['chelsea'], array_map(static fn ($membership): string => $membership->clubId()->value(), $services->clubModule()->service()->squadRepository($database)->byPlayer($player->id(), $season->id())));
         self::assertSame([
             ['domestic-cup-england', 'chelsea'],
+            ['europe-tier-1', 'chelsea'],
             ['premier-league', 'chelsea'],
         ], array_map(static fn ($registration): array => [$registration->competitionId()->value(), $registration->clubId()->value()], $registrations->byPlayer($player->id())));
         self::assertSame('domain-005-player', $playerService->careerRepository($database)->get('domain-005-career')->playerId()->value());

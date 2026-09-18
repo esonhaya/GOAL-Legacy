@@ -7,6 +7,7 @@ namespace Goal\Legacy\Devtools\Presentation;
 use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
+use Goal\Legacy\Modules\Competition\DomesticCupService;
 use Goal\Legacy\Modules\Competition\Persistence\CompetitionRepository;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
 use Goal\Legacy\Modules\Match\Domain\MatchStatus;
@@ -49,6 +50,8 @@ final class CareerPresentationService
             $date,
             $world->currentSeasonId(),
         );
+        $currentClubId = is_array($summary['current_club'] ?? null) ? (string) ($summary['current_club']['id'] ?? '') : '';
+        $summary['cup_history'] = $currentClubId === '' ? [] : (new DomesticCupService($this->services->clubModule()->service()))->historyForClub($database, $currentClubId);
 
         return ['world' => $world, 'summary' => $summary, 'date' => $date];
     }
@@ -72,12 +75,7 @@ final class CareerPresentationService
         $competition = null;
         if ($membership !== null) {
             $club = $this->services->clubModule()->service()->repository($database)->get($membership->clubId());
-            foreach ((new ClubMembershipRepository($database))->byClub($club->id()) as $clubMembership) {
-                if ($clubMembership->seasonId()->value() === $seasonId->value()) {
-                    $competition = (new CompetitionRepository($database))->get($clubMembership->competitionId());
-                    break;
-                }
-            }
+            $competition = $this->primaryCompetitionForClub($database, $club->id()->value(), $seasonId);
         }
         $career = (new CareerPlayerRepository($database))->get($saveId);
         $controlled = $career->playerId()->value() === $playerId;
@@ -87,6 +85,20 @@ final class CareerPresentationService
         $careerStats = $statistics->careerDetailed($database, $playerId);
         $form = (new PlayerFormService())->recent($database, $playerId, 5, $club?->id()->value());
         $nation = (new NationRepository($database))->find($player->primaryNationId());
+        $cupStats = null;
+        $cupHistory = [];
+        if ($club !== null) {
+            $cups = new DomesticCupService($this->services->clubModule()->service());
+            foreach (array_filter((new ClubMembershipRepository($database))->byClub($club->id()), static fn ($candidate): bool => $candidate->seasonId()->value() === $seasonId->value()) as $clubMembership) {
+                $cup = (new CompetitionRepository($database))->get($clubMembership->competitionId());
+                if ($cup->type() !== CompetitionType::DomesticCup) { continue; }
+                $cupHistory = $cups->historyForClub($database, $club->id()->value());
+                if ($controlled) {
+                    $cupStats = $statistics->seasonCompetitionDetailed($database, $playerId, $seasonId, $cup->id()->value());
+                }
+                break;
+            }
+        }
 
         return [
             'player' => $player,
@@ -97,6 +109,8 @@ final class CareerPresentationService
             'role' => $membership?->role()->value,
             'season_id' => $seasonId->value(),
             'season_stats' => $stats,
+            'cup_stats' => $cupStats,
+            'cup_history' => $cupHistory,
             'career_stats' => $careerStats,
             'recent_form' => $form,
             'match_history' => $this->playerMatchHistory($database, $playerId, $seasonId, $club?->id()->value()),
@@ -114,11 +128,13 @@ final class CareerPresentationService
         $clubs = $this->services->clubModule()->service()->repository($database);
         $matchService = $this->services->matchModule()->service();
         $standings = [];
-        foreach ($matchService->standings($database, $competition->id(), $seasonId) as $row) {
-            $standings[] = $row + [
-                'club' => $clubs->get((string) $row['club_id'])->canonicalName(),
-                'controlled' => $controlledClubId !== null && (string) $row['club_id'] === $controlledClubId,
-            ];
+        if ($competition->type() === CompetitionType::DomesticLeague) {
+            foreach ($matchService->standings($database, $competition->id(), $seasonId) as $row) {
+                $standings[] = $row + [
+                    'club' => $clubs->get((string) $row['club_id'])->canonicalName(),
+                    'controlled' => $controlledClubId !== null && (string) $row['club_id'] === $controlledClubId,
+                ];
+            }
         }
         $recent = [];
         $upcoming = [];
@@ -131,12 +147,17 @@ final class CareerPresentationService
             }
         }
 
-        return [
+        $view = [
             'competition' => $competition,
             'standings' => $standings,
             'recent_results' => array_slice(array_reverse($recent), 0, 8),
             'upcoming_fixtures' => array_slice($upcoming, 0, 8),
         ];
+        if ($competition->type() === CompetitionType::DomesticCup) {
+            $view['cup'] = (new DomesticCupService($this->services->clubModule()->service()))->view($database, $competition->id()->value(), $seasonId, $controlledClubId);
+        }
+
+        return $view;
     }
 
     /** @return array<string, mixed> */
@@ -146,12 +167,9 @@ final class CareerPresentationService
         $membership = null;
         $competition = null;
         foreach ((new ClubMembershipRepository($database))->byClub($club->id()) as $candidate) {
-            if ($candidate->seasonId()->value() === $seasonId->value()) {
-                $membership = $candidate;
-                $competition = (new CompetitionRepository($database))->get($candidate->competitionId());
-                break;
-            }
+            if ($candidate->seasonId()->value() === $seasonId->value()) { $membership = $candidate; break; }
         }
+        $competition = $this->primaryCompetitionForClub($database, $club->id()->value(), $seasonId);
         $standings = $competition === null ? [] : $this->competitionView($database, $competition->id()->value(), $seasonId, $date, $controlledClubId)['standings'];
         $position = null;
         foreach ($standings as $index => $row) {
@@ -256,6 +274,9 @@ final class CareerPresentationService
             'competition_type' => $competition->type()->value,
             'competition_id' => $competition->id()->value(),
             'season_id' => $match->seasonId()->value(),
+            'round' => $competition->type() === CompetitionType::DomesticCup
+                ? ((new DomesticCupService($this->services->clubModule()->service()))->matchResolution($database, $match->id()->value())['stage'] ?? null)
+                : null,
         ];
     }
 
@@ -319,6 +340,23 @@ final class CareerPresentationService
         $controlledGoals = $controlledHome ? $homeGoals : $awayGoals;
         $opponentGoals = $controlledHome ? $awayGoals : $homeGoals;
         $perspectiveResult = $controlledGoals === $opponentGoals ? 'draw' : ($controlledGoals > $opponentGoals ? 'win' : 'loss');
+        $cupResolution = null;
+        $cupProgression = null;
+        if ($competition->type() === CompetitionType::DomesticCup) {
+            $cups = new DomesticCupService($this->services->clubModule()->service());
+            $cupResolution = $cups->matchResolution($database, $match->id()->value());
+            if (is_array($cupResolution) && is_string($cupResolution['winner_club_id'] ?? null)) {
+                $perspectiveResult = $cupResolution['winner_club_id'] === $controlledClubId ? 'win' : 'loss';
+                $cup = $cups->view($database, $competition->id()->value(), $match->seasonId(), $controlledClubId);
+                if (($cup['status'] ?? null) === 'completed') {
+                    $cupProgression = ($cup['winner_club_id'] ?? null) === $controlledClubId
+                        ? 'WINNER'
+                        : (($cup['runner_up_club_id'] ?? null) === $controlledClubId ? 'RUNNER-UP' : 'ELIMINATED');
+                } else {
+                    $cupProgression = ($cupResolution['winner_club_id'] ?? null) === $controlledClubId ? 'ADVANCED' : 'ELIMINATED';
+                }
+            }
+        }
         $postDate = $match->scheduledDate();
         $postSummary = (new PlayerCareerProgressionQuery($this->services->clubModule()->service()))->summary(
             $database,
@@ -340,6 +378,8 @@ final class CareerPresentationService
             'controlled_club' => $controlledHome ? $homeClub->canonicalName() : $awayClub->canonicalName(),
             'result' => ['home_goals' => $homeGoals, 'away_goals' => $awayGoals],
             'perspective_result' => $perspectiveResult,
+            'cup_resolution' => $cupResolution,
+            'cup_progression' => $cupProgression,
             'performance' => $performance,
             'highlights' => $this->highlightLines($database, $match, $playerId),
             'post_match' => [
@@ -399,6 +439,7 @@ final class CareerPresentationService
             'recent_results' => array_reverse($recentResults),
             'upcoming_fixtures' => $upcomingFixtures,
             'next_fixture' => ($next = $this->nextMatch($database, $summary)) === null ? null : $this->fixtureTextFromView($next),
+            'competitions' => $this->competitionLinks($database, $seasonId, (string) $club['id']),
         ];
     }
 
@@ -417,7 +458,6 @@ final class CareerPresentationService
         $clubs = $this->services->clubModule()->service()->repository($database);
         $competitions = new CompetitionRepository($database);
         $nations = new NationRepository($database);
-        $membershipRepository = new ClubMembershipRepository($database);
         $formatted = [];
         foreach ($options as $option) {
             if (!is_array($option)) { continue; }
@@ -426,15 +466,7 @@ final class CareerPresentationService
             $clubView = null;
             if ($clubId !== null) {
                 $club = $clubs->get($clubId);
-                $competition = null;
-                if ($seasonId !== null) {
-                    foreach ($membershipRepository->bySeason($seasonId) as $membership) {
-                        if ($membership->clubId()->value() === $clubId) {
-                            $competition = $competitions->get($membership->competitionId());
-                            break;
-                        }
-                    }
-                }
+                $competition = $seasonId === null ? null : $this->primaryCompetitionForClub($database, $clubId, $seasonId);
                 $nation = $nations->find($club->nationId());
                 $clubView = [
                     'name' => $club->canonicalName(),
@@ -465,11 +497,9 @@ final class CareerPresentationService
             $currentClubRecord = $clubs->get($contextCurrentClubId);
             $currentClub = $currentClubRecord->canonicalName();
             if ($seasonId !== null) {
-                foreach ($membershipRepository->bySeason($seasonId) as $membership) {
-                    if ($membership->clubId()->value() !== $contextCurrentClubId) { continue; }
-                    $currentCompetitionRecord = $competitions->get($membership->competitionId());
+                $currentCompetitionRecord = $this->primaryCompetitionForClub($database, $contextCurrentClubId, $seasonId);
+                if ($currentCompetitionRecord !== null) {
                     $currentCompetition = ['name' => $currentCompetitionRecord->name(), 'tier' => $currentCompetitionRecord->tier()];
-                    break;
                 }
             }
         }
@@ -502,7 +532,9 @@ final class CareerPresentationService
                 if ($match->status() !== MatchStatus::Completed || $match->scheduledDate()->isAfter($date)) { continue; }
                 $result = $match->result();
                 if ($result === null) { continue; }
-                $items[] = ['date' => $match->scheduledDate()->toIsoString(), 'headline' => 'RESULT — ' . $clubs->get($match->homeClubId())->canonicalName() . ' ' . $result->homeGoals() . '-' . $result->awayGoals() . ' ' . $clubs->get($match->awayClubId())->canonicalName()];
+                $competition = (new CompetitionRepository($database))->get($match->competitionId());
+                $prefix = $competition->type() === CompetitionType::DomesticCup ? 'DOMESTIC CUP — ' : 'RESULT — ';
+                $items[] = ['date' => $match->scheduledDate()->toIsoString(), 'headline' => $prefix . $clubs->get($match->homeClubId())->canonicalName() . ' ' . $result->homeGoals() . '-' . $result->awayGoals() . ' ' . $clubs->get($match->awayClubId())->canonicalName() . ' (' . $competition->name() . ')'];
                 if (count($items) >= 8) { break; }
             }
         }
@@ -725,14 +757,20 @@ final class CareerPresentationService
             : $home . ' ' . $result->homeGoals() . '-' . $result->awayGoals() . ' ' . $away;
 
         $mark = $match->homeClubId()->value() === $controlledClubId || $match->awayClubId()->value() === $controlledClubId ? '* ' : '';
+        $round = '';
+        if ($competition->type() === CompetitionType::DomesticCup) {
+            $resolution = (new DomesticCupService($this->services->clubModule()->service()))->matchResolution($database, $match->id()->value());
+            $round = is_array($resolution) ? ' · ' . (string) ($resolution['stage'] ?? 'Knockout round') : '';
+        }
 
-        return $mark . $match->scheduledDate()->toIsoString() . ': ' . $fixture . ' (' . $competition->name() . ')';
+        return $mark . $match->scheduledDate()->toIsoString() . ': ' . $fixture . ' (' . $competition->name() . $round . ')';
     }
 
     /** @param array<string, mixed> $view */
     private function fixtureTextFromView(array $view): string
     {
-        return (string) ($view['date'] ?? 'Date unavailable') . ': ' . (string) ($view['home_club'] ?? 'Home') . ' vs ' . (string) ($view['away_club'] ?? 'Away') . ' (' . (string) ($view['competition'] ?? 'Competition') . ')';
+        $round = ($view['round'] ?? null) === null ? '' : ' · ' . (string) $view['round'];
+        return (string) ($view['date'] ?? 'Date unavailable') . ': ' . (string) ($view['home_club'] ?? 'Home') . ' vs ' . (string) ($view['away_club'] ?? 'Away') . ' (' . (string) ($view['competition'] ?? 'Competition') . $round . ')';
     }
 
     private function seasonId(array $summary): ?\Goal\Legacy\Modules\World\Domain\SeasonId
@@ -749,5 +787,35 @@ final class CareerPresentationService
         }
 
         return new \Goal\Legacy\Modules\World\Domain\SeasonId($id);
+    }
+
+    private function primaryCompetitionForClub(DatabaseInterface $database, string $clubId, SeasonId $seasonId): ?\Goal\Legacy\Modules\Competition\Domain\Competition
+    {
+        $competitions = new CompetitionRepository($database);
+        $memberships = array_values(array_filter((new ClubMembershipRepository($database))->byClub($clubId), static fn ($membership): bool => $membership->seasonId()->value() === $seasonId->value()));
+        usort($memberships, function ($left, $right) use ($competitions): int {
+            $leftCompetition = $competitions->get($left->competitionId());
+            $rightCompetition = $competitions->get($right->competitionId());
+            return (($leftCompetition->type() === CompetitionType::DomesticLeague ? 0 : 1) <=> ($rightCompetition->type() === CompetitionType::DomesticLeague ? 0 : 1)) ?: strcmp($leftCompetition->id()->value(), $rightCompetition->id()->value());
+        });
+
+        return $memberships === [] ? null : $competitions->get($memberships[0]->competitionId());
+    }
+
+    /** @return list<array{id:string,name:string,type:string,controlled:bool}> */
+    private function competitionLinks(DatabaseInterface $database, SeasonId $seasonId, string $controlledClubId): array
+    {
+        $competitions = new CompetitionRepository($database);
+        $memberships = new ClubMembershipRepository($database);
+        $links = [];
+        foreach ($competitions->bySeason($seasonId) as $competition) {
+            $controlled = false;
+            foreach ($memberships->byCompetition($competition->id(), $seasonId) as $membership) {
+                if ($membership->clubId()->value() === $controlledClubId) { $controlled = true; break; }
+            }
+            $links[] = ['id' => $competition->id()->value(), 'name' => $competition->name(), 'type' => $competition->type()->value, 'controlled' => $controlled];
+        }
+
+        return $links;
     }
 }

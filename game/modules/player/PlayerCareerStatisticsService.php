@@ -68,6 +68,45 @@ final class PlayerCareerStatisticsService
     }
 
     /**
+     * Detailed controlled-Player evidence for one competition. Compact world
+     * aggregates intentionally do not pretend to contain per-competition
+     * evidence; callers receive an empty line when no detailed rows exist.
+     * @return array<string, int|float|null>
+     */
+    public function seasonCompetitionDetailed(DatabaseInterface $database, PlayerId|string $playerId, SeasonId|string $seasonId, string $competitionId): array
+    {
+        $id = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        $season = $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId);
+        $matches = new MatchRepository($database);
+        $stats = new PlayerMatchStatRepository($database);
+        $players = new PlayerRepository($database);
+        $ratings = new PlayerMatchRatingService();
+        $result = $this->emptyDetailed();
+        $ratingTotal = 0.0;
+        $position = $players->get($id)->primaryPosition();
+        foreach ($stats->byPlayer($id) as $stat) {
+            $match = $matches->get($stat->matchId());
+            if ($match->seasonId()->value() !== $season->value() || $match->competitionId()->value() !== $competitionId || !$stat->appeared()) {
+                continue;
+            }
+            ++$result['appearances'];
+            $result['starts'] += $stat->started() ? 1 : 0;
+            $result['minutes'] += $stat->minutes();
+            $this->addStatEvidence($result, $stat);
+            $rating = $ratings->rate($stat, $position);
+            if ($rating !== null) {
+                $ratingTotal += $rating;
+                ++$result['rated_appearances'];
+            }
+        }
+        $result['average_match_rating'] = $result['rated_appearances'] === 0
+            ? null
+            : round($ratingTotal / $result['rated_appearances'], 2);
+
+        return $result;
+    }
+
+    /**
      * @return array<string, int|float|null>
      */
     public function careerDetailed(DatabaseInterface $database, PlayerId|string $playerId): array

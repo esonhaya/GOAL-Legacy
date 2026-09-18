@@ -8,6 +8,7 @@ use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\ClubService;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionId;
+use Goal\Legacy\Modules\Competition\Persistence\CompetitionRepository;
 use Goal\Legacy\Modules\Match\Domain\MatchStatus;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
@@ -207,6 +208,9 @@ final class CareerExperienceService
         if (($requirements['recent_team_result'] ?? null) !== null && $signals['recent_team_result'] !== $requirements['recent_team_result']) { return false; }
         if (($requirements['season_phase'] ?? null) !== null && $signals['season_phase'] !== $requirements['season_phase']) { return false; }
         if (($requirements['competition_pressure'] ?? null) !== null && $signals['competition_pressure'] !== $requirements['competition_pressure']) { return false; }
+        if (($requirements['next_competition_type'] ?? null) !== null && $signals['next_competition_type'] !== $requirements['next_competition_type']) { return false; }
+        if (($requirements['recent_competition_type'] ?? null) !== null && $signals['recent_competition_type'] !== $requirements['recent_competition_type']) { return false; }
+        if (isset($requirements['recent_competition_round_min']) && $signals['recent_competition_round'] < (int) $requirements['recent_competition_round_min']) { return false; }
         if (isset($requirements['income_min']) && $signals['income'] < (int) $requirements['income_min']) { return false; }
         if (isset($requirements['wage_income_min']) && $signals['wage_income'] < (int) $requirements['wage_income_min']) { return false; }
         if (isset($requirements['balance_min']) && $signals['balance'] < (int) $requirements['balance_min']) { return false; }
@@ -284,6 +288,18 @@ final class CareerExperienceService
         $recentEvidence = (new PlayerMatchStatRepository($database))->recentCompletedRatingEvidence($playerId, 1)[0]['stat'] ?? null;
         $recentGoals = $recentEvidence?->goals() ?? 0;
         $result = $recentMatch?->result();
+        $competitionRepository = new CompetitionRepository($database);
+        $recentCompetitionType = null;
+        $recentCompetitionRound = 0;
+        if ($recentMatch !== null) {
+            $recentCompetitionType = $competitionRepository->get($recentMatch->competitionId())->type()->value;
+            $recentCompetitionRound = $recentMatch->round();
+        }
+        $nextCompetitionType = null;
+        $nextCompetitionId = (string) (($summary['next_scheduled_match']['competition_id'] ?? ''));
+        if ($nextCompetitionId !== '') {
+            $nextCompetitionType = $competitionRepository->get(new CompetitionId($nextCompetitionId))->type()->value;
+        }
         $clubId = is_array($club) ? (string) ($club['id'] ?? '') : '';
         $recentTeamResult = null;
         if ($result !== null && $clubId !== '') {
@@ -345,6 +361,7 @@ final class CareerExperienceService
             'transfer_request' => (string) (($summary['transfer_request']['status'] ?? 'none')),
             'recent_transfer' => $recentTransfer, 'contract_expiring' => $contractExpiring,
             'recent_team_result' => $recentTeamResult, 'season_phase' => $phase, 'competition_pressure' => $competitionPressure,
+            'next_competition_type' => $nextCompetitionType, 'recent_competition_type' => $recentCompetitionType, 'recent_competition_round' => $recentCompetitionRound,
             'income' => (int) ($finance['income'] ?? 0), 'wage_income' => (int) ($finance['wage_income'] ?? 0), 'balance' => (int) ($finance['balance'] ?? 0), 'owned_item' => $ownedIds, 'owned_effects' => $ownedEffects, 'owned_categories' => $ownedCategories,
             'financial_context' => (string) ($financialContext['code'] ?? 'starting_out'),
             'context_keys' => array_values(array_filter([$role, $form, $recentTeamResult, $recentTransfer ? 'recent_transfer' : null, $contractExpiring ? 'contract_expiring' : null, ((int) ($finance['wage_income'] ?? 0)) > 0 ? 'wage_received' : null, $ownedEffects === [] ? null : 'lifestyle_owned', $financialContext['code'] ?? null])),

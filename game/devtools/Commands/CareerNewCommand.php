@@ -100,9 +100,11 @@ final class CareerNewCommand implements CommandInterface
             }
             $appearanceService->save($database, $player, $appearance);
             $this->services->playerModule()->service()->populationService()->populate($database, $season, $request->seed);
-            foreach ($this->services->competitionModule()->service()->repository($database)->bySeason($season->id()) as $competition) {
-                $this->services->matchModule()->service()->generateFixtures($database, $competition->id()->value(), $season->id());
-            }
+            $this->services->matchModule()->service()->generateSeasonFixtures(
+                $database,
+                array_map(static fn ($competition): string => $competition->id()->value(), $this->services->competitionModule()->service()->repository($database)->bySeason($season->id())),
+                $season->id(),
+            );
             $summary = (new PlayerCareerProgressionQuery($this->services->clubModule()->service()))->summary($database, $player->id(), SimulationDate::fromIsoString('2024-07-31'), $season->id());
             $output->write(sprintf('Career started for %s at %s. Open Career Home with: php game/devtools/console.php career:play %s', $player->preferredName(), $summary['current_club']['name'] ?? 'your Club', $careerId->value()));
 

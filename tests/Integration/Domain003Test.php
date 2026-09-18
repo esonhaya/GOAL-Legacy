@@ -71,8 +71,24 @@ final class Domain003Test extends TestCase
         $membershipRepository = new ClubMembershipRepository($database);
         self::assertCount(198, $clubs);
         self::assertCount(198, $clubRepository->all());
-        self::assertCount(198, $membershipRepository->all());
-        self::assertSame(['2-bundesliga' => 18, 'bundesliga' => 18, 'championship' => 24, 'la-liga' => 20, 'ligue-1' => 18, 'ligue-2' => 18, 'premier-league' => 20, 'segunda-division' => 22, 'serie-a' => 20, 'serie-b' => 20], $this->membershipCounts($membershipRepository->all()));
+        self::assertCount(396, $membershipRepository->all());
+        self::assertSame([
+            '2-bundesliga' => 18,
+            'bundesliga' => 18,
+            'championship' => 24,
+            'domestic-cup-england' => 44,
+            'domestic-cup-france' => 36,
+            'domestic-cup-germany' => 36,
+            'domestic-cup-italy' => 40,
+            'domestic-cup-spain' => 42,
+            'la-liga' => 20,
+            'ligue-1' => 18,
+            'ligue-2' => 18,
+            'premier-league' => 20,
+            'segunda-division' => 22,
+            'serie-a' => 20,
+            'serie-b' => 20,
+        ], $this->membershipCounts($membershipRepository->all()));
         self::assertSame([], array_diff(array_map(static fn ($club): string => $club->id()->value(), $clubRepository->all()), array_map(static fn ($definition): string => $definition->club()->id()->value(), $clubs)));
 
         $before = array_map(static fn ($membership): array => $membership->toArray(), $membershipRepository->all());

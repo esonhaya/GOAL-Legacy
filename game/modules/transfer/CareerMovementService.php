@@ -13,6 +13,7 @@ use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
 use Goal\Legacy\Modules\Competition\CompetitionService;
+use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
@@ -834,13 +835,17 @@ final class CareerMovementService
 
     private function competitionForClub(DatabaseInterface $database, ClubId $clubId, SeasonId $seasonId): ?string
     {
+        $competitions = $this->competitionService->repository($database);
+        $candidates = [];
         foreach ($this->clubService->membershipRepository($database)->byClub($clubId) as $membership) {
-            if ($membership->seasonId()->value() === $seasonId->value()) {
-                return $membership->competitionId()->value();
-            }
+            if ($membership->seasonId()->value() !== $seasonId->value()) { continue; }
+            $competition = $competitions->get($membership->competitionId());
+            $candidates[] = [$competition->type() === CompetitionType::DomesticLeague ? 0 : 1, $competition->id()->value()];
         }
 
-        return null;
+        usort($candidates, static fn (array $left, array $right): int => ($left[0] <=> $right[0]) ?: strcmp($left[1], $right[1]));
+
+        return $candidates[0][1] ?? null;
     }
 
     /** @return array<string, int|float|string> */

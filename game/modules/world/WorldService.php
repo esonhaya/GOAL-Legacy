@@ -12,6 +12,8 @@ use Goal\Legacy\Core\Time\SimulationClock;
 use Goal\Legacy\Core\Time\SimulationTime;
 use Goal\Legacy\Modules\Club\ClubService;
 use Goal\Legacy\Modules\Competition\CompetitionService;
+use Goal\Legacy\Modules\Competition\DomesticCupService;
+use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Competition\Domain\Competition;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionStatus;
 use Goal\Legacy\Modules\Competition\Persistence\CompetitionRepository;
@@ -45,6 +47,7 @@ final class WorldService
         private readonly ?ContractService $contractService = null,
         private readonly ?SeasonRolloverService $seasonRollover = null,
         private readonly ?PlayerFinanceService $playerFinance = null,
+        private readonly ?DomesticCupService $domesticCups = null,
     ) {
     }
 
@@ -90,11 +93,30 @@ final class WorldService
         });
 
         $this->synchronizeClock($world);
+        $this->domesticCups?->ensureSeason($database, $season);
     }
 
     public function load(DatabaseInterface $database, string|WorldId $id): World
     {
-        $world = (new WorldRepository($database))->get($id);
+        $repository = new WorldRepository($database);
+        $world = $repository->get($id);
+        if ($world->currentSeasonId() !== null && $this->domesticCups !== null) {
+            $selected = $this->competitionService->loadSelected();
+            $leagueIds = array_map(static fn ($definition): string => $definition->id()->value(), array_filter($selected, static fn ($definition): bool => $definition->type() === CompetitionType::DomesticLeague));
+            $cupDefinitions = array_values(array_filter($selected, static fn ($definition): bool => $definition->type() === CompetitionType::DomesticCup));
+            $hasAllLeagues = array_diff($leagueIds, $world->competitionIds()) === [];
+            $missingCups = array_values(array_filter($cupDefinitions, fn ($definition): bool => !in_array($definition->id()->value(), $world->competitionIds(), true)));
+            if ($hasAllLeagues && $missingCups !== []) {
+                $database->transaction(fn (): int => $this->competitionService->materializeInTransaction($database, $missingCups, $world->currentSeasonId()));
+                $world = $world->withCompetitionIds(array_merge($world->competitionIds(), array_map(static fn ($definition): string => $definition->id()->value(), $missingCups)));
+                $repository->save($world);
+            }
+            $season = (new SeasonRepository($database))->get($world->currentSeasonId());
+            $this->domesticCups->ensureSeason($database, $season);
+            foreach ($missingCups as $definition) {
+                $this->domesticCups->generateFixtures($database, $definition->id(), $season->id());
+            }
+        }
         $this->synchronizeClock($world);
 
         return $world;

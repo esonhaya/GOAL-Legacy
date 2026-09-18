@@ -13,6 +13,7 @@ use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
 use Goal\Legacy\Modules\Club\Persistence\ClubRepository;
+use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SeasonStatus;
@@ -81,12 +82,15 @@ final class WorldSelfCheckCommand implements CommandInterface
                 throw new RuntimeException('World active-state reload was not deterministic.');
             }
             $activeCompetitions = $this->services->competitionModule()->service()->repository($database)->all();
+            $competitionRepository = $this->services->competitionModule()->service()->repository($database);
+            $leagueMemberships = array_filter($membershipRepository->all(), static fn ($membership): bool => $competitionRepository->get($membership->competitionId())->type() === CompetitionType::DomesticLeague);
             if ($reloaded->currentSeasonId()?->value() !== $season->id()->value()
                 || $season->status() !== SeasonStatus::Upcoming
                 || count($activeCompetitions) !== count($competitions)
                 || count(array_filter($activeCompetitions, static fn ($competition): bool => $competition->status()->value === 'active')) !== count($competitions)
                 || count($clubRepository->all()) !== count($clubs)
-                || count($membershipRepository->all()) !== count($clubs)) {
+                || count($leagueMemberships) !== count($clubs)
+                || count($membershipRepository->all()) < count($clubs)) {
                 throw new RuntimeException('World active lifecycle state is incomplete.');
             }
 

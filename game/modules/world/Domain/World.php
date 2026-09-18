@@ -99,6 +99,23 @@ final readonly class World
         );
     }
 
+    /** @param list<string> $competitionIds */
+    public function withCompetitionIds(array $competitionIds): self
+    {
+        return new self(
+            $this->id,
+            $this->label,
+            $this->universeSeed,
+            $this->createdAt,
+            $this->currentTime,
+            $this->currentSeasonId,
+            $this->nationIds,
+            $competitionIds,
+            $this->contentPackageIds,
+            $this->simulationState,
+        );
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {

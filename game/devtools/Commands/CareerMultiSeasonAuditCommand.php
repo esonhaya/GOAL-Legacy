@@ -280,7 +280,7 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
     /** @param list<string> $competitionIds */
     private function generateSeasonFixtures($database, $matchService, array $competitionIds, Season $season): void
     {
-        foreach ($competitionIds as $competitionId) { $matchService->generateFixtures($database, $competitionId, $season->id()); }
+        $matchService->generateSeasonFixtures($database, $competitionIds, $season->id());
     }
 
     /** @param list<string> $competitionIds @return list<object> */

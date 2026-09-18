@@ -264,6 +264,39 @@ final class CareerEventCatalog
                 self::choice('meet-outside', 'Meet somewhere simple instead', 'Met teammates simply without turning home into a social hub', 'home_gathering', null, 'balanced'),
                 self::choice('protect-recovery', 'Keep the home space for recovery', 'Kept the home space focused on recovery', 'home_gathering', null, 'recovery'),
             ], ['requires' => ['owned_category' => 'Home', 'history_absent' => 'home_gathering'], 'priority_categories' => ['lifestyle', 'recovery', 'balanced'], 'repeatability' => 'once_per_season', 'context_weight' => 7]),
+            self::event('cup-approaching-draw', 'cup', 'A knockout week is coming', 'The next fixture gives {club} a chance to make progress in the domestic cup. The week needs a deliberate plan.', [
+                self::choice('prepare-for-the-tie', 'Prepare for the tie', 'Prepared carefully for a domestic cup tie', 'cup_preparation', null, 'professional'),
+                self::choice('protect-freshness', 'Protect freshness for the tie', 'Protected freshness before a domestic cup tie', 'cup_preparation', null, 'recovery'),
+                self::choice('enjoy-the-occasion', 'Enjoy the occasion', 'Enjoyed the build-up to a domestic cup tie', 'cup_preparation', null, 'lifestyle'),
+            ], ['requires' => ['next_competition_type' => 'domestic_cup', 'history_absent' => 'cup_preparation'], 'priority_categories' => ['professional', 'recovery', 'lifestyle'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 14]),
+            self::event('cup-first-appearance', 'cup', 'Your first domestic cup appearance', 'You have made your first domestic cup appearance for {club}. It is a different kind of pressure from the league week.', [
+                self::choice('learn-the-knockout-rhythm', 'Learn from the knockout rhythm', 'Reflected on a first domestic cup appearance', 'cup_first_appearance', null, 'development'),
+                self::choice('share-the-moment', 'Share the moment with the group', 'Shared the moment of a first domestic cup appearance with the group', 'cup_first_appearance', null, 'lifestyle'),
+            ], ['requires' => ['recent_competition_type' => 'domestic_cup', 'appearances_min' => 1, 'history_absent' => 'cup_first_appearance'], 'priority_categories' => ['development', 'lifestyle'], 'newsworthy' => true, 'repeatability' => 'once_per_career', 'context_weight' => 16]),
+            self::event('cup-advancement-week', 'cup', 'The cup run moves on', 'A win has put {club} into the next domestic cup round. The attention is welcome, but the league week still has to be handled.', [
+                self::choice('keep-the-routine', 'Keep the routine steady', 'Kept the routine steady after domestic cup advancement', 'cup_advancement', null, 'professional'),
+                self::choice('embrace-the-run', 'Embrace the run', 'Embraced the Club\'s domestic cup run', 'cup_advancement', null, 'lifestyle'),
+                self::choice('recover-between-fixtures', 'Recover between fixtures', 'Prioritised recovery after domestic cup advancement', 'cup_advancement', null, 'recovery'),
+            ], ['requires' => ['recent_competition_type' => 'domestic_cup', 'recent_team_result' => 'win', 'history_absent' => 'cup_advancement'], 'priority_categories' => ['professional', 'lifestyle', 'recovery'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 13]),
+            self::event('cup-rotation-decision', 'cup', 'A chance in the knockout squad', 'The domestic cup gives the staff a choice about how to use you while the schedule at {club} stays busy.', [
+                self::choice('push-for-the-start', 'Push for the start', 'Asked to take the domestic cup opportunity seriously', 'cup_role_choice', null, 'professional'),
+                self::choice('be-ready-from-the-bench', 'Be ready from the bench', 'Prepared to help the Club from the domestic cup bench', 'cup_role_choice', null, 'balanced'),
+                self::choice('protect-the-next-block', 'Protect the next block', 'Protected the wider football block around a domestic cup tie', 'cup_role_choice', null, 'recovery'),
+            ], ['requires' => ['next_competition_type' => 'domestic_cup', 'roles' => ['prospect', 'rotation'], 'history_absent' => 'cup_role_choice'], 'priority_categories' => ['professional', 'balanced', 'recovery'], 'newsworthy' => false, 'repeatability' => 'once_per_club', 'context_weight' => 11]),
+            self::event('cup-knockout-pressure', 'cup', 'The tie carries extra weight', 'The later rounds of the domestic cup have changed the feeling around the next match for {club}.', [
+                self::choice('focus-on-details', 'Focus on the details', 'Focused on the details before a high-pressure domestic cup tie', 'cup_pressure', null, 'development'),
+                self::choice('help-the-team', 'Help the team settle', 'Helped the team settle before a high-pressure domestic cup tie', 'cup_pressure', null, 'professional'),
+                self::choice('keep-the-moment-grounded', 'Keep the moment grounded', 'Kept a high-pressure domestic cup tie in perspective', 'cup_pressure', null, 'balanced'),
+            ], ['requires' => ['next_competition_type' => 'domestic_cup', 'recent_competition_round_min' => 3, 'history_absent' => 'cup_pressure'], 'priority_categories' => ['development', 'professional', 'balanced'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 15]),
+            self::event('cup-elimination-response', 'cup', 'The cup run is over', 'The domestic cup has ended for {club} this Season. There is still a long football story ahead.', [
+                self::choice('reset-for-the-league', 'Reset for the league', 'Reset quickly after the domestic cup elimination', 'cup_elimination', null, 'professional'),
+                self::choice('take-the-lesson', 'Take the lesson forward', 'Took a lesson from the domestic cup run', 'cup_elimination', null, 'development'),
+                self::choice('give-yourself-space', 'Give yourself space', 'Gave yourself space after the domestic cup elimination', 'cup_elimination', null, 'recovery'),
+            ], ['requires' => ['recent_competition_type' => 'domestic_cup', 'recent_team_result' => 'loss', 'history_absent' => 'cup_elimination'], 'priority_categories' => ['professional', 'development', 'recovery'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 12]),
+            self::event('cup-late-round-focus', 'cup', 'A late-round opportunity', 'The domestic cup has reached its later stages and {club} needs everyone ready for the next demanding week.', [
+                self::choice('prepare-for-the-stage', 'Prepare for the stage', 'Prepared for a late domestic cup round', 'cup_late_round', null, 'professional'),
+                self::choice('keep-developing', 'Keep developing through it', 'Used a late domestic cup round as a development opportunity', 'cup_late_round', null, 'development'),
+            ], ['requires' => ['next_competition_type' => 'domestic_cup', 'recent_competition_round_min' => 4, 'history_absent' => 'cup_late_round'], 'priority_categories' => ['professional', 'development'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 17]),
         ];
     }
 

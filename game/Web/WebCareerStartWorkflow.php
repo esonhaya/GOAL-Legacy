@@ -90,9 +90,11 @@ final class WebCareerStartWorkflow
             );
             (new PlayerAppearanceService())->save($database, $preview['player'], $appearance);
             $this->services->playerModule()->service()->populationService()->populate($database, $season, $request->seed);
-            foreach ($this->services->competitionModule()->service()->repository($database)->bySeason($season->id()) as $competition) {
-                $this->services->matchModule()->service()->generateFixtures($database, $competition->id()->value(), $season->id());
-            }
+            $this->services->matchModule()->service()->generateSeasonFixtures(
+                $database,
+                array_map(static fn ($competition): string => $competition->id()->value(), $this->services->competitionModule()->service()->repository($database)->bySeason($season->id())),
+                $season->id(),
+            );
         } catch (\Throwable $exception) {
             if ($created) {
                 $path = $this->projectRoot . '/game/saves/' . $request->careerId . '.sqlite';

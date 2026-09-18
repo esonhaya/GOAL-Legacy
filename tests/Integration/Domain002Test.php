@@ -76,17 +76,17 @@ final class Domain002Test extends TestCase
 
         self::assertSame($active->toArray(), $reloaded->toArray());
         self::assertSame(SeasonStatus::Active, $worldService->seasonRepository($database)->get($season->id())->status());
-        self::assertCount(10, array_filter($services->competitionModule()->service()->repository($database)->all(), static fn ($competition): bool => $competition->status()->value === 'active'));
+        self::assertCount(count($competitions), array_filter($services->competitionModule()->service()->repository($database)->all(), static fn ($competition): bool => $competition->status()->value === 'active'));
 
         $completed = $worldService->advanceToDate($database, 'domain-002-world', SimulationDate::fromIsoString('2025-06-01'));
         $restored = $worldService->load($database, 'domain-002-world');
         self::assertSame($completed->toArray(), $restored->toArray());
         self::assertSame(SeasonStatus::Completed, $worldService->seasonRepository($database)->get($season->id())->status());
-        self::assertCount(10, array_filter($services->competitionModule()->service()->repository($database)->all(), static fn ($competition): bool => $competition->status()->value === 'completed'));
+        self::assertCount(count($competitions), array_filter($services->competitionModule()->service()->repository($database)->all(), static fn ($competition): bool => $competition->status()->value === 'completed'));
         self::assertSame(2, count(array_filter($events, static fn (string $event): bool => $event === WorldEventNames::TIME_ADVANCED)));
         self::assertContains(WorldEventNames::SEASON_STARTED, $events);
         self::assertContains(WorldEventNames::SEASON_COMPLETED, $events);
-        self::assertCount(10, array_filter($events, static fn (string $event): bool => $event === WorldEventNames::COMPETITION_ACTIVATED));
-        self::assertCount(10, array_filter($events, static fn (string $event): bool => $event === WorldEventNames::COMPETITION_COMPLETED));
+        self::assertCount(count($competitions), array_filter($events, static fn (string $event): bool => $event === WorldEventNames::COMPETITION_ACTIVATED));
+        self::assertCount(count($competitions), array_filter($events, static fn (string $event): bool => $event === WorldEventNames::COMPETITION_COMPLETED));
     }
 }

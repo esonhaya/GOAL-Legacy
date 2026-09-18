@@ -47,7 +47,7 @@ final class Domain042Test extends TestCase
         $categories = [
             'training', 'recovery', 'team', 'teammates', 'family', 'social', 'friends',
             'lifestyle', 'community', 'media', 'fans', 'adaptation', 'career', 'form',
-            'manager', 'role', 'transfer', 'contract', 'season', 'club_culture', 'financial',
+            'manager', 'role', 'transfer', 'contract', 'season', 'club_culture', 'financial', 'cup',
         ];
         $repeatability = ['cooldown', 'once_per_career', 'once_per_club', 'once_per_season'];
         $focuses = array_map(static fn (TrainingFocus $focus): string => $focus->value, TrainingFocus::cases());

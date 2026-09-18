@@ -50,7 +50,7 @@ final class Data017Test extends TestCase
         [$services, $database, $season] = $this->scenario('data-017-fixtures');
         $competitionService = $services->competitionModule()->service();
         $definitions = $competitionService->loadSelected();
-        self::assertCount(10, $definitions);
+        self::assertCount(15, $definitions);
         self::assertSame(5, count(array_filter($definitions, static fn ($definition): bool => $definition->tier() === 2)));
 
         $expected = ['championship' => 24, 'segunda-division' => 22, '2-bundesliga' => 18, 'serie-b' => 20, 'ligue-2' => 18];
@@ -64,7 +64,7 @@ final class Data017Test extends TestCase
         }
 
         $reloaded = $services->worldModule()->service()->load($database, 'data-017-fixtures');
-        self::assertSame(10, count($competitionService->repository($database)->bySeason($season->id())));
+        self::assertSame(15, count($competitionService->repository($database)->bySeason($season->id())));
         self::assertSame($reloaded->toArray(), $services->worldModule()->service()->load($database, 'data-017-fixtures')->toArray());
         self::assertSame(2, $competitionService->repository($database)->get('championship')->tier());
     }

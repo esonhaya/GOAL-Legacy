@@ -84,6 +84,16 @@ Each domain repository owns persistence of its domain records. Core provides
 database, transaction, serialization, and save primitives; it does not own
 football-domain records.
 
+## Domestic Cup state
+
+Domestic Cup Seasons are additive to the shared Season and Match lifecycle.
+`DomesticCupService` persists compact Season, entry, and Match-resolution rows;
+completed Match records remain the source of regulation scores and Player
+evidence. Extra-time scores and penalty shootouts are Cup-resolution facts,
+with shootout goals excluded from normal Match and Season statistics. Loading a
+save reconciles a completed Cup Match whose winner write was interrupted before
+advancing the bracket.
+
 ---
 
 # Locked Decisions

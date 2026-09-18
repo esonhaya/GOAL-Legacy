@@ -63,7 +63,10 @@ final class Domain005Test extends TestCase
         self::assertSame('chelsea', $contractService->repository($database)->get('domain-005-destination-contract')->clubId()->value());
         self::assertCount(0, $services->clubModule()->service()->squadRepository($database)->byClub('arsenal', $season->id()));
         self::assertSame(['chelsea'], array_map(static fn ($membership): string => $membership->clubId()->value(), $services->clubModule()->service()->squadRepository($database)->byPlayer($player->id(), $season->id())));
-        self::assertSame(['chelsea'], array_map(static fn ($registration): string => $registration->clubId()->value(), $registrations->byPlayer($player->id())));
+        self::assertSame([
+            ['domestic-cup-england', 'chelsea'],
+            ['premier-league', 'chelsea'],
+        ], array_map(static fn ($registration): array => [$registration->competitionId()->value(), $registration->clubId()->value()], $registrations->byPlayer($player->id())));
         self::assertSame('domain-005-player', $playerService->careerRepository($database)->get('domain-005-career')->playerId()->value());
         self::assertSame('completed', $services->transferModule()->service()->repository($database)->get('domain-005-transfer')->status()->value);
     }

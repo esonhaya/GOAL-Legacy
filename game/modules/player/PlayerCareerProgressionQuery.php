@@ -11,6 +11,7 @@ use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
 use Goal\Legacy\Modules\Club\Persistence\ClubRepository;
 use Goal\Legacy\Modules\Competition\Domain\Competition;
+use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Competition\Persistence\CompetitionRepository;
 use Goal\Legacy\Modules\Contract\Domain\Contract;
 use Goal\Legacy\Modules\Contract\Persistence\ContractRepository;
@@ -166,10 +167,14 @@ final class PlayerCareerProgressionQuery
             return null;
         }
         $membershipRepository = new ClubMembershipRepository($database);
-        foreach ($membershipRepository->bySeason($membership->seasonId()) as $clubMembership) {
-            if ($clubMembership->clubId()->value() === $membership->clubId()->value()) {
-                return $competitions->get($clubMembership->competitionId());
-            }
+        $clubMemberships = array_values(array_filter($membershipRepository->bySeason($membership->seasonId()), static fn ($clubMembership): bool => $clubMembership->clubId()->value() === $membership->clubId()->value()));
+        usort($clubMemberships, function ($left, $right) use ($competitions): int {
+            $leftCompetition = $competitions->get($left->competitionId());
+            $rightCompetition = $competitions->get($right->competitionId());
+            return (($leftCompetition->type() === CompetitionType::DomesticLeague ? 0 : 1) <=> ($rightCompetition->type() === CompetitionType::DomesticLeague ? 0 : 1)) ?: strcmp($leftCompetition->id()->value(), $rightCompetition->id()->value());
+        });
+        foreach ($clubMemberships as $clubMembership) {
+            return $competitions->get($clubMembership->competitionId());
         }
 
         return null;
@@ -216,12 +221,13 @@ final class PlayerCareerProgressionQuery
         foreach ($memberships as $membership) {
             $season = $seasons[$membership->seasonId()->value()] ?? null;
             $competition = null;
-            foreach ($clubMemberships->bySeason($membership->seasonId()) as $candidate) {
-                if ($candidate->clubId()->value() === $membership->clubId()->value()) {
-                    $competition = $competitions->get($candidate->competitionId());
-                    break;
-                }
-            }
+            $candidates = array_values(array_filter($clubMemberships->bySeason($membership->seasonId()), static fn ($candidate): bool => $candidate->clubId()->value() === $membership->clubId()->value()));
+            usort($candidates, function ($left, $right) use ($competitions): int {
+                $leftCompetition = $competitions->get($left->competitionId());
+                $rightCompetition = $competitions->get($right->competitionId());
+                return (($leftCompetition->type() === CompetitionType::DomesticLeague ? 0 : 1) <=> ($rightCompetition->type() === CompetitionType::DomesticLeague ? 0 : 1)) ?: strcmp($leftCompetition->id()->value(), $rightCompetition->id()->value());
+            });
+            if ($candidates !== []) { $competition = $competitions->get($candidates[0]->competitionId()); }
             $assessment = $performance->assess($database, $playerId, $membership->seasonId());
             $factualStatistics = (new PlayerCareerStatisticsService())->seasonDetailed($database, $playerId, $membership->seasonId());
             $history[] = [

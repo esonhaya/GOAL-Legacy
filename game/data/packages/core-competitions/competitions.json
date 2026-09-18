@@ -2,6 +2,14 @@
   "schema_version": 1,
   "competitions": [
     {
+      "id": "domestic-cup-england",
+      "name": "English Domestic Cup",
+      "short_name": "Domestic Cup",
+      "type": "domestic_cup",
+      "nation_id": "england",
+      "tier": 3
+    },
+    {
       "id": "bundesliga",
       "name": "Bundesliga",
       "short_name": "Bundesliga",
@@ -40,6 +48,38 @@
       "type": "domestic_league",
       "nation_id": "italy",
       "tier": 1
+    },
+    {
+      "id": "domestic-cup-france",
+      "name": "French Domestic Cup",
+      "short_name": "Domestic Cup",
+      "type": "domestic_cup",
+      "nation_id": "france",
+      "tier": 3
+    },
+    {
+      "id": "domestic-cup-germany",
+      "name": "German Domestic Cup",
+      "short_name": "Domestic Cup",
+      "type": "domestic_cup",
+      "nation_id": "germany",
+      "tier": 3
+    },
+    {
+      "id": "domestic-cup-italy",
+      "name": "Italian Domestic Cup",
+      "short_name": "Domestic Cup",
+      "type": "domestic_cup",
+      "nation_id": "italy",
+      "tier": 3
+    },
+    {
+      "id": "domestic-cup-spain",
+      "name": "Spanish Domestic Cup",
+      "short_name": "Domestic Cup",
+      "type": "domestic_cup",
+      "nation_id": "spain",
+      "tier": 3
     }
   ]
 }

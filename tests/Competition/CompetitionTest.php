@@ -40,13 +40,16 @@ final class CompetitionTest extends TestCase
         $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);
         $definitions = $services->competitionModule()->service()->loadSelected();
 
-        self::assertSame(['2-bundesliga', 'bundesliga', 'championship', 'la-liga', 'ligue-1', 'ligue-2', 'premier-league', 'segunda-division', 'serie-a', 'serie-b'], array_map(
+        $ids = array_map(
             static fn (CompetitionDefinition $definition): string => $definition->id()->value(),
             $definitions,
-        ));
-        self::assertSame('england', $definitions[6]->nationId()->value());
-        self::assertSame(1, $definitions[6]->tier());
-        self::assertSame(2, $definitions[2]->tier());
+        );
+        self::assertSame(['2-bundesliga', 'bundesliga', 'championship', 'domestic-cup-england', 'domestic-cup-france', 'domestic-cup-germany', 'domestic-cup-italy', 'domestic-cup-spain', 'la-liga', 'ligue-1', 'ligue-2', 'premier-league', 'segunda-division', 'serie-a', 'serie-b'], $ids);
+        $byId = array_combine($ids, $definitions);
+        self::assertSame('england', $byId['premier-league']->nationId()->value());
+        self::assertSame(1, $byId['premier-league']->tier());
+        self::assertSame(2, $byId['championship']->tier());
+        self::assertSame(3, $byId['domestic-cup-england']->tier());
     }
 
     public function testCompetitionRepositoryMaterializesStateAndQueriesByNationAndSeason(): void

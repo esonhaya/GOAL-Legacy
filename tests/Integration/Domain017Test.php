@@ -12,6 +12,7 @@ use Goal\Legacy\Core\Persistence\SqliteSaveStore;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionId;
+use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Competition\PromotionRelegationService;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
 use Goal\Legacy\Modules\Match\Domain\MatchId;
@@ -100,10 +101,14 @@ final class Domain017Test extends TestCase
         $worldService->advanceToDate($database, $world->id(), SimulationDate::fromIsoString('2025-08-01'));
         $next = new SeasonId('season-2025-26');
         $nextMemberships = $memberships->bySeason($next);
-        self::assertCount(198, $nextMemberships);
+        $nextLeagueMemberships = array_values(array_filter(
+            $nextMemberships,
+            fn ($membership): bool => $services->competitionModule()->service()->repository($database)->get($membership->competitionId())->type() === CompetitionType::DomesticLeague,
+        ));
+        self::assertCount(198, $nextLeagueMemberships);
 
         $nextByClub = [];
-        foreach ($nextMemberships as $membership) {
+        foreach ($nextLeagueMemberships as $membership) {
             self::assertArrayNotHasKey($membership->clubId()->value(), $nextByClub);
             $nextByClub[$membership->clubId()->value()] = $membership->competitionId()->value();
         }
@@ -112,6 +117,9 @@ final class Domain017Test extends TestCase
         }
         $previousByClub = [];
         foreach ($memberships->bySeason($season->id()) as $membership) {
+            if ($services->competitionModule()->service()->repository($database)->get($membership->competitionId())->type() !== CompetitionType::DomesticLeague) {
+                continue;
+            }
             $previousByClub[$membership->clubId()->value()] = $membership->competitionId()->value();
         }
         foreach (array_merge($movement['promoted'], $movement['relegated']) as $change) {
@@ -144,6 +152,11 @@ final class Domain017Test extends TestCase
         foreach ($services->competitionModule()->service()->loadSelected() as $definition) {
             $count = count($memberships->byCompetition($definition->id(), $next));
             self::assertSame($expectedCounts[$definition->id()->value()], $count);
+            if ($definition->type() === CompetitionType::DomesticCup) {
+                self::assertGreaterThan(0, count($services->matchModule()->service()->repository($database)->byCompetition($definition->id(), $next)));
+                self::assertSame([], $services->matchModule()->service()->standings($database, $definition->id(), $next));
+                continue;
+            }
             self::assertSame($count * ($count - 1), count($services->matchModule()->service()->repository($database)->byCompetition($definition->id(), $next)));
             self::assertCount($count, $services->matchModule()->service()->standings($database, $definition->id(), $next));
         }

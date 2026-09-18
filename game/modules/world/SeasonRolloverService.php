@@ -14,6 +14,8 @@ use Goal\Legacy\Modules\Club\Domain\ClubCompetitionMembership;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
 use Goal\Legacy\Modules\Competition\CompetitionService;
+use Goal\Legacy\Modules\Competition\DomesticCupService;
+use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Competition\PromotionRelegationService;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionDefinition;
 use Goal\Legacy\Modules\Competition\Domain\PlayerRegistration;
@@ -66,6 +68,7 @@ final class SeasonRolloverService
         private readonly MatchService $matchService,
         private readonly EventDispatcherInterface $events,
         private readonly ?TransferService $transferService = null,
+        private readonly ?DomesticCupService $domesticCups = null,
     ) {
         $this->promotionRelegation = new PromotionRelegationService($clubService);
     }
@@ -287,10 +290,24 @@ final class SeasonRolloverService
         $fixtures = 0;
         $phaseStart = hrtime(true);
         $matches = new MatchRepository($database);
+        $definitionsById = [];
+        foreach ($definitions as $definition) { $definitionsById[$definition->id()->value()] = $definition; }
+        // League fixtures establish the calendar baseline used by the cup
+        // scheduler. Generate them first even when content IDs sort cups
+        // before leagues.
+        $leagueIds = [];
+        $cupIds = [];
         foreach ($world->competitionIds() as $competitionId) {
-            if ($matches->byCompetition($competitionId, $previous->id()) === []) {
+            $definition = $definitionsById[$competitionId] ?? null;
+            if ($definition?->type() === CompetitionType::DomesticCup) {
+                $cupIds[] = $competitionId;
                 continue;
             }
+            if ($matches->byCompetition($competitionId, $previous->id()) !== []) {
+                $leagueIds[] = $competitionId;
+            }
+        }
+        foreach (array_merge($leagueIds, $cupIds) as $competitionId) {
             $fixtures += count($this->matchService->generateFixtures($database, $competitionId, $next->id()));
         }
         $this->lastPhaseTimings['fixture_generation_ms'] = $this->elapsedMilliseconds($phaseStart);
@@ -384,6 +401,10 @@ final class SeasonRolloverService
     {
         $matches = new MatchRepository($database);
         foreach ($world->competitionIds() as $competitionId) {
+            if ($this->domesticCups?->isDomesticCup($database, $competitionId) === true) {
+                if (!$this->domesticCups->complete($database, $competitionId, $season->id())) { return false; }
+                continue;
+            }
             $records = $matches->byCompetition($competitionId, $season->id());
             if ($records !== [] && count(array_filter($records, static fn ($match): bool => $match->status()->value !== 'completed')) > 0) {
                 return false;
@@ -493,15 +514,13 @@ final class SeasonRolloverService
             $expected[$competitionId . ':' . $clubId] = true;
         }
         $actual = [];
-        $clubs = [];
         foreach ($nextMemberships as $membership) {
             $clubId = $membership->clubId()->value();
             $key = $membership->competitionId()->value() . ':' . $clubId;
-            if (isset($actual[$key]) || isset($clubs[$clubId])) {
+            if (isset($actual[$key])) {
                 throw new WorldException(sprintf('Next Season contains duplicate Competition membership for Club "%s".', $clubId));
             }
             $actual[$key] = true;
-            $clubs[$clubId] = true;
         }
         ksort($expected);
         ksort($actual);

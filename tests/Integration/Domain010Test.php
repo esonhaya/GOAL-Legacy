@@ -60,7 +60,7 @@ final class Domain010Test extends TestCase
         self::assertSame(25, $first['min_squad_size']);
         self::assertSame(25, $first['max_squad_size']);
         self::assertSame(4950, count($services->contractModule()->service()->repository($database)->all()));
-        self::assertSame(4950, count($services->competitionModule()->service()->registrationRepository($database)->all()));
+        self::assertSame(9900, count($services->competitionModule()->service()->registrationRepository($database)->all()));
         self::assertGreaterThan(0, $first['position_counts']['GK']);
         self::assertGreaterThan(0, $first['position_counts']['CB']);
         self::assertGreaterThan(0, $first['position_counts']['CM']);

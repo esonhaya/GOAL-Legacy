@@ -34,6 +34,7 @@ use Goal\Legacy\Modules\World\Domain\WorldId;
 use Goal\Legacy\Modules\World\Persistence\SeasonRepository;
 use Goal\Legacy\Modules\World\Persistence\WorldRepository;
 use Goal\Legacy\Modules\Player\Finance\PlayerFinanceService;
+use Goal\Legacy\Modules\Player\FootballSocialService;
 use InvalidArgumentException;
 
 final class WorldService
@@ -52,6 +53,7 @@ final class WorldService
         private readonly ?DomesticCupService $domesticCups = null,
         private readonly ?EuropeanCompetitionService $europeanCompetitions = null,
         private readonly ?InternationalCompetitionService $internationalCompetitions = null,
+        private readonly ?FootballSocialService $footballSocial = null,
     ) {
     }
 
@@ -77,6 +79,7 @@ final class WorldService
 
     public function initialize(DatabaseInterface $database, World $world, Season $season): void
     {
+        $this->footballSocial?->initializeSchema($database);
         if ($world->currentSeasonId()?->value() !== $season->id()->value()) {
             throw new WorldException('World current Season ID must match the Season being initialized.');
         }
@@ -104,6 +107,7 @@ final class WorldService
 
     public function load(DatabaseInterface $database, string|WorldId $id): World
     {
+        $this->footballSocial?->initializeSchema($database);
         $repository = new WorldRepository($database);
         $world = $repository->get($id);
         if ($world->currentSeasonId() !== null && ($this->domesticCups !== null || $this->europeanCompetitions !== null || $this->internationalCompetitions !== null)) {

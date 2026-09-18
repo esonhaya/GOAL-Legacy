@@ -14,6 +14,7 @@
 - GDB-004 Phase 1 Release Scope (current reconciliation)
 - GDB-005 Avatar and Portrait V1
 - GDB-006 Domestic Cup Football
+- GDB-008 Football Reputation and Relationships
 
 ## Technical Bible
 - TB-001 Technical Architecture
@@ -23,11 +24,13 @@
 - TB-005 Save System
 - TB-006 Developer Tools
 - TB-007 Data Lifecycle
+- TB-009 Football Social State
 
 ## Content Bible
 - CB-009 Between-Match Career Events
 - CB-010 Avatar V1 Visual Style and Asset Authoring
 - CB-011 Domestic Cup Content
+- CB-014 Football Social Narrative
 
 ## Engine Implementation Guides
 - EIG-018 Career Experience Boundary
@@ -36,3 +39,4 @@
 - EIG-021 Player-Centric Simulation Fidelity
 - EIG-022 Player Finance and Lifestyle
 - EIG-023 Domestic Cup Engine
+- EIG-026 Football Social Engine

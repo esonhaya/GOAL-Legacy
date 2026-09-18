@@ -26,6 +26,7 @@ final class PlayerService
         private readonly ?PlayerAvailabilityService $availabilityService = null,
         private readonly ?PlayerPopulationService $populationService = null,
         private readonly ?PlayerFinanceService $financeService = null,
+        private readonly ?FootballSocialService $socialService = null,
     ) {
     }
 
@@ -56,7 +57,7 @@ final class PlayerService
 
     public function careerExperienceService(): CareerExperienceService
     {
-        return new CareerExperienceService($this->developmentService(), $this->trainingService(), $this->clubService, $this->financeService());
+        return new CareerExperienceService($this->developmentService(), $this->trainingService(), $this->clubService, $this->financeService(), $this->socialService());
     }
 
     public function populationService(): PlayerPopulationService
@@ -71,6 +72,11 @@ final class PlayerService
     public function financeService(): PlayerFinanceService
     {
         return $this->financeService ?? new PlayerFinanceService();
+    }
+
+    public function socialService(): FootballSocialService
+    {
+        return $this->socialService ?? new FootballSocialService($this->clubService);
     }
 
     /** @return list<Player> */
@@ -99,6 +105,7 @@ final class PlayerService
             $squadRepository->save($squadMembership);
             $careerRepository->save($career);
         });
+        $this->socialService()->initializeCareer($database, $player, $squadMembership->clubId()->value(), $squadMembership->role()->value, $career->startDate());
     }
 
 }

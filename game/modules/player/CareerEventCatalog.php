@@ -328,6 +328,52 @@ final class CareerEventCatalog
                 self::choice('celebrate-together', 'Celebrate with the group', 'Celebrated a European championship with the group', 'europe_championship', null, 'lifestyle'),
                 self::choice('remember-the-work', 'Remember the work behind it', 'Remembered the work behind a European championship', 'europe_championship', null, 'professional'),
             ], ['requires' => ['recent_competition_type' => 'continental', 'recent_team_result' => 'win', 'recent_competition_round_min' => 9, 'history_absent' => 'europe_championship'], 'priority_categories' => ['lifestyle', 'professional'], 'newsworthy' => true, 'repeatability' => 'once_per_career', 'context_weight' => 25]),
+            self::event('social-breakout-spotlight', 'media', 'A wider spotlight arrives', 'A strong run for {club} has moved you from promising Player to someone the football public is beginning to recognise.', [
+                self::choice('spotlight-team', 'Credit the team and the work', 'Credited the team when a wider football spotlight arrived', null, null, 'professional', null, null, ['public_profile' => 2, 'club_standing' => 2, 'supporter_score' => 3, 'manager_score' => 2, 'history' => true]),
+                self::choice('spotlight-confident', 'Speak confidently about the next step', 'Spoke confidently when a wider football spotlight arrived', null, null, 'professional', null, null, ['public_profile' => 3, 'supporter_score' => 1, 'manager_score' => 1, 'history' => true]),
+                self::choice('spotlight-reserved', 'Keep the attention measured', 'Kept a new football spotlight measured and focused', null, null, 'balanced', null, null, ['public_profile' => 1, 'manager_score' => 2]),
+            ], ['requires' => ['public_profile_min' => 30, 'forms' => ['excellent', 'good'], 'history_absent' => 'social_breakout'], 'newsworthy' => true, 'repeatability' => 'once_per_career', 'context_weight' => 18]),
+            self::event('social-public-scrutiny', 'media', 'Questions follow the form', 'Expectations around {club} have risen, and a difficult run has brought sharper questions from the football public.', [
+                self::choice('own-the-form', 'Own the responsibility', 'Accepted responsibility when public questions followed a poor run', null, null, 'professional', null, null, ['public_profile' => 1, 'supporter_score' => 2, 'manager_score' => 1, 'history' => true]),
+                self::choice('protect-the-team', 'Protect the team', 'Protected the team when public questions followed a poor run', null, null, 'professional', null, null, ['supporter_score' => 3, 'manager_score' => 2]),
+                self::choice('keep-it-private', 'Keep working without adding to the noise', 'Kept a difficult public conversation private and returned to work', null, null, 'balanced', null, null, ['supporter_score' => 1]),
+            ], ['requires' => ['public_profile_min' => 55, 'forms' => ['poor', 'very_poor'], 'history_absent' => 'social_scrutiny'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 17]),
+            self::event('supporters-rally', 'fans', 'Supporters notice the commitment', 'Supporters at {club} have noticed the work behind your recent performances and want you to know they are behind you.', [
+                self::choice('acknowledge-support', 'Acknowledge the support', 'Acknowledged supporters after they rallied around the Player', null, null, 'professional', null, null, ['supporter_score' => 5, 'club_standing' => 2, 'history' => true]),
+                self::choice('keep-routine', 'Let the football answer', 'Kept the routine after supporters rallied around the Player', null, null, 'balanced', null, null, ['supporter_score' => 2, 'club_standing' => 1]),
+            ], ['requires' => ['club_standing_min' => 35, 'supporter_sentiment' => 'supportive', 'history_absent' => 'supporters_rally'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 12]),
+            self::event('supporters-question-form', 'fans', 'Supporters want a response', 'A difficult spell has made the mood around {club} more uncertain. The next response has to come through football.', [
+                self::choice('respond-with-work', 'Respond through your work', 'Responded to supporter doubts through work on the pitch', null, null, 'professional', null, null, ['supporter_score' => 5, 'manager_score' => 2]),
+                self::choice('ask-for-time', 'Ask for patience', 'Asked supporters for patience during a difficult spell', null, null, 'balanced', null, null, ['supporter_score' => 2]),
+            ], ['requires' => ['supporter_sentiment' => 'skeptical', 'forms' => ['poor', 'very_poor'], 'history_absent' => 'supporters_question'], 'newsworthy' => false, 'repeatability' => 'once_per_season', 'context_weight' => 11]),
+            self::event('manager-trust-review', 'manager', 'Trust brings a bigger role', 'The Club manager sees a Player who can be trusted with more responsibility at {club}.', [
+                self::choice('team-first-trust', 'Keep the team first', 'Kept the team first when manager trust brought a bigger role', null, null, 'professional', null, null, ['manager_score' => 4, 'club_standing' => 2, 'history' => true]),
+                self::choice('ask-for-responsibility', 'Ask how to carry the responsibility', 'Asked how to carry a bigger role after earning manager trust', null, null, 'development', null, null, ['manager_score' => 3, 'club_standing' => 1]),
+            ], ['requires' => ['manager_relationship' => 'trusted', 'history_absent' => 'manager_trust_review'], 'newsworthy' => false, 'repeatability' => 'once_per_season', 'context_weight' => 10]),
+            self::event('manager-patience-repair', 'manager', 'A relationship needs rebuilding', 'A strained conversation with the manager is not permanent, but the next weeks at {club} need professionalism.', [
+                self::choice('rebuild-trust', 'Rebuild trust through consistency', 'Started rebuilding manager trust through consistency', null, null, 'professional', null, null, ['manager_score' => 6, 'club_standing' => 1, 'history' => true]),
+                self::choice('ask-for-targets', 'Ask for clear targets', 'Asked the manager for clear targets while rebuilding trust', null, null, 'development', null, null, ['manager_score' => 4]),
+            ], ['requires' => ['manager_relationship' => 'strained', 'history_absent' => 'manager_repair'], 'newsworthy' => false, 'repeatability' => 'once_per_club', 'context_weight' => 12]),
+            self::event('social-mentor-followthrough', 'teammates', 'A mentor relationship takes shape', 'The earlier conversation with a senior teammate has become a useful part of life at {club}.', [
+                self::choice('apply-advice', 'Apply the advice openly', 'Applied a mentor\'s advice as the relationship took shape', null, null, 'development', null, null, ['public_profile' => 1, 'club_standing' => 2, 'relationship_type' => 'mentor', 'relationship_context' => 'A senior teammate has become a steady football mentor.', 'history' => true]),
+                self::choice('pass-it-on', 'Pass the lesson on', 'Passed a mentor\'s lesson on to another teammate', null, null, 'professional', null, null, ['club_standing' => 3, 'supporter_score' => 2, 'relationship_type' => 'ally', 'relationship_context' => 'Shared football knowledge strengthened a teammate alliance.', 'history' => true]),
+            ], ['requires' => ['relationship_type' => 'mentor', 'history_absent' => 'mentor_followthrough_social'], 'newsworthy' => false, 'repeatability' => 'once_per_career', 'context_weight' => 13]),
+            self::event('social-position-competition', 'teammates', 'Competition for the place intensifies', 'A teammate competing for the same position has raised the standard at {club}.', [
+                self::choice('professional-competitor', 'Compete professionally', 'Built a professional position competition through football', null, null, 'development', null, null, ['manager_score' => 1, 'relationship_type' => 'competitor', 'relationship_context' => 'Regular competition for the same role remains professional.', 'history' => true]),
+                self::choice('share-standard', 'Raise the standard together', 'Raised the standard with a position competitor', null, null, 'professional', null, null, ['club_standing' => 2, 'relationship_type' => 'ally', 'relationship_context' => 'Position competition became a constructive alliance.']),
+            ], ['requires' => ['position_competition' => true, 'history_absent' => 'position_competition_social'], 'newsworthy' => false, 'repeatability' => 'once_per_season', 'context_weight' => 12]),
+            self::event('international-profile-recognition', 'media', 'Recognition reaches beyond the Club', 'Your work for Club and country has made you a more visible figure in the football world.', [
+                self::choice('represent-with-care', 'Represent both teams carefully', 'Handled growing Club and country recognition with care', null, null, 'professional', null, null, ['public_profile' => 2, 'international_profile' => 1, 'history' => true]),
+                self::choice('keep-football-central', 'Keep football at the centre', 'Kept football central as international recognition grew', null, null, 'balanced', null, null, ['public_profile' => 1, 'international_profile' => 1]),
+            ], ['requires' => ['international_profile_min' => 20, 'public_profile_min' => 35, 'history_absent' => 'international_profile_recognition'], 'newsworthy' => true, 'repeatability' => 'once_per_career', 'context_weight' => 16]),
+            self::event('club-favorite-recognition', 'fans', 'The Club feels like home', 'Long service and important moments have made you one of the familiar faces supporters associate with {club}.', [
+                self::choice('thank-the-club', 'Thank the Club community', 'Thanked the Club community after becoming a supporter favorite', null, null, 'professional', null, null, ['club_standing' => 4, 'supporter_score' => 5, 'history' => true]),
+                self::choice('stay-grounded', 'Stay grounded in the work', 'Stayed grounded after becoming a supporter favorite', null, null, 'balanced', null, null, ['club_standing' => 2, 'supporter_score' => 3]),
+            ], ['requires' => ['club_standing_min' => 70, 'history_absent' => 'club_favorite_recognition'], 'newsworthy' => true, 'repeatability' => 'once_per_career', 'context_weight' => 15]),
+            self::event('rivalry-matchday-context', 'career', 'A familiar rival returns', 'A meaningful football rivalry is part of the context before the next important Match.', [
+                self::choice('focus-on-football', 'Keep the focus on football', 'Kept a meaningful rivalry in football perspective', null, null, 'professional', null, null, ['public_profile' => 1, 'history' => true]),
+                self::choice('embrace-the-history', 'Embrace the history of the meeting', 'Embraced the history of a meaningful football rivalry', null, null, 'balanced', null, null, ['public_profile' => 2, 'supporter_score' => 2, 'history' => true]),
+            ], ['requires' => ['history_present' => 'rivalry_started', 'history_absent' => 'rivalry_matchday'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 14]),
         ];
     }
 
@@ -352,7 +398,7 @@ final class CareerEventCatalog
         ];
     }
 
-    private static function choice(string $id, string $label, string $history, ?string $memory = null, ?string $focus = null, ?string $priority = null, ?string $alsoMemory = null, ?array $finance = null): array
+    private static function choice(string $id, string $label, string $history, ?string $memory = null, ?string $focus = null, ?string $priority = null, ?string $alsoMemory = null, ?array $finance = null, ?array $social = null): array
     {
         $choice = ['id' => $id, 'label' => $label, 'history' => $history];
         if ($memory !== null) { $choice['memory'] = $memory; }
@@ -360,6 +406,7 @@ final class CareerEventCatalog
         if ($focus !== null) { $choice['focus'] = $focus; }
         if ($priority !== null) { $choice['priority'] = $priority; }
         if ($finance !== null) { $choice['finance'] = $finance; }
+        if ($social !== null) { $choice['social'] = $social; }
 
         return $choice;
     }

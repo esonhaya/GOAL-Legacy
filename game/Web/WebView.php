@@ -41,6 +41,7 @@ final class WebView
             $items = [
                 'home' => ['Career Home', 'home'],
                 'career' => ['Career', 'career'],
+                'relationships' => ['Relationships', 'relationships'],
                 'squad' => ['Squad', 'squad'],
                 'world' => ['World', 'world'],
                 'international' => ['International', 'international'],

@@ -20,6 +20,7 @@ use Goal\Legacy\Modules\Contract\Domain\ContractStatus;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\PlayerPopulationService;
+use Goal\Legacy\Modules\Player\FootballSocialService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Transfer\Domain\Transfer;
 use Goal\Legacy\Modules\Transfer\Domain\TransferEventNames;
@@ -31,8 +32,9 @@ use Goal\Legacy\Modules\World\Domain\Season;
 
 final class TransferService
 {
-    public function __construct(private readonly ContractService $contractService, private readonly ClubService $clubService, private readonly CompetitionService $competitionService, private readonly EventDispatcherInterface $events) {}
+    public function __construct(private readonly ContractService $contractService, private readonly ClubService $clubService, private readonly CompetitionService $competitionService, private readonly EventDispatcherInterface $events, private readonly ?FootballSocialService $social = null) {}
     public function repository(DatabaseInterface $database): TransferRepository { return new TransferRepository($database); }
+    public function socialService(): ?FootballSocialService { return $this->social; }
     public function save(DatabaseInterface $database, Transfer $transfer): void { $this->repository($database)->save($transfer); }
 
     /**
@@ -41,7 +43,7 @@ final class TransferService
      * activation will register the Player once its Competition membership is
      * active.
      */
-    public function signFreeAgent(DatabaseInterface $database, Player $player, ClubId $clubId, Season $season, SimulationDate $asOfDate, SquadRole $role, ContractId $contractId, int $wage): Contract
+    public function signFreeAgent(DatabaseInterface $database, Player $player, ClubId $clubId, Season $season, SimulationDate $asOfDate, SquadRole $role, ContractId $contractId, int $wage, ?string $socialPreviousClubId = null): Contract
     {
         if ($player->isRetired()) {
             throw new TransferException('Retired Players cannot sign a Contract.');
@@ -84,6 +86,7 @@ final class TransferService
                 }
             }
         });
+        $this->social?->recordTransfer($database, $player->id(), $socialPreviousClubId, $clubId->value(), $asOfDate);
 
         return $contract;
     }
@@ -131,6 +134,7 @@ final class TransferService
             return $result;
         });
         $this->events->dispatch(new GenericEvent(TransferEventNames::COMPLETED, ['transfer_id' => $completed->id()->value(), 'player_id' => $completed->playerId()->value(), 'source_club_id' => $completed->sourceClubId()->value(), 'destination_club_id' => $completed->destinationClubId()->value(), 'fee' => $completed->fee(), 'effective_date' => $completed->effectiveDate()->toIsoString()]));
+        $this->social?->recordTransfer($database, $completed->playerId(), $completed->sourceClubId()->value(), $completed->destinationClubId()->value(), $completed->effectiveDate());
         return $completed;
     }
 }

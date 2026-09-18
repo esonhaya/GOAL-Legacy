@@ -39,6 +39,11 @@ final class CareerFormatter
         $lines[] = 'Squad Role: ' . CareerLabels::value($summary['current_role'] ?? null);
         $lines[] = 'Training Focus: ' . CareerLabels::value($summary['training_focus'] ?? 'balanced');
         $lines[] = 'Priority: ' . CareerLabels::value($summary['priority'] ?? 'balanced');
+        $social = is_array($summary['social'] ?? null) ? $summary['social'] : [];
+        $lines[] = 'Public Profile: ' . $this->text($social['public_profile_label'] ?? null, 'Unknown');
+        $lines[] = 'Club Standing: ' . $this->text($social['club_standing_label'] ?? null, 'New Arrival');
+        $lines[] = 'Supporters: ' . $this->text($social['supporter_sentiment'] ?? null, 'Neutral');
+        $lines[] = 'Manager Relationship: ' . $this->text($social['manager_relationship'] ?? null, 'Professional');
 
         $lines[] = '';
         $latestSeason = $history === [] ? null : $history[array_key_last($history)];
@@ -86,8 +91,9 @@ final class CareerFormatter
         $lines[] = '2. Career';
         $lines[] = '3. World';
         $lines[] = '4. News';
-        $lines[] = '5. Training & Priorities';
-        $actionNumber = 6;
+        $lines[] = '5. Relationships';
+        $lines[] = '6. Training & Priorities';
+        $actionNumber = 7;
         $hasDecision = false;
         foreach (($summary['available_actions'] ?? []) as $action) {
             $type = is_array($action) ? ($action['type'] ?? null) : null;

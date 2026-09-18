@@ -42,6 +42,7 @@ The Database Bible does not define gameplay logic. Instead, it defines **what da
 | DB-015 | Domestic Cup State | ✅ |
 | DB-016 | European Competition State | ✅ |
 | DB-017 | International Football State | ✅ |
+| DB-018 | Football Social State | ✅ |
 
 ---
 

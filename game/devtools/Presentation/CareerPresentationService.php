@@ -46,7 +46,7 @@ final class CareerPresentationService
         $world = $worldService->load($database, $saveId);
         $date = $world->currentDate($worldService->calendar());
         $career = (new CareerPlayerRepository($database))->get($saveId);
-        $summary = (new PlayerCareerProgressionQuery($this->services->clubModule()->service()))->summary(
+        $summary = (new PlayerCareerProgressionQuery($this->services->clubModule()->service(), $this->services->playerModule()->service()->socialService()))->summary(
             $database,
             $career->playerId(),
             $date,
@@ -95,6 +95,7 @@ final class CareerPresentationService
         $internationalStats = $this->services->nationalTeams()->playerStats($database, $playerId, $seasonId);
         $internationalHistory = $this->services->internationalCompetitions()->history($database, $playerId);
         $internationalContext = (new PlayerCareerProgressionQuery($this->services->clubModule()->service()))->summary($database, $playerId, $date, $seasonId)['international'] ?? [];
+        $social = $this->services->playerModule()->service()->socialService();
         if ($club !== null) {
             $cups = new DomesticCupService($this->services->clubModule()->service());
             $europe = new EuropeanCompetitionService($this->services->clubModule()->service(), $cups);
@@ -130,6 +131,9 @@ final class CareerPresentationService
             'international_stats' => $internationalStats,
             'international_history' => $internationalHistory,
             'international' => $internationalContext,
+            'social' => $social->context($database, $playerId),
+            'relationships' => $controlled ? $social->relationships($database, $playerId) : [],
+            'social_history' => $controlled ? $social->history($database, $playerId, 8) : [],
             'career_stats' => $careerStats,
             'recent_form' => $form,
             'match_history' => $this->playerMatchHistory($database, $playerId, $seasonId, $club?->id()->value()),
@@ -412,7 +416,7 @@ final class CareerPresentationService
             }
         }
         $postDate = $match->scheduledDate();
-        $postSummary = (new PlayerCareerProgressionQuery($this->services->clubModule()->service()))->summary(
+        $postSummary = (new PlayerCareerProgressionQuery($this->services->clubModule()->service(), $this->services->playerModule()->service()->socialService()))->summary(
             $database,
             $player->id(),
             $postDate,
@@ -438,6 +442,7 @@ final class CareerPresentationService
             'europe_progression' => $europeProgression,
             'international_resolution' => $internationalResolution,
             'international_progression' => $internationalProgression,
+            'rival_context' => $this->services->playerModule()->service()->socialService()->matchContext($database, $match, $playerId),
             'performance' => $performance,
             'highlights' => $this->highlightLines($database, $match, $playerId),
             'post_match' => [
@@ -631,11 +636,16 @@ final class CareerPresentationService
             if ($history === '') { continue; }
             $items[] = ['date' => (string) ($event['date'] ?? ''), 'headline' => 'CAREER — ' . $history];
         }
+        foreach ($this->services->playerModule()->service()->socialService()->history($database, $playerId, 12) as $socialItem) {
+            if (!is_array($socialItem)) { continue; }
+            $items[] = ['date' => (string) ($socialItem['event_date'] ?? ''), 'headline' => strtoupper((string) ($socialItem['importance'] ?? 'notable')) . ' — ' . (string) ($socialItem['headline'] ?? ''), 'importance' => (string) ($socialItem['importance'] ?? 'notable')];
+        }
         $request = is_array($summary['transfer_request'] ?? null) ? $summary['transfer_request'] : [];
         if (($request['status'] ?? null) === 'requested') {
             $items[] = ['date' => $date->toIsoString(), 'headline' => 'TRANSFER REQUEST — Active'];
         }
-        usort($items, static fn (array $left, array $right): int => strcmp($right['date'] . $right['headline'], $left['date'] . $left['headline']));
+        $importance = ['routine' => 0, 'notable' => 1, 'major' => 2, 'landmark' => 3];
+        usort($items, static fn (array $left, array $right): int => (($importance[(string) ($right['importance'] ?? 'routine')] ?? 0) <=> ($importance[(string) ($left['importance'] ?? 'routine')] ?? 0)) ?: strcmp($right['date'] . $right['headline'], $left['date'] . $left['headline']));
         $unique = [];
         foreach ($items as $item) {
             $key = $item['date'] . '|' . $item['headline'];

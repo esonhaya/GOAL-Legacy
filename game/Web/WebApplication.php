@@ -84,6 +84,7 @@ final class WebApplication
             'appearance' => $this->existingAppearance($saveId, $session),
             'squad' => $this->squad($saveId, $session, isset($query['club']) ? (string) $query['club'] : null),
             'profile' => $this->profile($saveId, (string) ($query['player'] ?? ''), $session),
+            'relationships' => $this->relationships($saveId, $session),
             'world' => $this->world($saveId, $session),
             'international' => $this->international($saveId, $session),
             'national-team' => $this->nationalTeam($saveId, (string) ($query['team'] ?? ''), $session),
@@ -591,11 +592,13 @@ final class WebApplication
         if (($next['round'] ?? null) !== null) { $nextLabel .= ' · ' . (string) $next['round']; }
         $nextBody = $next === null ? WebView::emptyState('No upcoming fixture currently scheduled.') : '<div class="fixture-card"><span class="eyebrow">' . WebView::e($nextLabel) . '</span><strong>' . WebView::e($next['home_club'] ?? '') . ' <span>vs</span> ' . WebView::e($next['away_club'] ?? '') . '</strong><small>' . WebView::e($next['date'] ?? '') . '</small></div>';
         $international = (array) ($summary['international'] ?? []);
+        $social = (array) ($summary['social'] ?? []);
+        $socialBody = '<div class="split-list"><p><span>Public profile</span><strong>' . WebView::e($social['public_profile_label'] ?? 'Unknown') . '</strong></p><p><span>Club standing</span><strong>' . WebView::e($social['club_standing_label'] ?? 'New Arrival') . '</strong></p><p><span>Supporters</span><strong>' . WebView::e($social['supporter_sentiment'] ?? 'Neutral') . '</strong></p><p><span>Manager relationship</span><strong>' . WebView::e($social['manager_relationship'] ?? 'Professional') . '</strong></p></div><p>' . WebView::link('relationships', ['save' => $saveId], 'View relationships', 'button button-secondary') . '</p>';
         $internationalBody = '<div class="split-list"><p><span>Country</span><strong>' . WebView::e($international['country'] ?? $summary['player']['primary_nation_id'] ?? '') . '</strong></p><p><span>Selection</span><strong>' . WebView::e(CareerLabels::value($international['selection_status'] ?? 'not_selected')) . '</strong></p><p><span>Caps</span><strong>' . WebView::e((int) (($international['stats']['caps'] ?? 0))) . '</strong></p></div>';
         $clubBody = $clubContext === null ? WebView::emptyState('League position is not available for this fixture context.') : '<div class="stat-grid compact">' . WebView::stat('Position', $clubContext['position'] ?? '—') . WebView::stat('Played', $clubContext['played'] ?? 0) . WebView::stat('Points', $clubContext['points'] ?? 0) . '</div>';
-        $actions = '<div class="action-grid">' . WebView::form('continue', 'Continue', ['save' => $saveId, 'token' => $this->issueToken($session, 'continue_' . $saveId)], 'button button-primary button-large', 'data-busy') . WebView::link('career', ['save' => $saveId], 'Career') . WebView::link('squad', ['save' => $saveId], 'Squad') . WebView::link('world', ['save' => $saveId], 'World') . WebView::link('news', ['save' => $saveId], 'News') . WebView::link('training', ['save' => $saveId], 'Training') . WebView::link('finances', ['save' => $saveId], 'Finances') . WebView::link('lifestyle', ['save' => $saveId], 'Lifestyle') . '</div>';
+        $actions = '<div class="action-grid">' . WebView::form('continue', 'Continue', ['save' => $saveId, 'token' => $this->issueToken($session, 'continue_' . $saveId)], 'button button-primary button-large', 'data-busy') . WebView::link('career', ['save' => $saveId], 'Career') . WebView::link('squad', ['save' => $saveId], 'Squad') . WebView::link('world', ['save' => $saveId], 'World') . WebView::link('news', ['save' => $saveId], 'News') . WebView::link('relationships', ['save' => $saveId], 'Relationships') . WebView::link('training', ['save' => $saveId], 'Training') . WebView::link('finances', ['save' => $saveId], 'Finances') . WebView::link('lifestyle', ['save' => $saveId], 'Lifestyle') . '</div>';
         $actions .= $this->contextActions($saveId, $summary) . WebView::form('save_exit', 'Save & Exit', ['save' => $saveId], 'button button-secondary', 'data-busy');
-        $body = $profile . '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $seasonBody) . WebView::section('NEXT MATCH', 'What is coming next', $nextBody) . WebView::section('CLUB', $club['name'] ?? 'Free Agent', $clubBody) . WebView::section('INTERNATIONAL DUTY', 'National-team context', $internationalBody) . '</div><aside class="dashboard-side">' . WebView::section('CAREER SITUATION', 'Your direction', $situation) . WebView::section('ACTIONS', 'Play', $actions) . '</aside></div>';
+        $body = $profile . '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $seasonBody) . WebView::section('NEXT MATCH', 'What is coming next', $nextBody) . WebView::section('CLUB', $club['name'] ?? 'Free Agent', $clubBody) . WebView::section('INTERNATIONAL DUTY', 'National-team context', $internationalBody) . WebView::section('PUBLIC CONTEXT', 'Football reputation', $socialBody) . '</div><aside class="dashboard-side">' . WebView::section('CAREER SITUATION', 'Your direction', $situation) . WebView::section('ACTIONS', 'Play', $actions) . '</aside></div>';
 
         return $this->html('Career Home', $body, $saveId, 'home', 200, $session);
     }
@@ -633,8 +636,11 @@ final class WebApplication
         $life = '';
         foreach ((array) ($summary['career_life_history'] ?? []) as $row) { if (is_array($row)) { $life .= '<li><strong>' . WebView::e($row['date'] ?? '') . '</strong> ' . WebView::e(((array) ($row['consequence'] ?? []))['history'] ?? $row['title'] ?? 'Career moment') . '</li>'; } }
         $life = $life === '' ? WebView::emptyState('No off-pitch milestones yet.') : '<ul class="timeline">' . $life . '</ul>';
+        $socialHistory = '';
+        foreach ((array) ($summary['social_history'] ?? []) as $row) { if (is_array($row)) { $socialHistory .= '<li><strong>' . WebView::e($row['event_date'] ?? '') . '</strong> ' . WebView::e($row['headline'] ?? 'Football social milestone') . '</li>'; } }
+        $socialHistory = $socialHistory === '' ? WebView::emptyState('No public or relationship milestones yet.') : '<ul class="timeline">' . $socialHistory . '</ul>';
         $body = '<div class="page-heading"><div><div class="eyebrow">CAREER</div><h1>' . WebView::e($player['preferred_name'] ?? 'Player') . '</h1><p>' . WebView::e(CareerLabels::position($player['primary_position'] ?? null)) . ' · OVR ' . WebView::e($summary['current_ovr'] ?? '—') . '</p></div>' . WebView::portrait($this->portraitUrl($saveId, (string) ($player['id'] ?? ''), 'career', 128), 'Player portrait', 'portrait portrait-medium') . '</div>';
-        $body .= '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $this->seasonFacts($summary)) . WebView::section('SEASON HISTORY', 'Record', $history) . WebView::section('DOMESTIC CUP HISTORY', 'Knockout record', $cupHistory) . WebView::section('EUROPEAN HISTORY', 'Continental record', $europeHistory) . '</div><aside class="dashboard-side">' . WebView::section('MOVEMENT HISTORY', 'Clubs', $movement) . WebView::section('OFF-PITCH LIFE', 'Milestones', $life) . WebView::section('PROFILE', 'Appearance', WebView::link('appearance', ['save' => $saveId], 'Customize appearance', 'button button-secondary')) . '</aside></div>';
+        $body .= '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $this->seasonFacts($summary)) . WebView::section('SEASON HISTORY', 'Record', $history) . WebView::section('DOMESTIC CUP HISTORY', 'Knockout record', $cupHistory) . WebView::section('EUROPEAN HISTORY', 'Continental record', $europeHistory) . '</div><aside class="dashboard-side">' . WebView::section('MOVEMENT HISTORY', 'Clubs', $movement) . WebView::section('OFF-PITCH LIFE', 'Milestones', $life) . WebView::section('FOOTBALL SOCIAL HISTORY', 'Public milestones', $socialHistory) . WebView::section('PROFILE', 'Appearance', WebView::link('appearance', ['save' => $saveId], 'Customize appearance', 'button button-secondary')) . '</aside></div>';
 
         return $this->html('Career', $body, $saveId, 'career', 200, $session);
     }
@@ -723,6 +729,8 @@ final class WebApplication
             $europePanel .= WebView::section('EUROPE · ' . strtoupper(str_replace('-', ' ', (string) $competitionId)), 'Current Season', '<div class="stat-grid compact">' . WebView::stat('Appearances', $europeStat['appearances'] ?? 0) . WebView::stat('Starts', $europeStat['starts'] ?? 0) . WebView::stat('Minutes', $europeStat['minutes'] ?? 0) . WebView::stat('Goals', $europeStat['goals'] ?? 0) . WebView::stat('Assists', $europeStat['assists'] ?? 0) . WebView::stat('Rating', $this->rating($europeStat['average_match_rating'] ?? null)) . '</div>');
         }
         $internationalPanel = WebView::section('INTERNATIONAL', (string) ($internationalContext['country'] ?? $data['nationality'] ?? 'National Team'), '<p><strong>Selection:</strong> ' . WebView::e(CareerLabels::value($internationalContext['selection_status'] ?? 'not_selected')) . '</p><div class="stat-grid compact">' . WebView::stat('Caps', $internationalStats['caps'] ?? 0) . WebView::stat('Starts', $internationalStats['starts'] ?? 0) . WebView::stat('Minutes', $internationalStats['minutes'] ?? 0) . WebView::stat('Goals', $internationalStats['goals'] ?? 0) . WebView::stat('Assists', $internationalStats['assists'] ?? 0) . WebView::stat('Rating', $this->rating($internationalStats['average_rating'] ?? null)) . '</div>');
+        $social = (array) ($data['social'] ?? []);
+        $socialPanel = WebView::section('PUBLIC PROFILE', 'Football context', '<div class="stat-grid compact">' . WebView::stat('Public profile', $social['public_profile_label'] ?? 'Unknown') . WebView::stat('Club standing', $social['club_standing_label'] ?? 'New Arrival') . WebView::stat('Supporters', $social['supporter_sentiment'] ?? 'Neutral') . WebView::stat('Manager', $social['manager_relationship'] ?? 'Professional') . '</div>' . WebView::link('relationships', ['save' => $saveId], 'Open relationships', 'button button-secondary'));
         if (($data['controlled'] ?? false) === true) {
             $financialContext = (array) ($finance['financial_context'] ?? []);
             $notable = array_values(array_filter((array) ($finance['owned'] ?? []), static fn (array $item): bool => LifestyleCatalog::tierRank((string) ($item['tier'] ?? '')) >= 3));
@@ -739,7 +747,7 @@ final class WebApplication
             $history .= '<li>' . WebView::e($line) . '</li>';
         }
         $historyBody = $history === '' ? WebView::emptyState('No completed Match history in this Season.') : '<ul class="timeline compact-timeline">' . $history . '</ul>';
-        $body = '<div class="profile-hero profile-hero-profile">' . WebView::portrait($this->portraitUrl($saveId, $playerId, 'club', 256), $player->preferredName(), 'portrait portrait-large') . '<div><div class="eyebrow">PLAYER PROFILE</div><h1>' . WebView::e($player->preferredName()) . '</h1><p>' . WebView::e($data['age'] . ' years · ' . $data['nationality'] . ' · ') . $clubLink . '</p>' . $facts . '</div></div>' . WebView::section('CURRENT SEASON', 'All competitions', $seasonLine . $extras) . $cupPanel . $europePanel . $internationalPanel . WebView::section('CAREER TOTALS', 'Recorded career evidence', $careerLine) . WebView::section('MATCH HISTORY', 'Recent canonical results', $historyBody) . '<div class="form-actions">' . WebView::link('squad', ['save' => $saveId, 'club' => $club?->id()->value()], 'Back to Squad') . '</div>';
+        $body = '<div class="profile-hero profile-hero-profile">' . WebView::portrait($this->portraitUrl($saveId, $playerId, 'club', 256), $player->preferredName(), 'portrait portrait-large') . '<div><div class="eyebrow">PLAYER PROFILE</div><h1>' . WebView::e($player->preferredName()) . '</h1><p>' . WebView::e($data['age'] . ' years · ' . $data['nationality'] . ' · ') . $clubLink . '</p>' . $facts . '</div></div>' . WebView::section('CURRENT SEASON', 'All competitions', $seasonLine . $extras) . $cupPanel . $europePanel . $internationalPanel . $socialPanel . WebView::section('CAREER TOTALS', 'Recorded career evidence', $careerLine) . WebView::section('MATCH HISTORY', 'Recent canonical results', $historyBody) . '<div class="form-actions">' . WebView::link('squad', ['save' => $saveId, 'club' => $club?->id()->value()], 'Back to Squad') . '</div>';
 
         return $this->html('Player Profile', $body, $saveId, 'squad', 200, $session);
     }
@@ -971,6 +979,30 @@ final class WebApplication
         return $this->html('Club', $body, $saveId, 'world', 200, $session);
     }
 
+    private function relationships(string $saveId, array &$session): array
+    {
+        $database = $this->database($saveId);
+        $snapshot = $this->snapshot($saveId, $database);
+        $summary = $snapshot['summary'];
+        $social = (array) ($summary['social'] ?? []);
+        $socialService = $this->services->playerModule()->service()->socialService();
+        $playerId = (string) ($summary['player']['id'] ?? '');
+        $relationships = $socialService->relationships($database, $playerId);
+        $cards = '';
+        foreach ($relationships as $relationship) {
+            if (!is_array($relationship)) { continue; }
+            $cards .= '<div class="panel relationship-card"><div class="eyebrow">' . WebView::e(strtoupper((string) ($relationship['type'] ?? 'relationship'))) . '</div><h2>' . WebView::e((string) ($relationship['name'] ?? 'Player')) . '</h2><p>' . WebView::e((string) ($relationship['context'] ?? 'Football relationship')) . '</p><small>' . WebView::e(CareerLabels::position($relationship['position'] ?? null)) . '</small></div>';
+        }
+        $history = '';
+        foreach ($socialService->history($database, $playerId, 8) as $item) {
+            if (is_array($item)) { $history .= '<li>' . WebView::e((string) ($item['event_date'] ?? '')) . ' · ' . WebView::e((string) ($item['headline'] ?? '')) . '</li>'; }
+        }
+        $manager = '<div class="stat-grid compact">' . WebView::stat('Public profile', $social['public_profile_label'] ?? 'Unknown') . WebView::stat('Club standing', $social['club_standing_label'] ?? 'New Arrival') . WebView::stat('Supporters', $social['supporter_sentiment'] ?? 'Neutral') . WebView::stat('Manager', $social['manager_relationship'] ?? 'Professional') . '</div><p class="muted">Manager context is Club-scoped; GOAL: Legacy does not simulate manager lives or a world social graph.</p>';
+        $body = '<div class="page-heading"><div><div class="eyebrow">CAREER · RELATIONSHIPS</div><h1>Football relationships</h1><p>Meaningful relationships emerge from football moments and remain bounded to your Career.</p></div></div>' . WebView::section('CURRENT CONTEXT', 'Club and public standing', $manager) . ($cards === '' ? WebView::section('RELATIONSHIPS', 'Dressing room and rivals', WebView::emptyState('No persistent football relationships yet.')) : '<div class="two-column">' . $cards . '</div>') . WebView::section('SOCIAL HISTORY', 'Landmark moments', $history === '' ? WebView::emptyState('No landmark social moments yet.') : '<ul class="timeline compact-timeline">' . $history . '</ul>');
+
+        return $this->html('Relationships', $body, $saveId, 'relationships', 200, $session);
+    }
+
     private function news(string $saveId, array &$session): array
     {
         $database = $this->database($saveId);
@@ -1096,6 +1128,9 @@ final class WebApplication
         $progression = $view['international_progression'] ?? $view['europe_progression'] ?? $view['cup_progression'] ?? null;
         if (is_string($progression)) {
             $cupContext .= '<p class="result-badge">' . WebView::e($progression) . '</p>';
+        }
+        if (is_array($view['rival_context'] ?? null)) {
+            $cupContext .= '<p class="metric-note">Facing rival: ' . WebView::e((string) ($view['rival_context']['name'] ?? 'Opponent')) . '</p>';
         }
         $stats = ''; foreach (['goals' => 'Goals', 'assists' => 'Assists', 'shots' => 'Shots', 'shots_on_target' => 'Shots on target', 'passes_completed' => 'Passes', 'tackles' => 'Tackles', 'interceptions' => 'Interceptions', 'blocks' => 'Blocks', 'saves' => 'Saves', 'yellow_cards' => 'Yellow cards', 'red_cards' => 'Red cards'] as $key => $label) { if (array_key_exists($key, $performance) && $performance[$key] !== null) { $stats .= WebView::stat($label, $performance[$key]); } }
         $highlights = ''; foreach ((array) ($view['highlights'] ?? []) as $line) { $highlights .= '<li>' . WebView::e($line) . '</li>'; }

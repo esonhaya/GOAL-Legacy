@@ -163,6 +163,7 @@ final class CareerMovementService
         }
         $requested = $reference->withTransferRequest($season->id());
         $database->transaction(function () use ($careers, $requested): void { $careers->save($requested); });
+        $this->transferService->socialService()?->recordTransferRequest($database, $playerId, $date);
         $this->events->dispatch(new GenericEvent('career.transfer_request_created', ['player_id' => $playerId->value(), 'season_id' => $season->id()->value(), 'date' => $date->toIsoString()]));
 
         return $requested;
@@ -182,6 +183,7 @@ final class CareerMovementService
         }
         $withdrawn = $reference->withoutTransferRequest();
         $database->transaction(function () use ($careers, $withdrawn): void { $careers->save($withdrawn); });
+        $this->transferService->socialService()?->recordTransferWithdrawal($database, $playerId, $date);
         $this->events->dispatch(new GenericEvent('career.transfer_request_withdrawn', ['player_id' => $playerId->value(), 'date' => $date->toIsoString()]));
 
         return $withdrawn;
@@ -574,8 +576,10 @@ final class CareerMovementService
             $contractId = new ContractId($kind === 'renew_current_club'
                 ? 'career-renewal-' . substr(hash('sha256', $opportunity->sourceKey()), 0, 40)
                 : 'career-free-signing-' . substr(hash('sha256', $opportunity->sourceKey() . '|' . $clubId->value()), 0, 40));
-            $this->transferService->signFreeAgent($database, $player, $clubId, $season, $date, $role, $contractId, (int) ($selected['wage'] ?? 100));
-        } elseif ($kind !== 'enter_free_agency') {
+            $this->transferService->signFreeAgent($database, $player, $clubId, $season, $date, $role, $contractId, (int) ($selected['wage'] ?? 100), $kind === 'renew_current_club' ? (string) ($context['current_club_id'] ?? '') : null);
+        } elseif ($kind === 'enter_free_agency') {
+            $this->transferService->socialService()?->recordTransfer($database, $player->id(), (string) ($context['current_club_id'] ?? '') ?: null, null, $date);
+        } else {
             throw new TransferException('Unsupported Contract decision option.');
         }
         $resolvedContext = $this->withOfferStatus($context, 'resolved');

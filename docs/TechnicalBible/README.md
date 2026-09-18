@@ -33,6 +33,7 @@ Unlike the Database Bible, the Technical Bible focuses on **how the software is 
 | TB-006 | Developer Tools | ✅ |
 | TB-007 | Data Lifecycle | ✅ |
 | TB-008 | International Football | ✅ |
+| TB-009 | Football Social State | ✅ |
 
 ---
 

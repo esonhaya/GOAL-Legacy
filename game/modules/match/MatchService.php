@@ -35,6 +35,7 @@ use Goal\Legacy\Modules\World\Persistence\PlayerSeasonStatisticsRepository;
 use Goal\Legacy\Modules\Competition\DomesticCupService;
 use Goal\Legacy\Modules\Competition\EuropeanCompetitionService;
 use Goal\Legacy\Modules\International\InternationalCompetitionService;
+use Goal\Legacy\Modules\Player\FootballSocialService;
 
 final class MatchService
 {
@@ -42,7 +43,7 @@ final class MatchService
     private readonly MatchSimulationService $simulator;
     private readonly StandingsService $standings;
 
-    public function __construct(private readonly ClubService $clubService, private readonly EventDispatcherInterface $events, private readonly ?PlayerDevelopmentService $development = null, private readonly ?ClubExpectationService $expectations = null, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?DomesticCupService $domesticCups = null, private readonly ?EuropeanCompetitionService $europeanCompetitions = null, private readonly ?InternationalCompetitionService $internationalCompetitions = null)
+    public function __construct(private readonly ClubService $clubService, private readonly EventDispatcherInterface $events, private readonly ?PlayerDevelopmentService $development = null, private readonly ?ClubExpectationService $expectations = null, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?DomesticCupService $domesticCups = null, private readonly ?EuropeanCompetitionService $europeanCompetitions = null, private readonly ?InternationalCompetitionService $internationalCompetitions = null, private readonly ?FootballSocialService $footballSocial = null)
     {
         $this->fixtureGenerator = new FixtureGenerationService($clubService);
         $this->simulator = new MatchSimulationService($clubService, new MatchSelectionService($clubService, $availability));
@@ -119,6 +120,7 @@ final class MatchService
         $this->domesticCups?->recordCompletedMatch($database, $completed);
         $this->europeanCompetitions?->recordCompletedMatch($database, $completed);
         $this->internationalCompetitions?->recordCompletedMatch($database, $completed);
+        $this->footballSocial?->recordMatch($database, $completed, $fidelity);
         $this->events->dispatch(new GenericEvent(MatchEventNames::COMPLETED, ['match_id' => $completed->id()->value(), 'competition_id' => $completed->competitionId()->value(), 'season_id' => $completed->seasonId()->value(), 'home_club_id' => $completed->homeClubId()->value(), 'away_club_id' => $completed->awayClubId()->value(), 'home_goals' => $completed->result()?->homeGoals(), 'away_goals' => $completed->result()?->awayGoals()]));
         $this->events->dispatch(new GenericEvent(MatchEventNames::STANDINGS_UPDATED, ['competition_id' => $completed->competitionId()->value(), 'season_id' => $completed->seasonId()->value()]));
         $this->expectations?->evaluateMatch($database, $completed, $fidelity === SimulationFidelity::World ? $simulation : null, $fidelity);

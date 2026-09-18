@@ -32,7 +32,7 @@ use Goal\Legacy\Modules\World\Persistence\SeasonRepository;
 
 final class PlayerCareerProgressionQuery
 {
-    public function __construct(private readonly ClubService $clubService)
+    public function __construct(private readonly ClubService $clubService, private readonly ?FootballSocialService $social = null)
     {
     }
 
@@ -146,6 +146,9 @@ final class PlayerCareerProgressionQuery
             }
         }
         $summary['international'] = $this->internationalContext($database, $player, $seasonId, $date);
+        $socialService = $this->social ?? new FootballSocialService($this->clubService);
+        $summary['social'] = $socialService->context($database, $id);
+        $summary['social_history'] = $socialService->history($database, $id, 12);
         $internationalNext = $summary['international']['next_fixture'] ?? null;
         if (is_array($internationalNext) && ($next === null || strcmp((string) $internationalNext['date'] . (string) $internationalNext['match_id'], (string) $next['date'] . (string) $next['match_id']) < 0)) {
             $next = ['match_id' => $internationalNext['match_id'], 'date' => $internationalNext['date'], 'competition_id' => $internationalNext['competition_id'], 'opponent_club_id' => $internationalNext['opponent_team_id'], 'controlled_team_id' => $summary['international']['team_id']];

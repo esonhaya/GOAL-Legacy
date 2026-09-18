@@ -29,7 +29,7 @@ use RuntimeException;
 /** Owns the persisted, bounded layer between controlled Matches. */
 final class CareerExperienceService
 {
-    public function __construct(private readonly PlayerDevelopmentService $development, private readonly TrainingService $training, private readonly ?ClubService $clubs = null, private readonly ?PlayerFinanceService $finance = null) {}
+    public function __construct(private readonly PlayerDevelopmentService $development, private readonly TrainingService $training, private readonly ?ClubService $clubs = null, private readonly ?PlayerFinanceService $finance = null, private readonly ?FootballSocialService $social = null) {}
 
     public function priority(DatabaseInterface $database, PlayerId|string $playerId): CareerPriority
     {
@@ -157,6 +157,7 @@ final class CareerExperienceService
                 'newsworthy' => (bool) (($event->context()['newsworthy'] ?? false)),
                 'finance' => $financeResult === null ? null : ['amount' => $financeResult['amount'], 'balance_after' => $financeResult['balance_after']],
             ]);
+            $this->social?->applyCareerChoice($database, $event, $choice, $date);
             $repository->resolveInTransaction($resolved);
             return $resolved;
         });
@@ -214,6 +215,12 @@ final class CareerExperienceService
         if (isset($requirements['income_min']) && $signals['income'] < (int) $requirements['income_min']) { return false; }
         if (isset($requirements['wage_income_min']) && $signals['wage_income'] < (int) $requirements['wage_income_min']) { return false; }
         if (isset($requirements['balance_min']) && $signals['balance'] < (int) $requirements['balance_min']) { return false; }
+        if (isset($requirements['public_profile_min']) && ($signals['public_profile'] ?? 0) < (int) $requirements['public_profile_min']) { return false; }
+        if (isset($requirements['international_profile_min']) && ($signals['international_profile'] ?? 0) < (int) $requirements['international_profile_min']) { return false; }
+        if (isset($requirements['club_standing_min']) && ($signals['club_standing'] ?? 0) < (int) $requirements['club_standing_min']) { return false; }
+        if (isset($requirements['supporter_sentiment']) && ($signals['supporter_sentiment'] ?? '') !== strtolower((string) $requirements['supporter_sentiment'])) { return false; }
+        if (isset($requirements['manager_relationship']) && ($signals['manager_relationship'] ?? '') !== strtolower((string) $requirements['manager_relationship'])) { return false; }
+        if (isset($requirements['relationship_type']) && !in_array((string) $requirements['relationship_type'], $signals['relationship_types'] ?? [], true)) { return false; }
         if (isset($requirements['financial_context'])) {
             $allowed = is_array($requirements['financial_context']) ? $requirements['financial_context'] : [$requirements['financial_context']];
             if (!in_array($signals['financial_context'] ?? 'starting_out', $allowed, true)) { return false; }
@@ -362,6 +369,12 @@ final class CareerExperienceService
             'recent_transfer' => $recentTransfer, 'contract_expiring' => $contractExpiring,
             'recent_team_result' => $recentTeamResult, 'season_phase' => $phase, 'competition_pressure' => $competitionPressure,
             'next_competition_type' => $nextCompetitionType, 'recent_competition_type' => $recentCompetitionType, 'recent_competition_round' => $recentCompetitionRound,
+            'public_profile' => (int) (($summary['social']['public_profile'] ?? 0)),
+            'international_profile' => (int) (($summary['social']['international_profile'] ?? 0)),
+            'club_standing' => (int) (($summary['social']['club_standing'] ?? 0)),
+            'supporter_sentiment' => strtolower((string) (($summary['social']['supporter_sentiment'] ?? 'neutral'))),
+            'manager_relationship' => strtolower((string) (($summary['social']['manager_relationship'] ?? 'professional'))),
+            'relationship_types' => array_values(array_unique(array_map(static fn (array $relationship): string => (string) ($relationship['type'] ?? ''), $this->social?->relationships($database, $playerId) ?? []))),
             'income' => (int) ($finance['income'] ?? 0), 'wage_income' => (int) ($finance['wage_income'] ?? 0), 'balance' => (int) ($finance['balance'] ?? 0), 'owned_item' => $ownedIds, 'owned_effects' => $ownedEffects, 'owned_categories' => $ownedCategories,
             'financial_context' => (string) ($financialContext['code'] ?? 'starting_out'),
             'context_keys' => array_values(array_filter([$role, $form, $recentTeamResult, $recentTransfer ? 'recent_transfer' : null, $contractExpiring ? 'contract_expiring' : null, ((int) ($finance['wage_income'] ?? 0)) > 0 ? 'wage_received' : null, $ownedEffects === [] ? null : 'lifestyle_owned', $financialContext['code'] ?? null])),

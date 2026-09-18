@@ -187,4 +187,23 @@ boundary event context. Monetary event effects still route through the
 controlled Player finance ledger, use stable source identities, and are
 replay-safe. Contract wages remain the canonical source of income.
 
+## P2-011 Career Coherence
+
+Phase 2 features are presented as one controlled-player Career. Youth Camp
+initializes the same social context used after later Club starts, so the first
+Career Home has a real Club and manager context before a Match occurs. The
+active Contract remains authoritative for current Club presentation; former
+Club squad rows are historical and do not make a free agent appear employed.
+
+Career Home has one primary action. Pending decisions and Career Events must
+be resolved before time advances; otherwise the action is an explicitly
+labelled continuation toward the next fixture or Career checkpoint. The
+current availability state, including an active injury recovery date, is
+shown beside training, priority, Contract, outlook, and finance context.
+
+Season summaries remain concise but include existing domestic Cup, European,
+and international outcomes/statistics when those records exist. No new
+simulation or persistence subsystem is introduced: Match, development,
+competition, finance, social, and history owners remain unchanged.
+
 END OF DOCUMENT

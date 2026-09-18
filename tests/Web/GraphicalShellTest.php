@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Goal\Legacy\Tests\Web;
 
 use Goal\Legacy\Core\Bootstrap\Bootstrap;
+use Goal\Legacy\Modules\Player\Domain\CareerEvent;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
+use Goal\Legacy\Modules\Player\Persistence\CareerEventRepository;
 use Goal\Legacy\Web\WebApplication;
 use PHPUnit\Framework\TestCase;
 
@@ -121,6 +123,11 @@ final class GraphicalShellTest extends TestCase
 
             $database = $services->saveStore()->openDatabase($save);
             $career = (new CareerPlayerRepository($database))->get($save);
+            $home = $this->application->handle('GET', '/', ['page' => 'home', 'save' => $save], [], $session);
+            self::assertSame(200, $home['status']);
+            self::assertStringContainsString('Public profile', $home['body']);
+            self::assertStringContainsString('Manager relationship', $home['body']);
+            self::assertStringNotContainsString('No active Club manager', $home['body']);
             $controlled = $this->application->handle('GET', '/', ['page' => 'profile', 'save' => $save, 'player' => $career->playerId()->value()], [], $session);
             self::assertSame(200, $controlled['status']);
             self::assertStringContainsString('CURRENT SEASON', $controlled['body']);
@@ -169,6 +176,42 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('NATIONAL TEAM', $nationalTeam['body']);
             $clubPage = $this->application->handle('GET', '/', ['page' => 'club', 'save' => $save, 'club' => $clubMatch[1]], [], $session);
             self::assertStringContainsString('Open Squad', $clubPage['body']);
+
+            // Exercise the canonical free-agent transition before reading the
+            // profile: historical squad rows must not masquerade as a current
+            // Club after the active Contract ends.
+            $world = $services->worldModule()->service()->load($database, $save);
+            $membership = $services->clubModule()->service()->squadRepository($database)->byPlayer($career->playerId(), $world->currentSeasonId())[0];
+            $contract = $services->contractModule()->service()->activeForPlayer($database, $career->playerId()->value());
+            self::assertNotNull($contract);
+            $services->clubModule()->service()->squadRepository($database)->remove($membership);
+            $services->contractModule()->service()->save($database, $contract->terminate());
+            $services->competitionModule()->service()->registrationRepository($database)->unregisterByPlayerClubSeason($career->playerId(), $membership->clubId(), $world->currentSeasonId());
+            $services->playerModule()->service()->socialService()->recordTransfer($database, $career->playerId(), $membership->clubId()->value(), null, $world->currentDate($services->worldModule()->service()->calendar()));
+            $freeProfile = $this->application->handle('GET', '/', ['page' => 'profile', 'save' => $save, 'player' => $career->playerId()->value()], [], $session);
+            self::assertSame(200, $freeProfile['status']);
+            self::assertStringContainsString('Free Agent', $freeProfile['body']);
+
+            $pending = CareerEvent::pending(
+                'p2011-web-pending-event',
+                $career->playerId(),
+                $world->currentSeasonId(),
+                $world->currentDate($services->worldModule()->service()->calendar()),
+                'p2011-web-pending-source',
+                'manager',
+                'p2011-pending',
+                'A meaningful Career decision',
+                'Resolve this football context before advancing the Career.',
+                [['id' => 'acknowledge', 'label' => 'Acknowledge']],
+                ['club_id' => $clubMatch[1]],
+            );
+            $database->transaction(function () use ($database, $pending): void {
+                (new CareerEventRepository($database))->saveInTransaction($pending);
+            });
+            $pendingHome = $this->application->handle('GET', '/', ['page' => 'home', 'save' => $save], [], $session);
+            self::assertSame(200, $pendingHome['status']);
+            self::assertStringContainsString('Resolve career event', $pendingHome['body']);
+            self::assertStringNotContainsString('name="action" value="continue"', $pendingHome['body']);
         } finally {
             $path = $root . '/game/saves/' . $save . '.sqlite';
             if (is_file($path)) { unlink($path); }

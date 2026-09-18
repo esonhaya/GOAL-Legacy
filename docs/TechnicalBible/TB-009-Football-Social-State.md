@@ -22,3 +22,17 @@ current game has no manager entity. Transfer and free-agency transitions close
 the old manager context; Club history and meaningful Player relationships are
 retained. International, European, Cup, and League systems remain canonical
 consumers and do not fork social services.
+
+## P2-011 integration boundary
+
+The Youth Camp acceptance path is a second atomic career-start writer because
+it also creates the initial Contract, registration, squad membership, finance
+row, and Career reference. After that transaction succeeds it invokes
+`FootballSocialService::initializeCareer`, matching `PlayerService`'s normal
+controlled-career initialization without duplicating the atomic records.
+
+Current employment is read from the active Contract and matching current
+squad membership. Historical squad rows remain available to Career history,
+but the controlled Player profile never treats them as a current Club after
+free agency. Social state remains controlled-player-only and retains its
+former Club context separately.

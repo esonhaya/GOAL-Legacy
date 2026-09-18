@@ -183,6 +183,19 @@ final class CareerFormatter
         $stats = is_array($summary['stats'] ?? null) ? $summary['stats'] : [];
         $lines[] = 'Player: ' . $this->statsLine($stats) . ' | Average Rating ' . $this->ratingOrEvidence($stats['average_match_rating'] ?? null);
         $lines[] = 'Season Performance: ' . CareerLabels::value($summary['performance'] ?? null);
+        foreach ((array) ($summary['competition_stats'] ?? []) as $competition) {
+            if (!is_array($competition) || !is_array($competition['stats'] ?? null)) { continue; }
+            $lines[] = (string) ($competition['competition'] ?? 'Competition') . ': ' . $this->statsLine($competition['stats']);
+        }
+        foreach ([['label' => 'Domestic Cup', 'rows' => $summary['cup_results'] ?? []], ['label' => 'Europe', 'rows' => $summary['europe_results'] ?? []]] as $group) {
+            foreach ((array) $group['rows'] as $row) {
+                if (is_array($row)) { $lines[] = (string) $group['label'] . ': ' . $this->text($row['competition'] ?? null) . ' — ' . $this->text($row['result'] ?? null); }
+            }
+        }
+        $international = is_array($summary['international_stats'] ?? null) ? $summary['international_stats'] : [];
+        if ((int) ($international['caps'] ?? 0) > 0) {
+            $lines[] = 'International: ' . $this->number($international['caps']) . ' caps, ' . $this->number($international['goals'] ?? 0) . ' goals';
+        }
         if (isset($summary['ovr_before'], $summary['ovr_after']) && $summary['ovr_before'] !== $summary['ovr_after']) {
             $lines[] = 'OVR: ' . $this->number($summary['ovr_before']) . ' -> ' . $this->number($summary['ovr_after']);
         }

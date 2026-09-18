@@ -40,3 +40,27 @@ and available actions are exposed as references to existing career commands
 No wages, transfer valuations, unsupported Match statistics, awards, or
 narrative events are inferred. Free-agent periods remain valid career state,
 and a tier change is not presented as a Player transfer.
+
+## P2-011 coherence rules
+
+The graphical Career Home is an action boundary as well as a read model. A
+pending Contract/transfer decision or Career Event is the primary action and
+must be resolved before Continue can advance time. When no blocking choice is
+pending, the primary action is labelled `Continue Career` or `Continue to
+next fixture` so the immediate progression is legible.
+
+Youth Camp uses an atomic placement write, then calls the canonical controlled
+Player social initializer. This prevents a new career from showing the lazy
+default social state. Conversely, the controlled Player profile filters
+historical squad memberships through the active Contract: free agency shows
+Free Agent, no current role, and no current Club link while preserving old
+Career and relationship history.
+
+Availability is a first-class Career Home situation line. An active injury
+shows its recovery date; limited availability is shown without inventing a
+medical forecast. The read remains side-effect free.
+
+Season-end presentation projects existing competition facts into a compact
+summary: per-competition controlled Player evidence, domestic Cup/European
+outcome, and current-season international totals. It does not snapshot
+brackets or create duplicate history.

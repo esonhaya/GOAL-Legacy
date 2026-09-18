@@ -73,6 +73,18 @@ final class CareerPresentationService
         $seasonId = $world->currentSeasonId();
         $player = (new PlayerRepository($database))->get($playerId);
         $memberships = (new ClubSquadRepository($database))->byPlayer($playerId, $seasonId);
+        $career = (new CareerPlayerRepository($database))->get($saveId);
+        $controlled = $career->playerId()->value() === $playerId;
+        $controlledSummary = $controlled ? $this->controlledSummary($database, $saveId) : [];
+        if ($controlled) {
+            $currentClubId = is_array($controlledSummary['current_club'] ?? null)
+                ? (string) ($controlledSummary['current_club']['id'] ?? '')
+                : '';
+            $memberships = array_values(array_filter(
+                $memberships,
+                static fn ($membership): bool => $currentClubId !== '' && $membership->clubId()->value() === $currentClubId,
+            ));
+        }
         $membership = $memberships[0] ?? null;
         $club = null;
         $competition = null;
@@ -80,9 +92,6 @@ final class CareerPresentationService
             $club = $this->services->clubModule()->service()->repository($database)->get($membership->clubId());
             $competition = $this->primaryCompetitionForClub($database, $club->id()->value(), $seasonId);
         }
-        $career = (new CareerPlayerRepository($database))->get($saveId);
-        $controlled = $career->playerId()->value() === $playerId;
-        $controlledSummary = $controlled ? $this->controlledSummary($database, $saveId) : [];
         $statistics = new PlayerCareerStatisticsService();
         $stats = $statistics->seasonDetailed($database, $playerId, $seasonId);
         $careerStats = $statistics->careerDetailed($database, $playerId);
@@ -689,6 +698,15 @@ final class CareerPresentationService
             $roleChange = CareerLabels::value($roles[0]) . ' -> ' . CareerLabels::value($roles[array_key_last($roles)]);
         }
         $clubContext = $this->clubContext($database, $summary);
+        $playerId = is_array($summary['player'] ?? null) ? (string) ($summary['player']['id'] ?? '') : '';
+        $competitionStats = $playerId !== '' && $seasonId !== null
+            ? $this->seasonCompetitionStats($database, $playerId, new SeasonId($seasonId))
+            : [];
+        $internationalStats = $playerId !== '' && $seasonId !== null
+            ? $this->services->nationalTeams()->playerStats($database, $playerId, new SeasonId($seasonId))
+            : [];
+        $cupResults = $this->seasonCompetitionOutcomes((array) ($summary['cup_history'] ?? []), $seasonId);
+        $europeResults = $this->seasonCompetitionOutcomes((array) ($summary['europe_history'] ?? []), $seasonId);
 
         return [
             'season' => is_array($row) ? ($row['season'] ?? $seasonId) : $seasonId,
@@ -700,7 +718,63 @@ final class CareerPresentationService
             'ovr_before' => $ovrBefore,
             'ovr_after' => $ovrBefore === null ? null : ($summary['current_ovr'] ?? null),
             'role_change' => $roleChange,
+            'competition_stats' => $competitionStats,
+            'cup_results' => $cupResults,
+            'europe_results' => $europeResults,
+            'international_stats' => $internationalStats,
         ];
+    }
+
+    /** @return list<array{competition_id:string,competition:string,type:string,stats:array<string,int|float|null>}> */
+    private function seasonCompetitionStats(DatabaseInterface $database, string $playerId, SeasonId $seasonId): array
+    {
+        $matches = new MatchRepository($database);
+        $stats = new PlayerMatchStatRepository($database);
+        $competitions = new CompetitionRepository($database);
+        $ids = [];
+        foreach ($stats->byPlayer(new PlayerId($playerId)) as $stat) {
+            if (!$stat->appeared()) { continue; }
+            $match = $matches->get($stat->matchId());
+            if ($match->seasonId()->value() !== $seasonId->value()) { continue; }
+            $competition = $competitions->get($match->competitionId());
+            if ($competition->type() === CompetitionType::International) { continue; }
+            $ids[$competition->id()->value()] = $competition;
+        }
+        uasort($ids, static fn (Competition $left, Competition $right): int => strcmp($left->id()->value(), $right->id()->value()));
+        $service = new PlayerCareerStatisticsService();
+        $result = [];
+        foreach ($ids as $competition) {
+            $result[] = [
+                'competition_id' => $competition->id()->value(),
+                'competition' => $competition->name(),
+                'type' => $competition->type()->value,
+                'stats' => $service->seasonCompetitionDetailed($database, $playerId, $seasonId, $competition->id()->value()),
+            ];
+        }
+
+        return $result;
+    }
+
+    /** @param list<array<string,mixed>> $history @return list<array{competition:string,result:string}> */
+    private function seasonCompetitionOutcomes(array $history, ?string $seasonId): array
+    {
+        if ($seasonId === null) { return []; }
+        $result = [];
+        foreach ($history as $row) {
+            if (!is_array($row) || (string) ($row['season_id'] ?? '') !== $seasonId) { continue; }
+            $clubId = (string) ($row['club_id'] ?? '');
+            $status = (string) ($row['status'] ?? '');
+            $result[] = [
+                'competition' => (string) ($row['competition_name'] ?? 'Competition'),
+                'result' => $status === 'completed' && (string) ($row['winner_club_id'] ?? '') === $clubId
+                    ? 'Won'
+                    : ($status === 'completed' && (string) ($row['runner_up_club_id'] ?? '') === $clubId
+                        ? 'Runner-up'
+                        : ((string) ($row['club_status'] ?? '') === 'eliminated' ? 'Eliminated' : ($status === 'completed' ? 'Completed' : 'In progress'))),
+            ];
+        }
+
+        return $result;
     }
 
     /** @param array<string, mixed> $summary @return array<string, mixed> */

@@ -90,3 +90,16 @@ internals remain outside the Player information boundary. All browsing routes
 are read-only with respect to career facts. Generated saves and preview
 databases belong under `game/saves/`, which is ignored by Git; temporary
 benchmark databases are removed individually after use.
+
+## P2-011 action and state coherence
+
+Career Home renders exactly one primary progression action. Blocking
+decisions and pending Career Events link directly to their resolver; the
+Continue form is not rendered while either is pending. Otherwise its label
+describes whether the Player is continuing generally or toward the next
+fixture. Secondary links remain read-only navigation.
+
+The situation panel includes availability and active injury recovery context.
+The controlled profile uses the active Contract/current-career read model for
+Club identity, so a former Club cannot leak into a free-agent presentation.
+These are presentation fixes over canonical state, not a new UI state store.

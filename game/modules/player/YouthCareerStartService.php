@@ -140,6 +140,11 @@ final class YouthCareerStartService
             $careerRepository->save(new CareerPlayerReference($careerId, $player->id(), $startDate));
             $this->finance?->initializeInTransaction($database, $player->id(), $startDate);
         });
+        // Youth Camp owns the atomic career-start write path, so explicitly
+        // initialize the same controlled-career social context that the
+        // canonical PlayerService path provides. This keeps the first Career
+        // Home coherent before a first Match or event lazily touches it.
+        $this->players->socialService()->initializeCareer($database, $player, $club->value(), $role->value, $startDate);
     }
 
     private function firstTierEligible(Player $player, int $reputation): bool

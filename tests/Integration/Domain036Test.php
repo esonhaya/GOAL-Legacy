@@ -56,6 +56,9 @@ final class Domain036Test extends TestCase
             self::assertCount(1, $services->clubModule()->service()->squadRepository($database)->byPlayer($player->id(), $season->id()));
             self::assertCount(1, $services->competitionModule()->service()->registrationRepository($database)->byPlayer($player->id()));
             self::assertNotNull($services->contractModule()->service()->activeForPlayer($database, $player->id()->value()));
+            $social = $services->playerModule()->service()->socialService()->context($database, $player->id());
+            self::assertSame($opportunities[0]['club_id'], $social['current_club_id']);
+            self::assertSame('Professional', $social['manager_relationship']);
             $players[$request->careerId] = $player;
         }
         self::assertGreaterThan($players['regular-st']->attributes()->passing(), $players['prodigy-mid']->attributes()->passing());

@@ -37,6 +37,26 @@ final class CareerPresentationTest extends TestCase
         self::assertStringNotContainsString('undefined', strtolower($text));
     }
 
+    public function testSeasonSummaryKeepsCrossCompetitionCareerVisible(): void
+    {
+        $text = implode("\n", (new CareerFormatter())->seasonSummary([
+            'season' => '2025/26',
+            'club' => 'Arsenal',
+            'competition' => 'Premier League',
+            'position' => 2,
+            'stats' => ['appearances' => 30, 'starts' => 24, 'minutes' => 2180, 'goals' => 8, 'assists' => 6, 'average_match_rating' => 7.2],
+            'performance' => 'strong',
+            'competition_stats' => [['competition' => 'Premier League', 'stats' => ['appearances' => 24, 'starts' => 20, 'minutes' => 1800, 'goals' => 6, 'assists' => 5]]],
+            'cup_results' => [['competition' => 'English Domestic Cup', 'result' => 'Won']],
+            'europe_results' => [['competition' => 'European Tier 1', 'result' => 'Runner-up']],
+            'international_stats' => ['caps' => 4, 'goals' => 1],
+        ]));
+
+        self::assertStringContainsString('English Domestic Cup — Won', $text);
+        self::assertStringContainsString('European Tier 1 — Runner-up', $text);
+        self::assertStringContainsString('International: 4 caps, 1 goals', $text);
+    }
+
     public function testMatchdayUsesReadableParticipationRatingAndPositionEvidence(): void
     {
         $text = implode("\n", (new CareerFormatter())->matchday([

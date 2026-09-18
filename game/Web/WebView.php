@@ -43,6 +43,7 @@ final class WebView
                 'career' => ['Career', 'career'],
                 'squad' => ['Squad', 'squad'],
                 'world' => ['World', 'world'],
+                'international' => ['International', 'international'],
                 'news' => ['News', 'news'],
                 'training' => ['Training', 'training'],
                 'finances' => ['Finances', 'finances'],

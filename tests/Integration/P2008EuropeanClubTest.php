@@ -114,7 +114,10 @@ final class P2008EuropeanClubTest extends TestCase
         [$services, $database, $season] = $this->scenario('p2-008-acceptance');
         $competitionRepository = $services->competitionModule()->service()->repository($database);
         $definitions = $competitionRepository->bySeason($season->id());
-        $allIds = array_map(static fn ($definition): string => $definition->id()->value(), $definitions);
+        $allIds = array_map(
+            static fn ($definition): string => $definition->id()->value(),
+            array_filter($definitions, static fn ($definition): bool => $definition->type() !== CompetitionType::International),
+        );
         $matchService = $services->matchModule()->service();
         $matchService->generateSeasonFixtures($database, $allIds, $season->id());
         $matches = $matchService->repository($database);

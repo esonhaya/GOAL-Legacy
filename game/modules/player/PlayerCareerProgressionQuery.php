@@ -142,8 +142,13 @@ final class PlayerCareerProgressionQuery
         $next = null;
         if ($currentMembership !== null) {
             foreach ($matchRepository->byClub($currentMembership->clubId(), $currentMembership->seasonId()) as $match) {
-                if ($match->status()->value === 'scheduled' && !$match->scheduledDate()->isBefore($date)) { $next = ['match_id' => $match->id()->value(), 'date' => $match->scheduledDate()->toIsoString(), 'competition_id' => $match->competitionId()->value(), 'opponent_club_id' => $match->homeClubId()->value() === $currentMembership->clubId()->value() ? $match->awayClubId()->value() : $match->homeClubId()->value()]; break; }
+                if ($match->status()->value === 'scheduled' && !$match->scheduledDate()->isBefore($date)) { $next = ['match_id' => $match->id()->value(), 'date' => $match->scheduledDate()->toIsoString(), 'competition_id' => $match->competitionId()->value(), 'opponent_club_id' => $match->homeClubId()->value() === $currentMembership->clubId()->value() ? $match->awayClubId()->value() : $match->homeClubId()->value(), 'controlled_team_id' => $currentMembership->clubId()->value()]; break; }
             }
+        }
+        $summary['international'] = $this->internationalContext($database, $player, $seasonId, $date);
+        $internationalNext = $summary['international']['next_fixture'] ?? null;
+        if (is_array($internationalNext) && ($next === null || strcmp((string) $internationalNext['date'] . (string) $internationalNext['match_id'], (string) $next['date'] . (string) $next['match_id']) < 0)) {
+            $next = ['match_id' => $internationalNext['match_id'], 'date' => $internationalNext['date'], 'competition_id' => $internationalNext['competition_id'], 'opponent_club_id' => $internationalNext['opponent_team_id'], 'controlled_team_id' => $summary['international']['team_id']];
         }
         $summary['next_scheduled_match'] = $next;
 
@@ -295,6 +300,33 @@ final class PlayerCareerProgressionQuery
     private function clubView(?Club $club): ?array
     {
         return $club === null ? null : ['id' => $club->id()->value(), 'name' => $club->canonicalName(), 'short_name' => $club->shortName(), 'nation_id' => $club->nationId()->value()];
+    }
+
+    /** @return array<string,mixed> */
+    private function internationalContext(DatabaseInterface $database, Player $player, ?SeasonId $seasonId, SimulationDate $date): array
+    {
+        if ($seasonId === null || (int) $database->connection()->query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'international_team_squads'")->fetchColumn() === 0) {
+            return ['team_id' => null, 'country' => null, 'selection_status' => 'not_selected', 'selected' => false, 'next_fixture' => null, 'stats' => [], 'history' => []];
+        }
+        $teamId = 'national-team-' . $player->primaryNationId()->value();
+        $status = $database->connection()->prepare('SELECT status FROM international_team_squads WHERE season_id = :season_id AND national_team_id = :team_id AND player_id = :player_id LIMIT 1');
+        $status->execute(['season_id' => $seasonId->value(), 'team_id' => $teamId, 'player_id' => $player->id()->value()]);
+        $selection = $status->fetchColumn();
+        $name = $database->connection()->prepare('SELECT display_name FROM national_team_records WHERE id = :id'); $name->execute(['id' => $teamId]); $country = $name->fetchColumn();
+        $next = null;
+        if ($selection === 'selected') {
+            foreach ((new MatchRepository($database))->byClub($teamId, $seasonId) as $match) {
+                if ($match->status()->value === 'scheduled' && !$match->scheduledDate()->isBefore($date)) { $next = ['match_id' => $match->id()->value(), 'date' => $match->scheduledDate()->toIsoString(), 'competition_id' => $match->competitionId()->value(), 'opponent_team_id' => $match->homeClubId()->value() === $teamId ? $match->awayClubId()->value() : $match->homeClubId()->value()]; break; }
+            }
+        }
+        $stats = ['caps' => 0, 'starts' => 0, 'minutes' => 0, 'goals' => 0, 'assists' => 0, 'yellow_cards' => 0, 'red_cards' => 0, 'rated_appearances' => 0, 'average_rating' => null];
+        $history = [];
+        if ((int) $database->connection()->query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'international_player_statistics'")->fetchColumn() > 0) {
+            $row = $database->connection()->prepare('SELECT COALESCE(SUM(caps),0) caps, COALESCE(SUM(starts),0) starts, COALESCE(SUM(minutes),0) minutes, COALESCE(SUM(goals),0) goals, COALESCE(SUM(assists),0) assists, COALESCE(SUM(yellow_cards),0) yellow_cards, COALESCE(SUM(red_cards),0) red_cards, COALESCE(SUM(rated_appearances),0) rated_appearances, COALESCE(SUM(rating_total),0) rating_total FROM international_player_statistics WHERE player_id = :player_id AND season_id = :season_id'); $row->execute(['player_id' => $player->id()->value(), 'season_id' => $seasonId->value()]); $values = $row->fetch(\PDO::FETCH_ASSOC) ?: []; foreach (array_keys($stats) as $key) { if ($key !== 'average_rating') { $stats[$key] = (int) ($values[$key] ?? 0); } } $stats['average_rating'] = ((int) ($stats['caps'] ?? 0)) === 0 ? null : round((float) ($values['rating_total'] ?? 0) / (int) $stats['caps'], 2);
+            $historyStatement = $database->connection()->prepare('SELECT season_id, competition_id, caps, goals, starts, minutes FROM international_player_statistics WHERE player_id = :player_id ORDER BY season_id ASC, competition_id ASC'); $historyStatement->execute(['player_id' => $player->id()->value()]); $history = $historyStatement->fetchAll(\PDO::FETCH_ASSOC);
+        }
+
+        return ['team_id' => $teamId, 'country' => is_string($country) ? $country : $player->primaryNationId()->value() . ' National Team', 'selection_status' => is_string($selection) ? $selection : 'not_selected', 'selected' => $selection === 'selected', 'next_fixture' => $next, 'stats' => $stats, 'history' => $history];
     }
 
     /** @return array<string, mixed>|null */

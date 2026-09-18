@@ -22,6 +22,8 @@ use Goal\Legacy\Modules\Club\ClubRecruitmentService;
 use Goal\Legacy\Modules\Competition\CompetitionModule;
 use Goal\Legacy\Modules\Competition\DomesticCupService;
 use Goal\Legacy\Modules\Competition\EuropeanCompetitionService;
+use Goal\Legacy\Modules\International\InternationalCompetitionService;
+use Goal\Legacy\Modules\International\NationalTeamService;
 use Goal\Legacy\Modules\Competition\CompetitionService;
 use Goal\Legacy\Modules\Contract\ContractModule;
 use Goal\Legacy\Modules\Contract\ContractService;
@@ -89,6 +91,8 @@ final class Bootstrap
         $clubModule = new ClubModule(new ClubService($contentPackages, $nationModule->service(), $competitionModule->service()));
         $domesticCups = new DomesticCupService($clubModule->service());
         $europeanCompetitions = new EuropeanCompetitionService($clubModule->service(), $domesticCups);
+        $nationalTeams = new NationalTeamService($nationModule->service());
+        $internationalCompetitions = new InternationalCompetitionService($clubModule->service(), $nationalTeams);
         $developmentService = new PlayerDevelopmentService($dispatcher);
         $availabilityService = new PlayerAvailabilityService($dispatcher);
         $contractModule = new ContractModule(new ContractService());
@@ -99,8 +103,8 @@ final class Bootstrap
         $transferModule = new TransferModule(new TransferService($contractModule->service(), $clubModule->service(), $competitionModule->service(), $dispatcher));
         $clubRecruitmentService = new ClubRecruitmentService($clubModule->service(), $contractModule->service(), $competitionModule->service(), $transferModule->service());
         $expectationService = new ClubExpectationService($clubModule->service(), $dispatcher);
-        $matchModule = new MatchModule(new MatchService($clubModule->service(), $dispatcher, $developmentService, $expectationService, $availabilityService, $domesticCups, $europeanCompetitions));
-        $seasonRollover = new SeasonRolloverService($competitionModule->service(), $clubModule->service(), $contractModule->service(), $populationService, $playerLifecycleService, $clubRecruitmentService, $matchModule->service(), $dispatcher, $transferModule->service(), $domesticCups, $europeanCompetitions);
+        $matchModule = new MatchModule(new MatchService($clubModule->service(), $dispatcher, $developmentService, $expectationService, $availabilityService, $domesticCups, $europeanCompetitions, $internationalCompetitions));
+        $seasonRollover = new SeasonRolloverService($competitionModule->service(), $clubModule->service(), $contractModule->service(), $populationService, $playerLifecycleService, $clubRecruitmentService, $matchModule->service(), $dispatcher, $transferModule->service(), $domesticCups, $europeanCompetitions, $internationalCompetitions);
         $worldModule = new WorldModule(new WorldService(
             $clock,
             new SimulationCalendar(),
@@ -113,6 +117,7 @@ final class Bootstrap
             playerFinance: $playerFinanceService,
             domesticCups: $domesticCups,
             europeanCompetitions: $europeanCompetitions,
+            internationalCompetitions: $internationalCompetitions,
         ));
         $registry->register($nationModule);
         $registry->register($competitionModule);
@@ -139,7 +144,7 @@ final class Bootstrap
             'environment' => $configuration->string('app.environment'),
         ]);
 
-        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule, $competitionModule, $clubModule, $clubRecruitmentService, $playerModule, $playerFinanceService, $contractModule, $transferModule, $matchModule, $worldModule);
+        return new CoreServices($configuration, $logger, $dispatcher, $registry, $clock, $scheduler, $saveStore, $contentPackages, $nationModule, $competitionModule, $clubModule, $clubRecruitmentService, $playerModule, $playerFinanceService, $contractModule, $transferModule, $matchModule, $worldModule, $nationalTeams, $internationalCompetitions);
     }
 
     /** @return array<string, string> */

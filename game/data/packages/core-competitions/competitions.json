@@ -2,6 +2,14 @@
   "schema_version": 1,
   "competitions": [
     {
+      "id": "world-championship",
+      "name": "World Championship",
+      "short_name": "World Championship",
+      "type": "international",
+      "nation_id": "england",
+      "tier": 1
+    },
+    {
       "id": "domestic-cup-england",
       "name": "English Domestic Cup",
       "short_name": "Domestic Cup",

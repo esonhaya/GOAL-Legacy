@@ -6,6 +6,7 @@ namespace Goal\Legacy\Modules\Competition;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\ClubService;
+use Goal\Legacy\Modules\International\NationalTeamService;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
 use Goal\Legacy\Modules\Match\Domain\MatchStatus;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
@@ -14,7 +15,7 @@ use PDO;
 /** Shared canonical single-leg knockout resolution for Cups and Europe. */
 final class KnockoutResolutionService
 {
-    public function __construct(private readonly ClubService $clubs)
+    public function __construct(private readonly ClubService $clubs, private readonly ?NationalTeamService $nationalTeams = null)
     {
     }
 
@@ -31,7 +32,8 @@ final class KnockoutResolutionService
         if (!is_array($state)) {
             return null;
         }
-        if ($state['winner_club_id'] !== null) {
+        $winnerColumn = $this->winnerColumn($table);
+        if ($state[$winnerColumn] !== null) {
             return $this->resolution($database, $match->id()->value(), $table);
         }
 
@@ -55,10 +57,10 @@ final class KnockoutResolutionService
         }
 
         $statement = $database->connection()->prepare(
-            'UPDATE ' . $table . ' SET winner_club_id = :winner, '
+            'UPDATE ' . $table . ' SET ' . $winnerColumn . ' = :winner, '
             . 'extra_time_home_goals = :extra_home, extra_time_away_goals = :extra_away, '
             . 'shootout_home_goals = :shootout_home, shootout_away_goals = :shootout_away '
-            . 'WHERE match_id = :match_id AND winner_club_id IS NULL'
+            . 'WHERE match_id = :match_id AND ' . $winnerColumn . ' IS NULL'
         );
         $statement->execute([
             'winner' => $winner,
@@ -88,10 +90,12 @@ final class KnockoutResolutionService
         $extraHome = $state['extra_time_home_goals'] === null ? 0 : (int) $state['extra_time_home_goals'];
         $extraAway = $state['extra_time_away_goals'] === null ? 0 : (int) $state['extra_time_away_goals'];
 
+        $winnerColumn = $this->winnerColumn($table);
+
         return [
             'round' => (int) ($state['round_number'] ?? 0),
             'stage' => (string) ($state['stage'] ?? ''),
-            'winner_club_id' => $state['winner_club_id'] === null ? null : (string) $state['winner_club_id'],
+            'winner_club_id' => $state[$winnerColumn] === null ? null : (string) $state[$winnerColumn],
             'regulation_home_goals' => $regulationHome,
             'regulation_away_goals' => $regulationAway,
             'extra_time_home_goals' => $extraHome,
@@ -118,9 +122,8 @@ final class KnockoutResolutionService
     /** @return array{0:int,1:int} */
     private function shootout(DatabaseInterface $database, GameMatch $match): array
     {
-        $clubs = $this->clubs->repository($database);
-        $home = $clubs->get($match->homeClubId())->reputation();
-        $away = $clubs->get($match->awayClubId())->reputation();
+        $home = $this->strength($database, $match->homeClubId()->value());
+        $away = $this->strength($database, $match->awayClubId()->value());
         $homeScore = min(5, max(2, 2 + intdiv($home, 30) + (hexdec(substr(hash('sha256', 'cup-penalty:v1|' . $match->id()->value() . '|home'), 0, 8)) % 2)));
         $awayScore = min(5, max(2, 2 + intdiv($away, 30) + (hexdec(substr(hash('sha256', 'cup-penalty:v1|' . $match->id()->value() . '|away'), 0, 8)) % 2)));
         if ($homeScore === $awayScore) {
@@ -134,10 +137,24 @@ final class KnockoutResolutionService
         return [$homeScore, $awayScore];
     }
 
+    private function strength(DatabaseInterface $database, string $teamId): int
+    {
+        if ($this->nationalTeams?->isNationalTeam($teamId) === true) {
+            return $this->nationalTeams->strength($database, $teamId);
+        }
+
+        return $this->clubs->repository($database)->get($teamId)->reputation();
+    }
+
     private function assertTable(string $table): void
     {
         if (preg_match('/^[a-z][a-z0-9_]{0,63}$/', $table) !== 1) {
             throw new \InvalidArgumentException('Knockout state table must be a stable local identifier.');
         }
+    }
+
+    private function winnerColumn(string $table): string
+    {
+        return $table === 'international_match_states' ? 'winner_team_id' : 'winner_club_id';
     }
 }

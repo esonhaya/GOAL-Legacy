@@ -92,8 +92,9 @@ final class CareerContinueCommand implements CommandInterface
             }
             if ($nextWorldMatch !== null && $season->status() === SeasonStatus::Active) {
                 $targetWorldDate = $nextWorldMatch->scheduledDate();
+                $controlledIds = array_values(array_filter([$summary['current_club']['id'] ?? null, ($summary['international']['selected'] ?? false) ? ($summary['international']['team_id'] ?? null) : null], 'is_string'));
                 $clubId = $summary['current_club']['id'] ?? null;
-                $isControlledFixture = is_string($clubId) && ($nextWorldMatch->homeClubId()->value() === $clubId || $nextWorldMatch->awayClubId()->value() === $clubId);
+                $isControlledFixture = array_intersect($controlledIds, [$nextWorldMatch->homeClubId()->value(), $nextWorldMatch->awayClubId()->value()]) !== [];
                 if ($isControlledFixture && $world->currentSeasonId() !== null) {
                     $event = $experience->ensureEvent($database, $career->playerId(), $world->currentSeasonId(), $date, $summary);
                     if ($event !== null) {
@@ -106,9 +107,11 @@ final class CareerContinueCommand implements CommandInterface
                     $worldService->advanceToDate($database, $saveId, $targetWorldDate);
                 }
                 $completed = $this->services->matchModule()->service()->simulateDue($database, $targetWorldDate);
-                $controlled = array_values(array_filter($completed, static fn ($match): bool => $clubId !== null && ($match->homeClubId()->value() === $clubId || $match->awayClubId()->value() === $clubId)));
+                $controlled = array_values(array_filter($completed, static fn ($match): bool => array_intersect($controlledIds, [$match->homeClubId()->value(), $match->awayClubId()->value()]) !== []));
                 if ($controlled !== []) {
-                    $this->renderMatch($database, $saveId, $output, $career->playerId()->value(), $controlled[array_key_last($controlled)], is_string($clubId) ? $clubId : null);
+                    $controlledMatch = $controlled[array_key_last($controlled)];
+                    $controlledTeam = $this->controlledTeamId($controlledMatch, $controlledIds);
+                    $this->renderMatch($database, $saveId, $output, $career->playerId()->value(), $controlledMatch, $controlledTeam);
                     return 0;
                 }
                 $world = $worldService->load($database, $saveId);
@@ -169,13 +172,13 @@ final class CareerContinueCommand implements CommandInterface
             $experience->prepareTraining($database, $career->playerId(), (string) $next['match_id'], $date, $target);
         }
         $completed = $this->services->matchModule()->service()->simulateDue($database, $target);
-        $clubId = $summary['current_club']['id'] ?? null;
-        $controlled = array_values(array_filter($completed, static fn ($match): bool => $clubId !== null && ($match->homeClubId()->value() === $clubId || $match->awayClubId()->value() === $clubId)));
+        $controlledIds = array_values(array_filter([$summary['current_club']['id'] ?? null, ($summary['international']['selected'] ?? false) ? ($summary['international']['team_id'] ?? null) : null], 'is_string'));
+        $controlled = array_values(array_filter($completed, static fn ($match): bool => array_intersect($controlledIds, [$match->homeClubId()->value(), $match->awayClubId()->value()]) !== []));
         if ($controlled === []) {
             throw new RuntimeException('Career Continue advanced to a date without completing the controlled Club fixture.');
         }
         $match = $controlled[array_key_last($controlled)];
-        $this->renderMatch($database, $saveId, $output, $career->playerId()->value(), $match, is_string($clubId) ? $clubId : null);
+        $this->renderMatch($database, $saveId, $output, $career->playerId()->value(), $match, $this->controlledTeamId($match, $controlledIds));
 
         return 0;
     }
@@ -196,6 +199,14 @@ final class CareerContinueCommand implements CommandInterface
         ) as $line) {
             $output->write($line);
         }
+    }
+
+    /** @param list<string> $teamIds */
+    private function controlledTeamId(GameMatch $match, array $teamIds): ?string
+    {
+        foreach ($teamIds as $teamId) { if (in_array($teamId, [$match->homeClubId()->value(), $match->awayClubId()->value()], true)) { return $teamId; } }
+
+        return null;
     }
 
     /** @param array<string, mixed> $event */

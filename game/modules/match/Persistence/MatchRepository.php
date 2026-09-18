@@ -91,8 +91,23 @@ final class MatchRepository
     private function hydrate(array $row): GameMatch { $result = $row['home_goals'] === null ? null : new MatchResult((int) $row['home_goals'], (int) $row['away_goals']); return new GameMatch(new MatchId((string) $row['id']), new CompetitionId((string) $row['competition_id']), new SeasonId((string) $row['season_id']), (int) $row['round_number'], SimulationDate::fromIsoString((string) $row['scheduled_date']), new ClubId((string) $row['home_club_id']), new ClubId((string) $row['away_club_id']), MatchStatus::from((string) $row['status']), $result); }
     private function assertReferences(GameMatch $match): void
     {
-        foreach ([['season_records', 'id', $match->seasonId()->value(), 'Season'], ['competition_records', 'id', $match->competitionId()->value(), 'Competition'], ['club_records', 'id', $match->homeClubId()->value(), 'home Club'], ['club_records', 'id', $match->awayClubId()->value(), 'away Club']] as [$table, $column, $value, $label]) { $statement = $this->database->connection()->prepare('SELECT 1 FROM ' . $table . ' WHERE ' . $column . ' = :value'); $statement->execute(['value' => $value]); if ($statement->fetchColumn() === false) { throw new MatchException(sprintf('Match references missing %s "%s".', $label, $value)); } }
+        foreach ([['season_records', 'id', $match->seasonId()->value(), 'Season'], ['competition_records', 'id', $match->competitionId()->value(), 'Competition']] as [$table, $column, $value, $label]) { $statement = $this->database->connection()->prepare('SELECT 1 FROM ' . $table . ' WHERE ' . $column . ' = :value'); $statement->execute(['value' => $value]); if ($statement->fetchColumn() === false) { throw new MatchException(sprintf('Match references missing %s "%s".', $label, $value)); } }
+        $type = $this->database->connection()->prepare('SELECT type FROM competition_records WHERE id = :id');
+        $type->execute(['id' => $match->competitionId()->value()]);
+        $international = $type->fetchColumn() === 'international';
+        $teamTable = $international ? 'national_team_records' : 'club_records';
+        foreach ([$match->homeClubId()->value(), $match->awayClubId()->value()] as $index => $teamId) {
+            $statement = $this->database->connection()->prepare('SELECT 1 FROM ' . $teamTable . ' WHERE id = :value');
+            $statement->execute(['value' => $teamId]);
+            if ($statement->fetchColumn() === false) { throw new MatchException(sprintf('Match references missing %s "%s".', $index === 0 ? 'home team' : 'away team', $teamId)); }
+        }
         $season = $this->database->connection()->prepare('SELECT start_date, end_date FROM season_records WHERE id = :id'); $season->execute(['id' => $match->seasonId()->value()]); $seasonRow = $season->fetch(); if (!is_array($seasonRow) || $match->scheduledDate()->isBefore(SimulationDate::fromIsoString((string) $seasonRow['start_date'])) || $match->scheduledDate()->isAfter(SimulationDate::fromIsoString((string) $seasonRow['end_date']))) { throw new MatchException('Match scheduled date must be inside the Season.'); }
-        foreach ([['home_club_id', $match->homeClubId()->value()], ['away_club_id', $match->awayClubId()->value()]] as [$column, $clubId]) { $membership = $this->database->connection()->prepare('SELECT 1 FROM club_competition_memberships WHERE season_id = :season_id AND competition_id = :competition_id AND club_id = :club_id'); $membership->execute(['season_id' => $match->seasonId()->value(), 'competition_id' => $match->competitionId()->value(), 'club_id' => $clubId]); if ($membership->fetchColumn() === false) { throw new MatchException(sprintf('Match %s Club does not participate in the Competition and Season.', $column === 'home_club_id' ? 'home' : 'away')); } }
+        foreach ([['home_club_id', $match->homeClubId()->value()], ['away_club_id', $match->awayClubId()->value()]] as [$column, $teamId]) {
+            $membership = $this->database->connection()->prepare($international
+                ? 'SELECT 1 FROM international_competition_entries WHERE season_id = :season_id AND competition_id = :competition_id AND national_team_id = :team_id'
+                : 'SELECT 1 FROM club_competition_memberships WHERE season_id = :season_id AND competition_id = :competition_id AND club_id = :team_id');
+            $membership->execute(['season_id' => $match->seasonId()->value(), 'competition_id' => $match->competitionId()->value(), 'team_id' => $teamId]);
+            if ($membership->fetchColumn() === false) { throw new MatchException(sprintf('Match %s team does not participate in the Competition and Season.', $column === 'home_club_id' ? 'home' : 'away')); }
+        }
     }
 }

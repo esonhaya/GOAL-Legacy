@@ -422,9 +422,17 @@ final class MatchSimulationService
     /** @param list<Player> $players */
     public function strength(DatabaseInterface $database, string $clubId, array $players = []): TeamStrength
     {
-        $club = $this->clubService->repository($database)->get($clubId); if ($players === []) { return new TeamStrength($club->reputation(), false); }
+        $base = 0;
+        if (str_starts_with($clubId, 'national-team-')) {
+            $statement = $database->connection()->prepare('SELECT strength FROM national_team_records WHERE id = :id');
+            $statement->execute(['id' => $clubId]);
+            $base = (int) ($statement->fetchColumn() ?: 0);
+        } else {
+            $base = $this->clubService->repository($database)->get($clubId)->reputation();
+        }
+        if ($players === []) { return new TeamStrength($base, false); }
         $average = (int) floor(array_sum(array_map(static fn (Player $player): int => $player->overallRating(), $players)) / count($players));
-        return new TeamStrength((int) floor(($club->reputation() + $average) / 2), true);
+        return new TeamStrength((int) floor(($base + $average) / 2), true);
     }
 
     private function poisson(float $lambda, string $key): int { $u = max(0.0000001, $this->unit($key)); $probability = exp(-$lambda); $cumulative = $probability; $goals = 0; while ($u > $cumulative && $goals < 12) { $goals++; $probability *= $lambda / $goals; $cumulative += $probability; } return min(12, $goals); }

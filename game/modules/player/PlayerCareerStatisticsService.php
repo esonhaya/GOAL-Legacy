@@ -32,7 +32,7 @@ final class PlayerCareerStatisticsService
         $detailedKeys = [];
         foreach ($stats->byPlayer($id) as $stat) {
             $match = $matches->get($stat->matchId());
-            if ($match->seasonId()->value() !== $season->value() || !$stat->appeared()) {
+            if ($match->seasonId()->value() !== $season->value() || !$stat->appeared() || $this->isInternational($database, $match->competitionId()->value())) {
                 continue;
             }
             ++$result['appearances'];
@@ -122,7 +122,7 @@ final class PlayerCareerStatisticsService
 
         foreach ($stats->byPlayer($id) as $stat) {
             $match = $matches->get($stat->matchId());
-            if (!$stat->appeared()) {
+            if (!$stat->appeared() || $this->isInternational($database, $match->competitionId()->value())) {
                 continue;
             }
             ++$result['appearances'];
@@ -161,7 +161,7 @@ final class PlayerCareerStatisticsService
 
         foreach ($stats->byPlayer($playerId) as $stat) {
             $match = $matches->get($stat->matchId());
-            if ($match->seasonId()->value() !== $seasonId->value() || !$stat->appeared()) {
+            if ($match->seasonId()->value() !== $seasonId->value() || !$stat->appeared() || $this->isInternational($database, $match->competitionId()->value())) {
                 continue;
             }
             ++$result['appearances'];
@@ -276,6 +276,14 @@ final class PlayerCareerStatisticsService
         return (string) $row['season_id'] . ':' . (string) $row['club_id'];
     }
 
+    private function isInternational(DatabaseInterface $database, string $competitionId): bool
+    {
+        $statement = $database->connection()->prepare('SELECT type FROM competition_records WHERE id = :id');
+        $statement->execute(['id' => $competitionId]);
+
+        return $statement->fetchColumn() === 'international';
+    }
+
     /** @return array{appearances:int, starts:int, minutes:int, goals:int} */
     private function aggregate(DatabaseInterface $database, PlayerId|string $playerId): array
     {
@@ -285,7 +293,7 @@ final class PlayerCareerStatisticsService
         $detailedKeys = [];
         foreach ((new PlayerMatchStatRepository($database))->byPlayer($id) as $stat) {
             $match = $matches->get($stat->matchId());
-            if (!$stat->appeared()) {
+            if (!$stat->appeared() || $this->isInternational($database, $match->competitionId()->value())) {
                 continue;
             }
             ++$result['appearances'];

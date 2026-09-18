@@ -60,7 +60,7 @@ final class Domain017Test extends TestCase
         $matchRepository = new MatchRepository($database);
         $memberships = $services->clubModule()->service()->membershipRepository($database);
         $expectedCounts = [];
-        foreach ($services->competitionModule()->service()->loadSelected() as $definition) {
+        foreach (array_filter($services->competitionModule()->service()->loadSelected(), static fn ($definition): bool => $definition->type() !== CompetitionType::International) as $definition) {
             $clubs = $memberships->byCompetition($definition->id(), $season->id());
             self::assertNotEmpty($clubs);
             $expectedCounts[$definition->id()->value()] = count($clubs);
@@ -149,7 +149,7 @@ final class Domain017Test extends TestCase
         );
         self::assertSame($destinationClub, $squads->byPlayer($transferPlayer, $next)[0]->clubId()->value());
 
-        foreach ($services->competitionModule()->service()->loadSelected() as $definition) {
+        foreach (array_filter($services->competitionModule()->service()->loadSelected(), static fn ($definition): bool => $definition->type() !== CompetitionType::International) as $definition) {
             $count = count($memberships->byCompetition($definition->id(), $next));
             self::assertSame($expectedCounts[$definition->id()->value()], $count);
             if ($definition->type() === CompetitionType::DomesticCup) {

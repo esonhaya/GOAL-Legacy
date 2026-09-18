@@ -22,6 +22,8 @@ use Goal\Legacy\Modules\Player\Finance\PlayerFinanceService;
 use Goal\Legacy\Modules\Match\MatchModule;
 use Goal\Legacy\Modules\Transfer\TransferModule;
 use Goal\Legacy\Modules\World\WorldModule;
+use Goal\Legacy\Modules\International\InternationalCompetitionService;
+use Goal\Legacy\Modules\International\NationalTeamService;
 
 final class CoreServices
 {
@@ -44,6 +46,8 @@ final class CoreServices
         private readonly TransferModule $transferModule,
         private readonly MatchModule $matchModule,
         private readonly WorldModule $worldModule,
+        private readonly NationalTeamService $nationalTeams,
+        private readonly InternationalCompetitionService $internationalCompetitions,
     ) {
     }
 
@@ -82,4 +86,8 @@ final class CoreServices
     public function matchModule(): MatchModule { return $this->matchModule; }
 
     public function worldModule(): WorldModule { return $this->worldModule; }
+
+    public function nationalTeams(): NationalTeamService { return $this->nationalTeams; }
+
+    public function internationalCompetitions(): InternationalCompetitionService { return $this->internationalCompetitions; }
 }

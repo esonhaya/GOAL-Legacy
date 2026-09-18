@@ -144,7 +144,10 @@ final class P2007DomesticCupTest extends TestCase
         [$services, $database, $season] = $this->scenario('p2-007-acceptance');
         $competitionRepository = $services->competitionModule()->service()->repository($database);
         $definitions = $competitionRepository->bySeason($season->id());
-        $allCompetitionIds = array_map(static fn ($definition): string => $definition->id()->value(), $definitions);
+        $allCompetitionIds = array_map(
+            static fn ($definition): string => $definition->id()->value(),
+            array_filter($definitions, static fn ($definition): bool => $definition->type() !== CompetitionType::International),
+        );
         $leagueIds = array_map(
             static fn ($definition): string => $definition->id()->value(),
             array_filter($definitions, static fn ($definition): bool => $definition->type() === CompetitionType::DomesticLeague),

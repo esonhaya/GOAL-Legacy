@@ -16,6 +16,7 @@ use Goal\Legacy\Modules\Club\Domain\SquadRole;
 use Goal\Legacy\Modules\Competition\CompetitionService;
 use Goal\Legacy\Modules\Competition\DomesticCupService;
 use Goal\Legacy\Modules\Competition\EuropeanCompetitionService;
+use Goal\Legacy\Modules\International\InternationalCompetitionService;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Competition\PromotionRelegationService;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionDefinition;
@@ -71,6 +72,7 @@ final class SeasonRolloverService
         private readonly ?TransferService $transferService = null,
         private readonly ?DomesticCupService $domesticCups = null,
         private readonly ?EuropeanCompetitionService $europeanCompetitions = null,
+        private readonly ?InternationalCompetitionService $internationalCompetitions = null,
     ) {
         $this->promotionRelegation = new PromotionRelegationService($clubService);
     }
@@ -314,12 +316,20 @@ final class SeasonRolloverService
                 $europeIds[] = $competitionId;
                 continue;
             }
+            if ($definition?->type() === CompetitionType::International) {
+                continue;
+            }
             if ($matches->byCompetition($competitionId, $previous->id()) !== []) {
                 $leagueIds[] = $competitionId;
             }
         }
         $this->europeanCompetitions?->ensureSeason($database, $next, $previous->id());
-        foreach (array_merge($leagueIds, $cupIds, $europeIds) as $competitionId) {
+        $internationalIds = [];
+        foreach ($world->competitionIds() as $competitionId) {
+            if (($definitionsById[$competitionId] ?? null)?->type() === CompetitionType::International) { $internationalIds[] = $competitionId; }
+        }
+        $this->internationalCompetitions?->ensureSeason($database, $next, $previous->id());
+        foreach (array_merge($leagueIds, $cupIds, $europeIds, $internationalIds) as $competitionId) {
             $fixtures += count($this->matchService->generateFixtures($database, $competitionId, $next->id()));
         }
         $this->lastPhaseTimings['fixture_generation_ms'] = $this->elapsedMilliseconds($phaseStart);
@@ -415,6 +425,10 @@ final class SeasonRolloverService
         foreach ($world->competitionIds() as $competitionId) {
             if ($this->europeanCompetitions?->isEuropeanCompetition($database, $competitionId) === true) {
                 if (!$this->europeanCompetitions->complete($database, $competitionId, $season->id())) { return false; }
+                continue;
+            }
+            if ($this->internationalCompetitions?->isInternationalCompetition($database, $competitionId) === true) {
+                if (!$this->internationalCompetitions->complete($database, $competitionId, $season->id())) { return false; }
                 continue;
             }
             if ($this->domesticCups?->isDomesticCup($database, $competitionId) === true) {

@@ -44,7 +44,7 @@ final class CompetitionTest extends TestCase
             static fn (CompetitionDefinition $definition): string => $definition->id()->value(),
             $definitions,
         );
-        self::assertSame(['2-bundesliga', 'bundesliga', 'championship', 'domestic-cup-england', 'domestic-cup-france', 'domestic-cup-germany', 'domestic-cup-italy', 'domestic-cup-spain', 'europe-tier-1', 'europe-tier-2', 'la-liga', 'ligue-1', 'ligue-2', 'premier-league', 'segunda-division', 'serie-a', 'serie-b'], $ids);
+        self::assertSame(['2-bundesliga', 'bundesliga', 'championship', 'domestic-cup-england', 'domestic-cup-france', 'domestic-cup-germany', 'domestic-cup-italy', 'domestic-cup-spain', 'europe-tier-1', 'europe-tier-2', 'la-liga', 'ligue-1', 'ligue-2', 'premier-league', 'segunda-division', 'serie-a', 'serie-b', 'world-championship'], $ids);
         $byId = array_combine($ids, $definitions);
         self::assertSame('england', $byId['premier-league']->nationId()->value());
         self::assertSame(1, $byId['premier-league']->tier());

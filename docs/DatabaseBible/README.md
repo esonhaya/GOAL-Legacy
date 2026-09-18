@@ -39,6 +39,9 @@ The Database Bible does not define gameplay logic. Instead, it defines **what da
 | DB-012 | Legacy | ✅ |
 | DB-013 | World | ✅ |
 | DB-014 | Nation | ✅ |
+| DB-015 | Domestic Cup State | ✅ |
+| DB-016 | European Competition State | ✅ |
+| DB-017 | International Football State | ✅ |
 
 ---
 

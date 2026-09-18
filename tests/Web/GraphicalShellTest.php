@@ -159,6 +159,14 @@ final class GraphicalShellTest extends TestCase
 
             $world = $this->application->handle('GET', '/', ['page' => 'world', 'save' => $save], [], $session);
             self::assertStringContainsString('page=competition', $world['body']);
+            $international = $this->application->handle('GET', '/', ['page' => 'international', 'save' => $save], [], $session);
+            self::assertSame(200, $international['status']);
+            self::assertStringContainsString('National Teams', $international['body']);
+            preg_match('/page=national-team&amp;save=' . preg_quote($save, '/') . '&amp;team=([^"&]+)/', $international['body'], $teamMatch);
+            self::assertNotEmpty($teamMatch[1] ?? null);
+            $nationalTeam = $this->application->handle('GET', '/', ['page' => 'national-team', 'save' => $save, 'team' => $teamMatch[1]], [], $session);
+            self::assertSame(200, $nationalTeam['status']);
+            self::assertStringContainsString('NATIONAL TEAM', $nationalTeam['body']);
             $clubPage = $this->application->handle('GET', '/', ['page' => 'club', 'save' => $save, 'club' => $clubMatch[1]], [], $session);
             self::assertStringContainsString('Open Squad', $clubPage['body']);
         } finally {

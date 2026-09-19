@@ -17,6 +17,7 @@ use Goal\Legacy\Modules\Contract\Domain\Contract;
 use Goal\Legacy\Modules\Contract\Persistence\ContractRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
+use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\TrainingIntensity;
@@ -133,6 +134,7 @@ final class PlayerCareerProgressionQuery
         }
         usort($selectionHistory, static fn (array $a, array $b): int => strcmp($b['date'] . $b['match_id'], $a['date'] . $a['match_id']));
         $summary['recent_selection'] = array_slice($selectionHistory, 0, 5);
+        $summary['recent_playing_time'] = $this->recentPlayingTime($database, $id, $date, $membership?->clubId()->value(), $summary['recent_selection']);
         $summary['expectation'] = $membership === null ? null : (new ClubExpectationService($this->clubService))->latest($database, $membership);
         $summary['open_opportunities'] = array_map(static fn ($opportunity): array => $opportunity->toArray(), $openOpportunities);
         $summary['pending_decisions'] = array_map(static fn ($opportunity): array => [
@@ -146,7 +148,6 @@ final class PlayerCareerProgressionQuery
         $summary['available_actions'] = $player->isRetired() ? [] : $this->availableActions($careerReference, $activeContract, $currentMembership, $openOpportunities);
         $pendingCareerEvent = $player->isRetired() ? null : ((new CareerEventRepository($database))->pendingForPlayer($id)[0] ?? null);
         $summary['pending_career_event'] = $pendingCareerEvent?->toArray();
-        $summary['career_outlook'] = (new CareerOutlookService())->derive($summary, $date);
         $next = null;
         if ($currentMembership !== null) {
             foreach ($matchRepository->byClub($currentMembership->clubId(), $currentMembership->seasonId()) as $match) {
@@ -157,6 +158,8 @@ final class PlayerCareerProgressionQuery
         $socialService = $this->social ?? new FootballSocialService($this->clubService);
         $summary['social'] = $socialService->context($database, $id);
         $summary['social_history'] = $socialService->history($database, $id, 12);
+        $summary['manager_context'] = (new ManagerTrustService())->derive($summary);
+        $summary['career_outlook'] = (new CareerOutlookService())->derive($summary, $date);
         $internationalNext = $summary['international']['next_fixture'] ?? null;
         if (is_array($internationalNext) && ($next === null || strcmp((string) $internationalNext['date'] . (string) $internationalNext['match_id'], (string) $next['date'] . (string) $next['match_id']) < 0)) {
             $next = ['match_id' => $internationalNext['match_id'], 'date' => $internationalNext['date'], 'competition_id' => $internationalNext['competition_id'], 'opponent_club_id' => $internationalNext['opponent_team_id'], 'controlled_team_id' => $summary['international']['team_id']];
@@ -204,7 +207,9 @@ final class PlayerCareerProgressionQuery
         }
         $samePosition = [];
         $players = new PlayerRepository($database);
+        $roles = [];
         foreach ($this->clubService->squadRepository($database)->byClub($membership->clubId(), $membership->seasonId()) as $candidateMembership) {
+            $roles[$candidateMembership->playerId()->value()] = $candidateMembership->role()->value;
             if ($candidateMembership->playerId()->value() === $player->id()->value()) {
                 continue;
             }
@@ -212,15 +217,83 @@ final class PlayerCareerProgressionQuery
             if ($candidate->primaryPosition() !== $player->primaryPosition()) {
                 continue;
             }
-            $samePosition[] = $candidate->overallRating();
+            $samePosition[] = [
+                'player_id' => $candidate->id()->value(),
+                'name' => $candidate->preferredName(),
+                'position' => $candidate->primaryPosition()->value,
+                'overall' => $candidate->overallRating(),
+                'role' => $roles[$candidate->id()->value()] ?? null,
+            ];
         }
-        $higher = array_values(array_filter($samePosition, static fn (int $rating): bool => $rating > $player->overallRating()));
+        usort($samePosition, static fn (array $left, array $right): int => (($right['overall'] <=> $left['overall']) ?: strcmp($left['player_id'], $right['player_id'])));
+        $higher = array_values(array_filter($samePosition, static fn (array $candidate): bool => $candidate['overall'] > $player->overallRating()));
+        $ratings = array_map(static fn (array $candidate): int => (int) $candidate['overall'], $samePosition);
 
         return [
             'position' => $player->primaryPosition()->value,
             'same_position_count' => count($samePosition),
             'higher_ovr_count' => count($higher),
-            'average_ovr' => $samePosition === [] ? null : (int) round(array_sum($samePosition) / count($samePosition)),
+            'average_ovr' => $ratings === [] ? null : (int) round(array_sum($ratings) / count($ratings)),
+            'competitors' => array_slice($samePosition, 0, 3),
+        ];
+    }
+
+    /**
+     * Derive a compact current-club playing-time window from canonical
+     * selections and Player Match statistics. No daily or weekly rows are
+     * introduced, and this is only read for the controlled Career summary.
+     * @param list<array<string, mixed>> $recentSelection
+     * @return array<string, mixed>
+     */
+    private function recentPlayingTime(DatabaseInterface $database, PlayerId $playerId, SimulationDate $date, ?string $clubId, array $recentSelection): array
+    {
+        if ($clubId === null || $clubId === '' || $recentSelection === []) {
+            return ['window' => 0, 'appearances' => 0, 'starts' => 0, 'minutes' => 0, 'minutes_share' => 0.0, 'bench' => 0, 'not_selected' => 0, 'unavailable' => 0, 'red_cards' => 0];
+        }
+        $stats = [];
+        foreach ((new PlayerMatchStatRepository($database))->byPlayer($playerId) as $stat) {
+            $stats[$stat->matchId()->value()] = $stat;
+        }
+        $matches = new MatchRepository($database);
+        $window = 0;
+        $appearances = 0;
+        $starts = 0;
+        $minutes = 0;
+        $bench = 0;
+        $notSelected = 0;
+        $unavailable = 0;
+        $redCards = 0;
+        foreach ($recentSelection as $selection) {
+            if (($selection['club_id'] ?? null) !== $clubId || !is_string($selection['match_id'] ?? null)) { continue; }
+            try {
+                $match = $matches->get((string) $selection['match_id']);
+            } catch (\Throwable) {
+                continue;
+            }
+            if ($match->scheduledDate()->isAfter($date)) { continue; }
+            ++$window;
+            $status = (string) ($selection['status'] ?? 'not_selected');
+            if ($status === 'bench') { ++$bench; }
+            if ($status === 'not_selected') { ++$notSelected; }
+            if ($status === 'unavailable') { ++$unavailable; }
+            $stat = $stats[(string) $selection['match_id']] ?? null;
+            if ($stat === null || !$stat->appeared()) { continue; }
+            ++$appearances;
+            $starts += $stat->started() ? 1 : 0;
+            $minutes += $stat->minutes();
+            $redCards += $stat->redCards();
+        }
+
+        return [
+            'window' => $window,
+            'appearances' => $appearances,
+            'starts' => $starts,
+            'minutes' => $minutes,
+            'minutes_share' => $window === 0 ? 0.0 : round(min(1.0, $minutes / ($window * 90)), 4),
+            'bench' => $bench,
+            'not_selected' => $notSelected,
+            'unavailable' => $unavailable,
+            'red_cards' => $redCards,
         ];
     }
 

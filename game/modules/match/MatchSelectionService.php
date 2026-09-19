@@ -15,18 +15,20 @@ use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\AvailabilityStatus;
 use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
+use Goal\Legacy\Modules\Player\ManagerTrustService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 
 final class MatchSelectionService
 {
-    public function __construct(private readonly ClubService $clubService, private readonly ?PlayerAvailabilityService $availability = null)
+    public function __construct(private readonly ClubService $clubService, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?ManagerTrustService $managerTrust = null)
     {
     }
 
     /** @return list<PlayerSelection> */
-    public function select(DatabaseInterface $database, GameMatch $match): array
+    public function select(DatabaseInterface $database, GameMatch $match, ?array $controlledPlayers = null): array
     {
         $players = new PlayerRepository($database);
+        $controlledPlayers ??= [];
         $selections = [];
         foreach ([$match->homeClubId()->value(), $match->awayClubId()->value()] as $clubId) {
             $international = $this->isInternational($database, $match->competitionId()->value());
@@ -43,7 +45,8 @@ final class MatchSelectionService
                 }
                 $role = $roles[$player->id()->value()] ?? SquadRole::Prospect;
                 $fatiguePenalty = $assessment->fatigue() * 4;
-                $ranked[] = ['player' => $player, 'score' => $role->weight() + ($player->overallRating() * 10) + $this->formBonus($database, $player->id()->value(), $match) - $fatiguePenalty, 'tie' => hash('sha256', $match->id()->value() . '|' . $player->id()->value()), 'group' => $this->positionGroup($player)];
+                $trustInfluence = $this->managerTrust?->selectionInfluence($database, $player, $clubId, $role, $assessment->fatigue(), isset($controlledPlayers[$player->id()->value()])) ?? 0;
+                $ranked[] = ['player' => $player, 'score' => $role->weight() + ($player->overallRating() * 10) + $this->formBonus($database, $player->id()->value(), $match) - $fatiguePenalty + $trustInfluence, 'tie' => hash('sha256', $match->id()->value() . '|' . $player->id()->value()), 'group' => $this->positionGroup($player)];
             }
             usort($ranked, static fn (array $a, array $b): int => ($b['score'] <=> $a['score']) ?: strcmp($a['tie'], $b['tie']));
             $starters = $this->positionAwareStarters($ranked);

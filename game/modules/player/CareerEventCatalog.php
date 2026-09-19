@@ -98,6 +98,11 @@ final class CareerEventCatalog
                 self::choice('trust-the-process', 'Trust the process', 'Accepted the manager\'s patience plan', null, null, 'professional', 'manager_patience'),
                 self::choice('request-a-plan', 'Ask for clear development targets', 'Asked for clear development targets from the manager', null, null, 'development', 'manager_patience'),
             ], ['requires' => ['roles' => ['prospect', 'rotation'], 'history_absent' => 'manager_patience'], 'newsworthy' => false, 'repeatability' => 'once_per_club', 'context_weight' => 9]),
+            self::event('manager-playing-time-review', 'manager', 'A conversation about your minutes', 'The manager wants to discuss your recent playing time and how you can earn the next opportunity at {club}.', [
+                self::choice('ask-for-minutes', 'Ask for more playing time', 'Asked the manager for more playing time while keeping the conversation professional', null, null, 'professional', 'playing_time_conversation', null, ['manager_score' => -1]),
+                self::choice('earn-your-place', 'Focus on earning your place', 'Focused on earning a place through football evidence', null, null, 'professional', 'playing_time_conversation', null, ['manager_score' => 2]),
+                self::choice('accept-current-role', 'Accept the current role and develop', 'Accepted the current role while continuing to develop', null, null, 'development', 'playing_time_conversation', null, ['manager_score' => 1]),
+            ], ['requires' => ['playing_time_mismatch' => ['below_expectation', 'severely_below_expectation'], 'history_absent' => 'playing_time_conversation'], 'newsworthy' => false, 'repeatability' => 'once_per_season', 'context_weight' => 20]),
             self::event('manager-role-briefing', 'manager', 'Your role is changing', 'The manager explains what {club} needs from you in the coming stretch of the Season.', [
                 self::choice('accept-role', 'Accept the role and prepare', 'Accepted the manager\'s role expectations', null, null, 'professional', 'role_briefing'),
                 self::choice('ask-to-develop', 'Ask where you can improve', 'Asked where to improve before taking on a new role', null, null, 'development', 'role_briefing'),

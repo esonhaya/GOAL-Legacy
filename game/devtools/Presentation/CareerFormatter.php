@@ -49,6 +49,10 @@ final class CareerFormatter
         $lines[] = 'Club Standing: ' . $this->text($social['club_standing_label'] ?? null, 'New Arrival');
         $lines[] = 'Supporters: ' . $this->text($social['supporter_sentiment'] ?? null, 'Neutral');
         $lines[] = 'Manager Relationship: ' . $this->text($social['manager_relationship'] ?? null, 'Professional');
+        $manager = is_array($summary['manager_context'] ?? null) ? $summary['manager_context'] : [];
+        $lines[] = 'Football Trust: ' . CareerLabels::value($manager['trust_label'] ?? null, 'Not available');
+        $lines[] = 'Squad Competition: ' . CareerLabels::value($manager['competition_status'] ?? null, 'Not available');
+        $lines[] = 'Playing Time: ' . CareerLabels::value($manager['playing_time_status'] ?? null, 'Not enough evidence');
 
         $lines[] = '';
         $latestSeason = $history === [] ? null : $history[array_key_last($history)];
@@ -66,6 +70,9 @@ final class CareerFormatter
         $transferRequest = is_array($summary['transfer_request'] ?? null) ? $summary['transfer_request'] : [];
         $lines[] = 'Transfer Request: ' . CareerLabels::value($transferRequest['status'] ?? 'none');
         $lines[] = 'Career Outlook: ' . CareerLabels::value($outlook['category'] ?? null);
+        if (is_string($manager['feedback'] ?? null) && trim($manager['feedback']) !== '') {
+            $lines[] = 'Manager Feedback: ' . $manager['feedback'];
+        }
         $pendingEvent = is_array($summary['pending_career_event'] ?? null) ? $summary['pending_career_event'] : null;
         if ($pendingEvent !== null) {
             $lines[] = 'Career Event: ' . $this->text($pendingEvent['title'] ?? null, 'Decision waiting');

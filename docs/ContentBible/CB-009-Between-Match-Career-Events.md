@@ -119,4 +119,18 @@ stories. Significant Injury and return facts use the existing availability,
 Career History, News, and Pulse routes. Pages remain read-only: recovery is
 owned by simulation time and no page view creates an event.
 
+## P2-018 Manager and Playing-Time Conversations
+
+Manager football feedback is private Career context. Use factual language
+such as strong recent performances, close positional competition, limited
+minutes, returning from Injury, or the need for consistency. Do not expose
+hidden point changes or promise a start.
+
+The controlled Player may receive a once-per-Season conversation only after a
+sustained below-expectation playing-time window. Curated responses include
+asking for more minutes, focusing on earning the place, and accepting the
+current role while developing. The existing manager relationship receives a
+small bounded consequence; no new personality or morale system is created.
+Silence remains represented by no conversation when evidence is insufficient.
+
 END OF DOCUMENT

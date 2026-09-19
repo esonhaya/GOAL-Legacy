@@ -38,6 +38,7 @@ use Goal\Legacy\Modules\Player\PlayerPopulationService;
 use Goal\Legacy\Modules\Player\PlayerLifecycleService;
 use Goal\Legacy\Modules\Player\ClubExpectationService;
 use Goal\Legacy\Modules\Player\FootballSocialService;
+use Goal\Legacy\Modules\Player\ManagerTrustService;
 use Goal\Legacy\Modules\Player\PulseService;
 use Goal\Legacy\Modules\Player\CareerLegacyService;
 use Goal\Legacy\Modules\Match\MatchModule;
@@ -108,7 +109,7 @@ final class Bootstrap
         $transferModule = new TransferModule(new TransferService($contractModule->service(), $clubModule->service(), $competitionModule->service(), $dispatcher, $footballSocialService));
         $clubRecruitmentService = new ClubRecruitmentService($clubModule->service(), $contractModule->service(), $competitionModule->service(), $transferModule->service());
         $expectationService = new ClubExpectationService($clubModule->service(), $dispatcher);
-        $matchModule = new MatchModule(new MatchService($clubModule->service(), $dispatcher, $developmentService, $expectationService, $availabilityService, $domesticCups, $europeanCompetitions, $internationalCompetitions, $footballSocialService));
+        $matchModule = new MatchModule(new MatchService($clubModule->service(), $dispatcher, $developmentService, $expectationService, $availabilityService, $domesticCups, $europeanCompetitions, $internationalCompetitions, $footballSocialService, new ManagerTrustService()));
         $careerLegacy = new CareerLegacyService($clubModule->service(), $nationalTeams, $internationalCompetitions, $footballSocialService);
         $seasonRollover = new SeasonRolloverService($competitionModule->service(), $clubModule->service(), $contractModule->service(), $populationService, $playerLifecycleService, $clubRecruitmentService, $matchModule->service(), $dispatcher, $transferModule->service(), $domesticCups, $europeanCompetitions, $internationalCompetitions, $careerLegacy);
         $worldModule = new WorldModule(new WorldService(

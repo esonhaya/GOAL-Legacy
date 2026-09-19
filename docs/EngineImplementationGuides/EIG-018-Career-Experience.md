@@ -63,6 +63,28 @@ That is the historical Phase 1 boundary; P2-005 adds a separate
 controlled-Player finance owner without changing event ownership or
 introducing NPC personal finance.
 
+## P2-018 Manager Context
+
+`ManagerTrustService` is a read-only adapter over existing football evidence.
+It distinguishes interpersonal `FootballSocialService` manager relationship
+from selection-facing football trust, without persisting a second trust
+score. It derives a bounded label, same-position competition summary,
+role-based playing-time expectation, recent minutes assessment, factual
+feedback, and selection context for the controlled Player.
+
+`MatchSelectionService` remains authoritative. In production it receives a
+small controlled-Player-only trust tie-break after role, OVR, form, position,
+and availability; World/NPC selection does not calculate detailed manager
+trust. `CareerOutlookService` consumes the derived mismatch context but does
+not become a second playing-time owner.
+
+The `manager-playing-time-review` catalog event is eligible only after at
+least three recent selection observations show below-expectation minutes. It
+is once per Season, resolves through the existing Career Event transaction,
+and routes manager consequences through `FootballSocialService`. Reads never
+create or reroll it; the monthly event source key and resolved memory protect
+reload/double-submit behavior.
+
 ## Revision History
 
 | Version | Date | Notes |

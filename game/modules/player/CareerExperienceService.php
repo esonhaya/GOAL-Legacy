@@ -233,6 +233,10 @@ final class CareerExperienceService
         if (isset($requirements['goals_min']) && $signals['goals'] < (int) $requirements['goals_min']) { return false; }
         if (isset($requirements['recent_goals_min']) && $signals['recent_goals'] < (int) $requirements['recent_goals_min']) { return false; }
         if (($requirements['position_competition'] ?? false) === true && !$signals['position_competition']) { return false; }
+        if (isset($requirements['playing_time_mismatch'])) {
+            $allowed = is_array($requirements['playing_time_mismatch']) ? $requirements['playing_time_mismatch'] : [$requirements['playing_time_mismatch']];
+            if (!in_array($signals['playing_time_mismatch'] ?? 'insufficient_evidence', $allowed, true)) { return false; }
+        }
         if (($requirements['transfer_request'] ?? null) !== null && $signals['transfer_request'] !== $requirements['transfer_request']) { return false; }
         if (($requirements['recent_transfer'] ?? false) === true && !$signals['recent_transfer']) { return false; }
         if (($requirements['contract_expiring'] ?? false) === true && !$signals['contract_expiring']) { return false; }
@@ -364,6 +368,8 @@ final class CareerExperienceService
         $goals = max((int) ($careerStats['goals'] ?? 0), (int) ($seasonStats['goals'] ?? 0));
         $role = (string) ($summary['current_role'] ?? $summary['squad_role'] ?? '');
         $form = (string) ($recentForm['classification'] ?? 'insufficient_evidence');
+        $managerContext = is_array($summary['manager_context'] ?? null) ? $summary['manager_context'] : [];
+        $playingTimeStatus = (string) ($managerContext['playing_time_status'] ?? 'insufficient_evidence');
         $phase = $date->month() >= 2 ? 'run_in' : ($date->month() >= 10 ? 'midseason' : 'early_season');
         $competitionPressure = null;
         $competitionId = (string) (($summary['current_competition']['id'] ?? ''));
@@ -395,6 +401,8 @@ final class CareerExperienceService
             'role' => $role, 'form' => $form, 'appearances' => $appearances, 'starts' => $starts,
             'goals' => $goals, 'recent_goals' => $recentGoals,
             'position_competition' => ((int) (($summary['position_competition']['higher_ovr_count'] ?? 0)) > 0),
+            'playing_time_mismatch' => $playingTimeStatus,
+            'manager_trust_label' => (string) ($managerContext['trust_label'] ?? 'developing'),
             'transfer_request' => (string) (($summary['transfer_request']['status'] ?? 'none')),
             'recent_transfer' => $recentTransfer, 'contract_expiring' => $contractExpiring,
             'recent_team_result' => $recentTeamResult, 'season_phase' => $phase, 'competition_pressure' => $competitionPressure,
@@ -407,7 +415,7 @@ final class CareerExperienceService
             'relationship_types' => array_values(array_unique(array_map(static fn (array $relationship): string => (string) ($relationship['type'] ?? ''), $this->social?->relationships($database, $playerId) ?? []))),
             'income' => (int) ($finance['income'] ?? 0), 'wage_income' => (int) ($finance['wage_income'] ?? 0), 'balance' => (int) ($finance['balance'] ?? 0), 'owned_item' => $ownedIds, 'owned_effects' => $ownedEffects, 'owned_categories' => $ownedCategories,
             'financial_context' => (string) ($financialContext['code'] ?? 'starting_out'),
-            'context_keys' => array_values(array_filter([$role, $form, $recentTeamResult, $recentTransfer ? 'recent_transfer' : null, $contractExpiring ? 'contract_expiring' : null, ((int) ($finance['wage_income'] ?? 0)) > 0 ? 'wage_received' : null, $ownedEffects === [] ? null : 'lifestyle_owned', $financialContext['code'] ?? null])),
+            'context_keys' => array_values(array_filter([$role, $form, $recentTeamResult, $playingTimeStatus !== 'insufficient_evidence' ? 'playing_time_' . $playingTimeStatus : null, $recentTransfer ? 'recent_transfer' : null, $contractExpiring ? 'contract_expiring' : null, ((int) ($finance['wage_income'] ?? 0)) > 0 ? 'wage_received' : null, $ownedEffects === [] ? null : 'lifestyle_owned', $financialContext['code'] ?? null])),
         ];
     }
 }

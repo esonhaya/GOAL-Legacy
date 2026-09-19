@@ -15,6 +15,7 @@ use Goal\Legacy\Modules\Match\Domain\PlayerMatchStat;
 use Goal\Legacy\Modules\Match\Domain\TeamStrength;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
+use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
 use Goal\Legacy\Modules\Match\Domain\SimulationFidelity;
 
@@ -25,7 +26,10 @@ final class MatchSimulationService
     public function simulate(DatabaseInterface $database, GameMatch $match, SimulationFidelity $fidelity = SimulationFidelity::Player): MatchSimulation
     {
         $playerRepository = new PlayerRepository($database);
-        $selections = $this->selectionService->select($database, $match);
+        $controlledPlayers = $fidelity === SimulationFidelity::Player
+            ? array_fill_keys((new CareerPlayerRepository($database))->playerIds(), true)
+            : [];
+        $selections = $this->selectionService->select($database, $match, $controlledPlayers);
         $participantIds = [];
         foreach ($selections as $selection) {
             if ($selection->status() === SelectionStatus::Starter || $selection->status() === SelectionStatus::Bench) { $participantIds[] = $selection->playerId(); }

@@ -37,6 +37,7 @@ use Goal\Legacy\Modules\Competition\DomesticCupService;
 use Goal\Legacy\Modules\Competition\EuropeanCompetitionService;
 use Goal\Legacy\Modules\International\InternationalCompetitionService;
 use Goal\Legacy\Modules\Player\FootballSocialService;
+use Goal\Legacy\Modules\Player\ManagerTrustService;
 
 final class MatchService
 {
@@ -44,10 +45,10 @@ final class MatchService
     private readonly MatchSimulationService $simulator;
     private readonly StandingsService $standings;
 
-    public function __construct(private readonly ClubService $clubService, private readonly EventDispatcherInterface $events, private readonly ?PlayerDevelopmentService $development = null, private readonly ?ClubExpectationService $expectations = null, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?DomesticCupService $domesticCups = null, private readonly ?EuropeanCompetitionService $europeanCompetitions = null, private readonly ?InternationalCompetitionService $internationalCompetitions = null, private readonly ?FootballSocialService $footballSocial = null)
+    public function __construct(private readonly ClubService $clubService, private readonly EventDispatcherInterface $events, private readonly ?PlayerDevelopmentService $development = null, private readonly ?ClubExpectationService $expectations = null, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?DomesticCupService $domesticCups = null, private readonly ?EuropeanCompetitionService $europeanCompetitions = null, private readonly ?InternationalCompetitionService $internationalCompetitions = null, private readonly ?FootballSocialService $footballSocial = null, private readonly ?ManagerTrustService $managerTrust = null)
     {
         $this->fixtureGenerator = new FixtureGenerationService($clubService);
-        $this->simulator = new MatchSimulationService($clubService, new MatchSelectionService($clubService, $availability));
+        $this->simulator = new MatchSimulationService($clubService, new MatchSelectionService($clubService, $availability, $managerTrust));
         $this->standings = new StandingsService($clubService);
     }
     public function repository(DatabaseInterface $database): MatchRepository { return new MatchRepository($database); }

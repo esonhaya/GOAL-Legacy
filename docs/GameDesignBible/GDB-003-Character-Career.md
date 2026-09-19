@@ -264,4 +264,27 @@ carry a bounded expected recovery date, and recovery/return events use the
 existing social/Pulse path. NPCs receive no detailed readiness history or
 training-choice simulation.
 
+## P2-018 Manager Trust and Squad Competition
+
+The controlled Player's football standing with the manager is a derived
+selection context, not a second OVR, form score, role, reputation, or
+guaranteed-selection meter. The existing Club-scoped manager relationship
+remains the interpersonal owner. A read-only football-trust label combines
+that relationship with bounded recent form, canonical minutes, role,
+availability, discipline, and positional competition.
+
+Squad competition is derived from the current Club's same-position Players;
+only a deterministic top one-to-three competitor summary is exposed. Role
+expectations are simple guidance: Prospect limited developmental minutes,
+Rotation regular rotation opportunities, Regular frequent meaningful
+minutes, and Key Player a strong starting expectation. Selection remains
+owned by MatchSelectionService; trust can only provide a small controlled-
+Player tie-break influence after OVR, role, form, position, and readiness.
+
+Sustained below-expectation minutes can produce one existing Career Event
+conversation per Season. Its choices route through FootballSocialService and
+Career priority/development owners; they cannot change attributes, OVR,
+potential, Match outcomes, or guarantee selection. No weekly trust snapshots,
+NPC trust rows, manager personalities, or social-manager simulation exist.
+
 END OF DOCUMENT

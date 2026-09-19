@@ -347,4 +347,18 @@ recovery or reroll Injury state. At a simulation checkpoint, availability
 reconciliation may mark due Injuries recovered before the next Match. No
 temporary daily readiness rows are compacted or copied into a new Season.
 
+## P2-018 Manager Context Ordering
+
+Manager football context is derived after canonical social state, current
+squad membership, recent selections, Match statistics, form, and availability
+are available in the controlled Career summary. It is never a lifecycle
+write. Current competitor presentation is rebuilt deterministically from the
+bounded squad and does not survive as historical ranking data.
+
+The playing-time conversation reuses the existing `career_events` source-key
+and transactional resolve boundary. A Season rollover does not duplicate a
+resolved conversation; a new Season only permits a new conversation if a new
+sustained mismatch exists. No manager-context data is added to NPC lifecycle
+passes or copied during compaction.
+
 END OF DOCUMENT

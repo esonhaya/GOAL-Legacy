@@ -22,6 +22,9 @@ final class CareerOutlookService
         $startsShare = (float) ($statistics['start_share'] ?? 0.0);
         $position = is_array($summary['position_competition'] ?? null) ? $summary['position_competition'] : null;
         $higherOvrCount = (int) ($position['higher_ovr_count'] ?? 0);
+        $manager = is_array($summary['manager_context'] ?? null) ? $summary['manager_context'] : [];
+        $playingTimeStatus = (string) ($manager['playing_time_status'] ?? '');
+        $competitionStatus = (string) ($manager['competition_status'] ?? '');
         $opportunity = $this->opportunityLevel($role, $minutesShare, $startsShare, $summary);
         $contractOutlook = $this->contractOutlook($contract, $pending, $date);
         $transferOutlook = $this->transferOutlook($summary, $pending);
@@ -32,6 +35,9 @@ final class CareerOutlookService
             'starts_share' => round($startsShare, 4),
             'same_position_count' => $position === null ? 0 : (int) ($position['same_position_count'] ?? 0),
             'higher_ovr_count' => $higherOvrCount,
+            'manager_trust' => $manager['trust_label'] ?? null,
+            'competition_status' => $competitionStatus === '' ? null : $competitionStatus,
+            'playing_time_status' => $playingTimeStatus === '' ? null : $playingTimeStatus,
         ];
 
         if (($summary['career_state'] ?? 'active') === 'retired') {
@@ -70,6 +76,15 @@ final class CareerOutlookService
         if ($contractOutlook === 'approaching_decision') {
             return $this->result('contract_uncertainty', 'Contract decision approaching', $opportunity, $contractOutlook, $transferOutlook, $evidence, [
                 $this->guidance('contract_review', 'Your Contract decision is approaching.', null),
+            ]);
+        }
+
+        if (in_array($playingTimeStatus, ['below_expectation', 'severely_below_expectation'], true)) {
+            $guidance = $playingTimeStatus === 'severely_below_expectation'
+                ? 'Your recent role is below expectation; consistent football can rebuild the path.'
+                : 'Your recent minutes are below expectation; the next selection window matters.';
+            return $this->result('needs_minutes', 'Needs minutes', $opportunity, $contractOutlook, $transferOutlook, $evidence, [
+                $this->guidance('needs_minutes', $guidance, null),
             ]);
         }
 

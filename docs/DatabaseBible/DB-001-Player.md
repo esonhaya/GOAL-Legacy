@@ -455,4 +455,21 @@ Player availability service; development stimulus is still owned by
 `PlayerDevelopmentService`. Legacy saves safely default to zero fatigue and
 no fabricated Injury history when these tables or rows do not exist.
 
+## P2-018 Manager Football Context
+
+Manager football trust is intentionally not a new table or continuously
+mutating score. `ManagerTrustService` derives a controlled-player read model
+from the existing `player_social_states.manager_score` relationship context,
+current squad role, positional competitors, recent canonical selections and
+Match minutes, form, availability, and discipline. It returns labels,
+playing-time expectation, competition status, factual reasons, feedback, and
+conversation eligibility.
+
+The existing `career_events` table is reused for an occasional sustained
+playing-time conversation. Its source key, Season repeatability, and
+transactional resolution provide idempotency. NPC Players receive no manager
+trust rows, competition-history rows, or conversation state. Position
+competitor names are a bounded current read model, not a persistent rivalry
+graph.
+
 END OF DOCUMENT

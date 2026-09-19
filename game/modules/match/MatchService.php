@@ -55,6 +55,7 @@ final class MatchService
     public function highlightRepository(DatabaseInterface $database): MatchHighlightRepository { return new MatchHighlightRepository($database); }
     public function selectionRepository(DatabaseInterface $database): MatchSelectionRepository { return new MatchSelectionRepository($database); }
     public function substitutionRepository(DatabaseInterface $database): MatchSubstitutionRepository { return new MatchSubstitutionRepository($database); }
+    public function story(DatabaseInterface $database): MatchStoryService { return new MatchStoryService(); }
     public function generateFixtures(DatabaseInterface $database, string|CompetitionId $competitionId, string|SeasonId $seasonId): array { $competition = $competitionId instanceof CompetitionId ? $competitionId : new CompetitionId($competitionId); $season = $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId); $matches = $this->internationalCompetitions?->isInternationalCompetition($database, $competition->value()) === true ? $this->internationalCompetitions->generateFixtures($database, $competition, $season) : ($this->europeanCompetitions?->isEuropeanCompetition($database, $competition->value()) === true ? $this->europeanCompetitions->generateFixtures($database, $competition, $season) : ($this->domesticCups?->isDomesticCup($database, $competition->value()) === true ? $this->domesticCups->generateFixtures($database, $competition, $season) : $this->fixtureGenerator->generate($database, $competition, $season))); $this->events->dispatch(new GenericEvent(MatchEventNames::FIXTURES_GENERATED, ['competition_id' => $competition->value(), 'season_id' => $season->value(), 'match_count' => count($matches)])); return $matches; }
     /** @param list<string> $competitionIds @return list<GameMatch> */
     public function generateSeasonFixtures(DatabaseInterface $database, array $competitionIds, SeasonId|string $seasonId): array
@@ -171,5 +172,19 @@ final class MatchService
     public function playerSummary(DatabaseInterface $database, string|MatchId $matchId, string|PlayerId $playerId): ?array
     {
         $match = $this->repository($database)->get($matchId); $player = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId); $stat = array_values(array_filter($this->statRepository($database)->byMatch($match->id()), static fn (PlayerMatchStat $value): bool => $value->playerId()->value() === $player->value()))[0] ?? null; if ($stat === null) { return null; } $opponent = $stat->clubId()->value() === $match->homeClubId()->value() ? $match->awayClubId()->value() : $match->homeClubId()->value(); $position = (new PlayerRepository($database))->get($player)->primaryPosition(); return ['match_id' => $match->id()->value(), 'player_id' => $player->value(), 'club_id' => $stat->clubId()->value(), 'opponent_club_id' => $opponent, 'home_club_id' => $match->homeClubId()->value(), 'away_club_id' => $match->awayClubId()->value(), 'appeared' => $stat->appeared(), 'started' => $stat->started(), 'minutes' => $stat->minutes(), 'goals' => $stat->goals(), 'assists' => $stat->assists(), 'shots' => $stat->shots(), 'shots_on_target' => $stat->shotsOnTarget(), 'saves' => $stat->saves(), 'clean_sheets' => $stat->cleanSheets(), 'tackles' => $stat->tackles(), 'interceptions' => $stat->interceptions(), 'blocks' => $stat->blocks(), 'passes_attempted' => $stat->passesAttempted(), 'passes_completed' => $stat->passesCompleted(), 'fouls_committed' => $stat->foulsCommitted(), 'yellow_cards' => $stat->yellowCards(), 'red_cards' => $stat->redCards(), 'rating' => (new PlayerMatchRatingService())->rate($stat, $position), 'highlights' => array_values(array_map(static fn ($highlight): array => $highlight->toArray(), array_filter($this->highlightRepository($database)->byMatch($match->id()), static fn ($highlight): bool => $highlight->playerId()?->value() === $player->value() || (($highlight->data()['assist_player_id'] ?? null) === $player->value()))))];
+    }
+
+    /** @return array<string, mixed> */
+    public function playerStory(DatabaseInterface $database, string|MatchId $matchId, string|PlayerId $playerId): array
+    {
+        return $this->story($database)->playerStory($database, $this->repository($database)->get($matchId), $playerId);
+    }
+
+    /** @return array{valid:bool,errors:list<string>} */
+    public function integrity(DatabaseInterface $database, string|MatchId $matchId): array
+    {
+        $match = $this->repository($database)->get($matchId);
+
+        return $this->story($database)->integrity($database, $match);
     }
 }

@@ -48,6 +48,65 @@ final class PlayerMatchRatingService
         return round(min(self::MAXIMUM, max(self::MINIMUM, $rating)), 1);
     }
 
+    /**
+     * Explain the same finalized evidence used by rate(). The explanation is
+     * deliberately descriptive: it never exposes coefficients or invents an
+     * action that is absent from the persisted stat line.
+     *
+     * @return array{rating:float|null,label:string,positive:list<string>,negative:list<string>}
+     */
+    public function explain(PlayerMatchStat $stat, PlayerPosition $position): array
+    {
+        $rating = $this->rate($stat, $position);
+        if ($rating === null) {
+            return ['rating' => null, 'label' => 'No rating', 'positive' => [], 'negative' => []];
+        }
+
+        $positive = [];
+        $negative = [];
+        if ($stat->goals() > 0) { $positive[] = $this->countText($stat->goals(), 'goal'); }
+        if ($stat->assists() > 0) { $positive[] = $this->countText($stat->assists(), 'assist'); }
+        if ($stat->saves() > 0) { $positive[] = $this->countText($stat->saves(), 'save'); }
+        if ($stat->cleanSheets() > 0 && $this->cleanSheetPosition($position)) { $positive[] = 'Clean sheet'; }
+
+        $defensive = array_filter([
+            $stat->tackles() > 0 ? $this->countText($stat->tackles(), 'tackle') : null,
+            $stat->interceptions() > 0 ? $this->countText($stat->interceptions(), 'interception') : null,
+            $stat->blocks() > 0 ? $this->countText($stat->blocks(), 'block') : null,
+        ]);
+        if ($defensive !== [] && $this->defensivePosition($position)) {
+            $positive[] = 'Defensive work: ' . implode(', ', $defensive);
+        }
+        if ($stat->passesAttempted() >= self::PASSING_MEANINGFUL_ATTEMPTS && $stat->passesCompleted() / max(1, $stat->passesAttempted()) >= 0.70) {
+            $positive[] = sprintf('Strong passing: %d/%d completed', $stat->passesCompleted(), $stat->passesAttempted());
+        }
+        if ($stat->shotsOnTarget() > $stat->goals() && $this->attackingPosition($position)) {
+            $positive[] = $this->countText($stat->shotsOnTarget() - $stat->goals(), 'shot on target');
+        }
+
+        if ($stat->yellowCards() > 0) { $negative[] = $this->countText($stat->yellowCards(), 'yellow card'); }
+        if ($stat->redCards() > 0) { $negative[] = 'Sent off'; }
+        if ($stat->foulsCommitted() > 0 && $stat->yellowCards() === 0 && $stat->redCards() === 0) { $negative[] = $this->countText($stat->foulsCommitted(), 'foul') . ' committed'; }
+        if ($stat->minutes() < 30 && $positive === []) { $negative[] = 'Limited involvement'; }
+        if ($positive === [] && $negative === [] && $rating < 6.0) { $negative[] = 'Few decisive contributions'; }
+
+        return ['rating' => $rating, 'label' => $this->performanceLabel($rating), 'positive' => array_values($positive), 'negative' => array_values($negative)];
+    }
+
+    public function performanceLabel(?float $rating): string
+    {
+        if ($rating === null) { return 'No rating'; }
+
+        return match (true) {
+            $rating >= 8.5 => 'Outstanding',
+            $rating >= 7.5 => 'Excellent',
+            $rating >= 6.5 => 'Good',
+            $rating >= 5.8 => 'Solid',
+            $rating >= 5.0 => 'Quiet',
+            default => 'Poor',
+        };
+    }
+
     /** @return array{float, float, float, float, float} */
     private function weights(PlayerPosition $position): array
     {
@@ -108,5 +167,25 @@ final class PlayerMatchRatingService
         // Cards are the meaningful discipline outcome; ordinary fouls remain
         // deliberately minor so normal defensive work is not double-punished.
         return min(1.10, min(0.10, max(0, $stat->foulsCommitted()) * 0.03) + min(0.40, max(0, $stat->yellowCards()) * 0.20) + min(0.90, max(0, $stat->redCards()) * 0.90));
+    }
+
+    private function countText(int $count, string $noun): string
+    {
+        return $count . ' ' . $noun . ($count === 1 ? '' : 's');
+    }
+
+    private function cleanSheetPosition(PlayerPosition $position): bool
+    {
+        return in_array($position, [PlayerPosition::Goalkeeper, PlayerPosition::CentreBack, PlayerPosition::LeftBack, PlayerPosition::RightBack], true);
+    }
+
+    private function defensivePosition(PlayerPosition $position): bool
+    {
+        return in_array($position, [PlayerPosition::CentreBack, PlayerPosition::LeftBack, PlayerPosition::RightBack, PlayerPosition::DefensiveMidfielder, PlayerPosition::CentralMidfielder, PlayerPosition::AttackingMidfielder], true);
+    }
+
+    private function attackingPosition(PlayerPosition $position): bool
+    {
+        return in_array($position, [PlayerPosition::LeftWinger, PlayerPosition::RightWinger, PlayerPosition::Striker, PlayerPosition::AttackingMidfielder], true);
     }
 }

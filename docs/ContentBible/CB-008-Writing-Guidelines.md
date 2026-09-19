@@ -201,6 +201,21 @@ These additions should extend the style guide without changing its core philosop
 
 ✓ Localization-friendly writing.
 
+## P2-014 Matchday truth
+
+Matchday copy is generated from canonical Match evidence. Use clear states such
+as “Starting XI”, “Substitute appearance”, “Unused substitute”, “Not selected”,
+and “Unavailable — injury or fitness”. Goal text may include minute, scorer,
+assist, and score-after context only when those facts exist. Quiet Matches may
+remain quiet; commentary must never invent shots, passes, saves, or chances.
+
+Rating explanations are compact evidence summaries, with attacking, creative,
+defensive, goalkeeping, and discipline language selected from the Player's
+actual stat line. The controlled Player may receive bounded Player-of-the-Match
+or decisive-contribution context, but these labels never grant direct attribute
+boosts. World Matches keep compact fidelity and do not receive this storytelling
+layer.
+
 ✓ Standardized terminology.
 
 ---

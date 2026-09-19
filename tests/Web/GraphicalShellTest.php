@@ -8,6 +8,9 @@ use Goal\Legacy\Core\Bootstrap\Bootstrap;
 use Goal\Legacy\Modules\Player\Domain\CareerEvent;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerEventRepository;
+use Goal\Legacy\Modules\Match\Domain\MatchStatus;
+use Goal\Legacy\Modules\Match\Domain\SimulationFidelity;
+use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Web\WebApplication;
 use PHPUnit\Framework\TestCase;
 
@@ -123,6 +126,19 @@ final class GraphicalShellTest extends TestCase
 
             $database = $services->saveStore()->openDatabase($save);
             $career = (new CareerPlayerRepository($database))->get($save);
+            $clubMembership = $services->clubModule()->service()->squadRepository($database)->byPlayer($career->playerId(), new SeasonId('season-2024-25'))[0] ?? null;
+            self::assertNotNull($clubMembership);
+            $fixture = array_values(array_filter($services->matchModule()->service()->repository($database)->byClub($clubMembership->clubId(), new SeasonId('season-2024-25')), static fn ($match): bool => $match->status() === MatchStatus::Scheduled))[0] ?? null;
+            self::assertNotNull($fixture);
+            $services->matchModule()->service()->simulate($database, $fixture->id(), SimulationFidelity::Player);
+            $matchPage = $this->application->handle('GET', '/', ['page' => 'matchday', 'save' => $save, 'match' => $fixture->id()->value()], [], $session);
+            self::assertSame(200, $matchPage['status']);
+            self::assertStringContainsString('MATCH STORY', $matchPage['body']);
+            self::assertStringContainsString('RATING EXPLANATION', $matchPage['body']);
+            self::assertStringContainsString('YOUR MATCH', $matchPage['body']);
+            $invalidMatch = $this->application->handle('GET', '/', ['page' => 'matchday', 'save' => $save, 'match' => 'missing-match'], [], $session);
+            self::assertSame(404, $invalidMatch['status']);
+            self::assertStringContainsString('No simulation was rerun', $invalidMatch['body']);
             $home = $this->application->handle('GET', '/', ['page' => 'home', 'save' => $save], [], $session);
             self::assertSame(200, $home['status']);
             self::assertStringContainsString('Public profile', $home['body']);

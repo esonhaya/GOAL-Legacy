@@ -836,8 +836,8 @@ final class WebApplication
         foreach ((array) ($data['match_history'] ?? []) as $match) {
             if (!is_array($match)) { continue; }
             $line = ($match['date'] ?? '') . ' · ' . ($match['competition'] ?? 'Competition') . ' · ' . ($match['home'] ?? '') . ' ' . ($match['home_goals'] ?? 0) . '-' . ($match['away_goals'] ?? 0) . ' ' . ($match['away'] ?? '');
-            if (($match['detailed'] ?? false) === true && $match['minutes'] !== null) { $line .= ' · ' . $match['minutes'] . ' min · Rating ' . $this->rating($match['rating'] ?? null); }
-            $history .= '<li>' . WebView::e($line) . '</li>';
+            if (($match['detailed'] ?? false) === true && $match['minutes'] !== null) { $line .= ' · ' . $match['minutes'] . ' min · Rating ' . $this->rating($match['rating'] ?? null) . ' · ' . ($match['goals'] ?? 0) . 'G ' . ($match['assists'] ?? 0) . 'A'; }
+            $history .= '<li>' . WebView::e($line) . (isset($match['match_id']) && ($match['detailed'] ?? false) === true ? ' ' . WebView::link('matchday', ['save' => $saveId, 'match' => $match['match_id']], 'Open Match', 'text-link') : '') . '</li>';
         }
         $historyBody = $history === '' ? WebView::emptyState('No completed Match history in this Season.') : '<ul class="timeline compact-timeline">' . $history . '</ul>';
         $marketPanel = ($data['controlled'] ?? false) === true ? WebView::section('TRANSFER MARKET', 'Current context', '<p>' . WebView::e($market['label'] ?? 'Unknown') . ' · ' . WebView::e($market['current_club_level'] ?? 'Free Agent') . '</p>' . WebView::link('market', ['save' => $saveId], 'Open Transfer Market', 'button button-secondary')) : '';
@@ -1200,7 +1200,18 @@ final class WebApplication
 
     private function matchday(string $saveId, string $matchId, array &$session): array
     {
-        $database = $this->database($saveId); $snapshot = $this->snapshot($saveId, $database); $career = (new CareerPlayerRepository($database))->get($saveId); $match = (new MatchRepository($database))->get($matchId);
+        if ($matchId === '') {
+            return $this->html('Match unavailable', $this->errorPage('This Match link is missing. Return to Career Home and choose an available Match.'), $saveId, 'home', 404, $session);
+        }
+        $database = $this->database($saveId); $snapshot = $this->snapshot($saveId, $database); $career = (new CareerPlayerRepository($database))->get($saveId);
+        try {
+            $match = (new MatchRepository($database))->get($matchId);
+        } catch (\Throwable) {
+            return $this->html('Match unavailable', $this->errorPage('That Match is no longer available in this Career. No simulation was rerun.'), $saveId, 'home', 404, $session);
+        }
+        if ($match->status() !== MatchStatus::Completed) {
+            return $this->html('Match unavailable', $this->errorPage('This Match has not been completed yet. Return to Career Home for the next action.'), $saveId, 'home', 409, $session);
+        }
         $view = (new CareerPresentationService($this->services))->matchday($database, $match, $career->playerId()->value(), (string) (((array) ($snapshot['summary']['current_club'] ?? []))['id'] ?? ''));
         $performance = (array) ($view['performance'] ?? []); $result = (array) ($view['result'] ?? []);
         $cupResolution = is_array($view['cup_resolution'] ?? null) ? $view['cup_resolution'] : null;
@@ -1226,9 +1237,18 @@ final class WebApplication
         if (is_array($view['rival_context'] ?? null)) {
             $cupContext .= '<p class="metric-note">Facing rival: ' . WebView::e((string) ($view['rival_context']['name'] ?? 'Opponent')) . '</p>';
         }
-        $stats = ''; foreach (['goals' => 'Goals', 'assists' => 'Assists', 'shots' => 'Shots', 'shots_on_target' => 'Shots on target', 'passes_completed' => 'Passes', 'tackles' => 'Tackles', 'interceptions' => 'Interceptions', 'blocks' => 'Blocks', 'saves' => 'Saves', 'yellow_cards' => 'Yellow cards', 'red_cards' => 'Red cards'] as $key => $label) { if (array_key_exists($key, $performance) && $performance[$key] !== null) { $stats .= WebView::stat($label, $performance[$key]); } }
+        $stats = ''; foreach (['goals' => 'Goals', 'assists' => 'Assists', 'shots' => 'Shots', 'shots_on_target' => 'Shots on target', 'passes_completed' => 'Passes completed', 'passes_attempted' => 'Passes attempted', 'tackles' => 'Tackles', 'interceptions' => 'Interceptions', 'blocks' => 'Blocks', 'saves' => 'Saves', 'yellow_cards' => 'Yellow cards', 'red_cards' => 'Red cards'] as $key => $label) { if (array_key_exists($key, $performance) && $performance[$key] !== null) { $stats .= WebView::stat($label, $performance[$key]); } }
         $highlights = ''; foreach ((array) ($view['highlights'] ?? []) as $line) { $highlights .= '<li>' . WebView::e($line) . '</li>'; }
-        $body = '<div class="match-header"><div class="eyebrow">MATCHDAY · ' . WebView::e($view['competition'] ?? '') . '</div><p>' . WebView::e($view['date'] ?? '') . '</p><div class="scoreline"><strong>' . WebView::e($view['home_club'] ?? '') . '</strong><span>' . WebView::e($result['home_goals'] ?? 0) . ' — ' . WebView::e($result['away_goals'] ?? 0) . '</span><strong>' . WebView::e($view['away_club'] ?? '') . '</strong></div><div class="result-badge">' . WebView::e(strtoupper((string) ($view['perspective_result'] ?? 'result'))) . '</div>' . $cupContext . '</div><div class="match-grid"><div>' . WebView::section('YOUR MATCH', (string) ($performance['player_name'] ?? 'Player'), '<div class="match-player"><img class="portrait portrait-medium" src="' . WebView::e($this->portraitUrl($saveId, $career->playerId()->value(), 'matchday', 128)) . '" alt="Player portrait"><div><p class="tag">' . WebView::e(CareerLabels::value($performance['selection_status'] ?? null)) . '</p><div class="stat-grid compact">' . WebView::stat('Minutes', $performance['minutes'] ?? 0) . WebView::stat('Rating', $this->rating($performance['rating'] ?? null)) . '</div></div></div><div class="stat-grid compact">' . $stats . '</div>') . WebView::section('HIGHLIGHTS', 'Match story', $highlights === '' ? WebView::emptyState('No highlights recorded.') : '<ul class="fixture-list">' . $highlights . '</ul>') . '</div><aside>' . WebView::section('POST-MATCH', 'Updated context', $this->postMatch($view['post_match'] ?? [])) . '</aside></div><div class="form-actions">' . WebView::link('home', ['save' => $saveId], 'Career Home', 'button button-primary') . WebView::link('training', ['save' => $saveId], 'Training') . '</div>';
+        $playerMoments = ''; foreach ($this->playerMomentLines((array) ($performance['player_highlight_facts'] ?? [])) as $line) { $playerMoments .= '<li>' . WebView::e($line) . '</li>'; }
+        $explanation = (array) ($performance['rating_explanation'] ?? []); $factors = ''; foreach (array_merge(array_map(static fn (string $line): string => '+ ' . $line, (array) ($explanation['positive'] ?? [])), array_map(static fn (string $line): string => '− ' . $line, (array) ($explanation['negative'] ?? []))) as $line) { $factors .= '<li>' . WebView::e($line) . '</li>'; }
+        $decision = is_array($performance['decisive_contribution'] ?? null) ? '<p class="result-badge">' . WebView::e((string) ($performance['decisive_contribution']['label'] ?? 'Decisive contribution')) . '</p>' : '';
+        $potm = ($performance['player_of_match'] ?? false) === true ? '<p class="result-badge">Player of the Match</p>' : '';
+        $participation = '<p class="tag">' . WebView::e($performance['participation_label'] ?? 'Match status unavailable') . '</p><p class="metric-note">' . WebView::e($performance['position_label'] ?? CareerLabels::position($performance['position'] ?? '')) . ($performance['substitution_on_minute'] === null ? '' : ' · Entered ' . (int) $performance['substitution_on_minute'] . "'") . ($performance['substitution_off_minute'] === null ? '' : ' · Left ' . (int) $performance['substitution_off_minute'] . "'") . ($performance['dismissal_minute'] === null ? '' : ' · Dismissed ' . (int) $performance['dismissal_minute'] . "'") . '</p>';
+        $ratingPanel = WebView::section('RATING EXPLANATION', (string) ($performance['performance_label'] ?? 'Performance'), '<p><strong>' . WebView::e($this->rating($performance['rating'] ?? null)) . '</strong> from canonical Match evidence.</p>' . ($factors === '' ? WebView::emptyState('No additional rating factors recorded.') : '<ul class="fixture-list">' . $factors . '</ul>'));
+        $impact = (array) (($view['post_match']['career_impact'] ?? [])['items'] ?? []); $impactHtml = $impact === [] ? WebView::emptyState('No material Career change recorded.') : '<ul class="fixture-list">' . implode('', array_map(static fn (string $line): string => '<li>' . WebView::e($line) . '</li>', $impact)) . '</ul>';
+        $yourMatch = '<div class="match-player"><img class="portrait portrait-medium" src="' . WebView::e($this->portraitUrl($saveId, $career->playerId()->value(), 'matchday', 128)) . '" alt="Player portrait"><div>' . $participation . '<div class="stat-grid compact">' . WebView::stat('Minutes', $performance['minutes'] ?? 0) . WebView::stat('Rating', $this->rating($performance['rating'] ?? null)) . '</div></div></div><div class="stat-grid compact">' . $stats . '</div>' . $decision . $potm;
+        $postMatch = (array) ($view['post_match'] ?? []); $postMatch['performance'] = $performance;
+        $body = '<div class="match-header"><div class="eyebrow">MATCHDAY · ' . WebView::e($view['competition'] ?? '') . '</div><p>' . WebView::e($view['date'] ?? '') . '</p><div class="scoreline"><strong>' . WebView::e($view['home_club'] ?? '') . '</strong><span>' . WebView::e($result['home_goals'] ?? 0) . ' — ' . WebView::e($result['away_goals'] ?? 0) . '</span><strong>' . WebView::e($view['away_club'] ?? '') . '</strong></div><div class="result-badge">' . WebView::e(strtoupper((string) ($view['perspective_result'] ?? 'result'))) . '</div>' . $cupContext . '</div><div class="match-grid"><div>' . WebView::section('YOUR MATCH', (string) ($performance['player_name'] ?? 'Player'), $yourMatch) . $ratingPanel . WebView::section('YOUR MOMENTS', 'Player impact', $playerMoments === '' ? WebView::emptyState('No decisive Player moments recorded.') : '<ul class="fixture-list">' . $playerMoments . '</ul>') . WebView::section('MATCH STORY', 'Canonical timeline', $highlights === '' ? WebView::emptyState('No highlights recorded.') : '<ul class="fixture-list">' . $highlights . '</ul>') . '</div><aside>' . WebView::section('POST-MATCH', 'Updated context', $this->postMatch($postMatch)) . WebView::section('CAREER IMPACT', 'What changed', $impactHtml) . '</aside></div><div class="form-actions">' . WebView::link('home', ['save' => $saveId], 'Career Home', 'button button-primary') . WebView::link('training', ['save' => $saveId], 'Training') . '</div>';
 
         return $this->html('Matchday', $body, $saveId, 'home', 200, $session);
     }
@@ -1262,7 +1282,31 @@ final class WebApplication
 
     private function postMatch(array $post): string
     {
-        $stats = (array) ($post['season_stats'] ?? []); $form = (array) ($post['recent_form'] ?? []); return '<div class="split-list"><p><span>Recent form</span><strong>' . WebView::e($this->formLabel($form)) . '</strong></p><p><span>Season average</span><strong>' . WebView::e($this->rating($stats['average_match_rating'] ?? null)) . '</strong></p><p><span>Season goals</span><strong>' . WebView::e($stats['goals'] ?? 0) . '</strong></p><p><span>League position</span><strong>' . WebView::e($post['club_position'] ?? 'Not available') . '</strong></p></div>';
+        $stats = (array) ($post['season_stats'] ?? []); $form = (array) ($post['recent_form'] ?? []); $performance = (array) ($post['performance'] ?? []); $impact = (array) (($post['career_impact'] ?? [])['items'] ?? []); $impactText = $impact === [] ? 'No material change recorded' : implode(' · ', array_slice(array_map('strval', $impact), 0, 2)); return '<div class="split-list"><p><span>Match performance</span><strong>' . WebView::e($performance['performance_label'] ?? 'No rating') . '</strong></p><p><span>Recent form</span><strong>' . WebView::e($this->formLabel($form)) . '</strong></p><p><span>Season average</span><strong>' . WebView::e($this->rating($stats['average_match_rating'] ?? null)) . '</strong></p><p><span>League position</span><strong>' . WebView::e($post['club_position'] ?? 'Not available') . '</strong></p><p><span>Career impact</span><strong>' . WebView::e($impactText) . '</strong></p></div>';
+    }
+
+    /** @param list<array<string, mixed>> $facts @return list<string> */
+    private function playerMomentLines(array $facts): array
+    {
+        $lines = [];
+        foreach ($facts as $fact) {
+            $kind = (string) ($fact['kind'] ?? '');
+            $lines[] = match ($kind) {
+                'goal' => 'Scored at ' . (int) ($fact['minute'] ?? 0) . "'",
+                'assist' => 'Provided an assist at ' . (int) ($fact['minute'] ?? 0) . "'",
+                'yellow_card' => 'Booked at ' . (int) ($fact['minute'] ?? 0) . "'",
+                'red_card' => 'Sent off at ' . (int) ($fact['minute'] ?? 0) . "'",
+                'substitution' => (($fact['direction'] ?? '') === 'in' ? 'Entered the Match at ' : 'Left the Match at ') . (int) ($fact['minute'] ?? 0) . "'",
+                'saves' => 'Made ' . (int) ($fact['count'] ?? 0) . ' saves',
+                'shots_on_target' => 'Recorded ' . (int) ($fact['count'] ?? 0) . ' shot' . ((int) ($fact['count'] ?? 0) === 1 ? '' : 's') . ' on target',
+                'defending' => 'Made ' . (int) ($fact['tackles'] ?? 0) . ' tackles, ' . (int) ($fact['interceptions'] ?? 0) . ' interceptions and ' . (int) ($fact['blocks'] ?? 0) . ' blocks',
+                'passing' => 'Completed ' . (int) ($fact['completed'] ?? 0) . '/' . (int) ($fact['attempted'] ?? 0) . ' passes',
+                'clean_sheet' => 'Helped keep a clean sheet',
+                default => null,
+            };
+        }
+
+        return array_values(array_filter($lines, static fn (?string $line): bool => $line !== null));
     }
 
     private function contextActions(string $saveId, array $summary): string

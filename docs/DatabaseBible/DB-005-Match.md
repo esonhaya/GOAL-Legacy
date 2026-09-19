@@ -137,6 +137,21 @@ Examples
 
 Scores become locked once finalized.
 
+## P2-014 story and evidence boundary
+
+The Matchday story is derived from existing canonical rows. No new timeline or
+commentary table is required: ordered `match_highlights`, substitutions,
+selections, and controlled `match_player_stats` provide the presentation
+evidence. Score-after-goal values are a read model, not duplicated Match
+facts. A controlled Match can therefore be reloaded without rerolling or
+creating additional rows.
+
+`MatchStoryService` treats a Player as Starting XI, substitute appearance,
+unused substitute, not selected, or unavailable from selection, stat,
+substitution, and availability state. Its reconciliation checks are bounded to
+the inspected controlled Match. Ordinary World Matches retain their compact
+fidelity and do not receive new detail rows.
+
 ---
 
 # Tactical Information

@@ -270,6 +270,7 @@ final class CareerPresentationService
             if ($match->seasonId()->value() !== $seasonId->value() || $match->status() !== MatchStatus::Completed) { continue; }
             $result = $match->result();
             $detailed[] = [
+                'match_id' => $match->id()->value(),
                 'date' => $match->scheduledDate()->toIsoString(),
                 'competition' => $competitions->get($match->competitionId())->name(),
                 'home' => $this->teamName($database, $match->homeClubId()->value()),
@@ -278,6 +279,9 @@ final class CareerPresentationService
                 'away_goals' => $result?->awayGoals() ?? 0,
                 'minutes' => $stat->appeared() ? $stat->minutes() : null,
                 'rating' => $stat->appeared() ? $ratings->rate($stat, $player->primaryPosition()) : null,
+                'goals' => $stat->goals(),
+                'assists' => $stat->assists(),
+                'participation' => $stat->started() ? 'starter' : 'substitute',
                 'detailed' => true,
             ];
         }
@@ -291,6 +295,7 @@ final class CareerPresentationService
             if ($match->status() !== MatchStatus::Completed) { continue; }
             $result = $match->result();
             $compact[] = [
+                'match_id' => $match->id()->value(),
                 'date' => $match->scheduledDate()->toIsoString(),
                 'competition' => $competitions->get($match->competitionId())->name(),
                 'home' => $this->teamName($database, $match->homeClubId()->value()),
@@ -372,18 +377,11 @@ final class CareerPresentationService
         $homeName = $this->teamName($database, $match->homeClubId()->value());
         $awayName = $this->teamName($database, $match->awayClubId()->value());
         $player = $players->get($playerId);
-        $selection = $this->playerSelection($database, $match, $playerId);
-        $performance = $matchService->playerSummary($database, $match->id(), $playerId);
-        $performance ??= [
-            'appeared' => false,
-            'started' => false,
-            'minutes' => 0,
-            'rating' => null,
-        ];
-        $performance['selection_status'] = $selection?->status()->value ?? SelectionStatus::NotSelected->value;
-        $performance['position'] = $player->primaryPosition()->value;
-        $performance['player_name'] = $player->preferredName();
-        $performance['substitution_minute'] = $this->substitutionMinute($database, $match, $playerId);
+        $story = $matchService->playerStory($database, $match->id(), $playerId);
+        $performance = $story;
+        foreach ((array) ($story['stats'] ?? []) as $key => $value) {
+            $performance[$key] = $value;
+        }
         $controlledClubId ??= (string) ($this->services->clubModule()->service()->squadRepository($database)->byPlayer($playerId, $match->seasonId())[0]?->clubId()->value() ?? ($performance['club_id'] ?? ''));
         if ($competition->type() === CompetitionType::International && !in_array($controlledClubId, [$match->homeClubId()->value(), $match->awayClubId()->value()], true)) {
             $controlledClubId = 'national-team-' . $player->primaryNationId()->value();
@@ -469,13 +467,20 @@ final class CareerPresentationService
             'international_progression' => $internationalProgression,
             'rival_context' => $this->services->playerModule()->service()->socialService()->matchContext($database, $match, $playerId),
             'performance' => $performance,
-            'highlights' => $this->highlightLines($database, $match, $playerId),
+            'timeline' => $story['timeline'],
+            'highlights' => $this->storyLines($database, $match, $story, $playerId),
+            'player_highlights' => $story['player_highlight_facts'],
+            'team_highlights' => $story['timeline'],
+            'rating_explanation' => $story['rating_explanation'],
+            'decisive_contribution' => $story['decisive_contribution'],
+            'player_of_match' => $story['player_of_match'],
             'post_match' => [
                 'recent_form' => $postSummary['recent_form'] ?? [],
                 'season_stats' => $postSummary['season_stats'] ?? [],
                 'season_performance' => $postSummary['season_performance'] ?? [],
                 'club_position' => $postContext['position'] ?? null,
                 'club_points' => $postContext['points'] ?? null,
+                'career_impact' => $story['career_impact'],
             ],
         ];
     }
@@ -923,6 +928,62 @@ final class CareerPresentationService
         }
 
         return $lines;
+    }
+
+    /** @param array<string, mixed> $story @return list<string> */
+    private function storyLines(DatabaseInterface $database, GameMatch $match, array $story, string $playerId): array
+    {
+        $players = new PlayerRepository($database);
+        $lines = [];
+        $timeline = is_array($story['timeline'] ?? null) ? $story['timeline'] : [];
+        foreach ($timeline as $event) {
+            $type = (string) ($event['type'] ?? '');
+            $minute = (int) ($event['minute'] ?? 0);
+            $clubId = (string) ($event['club_id'] ?? '');
+            $clubName = $clubId === '' ? 'Club' : $this->teamName($database, $clubId);
+            $playerIdForEvent = is_string($event['player_id'] ?? null) ? $event['player_id'] : null;
+            $playerName = $playerIdForEvent === null ? null : $players->get($playerIdForEvent)->preferredName();
+            if ($type === 'goal') {
+                $assistId = is_string($event['assist_player_id'] ?? null) ? $event['assist_player_id'] : null;
+                $assist = $assistId === null ? null : $players->get($assistId)->preferredName();
+                $score = (array) ($event['score_after'] ?? []);
+                $scoreText = (int) ($score['home'] ?? 0) . '-' . (int) ($score['away'] ?? 0);
+                $lead = ((string) ($event['importance'] ?? '') === 'decisive') ? ' decisively' : '';
+                $variants = [
+                    $minute . "' " . ($playerName ?? $clubName) . ' scores for ' . $clubName . $lead . ' — ' . $scoreText,
+                    $minute . "' GOAL — " . ($playerName ?? $clubName) . ' (' . $clubName . ')' . ($assist === null ? '' : ' assisted by ' . $assist) . ' — ' . $scoreText,
+                ];
+                $line = $variants[hexdec(substr(hash('sha256', 'match-commentary:v1|' . $match->id()->value() . '|' . (string) ($event['sequence'] ?? 0)), 0, 2)) % count($variants)];
+                if ($assist !== null && !str_contains($line, 'assisted by')) { $line .= ' — assisted by ' . $assist; }
+                $lines[] = $line;
+            } elseif ($type === 'substitution') {
+                $data = (array) ($event['data'] ?? []);
+                $incomingId = (string) ($data['incoming_player_id'] ?? $playerIdForEvent ?? '');
+                $outgoingId = (string) ($data['outgoing_player_id'] ?? '');
+                $incoming = $incomingId === '' ? 'Player' : $players->get($incomingId)->preferredName();
+                $outgoing = $outgoingId === '' ? 'Player' : $players->get($outgoingId)->preferredName();
+                $lines[] = $minute . "' " . ($incomingId === $playerId ? 'YOU ENTER THE MATCH' : ($outgoingId === $playerId ? 'YOU LEAVE THE MATCH' : 'SUBSTITUTION')) . ' — ' . $incoming . ' on for ' . $outgoing . ' (' . $clubName . ')';
+            } elseif ($type === 'yellow_card' || $type === 'red_card') {
+                $label = $type === 'red_card' ? 'RED CARD — SENT OFF' : 'YELLOW CARD';
+                $lines[] = $minute . "' " . $label . ' — ' . ($playerName ?? $clubName) . ' (' . $clubName . ')';
+            }
+        }
+        foreach ((array) ($story['player_highlight_facts'] ?? []) as $fact) {
+            if (!is_array($fact)) { continue; }
+            $kind = (string) ($fact['kind'] ?? '');
+            $text = match ($kind) {
+                'saves' => 'YOU make ' . (int) ($fact['count'] ?? 0) . ' saves',
+                'shots_on_target' => 'YOU record ' . (int) ($fact['count'] ?? 0) . ' shot' . ((int) ($fact['count'] ?? 0) === 1 ? '' : 's') . ' on target',
+                'defending' => 'YOU contribute ' . (int) ($fact['tackles'] ?? 0) . ' tackles, ' . (int) ($fact['interceptions'] ?? 0) . ' interceptions and ' . (int) ($fact['blocks'] ?? 0) . ' blocks',
+                'passing' => 'YOU complete ' . (int) ($fact['completed'] ?? 0) . '/' . (int) ($fact['attempted'] ?? 0) . ' passes',
+                'clean_sheet' => 'YOU help keep a clean sheet',
+                'assist' => 'YOU assist the goal at ' . (int) ($fact['minute'] ?? 0) . "'",
+                default => null,
+            };
+            if ($text !== null && !in_array($text, $lines, true)) { $lines[] = $text; }
+        }
+
+        return array_slice($lines, 0, 8);
     }
 
     private function fixtureText(DatabaseInterface $database, GameMatch $match, string $controlledClubId): string

@@ -132,8 +132,31 @@ final class PlayerMatchRatingServiceTest extends TestCase
         self::assertLessThanOrEqual(10.0, $this->rate(PlayerPosition::Goalkeeper, true, 90, foulsCommitted: 99, yellowCards: 99, redCards: 1));
     }
 
+    public function testRatingExplanationIsFactualAndPositionAware(): void
+    {
+        $striker = $this->ratings->explain($this->stat(PlayerPosition::Striker, goals: 1, assists: 1, shots: 2, shotsOnTarget: 2, yellowCards: 1), PlayerPosition::Striker);
+        self::assertSame('goal', strtolower(explode(' ', $striker['positive'][0])[1] ?? ''));
+        self::assertContains('1 assist', $striker['positive']);
+        self::assertContains('1 yellow card', $striker['negative']);
+        self::assertSame('Excellent', $striker['label']);
+
+        $defender = $this->ratings->explain($this->stat(PlayerPosition::CentreBack, cleanSheets: 1, tackles: 3, interceptions: 2, blocks: 1), PlayerPosition::CentreBack);
+        self::assertContains('Clean sheet', $defender['positive']);
+        self::assertStringContainsString('Defensive work:', implode(' ', $defender['positive']));
+
+        $goalkeeper = $this->ratings->explain($this->stat(PlayerPosition::Goalkeeper, saves: 4, cleanSheets: 1), PlayerPosition::Goalkeeper);
+        self::assertContains('4 saves', $goalkeeper['positive']);
+        self::assertContains('Clean sheet', $goalkeeper['positive']);
+        self::assertStringNotContainsString('goal', strtolower(implode(' ', $goalkeeper['positive'])));
+    }
+
     private function rate(PlayerPosition $position, bool $appeared, int $minutes, int $goals = 0, int $assists = 0, int $shots = 0, int $shotsOnTarget = 0, int $saves = 0, int $cleanSheets = 0, int $tackles = 0, int $interceptions = 0, int $blocks = 0, int $passesAttempted = 0, int $passesCompleted = 0, int $foulsCommitted = 0, int $yellowCards = 0, int $redCards = 0): ?float
     {
         return $this->ratings->rate(new PlayerMatchStat(new MatchId('rating-match'), new PlayerId('rating-player'), new ClubId('arsenal'), $appeared, $appeared, $minutes, $goals, $assists, $shots, $shotsOnTarget, $saves, $cleanSheets, $tackles, $interceptions, $blocks, $passesAttempted, $passesCompleted, $foulsCommitted, $yellowCards, $redCards), $position);
+    }
+
+    private function stat(PlayerPosition $position, int $goals = 0, int $assists = 0, int $shots = 0, int $shotsOnTarget = 0, int $saves = 0, int $cleanSheets = 0, int $tackles = 0, int $interceptions = 0, int $blocks = 0, int $yellowCards = 0): PlayerMatchStat
+    {
+        return new PlayerMatchStat(new MatchId('explanation-' . strtolower($position->value)), new PlayerId('explanation-player'), new ClubId('arsenal'), true, true, 90, $goals, $assists, $shots, $shotsOnTarget, $saves, $cleanSheets, $tackles, $interceptions, $blocks, 0, 0, $yellowCards, $yellowCards > 0 ? 1 : 0);
     }
 }

@@ -291,4 +291,19 @@ transition prevent stale or double-applied movement. Market reads and the
 Transfer Market page do not generate offers or advance time. Legacy saves
 receive no fabricated historical offers or facts.
 
+## P2-014 Controlled Match Story Lifecycle
+
+Controlled Match storytelling is a read model over finalized Match evidence.
+`MatchStoryService` derives participation, minutes, timeline, highlights,
+rating explanation, decisive contribution, and Career impact from immutable
+Match results plus the existing selection, substitution, stat, development,
+and social rows. Browsing Matchday, recent Match history, or the stable Match
+detail route performs no gameplay writes and never reruns simulation.
+
+Commentary uses deterministic `match-commentary:v1` templates and an isolated
+hash namespace; it cannot perturb Match outcomes or future simulation. No new
+timeline/detail rows are written for ordinary World Matches. Save/reload
+therefore preserves the same story by re-derivation, while bounded integrity
+checks validate score, minutes, participation, and Player-stat consistency.
+
 END OF DOCUMENT

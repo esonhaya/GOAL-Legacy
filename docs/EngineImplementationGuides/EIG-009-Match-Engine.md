@@ -297,6 +297,30 @@ Future versions may support:
 
 These additions should extend the Match Engine without changing its core responsibilities.
 
+## P2-014 controlled Match story
+
+`MatchStoryService` is a read-only presentation layer for controlled Matches.
+It derives participation labels, position, minutes, score-aware timeline,
+player moments, decisive contribution, Player of the Match, and a bounded
+Career-impact summary from the persisted Match, selection, substitution,
+highlight, stat, rating, development, and social rows. It does not simulate,
+write, or consume random numbers. `PlayerMatchRatingService::explain()` uses
+the same rating evidence and policy as the numeric rating, with position-aware
+descriptions and no unsupported actions.
+
+Commentary is deterministic template text (`match-commentary:v1`) generated
+only from canonical highlights. Goal score-after context is derived while
+reading the ordered highlights; shootout facts remain competition-resolution
+facts and do not become regulation goals. The integrity check validates score,
+goal/stat/assist, selection, substitution, and minutes relationships for the
+inspected Match.
+
+Selective fidelity remains a hard boundary: controlled Player Matches may use
+the existing detailed stat/highlight rows, while ordinary World Matches gain
+no timeline, commentary, rating explanation, or new detail rows. Matchday and
+the existing stable `matchday?match=` route are read-only after simulation and
+there is no re-simulation on browsing or reload.
+
 ---
 
 # Locked Decisions

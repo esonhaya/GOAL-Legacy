@@ -143,6 +143,15 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         for ($number = 1; $number <= $requested; ++$number) {
             $output->write(sprintf('LIFECYCLE_SEASON_START number=%d/%d season=%s phase=complete_and_rollover', $number, $requested, $season->id()->value()));
             $seasonStart = hrtime(true);
+            // Rollover materializes the next Season's fixtures. Resolve the
+            // current Season's scheduled World-fidelity matches before asking
+            // WorldService to close it, otherwise a lifecycle-only audit can
+            // strand a generated competition and report a false rollover
+            // failure.
+            $matchService = $this->services->matchModule()->service();
+            do {
+                $completed = $matchService->simulateDue($database, $season->endDate());
+            } while ($completed !== []);
             $this->services->worldModule()->service()->advanceToDate($database, self::SAVE_ID, $season->endDate()->addDays(1));
             $boundaryMilliseconds = round((hrtime(true) - $seasonStart) / 1_000_000, 2);
             $nextId = new SeasonId(sprintf('season-%04d-%02d', $season->startDate()->year() + 1, ($season->startDate()->year() + 2) % 100));

@@ -108,3 +108,13 @@ The permanent rules are:
 
 These rules still permit cheap transient computation where it is needed to
 produce a believable canonical world result.
+
+## P2-014 Matchday storytelling
+
+The controlled Player's Matchday experience is a truthful read of the
+canonical result: participation, position, minutes, score chronology, Player
+actions, rating evidence, and Career impact are shown only when supported by
+the persisted Match facts. Quiet Matches remain quiet. Deterministic template
+commentary adds context but never invents actions or consumes Match-outcome
+randomness. This presentation layer adds no detailed timeline or commentary
+rows for ordinary NPC Matches.

@@ -322,4 +322,17 @@ These additions should extend the Transfer Engine without changing its core resp
 
 ---
 
+## P2-013 Controlled Career Market
+
+`CareerMovementService` owns controlled-player market evaluation and its
+read-only `marketContext()` projection. It reuses existing transfer,
+Contract, Club, competition, form, performance, and legacy owners. Club
+profiles are cached per database/Season during a bounded evaluation and carry
+Club level, primary competition, European context, capacity, and positional
+need. Stable score and Club-ID ordering keeps offers deterministic. Wages are
+bounded and age/role-aware; no Club bank balance or negotiation simulator is
+introduced. The canonical PHPUnit configuration names `core` and the
+explicit `additional` suite for the 18 legitimate Avatar, Match, and Web
+tests.
+
 END OF DOCUMENT

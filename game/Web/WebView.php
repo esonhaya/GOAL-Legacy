@@ -42,6 +42,7 @@ final class WebView
                 'home' => ['Career Home', 'home'],
                 'career' => ['Career', 'career'],
                 'legacy' => ['Legacy', 'legacy'],
+                'market' => ['Transfer Market', 'market'],
                 'relationships' => ['Relationships', 'relationships'],
                 'squad' => ['Squad', 'squad'],
                 'world' => ['World', 'world'],

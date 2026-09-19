@@ -12,7 +12,10 @@ use Goal\Legacy\Modules\Club\Domain\Club;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
+use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
+use Goal\Legacy\Modules\Club\Persistence\ClubSquadRepository;
 use Goal\Legacy\Modules\Competition\CompetitionService;
+use Goal\Legacy\Modules\Competition\Persistence\CompetitionRepository;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
@@ -29,6 +32,7 @@ use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
+use Goal\Legacy\Modules\Player\Persistence\CareerLegacyRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Transfer\Domain\Transfer;
 use Goal\Legacy\Modules\Transfer\Domain\TransferException;
@@ -53,6 +57,9 @@ final class CareerMovementService
         'attacking' => 3,
     ];
 
+    /** @var array<string, array<string, array<string, mixed>>> */
+    private array $marketProfileCache = [];
+
     public function __construct(
         private readonly TransferService $transferService,
         private readonly ContractService $contractService,
@@ -60,6 +67,57 @@ final class CareerMovementService
         private readonly CompetitionService $competitionService,
         private readonly EventDispatcherInterface $events,
     ) {
+    }
+
+    /**
+     * Read-only market context for the controlled Player. It is deliberately
+     * derived from football facts rather than stored as a second rating.
+     * @return array<string, mixed>
+     */
+    public function marketContext(DatabaseInterface $database, PlayerId|string $playerId, SeasonId|string $seasonId, ?SimulationDate $date = null): array
+    {
+        $playerId = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        $seasonId = $seasonId instanceof SeasonId ? $seasonId : new SeasonId($seasonId);
+        $player = (new PlayerRepository($database))->get($playerId);
+        $season = (new SeasonRepository($database))->get($seasonId);
+        $date ??= $season->startDate();
+        $membership = $this->currentMembership($database, $playerId, $seasonId);
+        $club = $membership === null ? null : $this->clubService->repository($database)->get($membership->clubId());
+        $metrics = $club === null ? ['appearances' => 0, 'starts' => 0, 'minutes' => 0, 'position_rank' => 99, 'form' => 0, 'performance' => 'insufficient_evidence', 'performance_score' => 0] : $this->playerMetrics($database, $player, $club->id(), $seasonId);
+        $legacy = new CareerLegacyRepository($database, false);
+        $awards = $legacy->awardsForPlayer($playerId->value());
+        $honours = $legacy->honoursForPlayer($playerId->value());
+        $international = $this->internationalMarketStats($database, $playerId->value());
+        $market = $this->marketAssessment($player, $metrics, $membership?->role(), $awards, $honours, $international, $date);
+        $profiles = $this->clubMarketProfiles($database, $seasonId);
+        $clubProfile = $club === null ? null : ($profiles[$club->id()->value()] ?? null);
+
+        return [
+            'player_id' => $playerId->value(),
+            'label' => $market['label'],
+            'market_stature' => $market['label'],
+            'market_band' => $market['band'],
+            'age' => $player->ageAt($date),
+            'overall' => $player->overallRating(),
+            'potential' => $player->potential(),
+            'role' => $membership?->role()->value,
+            'appearances' => (int) $metrics['appearances'],
+            'minutes' => (int) $metrics['minutes'],
+            'recent_form' => (int) $metrics['form'],
+            'performance' => (string) $metrics['performance'],
+            'performance_score' => (int) $metrics['performance_score'],
+            'awards' => count($awards),
+            'honours' => count($honours),
+            'international_caps' => (int) ($international['caps'] ?? 0),
+            'international_goals' => (int) ($international['goals'] ?? 0),
+            'current_club' => $club?->canonicalName(),
+            'current_club_id' => $club?->id()->value(),
+            'current_club_level' => $clubProfile['level'] ?? null,
+            'current_club_level_score' => $clubProfile['level_score'] ?? null,
+            'current_competition' => $clubProfile['competition_name'] ?? null,
+            'score' => $market['score'],
+            'evidence' => 'Derived from OVR, canonical playing evidence, role, age, recognition, and international aggregates.',
+        ];
     }
 
     /** @return list<CareerOpportunity> Newly created transfer offers. */
@@ -82,22 +140,26 @@ final class CareerMovementService
         }
         $currentClub = $this->clubService->repository($database)->get($sourceMembership->clubId());
         $currentMetrics = $this->playerMetrics($database, $player, $sourceMembership->clubId(), $seasonId);
+        $legacy = new CareerLegacyRepository($database, false);
+        $market = $this->marketAssessment($player, $currentMetrics, $sourceMembership->role(), $legacy->awardsForPlayer($playerId->value()), $legacy->honoursForPlayer($playerId->value()), $this->internationalMarketStats($database, $playerId->value()), $date);
+        $profiles = $this->clubMarketProfiles($database, $seasonId);
         $candidates = [];
         foreach ($this->clubService->byCompetition($database, $competitionId, $seasonId) as $targetClub) {
             if ($targetClub->id()->value() === $currentClub->id()->value()) {
                 continue;
             }
-            $target = $this->targetMetrics($database, $player, $targetClub->id(), $seasonId);
+            $target = $this->targetMetrics($database, $player, $targetClub->id(), $seasonId, $profiles);
             if ($target['position_rank'] > 8) {
                 continue;
             }
-            $score = $this->interestScore($player, $currentClub->reputation(), $sourceMembership->role(), $currentMetrics, $target, $targetClub->reputation());
-            if (!$this->isJustified($currentMetrics, $target, $targetClub->reputation(), $currentClub->reputation(), $score)) {
+            $score = $this->interestScore($player, $currentClub->reputation(), $sourceMembership->role(), $currentMetrics, $target, $targetClub->reputation(), $market);
+            if (!$this->isJustified($currentMetrics, $target, $targetClub->reputation(), $currentClub->reputation(), $score, $market)) {
                 continue;
             }
             $candidates[] = ['club' => $targetClub, 'metrics' => $target, 'score' => $score];
         }
         usort($candidates, static fn (array $left, array $right): int => ($right['score'] <=> $left['score']) ?: strcmp($left['club']->id()->value(), $right['club']->id()->value()));
+        $candidates = $this->selectCandidateSet($candidates, (int) $market['score']);
         $created = [];
         foreach (array_slice($candidates, 0, self::MAX_OFFERS) as $candidate) {
             $targetClub = $candidate['club'];
@@ -106,7 +168,7 @@ final class CareerMovementService
             if ($repository->bySourceKey($sourceKey) !== null) {
                 continue;
             }
-            $context = $this->offerContext($player, $currentClub->reputation(), $sourceMembership->role(), $currentMetrics, $targetClub->reputation(), $candidate['metrics'], $candidate['score'], $date, $sourceKey, $seasonId);
+            $context = $this->offerContext($player, $currentClub->reputation(), $sourceMembership->role(), $currentMetrics, $targetClub->reputation(), $candidate['metrics'], $candidate['score'], $date, $sourceKey, $seasonId, $market);
             $offer = new CareerOpportunity(
                 'offer-' . substr(hash('sha256', $sourceKey), 0, 24),
                 $playerId,
@@ -248,6 +310,9 @@ final class CareerMovementService
         }
 
         $currentMetrics = $this->playerMetrics($database, $player, $sourceClub->id(), $season->id());
+        $legacy = new CareerLegacyRepository($database, false);
+        $market = $this->marketAssessment($player, $currentMetrics, $sourceMembership->role(), $legacy->awardsForPlayer($playerId->value()), $legacy->honoursForPlayer($playerId->value()), $this->internationalMarketStats($database, $playerId->value()), $date);
+        $profiles = $this->clubMarketProfiles($database, $season->id());
         $candidates = [];
         foreach ($this->clubService->repository($database)->all() as $targetClub) {
             if ($targetClub->id()->value() === $sourceClub->id()->value()) {
@@ -256,20 +321,21 @@ final class CareerMovementService
             if ($this->competitionForClub($database, $targetClub->id(), $season->id()) === null) {
                 continue;
             }
-            if (count($this->clubService->squadRepository($database)->byClub($targetClub->id(), $season->id())) >= PlayerPopulationService::TARGET_SQUAD_SIZE) {
+            if (($profiles[$targetClub->id()->value()]['squad_count'] ?? PlayerPopulationService::TARGET_SQUAD_SIZE) >= PlayerPopulationService::TARGET_SQUAD_SIZE) {
                 continue;
             }
-            $target = $this->targetMetrics($database, $player, $targetClub->id(), $season->id());
+            $target = $this->targetMetrics($database, $player, $targetClub->id(), $season->id(), $profiles);
             if ($target['position_rank'] > 8) {
                 continue;
             }
-            $score = $this->interestScore($player, $sourceClub->reputation(), $sourceMembership->role(), $currentMetrics, $target, $targetClub->reputation());
-            if (!$this->isJustified($currentMetrics, $target, $targetClub->reputation(), $sourceClub->reputation(), $score)) {
+            $score = $this->interestScore($player, $sourceClub->reputation(), $sourceMembership->role(), $currentMetrics, $target, $targetClub->reputation(), $market);
+            if (!$this->isJustified($currentMetrics, $target, $targetClub->reputation(), $sourceClub->reputation(), $score, $market)) {
                 continue;
             }
             $candidates[] = ['club' => $targetClub, 'metrics' => $target, 'score' => $score];
         }
         usort($candidates, static fn (array $left, array $right): int => ($right['score'] <=> $left['score']) ?: strcmp($left['club']->id()->value(), $right['club']->id()->value()));
+        $candidates = $this->selectCandidateSet($candidates, (int) $market['score']);
         if ($candidates === []) {
             return null;
         }
@@ -280,7 +346,7 @@ final class CareerMovementService
         foreach (array_slice($candidates, 0, self::MAX_OFFERS) as $candidate) {
             $targetClub = $candidate['club'];
             $optionKey = $sourceKey . '|' . $targetClub->id()->value();
-            $context = $this->offerContext($player, $sourceClub->reputation(), $sourceMembership->role(), $currentMetrics, $targetClub->reputation(), $candidate['metrics'], $candidate['score'], $date, $optionKey, $season->id());
+            $context = $this->offerContext($player, $sourceClub->reputation(), $sourceMembership->role(), $currentMetrics, $targetClub->reputation(), $candidate['metrics'], $candidate['score'], $date, $optionKey, $season->id(), $market);
             $options[] = [
                 'id' => 'accept-' . $targetClub->id()->value(),
                 'kind' => 'accept_transfer',
@@ -293,6 +359,11 @@ final class CareerMovementService
                 'wage' => $context['wage'],
                 'interest_score' => $context['interest_score'],
                 'reasons' => $context['reasons'],
+                'target_club_level' => $context['target_club_level'],
+                'competition_name' => $context['competition_name'],
+                'european_qualification' => $context['european_qualification'],
+                'projected_role' => $context['projected_role'],
+                'market_path' => $context['market_path'],
             ];
         }
         $opportunity = new CareerOpportunity(
@@ -459,6 +530,8 @@ final class CareerMovementService
             return $existing;
         }
         $currentMetrics = $this->playerMetrics($database, $player, $sourceClub->id(), $currentSeason->id());
+        $legacy = new CareerLegacyRepository($database, false);
+        $market = $this->marketAssessment($player, $currentMetrics, $currentMembership->role(), $legacy->awardsForPlayer($playerId->value()), $legacy->honoursForPlayer($playerId->value()), $this->internationalMarketStats($database, $playerId->value()), $date);
         $options = [];
         if ($currentClubOffersRenewal) {
             $options[] = [
@@ -466,7 +539,7 @@ final class CareerMovementService
                 'kind' => 'renew_current_club',
                 'club_id' => $sourceClub->id()->value(),
                 'contract_end_date' => $nextSeason->endDate()->addDays(365)->toIsoString(),
-                'wage' => max(100, ($sourceClub->reputation() * 10) + ($player->overallRating() * 5)),
+                'wage' => max(100, min(5000, ($sourceClub->reputation() * 10) + ($player->overallRating() * 5))),
                 'role' => ($nextSeasonRole ?? $currentMembership->role())->value,
             ];
         }
@@ -477,7 +550,7 @@ final class CareerMovementService
                 'kind' => 'sign_with_club',
                 'club_id' => $target->id()->value(),
                 'contract_end_date' => $nextSeason->endDate()->addDays(365)->toIsoString(),
-                'wage' => max(100, ($target->reputation() * 10) + ($player->overallRating() * 5)),
+                'wage' => $this->offerWage($player, $candidate['target'], $market),
                 'role' => $candidate['role']->value,
                 'interest_score' => $candidate['score'],
                 'reasons' => $candidate['reasons'],
@@ -607,8 +680,11 @@ final class CareerMovementService
             return $repository->bySourceKey($sourceKey);
         }
         $options = [];
+        $freeAgentMarket = $this->marketAssessment($player, ['form' => 0, 'appearances' => 0, 'minutes' => 0, 'performance' => 'insufficient_evidence'], null, [], [], $this->internationalMarketStats($database, $playerId->value()), $date);
         foreach ($this->freeAgentCandidates($database, $player, $season, $source) as $candidate) {
-            $options[] = ['id' => 'sign-' . $candidate['club']->id()->value(), 'kind' => 'sign_with_club', 'club_id' => $candidate['club']->id()->value(), 'contract_end_date' => $season->endDate()->addDays(365)->toIsoString(), 'wage' => max(100, $candidate['club']->reputation() * 10 + $player->overallRating() * 5), 'role' => $candidate['role']->value, 'interest_score' => $candidate['score'], 'reasons' => $candidate['reasons']];
+            $age = (int) ($freeAgentMarket['age'] ?? 25);
+            $duration = $age >= 31 ? 365 : ($age <= 23 ? 1095 : 730);
+            $options[] = ['id' => 'sign-' . $candidate['club']->id()->value(), 'kind' => 'sign_with_club', 'club_id' => $candidate['club']->id()->value(), 'contract_end_date' => $date->addDays($duration)->toIsoString(), 'wage' => $this->offerWage($player, $candidate['target'], $freeAgentMarket), 'role' => $candidate['role']->value, 'interest_score' => $candidate['score'], 'reasons' => $candidate['reasons'], 'target_club_level' => $candidate['target']['club_level'], 'projected_role' => $candidate['role']->value];
         }
         if ($options === []) {
             return null;
@@ -728,19 +804,22 @@ final class CareerMovementService
     /** @return list<array{club:\Goal\Legacy\Modules\Club\Domain\Club,role:SquadRole,score:int,reasons:list<string>}> */
     private function contractBoundaryCandidates(DatabaseInterface $database, Player $player, Club $sourceClub, ClubSquadMembership $sourceMembership, array $currentMetrics, Season $currentSeason): array
     {
+        $profiles = $this->clubMarketProfiles($database, $currentSeason->id());
+        $legacy = new CareerLegacyRepository($database, false);
+        $market = $this->marketAssessment($player, $currentMetrics, $sourceMembership->role(), $legacy->awardsForPlayer($player->id()->value()), $legacy->honoursForPlayer($player->id()->value()), $this->internationalMarketStats($database, $player->id()->value()), $currentSeason->startDate());
         $candidates = [];
         foreach ($this->clubService->repository($database)->all() as $targetClub) {
             if ($targetClub->id()->value() === $sourceClub->id()->value()) {
                 continue;
             }
-            if (count($this->clubService->squadRepository($database)->byClub($targetClub->id(), $currentSeason->id())) >= PlayerPopulationService::TARGET_SQUAD_SIZE) {
+            if (($profiles[$targetClub->id()->value()]['squad_count'] ?? PlayerPopulationService::TARGET_SQUAD_SIZE) >= PlayerPopulationService::TARGET_SQUAD_SIZE) {
                 continue;
             }
-            $target = $this->targetMetrics($database, $player, $targetClub->id(), $currentSeason->id());
+            $target = $this->targetMetrics($database, $player, $targetClub->id(), $currentSeason->id(), $profiles);
             if ($target['position_rank'] > 10) {
                 continue;
             }
-            $score = $this->interestScore($player, $sourceClub->reputation(), $sourceMembership->role(), $currentMetrics, $target, $targetClub->reputation());
+            $score = $this->interestScore($player, $sourceClub->reputation(), $sourceMembership->role(), $currentMetrics, $target, $targetClub->reputation(), $market);
             if ($score < 70) {
                 continue;
             }
@@ -750,7 +829,7 @@ final class CareerMovementService
             if ($targetClub->reputation() > $sourceClub->reputation() + 5) { $reasons[] = 'step_up'; }
             if ((int) $currentMetrics['minutes'] < 900) { $reasons[] = 'playing_time'; }
             if ($reasons === []) { $reasons[] = 'contract_fit'; }
-            $candidates[] = ['club' => $targetClub, 'role' => $role, 'score' => $score, 'reasons' => $reasons];
+            $candidates[] = ['club' => $targetClub, 'role' => $role, 'score' => $score, 'reasons' => $reasons, 'target' => $target];
         }
         usort($candidates, static fn (array $left, array $right): int => ($right['score'] <=> $left['score']) ?: strcmp($left['club']->id()->value(), $right['club']->id()->value()));
 
@@ -760,21 +839,24 @@ final class CareerMovementService
     /** @return list<array{club:\Goal\Legacy\Modules\Club\Domain\Club,role:SquadRole,score:int,reasons:list<string>}> */
     private function freeAgentCandidates(DatabaseInterface $database, Player $player, Season $season, Club $originClub): array
     {
+        $profiles = $this->clubMarketProfiles($database, $season->id());
+        $metrics = $this->playerMetrics($database, $player, $originClub->id(), $season->id());
+        $market = $this->marketAssessment($player, $metrics, null, [], [], $this->internationalMarketStats($database, $player->id()->value()), $season->startDate());
         $candidates = [];
         foreach ($this->clubService->repository($database)->all() as $targetClub) {
-            if (count($this->clubService->squadRepository($database)->byClub($targetClub->id(), $season->id())) >= \Goal\Legacy\Modules\Player\PlayerPopulationService::TARGET_SQUAD_SIZE) {
+            if (($profiles[$targetClub->id()->value()]['squad_count'] ?? PlayerPopulationService::TARGET_SQUAD_SIZE) >= PlayerPopulationService::TARGET_SQUAD_SIZE) {
                 continue;
             }
-            $target = $this->targetMetrics($database, $player, $targetClub->id(), $season->id());
+            $target = $this->targetMetrics($database, $player, $targetClub->id(), $season->id(), $profiles);
             if ($target['position_rank'] > 8) {
                 continue;
             }
-            $score = max(0, 80 - ($target['position_rank'] * 5)) + max(0, 25 - $target['position_count'] * 4) + max(0, 20 - abs($player->overallRating() - $targetClub->reputation())) + max(0, $targetClub->reputation() - $originClub->reputation());
+            $score = max(0, 80 - ($target['position_rank'] * 5)) + max(0, 25 - $target['position_count'] * 4) + max(0, 20 - abs($player->overallRating() - $targetClub->reputation())) + max(0, $targetClub->reputation() - $originClub->reputation()) + min(10, (int) ($market['recognition'] ?? 0));
             if ($score < 70) {
                 continue;
             }
             $role = $this->roleForRank($target['position_rank'], $player->overallRating(), $target['position_average']);
-            $candidates[] = ['club' => $targetClub, 'role' => $role, 'score' => $score, 'reasons' => ['free_agent_fit']];
+            $candidates[] = ['club' => $targetClub, 'role' => $role, 'score' => $score, 'reasons' => ['free_agent_fit'], 'target' => $target];
         }
         usort($candidates, static fn (array $left, array $right): int => ($right['score'] <=> $left['score']) ?: strcmp($left['club']->id()->value(), $right['club']->id()->value()));
 
@@ -876,28 +958,37 @@ final class CareerMovementService
         return $stats;
     }
 
-    /** @return array{position_rank:int,position_average:float,position_count:int} */
-    private function targetMetrics(DatabaseInterface $database, Player $player, ClubId $clubId, SeasonId $seasonId): array
+    /** @return array<string, mixed> */
+    private function targetMetrics(DatabaseInterface $database, Player $player, ClubId $clubId, SeasonId $seasonId, ?array $profiles = null): array
     {
-        $repository = new PlayerRepository($database);
-        $players = [];
-        foreach ($this->clubService->squadRepository($database)->byClub($clubId, $seasonId) as $membership) {
-            $candidate = $repository->get($membership->playerId());
-            if ($this->positionGroup($candidate) !== $this->positionGroup($player)) {
-                continue;
-            }
-            $players[] = ['player' => $candidate, 'score' => $candidate->overallRating() * 100 + $membership->role()->weight()];
-        }
-        usort($players, static fn (array $left, array $right): int => ($right['score'] <=> $left['score']) ?: strcmp($left['player']->id()->value(), $right['player']->id()->value()));
+        $profiles ??= $this->clubMarketProfiles($database, $seasonId);
+        $profile = $profiles[$clubId->value()] ?? ['players' => [], 'squad_count' => 0, 'capacity' => PlayerPopulationService::TARGET_SQUAD_SIZE, 'level' => 'Lower Level', 'level_score' => 0, 'competition_id' => null, 'competition_name' => null, 'has_europe' => false];
+        $players = array_values(array_filter((array) ($profile['players'] ?? []), fn (array $candidate): bool => ($candidate['group'] ?? '') === $this->positionGroup($player)));
+        usort($players, static fn (array $left, array $right): int => ($right['score'] <=> $left['score']) ?: strcmp((string) $left['player_id'], (string) $right['player_id']));
         $rank = 1;
         foreach ($players as $entry) {
             if ($entry['score'] > $player->overallRating() * 100) {
                 ++$rank;
             }
         }
-        $values = array_map(static fn (array $entry): int => $entry['player']->overallRating(), $players);
+        $values = array_map(static fn (array $entry): int => (int) $entry['overall'], $players);
+        $average = $values === [] ? 0.0 : array_sum($values) / count($values);
+        $projected = $this->roleForRank($rank, $player->overallRating(), $average);
 
-        return ['position_rank' => $rank, 'position_average' => $values === [] ? 0.0 : array_sum($values) / count($values), 'position_count' => count($players)];
+        return [
+            'position_rank' => $rank,
+            'position_average' => $average,
+            'position_count' => count($players),
+            'club_level' => (string) ($profile['level'] ?? 'Lower Level'),
+            'club_level_score' => (int) ($profile['level_score'] ?? 0),
+            'position_need' => count($players) < 4 || $average < max(0, $player->overallRating() - 5),
+            'squad_count' => (int) ($profile['squad_count'] ?? 0),
+            'capacity' => (int) ($profile['capacity'] ?? PlayerPopulationService::TARGET_SQUAD_SIZE),
+            'competition_id' => $profile['competition_id'] ?? null,
+            'competition_name' => $profile['competition_name'] ?? null,
+            'has_europe' => (bool) ($profile['has_europe'] ?? false),
+            'projected_role' => $projected->value,
+        ];
     }
 
     private function positionRank(DatabaseInterface $database, Player $player, ClubId $clubId, SeasonId $seasonId): int
@@ -905,30 +996,38 @@ final class CareerMovementService
         return $this->targetMetrics($database, $player, $clubId, $seasonId)['position_rank'];
     }
 
-    /** @param array<string, int|float|string> $current @param array{position_rank:int,position_average:float,position_count:int} $target */
-    private function interestScore(Player $player, int $currentReputation, SquadRole $role, array $current, array $target, int $targetReputation): int
+    /** @param array<string, int|float|string> $current @param array<string, mixed> $target @param array<string, mixed> $market */
+    private function interestScore(Player $player, int $currentReputation, SquadRole $role, array $current, array $target, int $targetReputation, ?array $market = null): int
     {
-        $playingTime = max(0, 40 - (($target['position_rank'] - 1) * 5));
-        $need = max(0, 25 - $target['position_count'] * 4) + max(0, (int) round(70 - $target['position_average']));
-        $quality = max(0, 30 - abs($player->overallRating() - (int) round($target['position_average'])));
-        $form = max(0, (int) $current['form'] - 60);
+        $marketScore = (int) ($market['score'] ?? $player->overallRating());
+        $playingTime = max(0, 34 - (($target['position_rank'] - 1) * 4));
+        $need = max(0, 24 - $target['position_count'] * 4) + max(0, (int) round(68 - $target['position_average']));
+        $quality = max(0, 26 - abs($player->overallRating() - (int) round($target['position_average'])));
+        $form = max(-6, min(10, (int) round(((int) $current['form'] - 60) * 0.2)));
         $performance = match ((string) ($current['performance'] ?? 'insufficient_evidence')) {
             'breakout' => 12,
             'strong' => 8,
             'steady' => 2,
             default => 0,
         };
-        $potential = max(0, $player->potential() - $player->overallRating());
-        $levelFit = max(0, 20 - abs($targetReputation - $player->overallRating()));
+        $potential = ($market !== null && (int) ($market['age'] ?? 30) <= 23 && (int) ($current['minutes'] ?? 0) < 1200)
+            ? min(8, (int) round(max(0, $player->potential() - $player->overallRating()) * 0.25))
+            : 0;
+        $targetLevel = (int) ($target['club_level_score'] ?? $targetReputation);
+        $levelFit = max(0, 18 - (int) round(abs($targetLevel - $marketScore) * 0.18));
         $pressure = ($current['position_rank'] > 8 ? 20 : 0) + ((int) $current['minutes'] < 900 ? 15 : 0) + ($role === SquadRole::Prospect ? 8 : 0);
+        $recognition = min(10, (int) ($market['recognition'] ?? 0));
 
-        return (int) round($playingTime + $need + $quality + $form + $performance + min(20, $potential) + $levelFit + $pressure + max(0, $targetReputation - $currentReputation) / 2);
+        return max(0, (int) round(18 + $playingTime + $need + $quality + $form + $performance + $potential + $levelFit + $pressure + $recognition + max(0, $targetReputation - $currentReputation) / 3));
     }
 
-    /** @param array<string, int|float|string> $current @param array{position_rank:int,position_average:float,position_count:int} $target */
-    private function isJustified(array $current, array $target, int $targetReputation, int $currentReputation, int $score): bool
+    /** @param array<string, int|float|string> $current @param array<string, mixed> $target @param array<string, mixed> $market */
+    private function isJustified(array $current, array $target, int $targetReputation, int $currentReputation, int $score, ?array $market = null): bool
     {
-        if ($score < 78) {
+        if ($score < 70) {
+            return false;
+        }
+        if ($market !== null && (int) ($market['score'] ?? 0) < 60 && (int) ($target['club_level_score'] ?? $targetReputation) > (int) ($market['score'] ?? 0) + 24 && (string) ($current['performance'] ?? '') !== 'breakout' && (int) ($market['recognition'] ?? 0) < 4) {
             return false;
         }
         if ((int) $current['position_rank'] <= 8 && (int) $current['appearances'] >= 5 && (int) $current['form'] < 75 && $targetReputation > $currentReputation + 5) {
@@ -938,26 +1037,28 @@ final class CareerMovementService
         return true;
     }
 
-    /** @param array<string, int|float|string> $current @param array{position_rank:int,position_average:float,position_count:int} $target @return array<string, mixed> */
-    private function offerContext(Player $player, int $currentReputation, SquadRole $currentRole, array $current, int $targetReputation, array $target, int $score, SimulationDate $date, string $sourceKey, SeasonId $seasonId): array
+    /** @param array<string, int|float|string> $current @param array<string, mixed> $target @param array<string, mixed> $market @return array<string, mixed> */
+    private function offerContext(Player $player, int $currentReputation, SquadRole $currentRole, array $current, int $targetReputation, array $target, int $score, SimulationDate $date, string $sourceKey, SeasonId $seasonId, ?array $market = null): array
     {
         $reasons = [];
         if ((int) $current['position_rank'] > $target['position_rank'] || (int) $current['minutes'] < 900) { $reasons[] = 'playing_time'; }
-        if ($target['position_count'] < 4 || $target['position_average'] < 70) { $reasons[] = 'positional_need'; }
+        if (($target['position_need'] ?? false) || $target['position_count'] < 4 || $target['position_average'] < 70) { $reasons[] = 'positional_need'; }
         if ((int) $current['form'] >= 75) { $reasons[] = 'strong_form'; }
         if (in_array((string) ($current['performance'] ?? ''), ['breakout', 'strong'], true)) { $reasons[] = 'season_performance'; }
-        if ($player->potential() - $player->overallRating() >= 15) { $reasons[] = 'high_potential'; }
+        if (($market['age'] ?? 30) <= 23 && $player->potential() - $player->overallRating() >= 15) { $reasons[] = 'high_potential'; }
         if ($targetReputation > $currentReputation + 5) { $reasons[] = 'step_up'; }
         if ($reasons === []) { $reasons[] = 'squad_depth_upgrade'; }
         $role = $this->roleForRank($target['position_rank'], $player->overallRating(), $target['position_average']);
-        $wage = max(100, $player->overallRating() * 10 + $targetReputation * 2);
+        $wage = $this->offerWage($player, $target, $market);
         $fee = max(0, $player->overallRating() * 1000 + $player->potential() * 500 + max(0, $targetReputation - $currentReputation) * 10000);
+        $age = (int) ($market['age'] ?? 30);
+        $durationDays = $age >= 31 ? 365 : ($age <= 23 ? 1095 : 730);
         return [
             'offer_status' => 'open',
             'season_id' => $seasonId->value(),
             'transfer_id' => 'offer-transfer-' . substr(hash('sha256', $sourceKey . '|transfer'), 0, 24),
             'destination_contract_id' => 'offer-contract-' . substr(hash('sha256', $sourceKey . '|contract'), 0, 24),
-            'contract_end_date' => $date->addDays(730)->toIsoString(),
+            'contract_end_date' => $date->addDays($durationDays)->toIsoString(),
             'fee' => $fee,
             'wage' => $wage,
             'proposed_role' => $role->value,
@@ -971,6 +1072,14 @@ final class CareerMovementService
             'target_position_average' => round($target['position_average'], 1),
             'expected_playing_time' => $role === SquadRole::KeyPlayer || $role === SquadRole::Regular ? 'regular' : 'rotation',
             'current_role' => $currentRole->value,
+            'market_stature' => $market['label'] ?? null,
+            'target_club_level' => $target['club_level'] ?? 'Lower Level',
+            'target_club_level_score' => $target['club_level_score'] ?? 0,
+            'competition_id' => $target['competition_id'] ?? null,
+            'competition_name' => $target['competition_name'] ?? null,
+            'european_qualification' => (bool) ($target['has_europe'] ?? false),
+            'projected_role' => $role->value,
+            'market_path' => $this->marketPath((int) ($target['club_level_score'] ?? $targetReputation), (int) ($market['score'] ?? $player->overallRating())),
         ];
     }
 
@@ -981,6 +1090,144 @@ final class CareerMovementService
         if ($rank <= 8) { return SquadRole::Rotation; }
 
         return SquadRole::Prospect;
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function clubMarketProfiles(DatabaseInterface $database, SeasonId $seasonId): array
+    {
+        $cacheKey = spl_object_id($database) . '|' . $seasonId->value();
+        if (isset($this->marketProfileCache[$cacheKey])) {
+            return $this->marketProfileCache[$cacheKey];
+        }
+        $clubs = $this->clubService->repository($database)->all();
+        $competitions = new CompetitionRepository($database);
+        $memberships = new ClubMembershipRepository($database);
+        $squads = new ClubSquadRepository($database);
+        $playersRepository = new PlayerRepository($database);
+        $players = $playersRepository->all();
+        $playersById = [];
+        foreach ($players as $player) { $playersById[$player->id()->value()] = $player; }
+        $squadsByClub = [];
+        foreach ($squads->bySeason($seasonId) as $membership) { $squadsByClub[$membership->clubId()->value()][] = $membership; }
+        $membershipsByClub = [];
+        foreach ($memberships->bySeason($seasonId) as $membership) { $membershipsByClub[$membership->clubId()->value()][] = $membership; }
+        $profiles = [];
+        foreach ($clubs as $club) {
+            $competitionRows = [];
+            $hasEurope = false;
+            foreach ($membershipsByClub[$club->id()->value()] ?? [] as $membership) {
+                $competition = $competitions->get($membership->competitionId());
+                if ($competition->type() === CompetitionType::Continental) { $hasEurope = true; }
+                $competitionRows[] = $competition;
+            }
+            usort($competitionRows, static fn ($left, $right): int => (($left->type() === CompetitionType::DomesticLeague ? 0 : 1) <=> ($right->type() === CompetitionType::DomesticLeague ? 0 : 1)) ?: ($left->tier() <=> $right->tier()) ?: strcmp($left->id()->value(), $right->id()->value()));
+            $primary = $competitionRows[0] ?? null;
+            $levelScore = $club->reputation() + ($primary?->tier() === 1 ? 4 : ($primary?->tier() === 2 ? 2 : 0)) + ($hasEurope ? 4 : 0);
+            $level = $levelScore >= 92 ? 'Elite' : ($levelScore >= 78 ? 'Upper Level' : ($levelScore >= 62 ? 'Mid Level' : 'Lower Level'));
+            $squadRows = $squadsByClub[$club->id()->value()] ?? [];
+            $playerRows = [];
+            $positionCounts = [];
+            foreach ($squadRows as $membership) {
+                $candidate = $playersById[$membership->playerId()->value()] ?? null;
+                if ($candidate === null) { continue; }
+                $group = $this->positionGroup($candidate);
+                $positionCounts[$group] = ($positionCounts[$group] ?? 0) + 1;
+                $playerRows[] = ['player_id' => $candidate->id()->value(), 'overall' => $candidate->overallRating(), 'group' => $group, 'score' => $candidate->overallRating() * 100 + $membership->role()->weight()];
+            }
+            $profiles[$club->id()->value()] = [
+                'club_id' => $club->id()->value(),
+                'level' => $level,
+                'level_score' => min(100, $levelScore),
+                'competition_id' => $primary?->id()->value(),
+                'competition_name' => $primary?->name(),
+                'competition_tier' => $primary?->tier(),
+                'has_europe' => $hasEurope,
+                'squad_count' => count($squadRows),
+                'capacity' => PlayerPopulationService::TARGET_SQUAD_SIZE,
+                'position_counts' => $positionCounts,
+                'players' => $playerRows,
+            ];
+        }
+        $this->marketProfileCache[$cacheKey] = $profiles;
+
+        return $profiles;
+    }
+
+    /** @param list<array<string, mixed>> $awards @param list<array<string, mixed>> $honours @param array<string, int> $international @return array{score:int,label:string,band:string,recognition:int,age:int} */
+    private function marketAssessment(Player $player, array $metrics, ?SquadRole $role, array $awards, array $honours, array $international, SimulationDate $date): array
+    {
+        $age = $player->ageAt($date);
+        $appearances = (int) ($metrics['appearances'] ?? 0);
+        $minutes = (int) ($metrics['minutes'] ?? 0);
+        $evidence = min(12, (int) round($appearances * 0.6) + (int) round(min(1800, $minutes) / 300));
+        $form = max(-6, min(7, (int) round(((int) ($metrics['form'] ?? 0) - 60) * 0.15)));
+        $performance = match ((string) ($metrics['performance'] ?? 'insufficient_evidence')) { 'breakout' => 7, 'strong' => 4, 'steady' => 2, 'stagnant' => -3, default => 0 };
+        $recognition = min(10, count($awards) * 2 + count($honours) + min(4, (int) (($international['caps'] ?? 0) / 10)));
+        $roleSignal = match ($role) { SquadRole::KeyPlayer => 4, SquadRole::Regular => 2, SquadRole::Rotation => 1, default => 0 };
+        $ageSignal = $age <= 23 ? min(5, (int) round(max(0, $player->potential() - $player->overallRating()) * 0.15)) : ($age >= 31 ? -min(6, $age - 30) : 2);
+        $score = max(0, min(100, (int) round($player->overallRating() * 0.75 + $evidence + $form + $performance + $recognition + $roleSignal + $ageSignal)));
+        $label = $score >= 88 ? 'Elite Target' : ($score >= 76 ? 'Top-Level Player' : ($score >= 62 ? 'Established Professional' : ($score >= 48 ? 'Squad-Level Player' : 'Developing Prospect')));
+        $band = $score >= 88 ? 'elite' : ($score >= 76 ? 'upper' : ($score >= 62 ? 'established' : ($score >= 48 ? 'squad' : 'developing')));
+
+        return ['score' => $score, 'label' => $label, 'band' => $band, 'recognition' => $recognition, 'age' => $age];
+    }
+
+    /** @return array{caps:int,goals:int} */
+    private function internationalMarketStats(DatabaseInterface $database, string $playerId): array
+    {
+        if ((int) $database->connection()->query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'international_player_statistics'")->fetchColumn() === 0) {
+            return ['caps' => 0, 'goals' => 0];
+        }
+        $statement = $database->connection()->prepare('SELECT COALESCE(SUM(caps), 0) caps, COALESCE(SUM(goals), 0) goals FROM international_player_statistics WHERE player_id = :player_id');
+        $statement->execute(['player_id' => $playerId]);
+        $row = $statement->fetch(\PDO::FETCH_ASSOC) ?: [];
+
+        return ['caps' => (int) ($row['caps'] ?? 0), 'goals' => (int) ($row['goals'] ?? 0)];
+    }
+
+    private function offerWage(Player $player, array $target, ?array $market): int
+    {
+        $base = $player->overallRating() * 8;
+        $club = (int) ($target['club_level_score'] ?? 60);
+        $role = match ((string) ($target['projected_role'] ?? SquadRole::Prospect->value)) { SquadRole::KeyPlayer->value => 320, SquadRole::Regular->value => 180, SquadRole::Rotation->value => 90, default => 30 };
+        $age = (int) ($market['age'] ?? 25);
+        $ageAdjustment = $age >= 31 ? -min(120, ($age - 30) * 20) : 0;
+
+        return max(100, min(5000, (int) round($base + ($club * 2) + $role + $ageAdjustment)));
+    }
+
+    private function marketPath(int $targetLevel, int $marketScore): string
+    {
+        return $targetLevel >= $marketScore + 8 ? 'upward_step' : ($targetLevel <= $marketScore - 8 ? 'opportunity_move' : 'sideways_move');
+    }
+
+    /** @param list<array<string, mixed>> $candidates @return list<array<string, mixed>> */
+    private function selectCandidateSet(array $candidates, int $marketScore): array
+    {
+        $selected = [];
+        $selectedIds = [];
+        foreach (['upward_step', 'sideways_move', 'opportunity_move'] as $path) {
+            foreach ($candidates as $candidate) {
+                $target = (array) ($candidate['metrics'] ?? $candidate['target'] ?? []);
+                $candidatePath = $this->marketPath((int) ($target['club_level_score'] ?? 0), $marketScore);
+                $clubId = $candidate['club']->id()->value();
+                if ($candidatePath === $path && !isset($selectedIds[$clubId])) {
+                    $selected[] = $candidate;
+                    $selectedIds[$clubId] = true;
+                    break;
+                }
+            }
+        }
+        foreach ($candidates as $candidate) {
+            $clubId = $candidate['club']->id()->value();
+            if (!isset($selectedIds[$clubId])) {
+                $selected[] = $candidate;
+                $selectedIds[$clubId] = true;
+            }
+            if (count($selected) >= self::MAX_OFFERS) { break; }
+        }
+
+        return array_slice($selected, 0, self::MAX_OFFERS);
     }
 
     private function positionGroup(Player $player): string

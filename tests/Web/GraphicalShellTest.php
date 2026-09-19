@@ -126,8 +126,13 @@ final class GraphicalShellTest extends TestCase
             $home = $this->application->handle('GET', '/', ['page' => 'home', 'save' => $save], [], $session);
             self::assertSame(200, $home['status']);
             self::assertStringContainsString('Public profile', $home['body']);
+            self::assertStringContainsString('Transfer Market', $home['body']);
             self::assertStringContainsString('Manager relationship', $home['body']);
             self::assertStringNotContainsString('No active Club manager', $home['body']);
+            $market = $this->application->handle('GET', '/', ['page' => 'market', 'save' => $save], [], $session);
+            self::assertSame(200, $market['status']);
+            self::assertStringContainsString('TRANSFER MARKET', $market['body']);
+            self::assertStringContainsString('Market stature', $market['body']);
             $controlled = $this->application->handle('GET', '/', ['page' => 'profile', 'save' => $save, 'player' => $career->playerId()->value()], [], $session);
             self::assertSame(200, $controlled['status']);
             self::assertStringContainsString('CURRENT SEASON', $controlled['body']);

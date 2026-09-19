@@ -281,4 +281,14 @@ retirement, true newgens, free-agent market behavior, and autonomous NPC
 recruitment remain deferred. Rollover operations are retry-safe by existing
 IDs and repository uniqueness checks.
 
+## P2-013 Market-State Lifecycle
+
+Market stature and Club compatibility are derived from current canonical
+facts and are not a growing table. Controlled offers reuse bounded
+`career_opportunities` rows; searches create no NPC market history. Offer
+expiry, source-Club validation, and the existing idempotent TransferService
+transition prevent stale or double-applied movement. Market reads and the
+Transfer Market page do not generate offers or advance time. Legacy saves
+receive no fabricated historical offers or facts.
+
 END OF DOCUMENT

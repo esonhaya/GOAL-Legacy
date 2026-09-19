@@ -369,4 +369,16 @@ These additions should extend the existing architecture without breaking compati
 
 ---
 
+## P2-013 Market Context Boundary
+
+Market stature is derived at evaluation/read time and is not persisted as a
+continuously mutating Player score. Existing `CareerOpportunity` rows remain
+the controlled-player offer state; their context may retain bounded projected
+role, wage, expiry, Club level, competition, and stable reasons. Candidate
+search is deterministic, capacity-aware, and limited to three offers. The
+existing TransferService remains authoritative for Contract, squad,
+registration, payroll, social, and history continuity. Legacy saves receive
+only derivable current context; NPCs receive no market-stature rows or
+detailed scouting evidence.
+
 END OF DOCUMENT

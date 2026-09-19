@@ -206,4 +206,16 @@ and international outcomes/statistics when those records exist. No new
 simulation or persistence subsystem is introduced: Match, development,
 competition, finance, social, and history owners remain unchanged.
 
+## P2-013 Transfer Market Stature
+
+Transfer interest is derived football context, not a second OVR or an
+achievement currency. OVR, age, bounded youth potential, canonical minutes,
+form, role, public recognition, honours, and international aggregates inform
+human-readable market stature. Buying Clubs use existing reputation,
+competition tier, European membership, capacity, and positional need. Up to
+three deterministic offers present credible upward, sideways, or opportunity
+moves with bounded wage, duration, and projected role. NPCs receive no market
+stature rows, detailed scouting, finance simulation, or offer-history
+expansion.
+
 END OF DOCUMENT

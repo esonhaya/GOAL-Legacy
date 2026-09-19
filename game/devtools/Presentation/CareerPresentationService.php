@@ -57,6 +57,7 @@ final class CareerPresentationService
         if ($includeLegacy) {
             $summary['legacy'] = $this->legacyService()->summary($database, $career->playerId()->value());
         }
+        $summary['market'] = $this->services->transferModule()->service()->careerMovement()->marketContext($database, $career->playerId(), $world->currentSeasonId(), $date);
         $currentClubId = is_array($summary['current_club'] ?? null) ? (string) ($summary['current_club']['id'] ?? '') : '';
         $summary['cup_history'] = $currentClubId === '' ? [] : (new DomesticCupService($this->services->clubModule()->service()))->historyForClub($database, $currentClubId);
         $summary['europe_history'] = $currentClubId === '' ? [] : (new EuropeanCompetitionService($this->services->clubModule()->service(), new DomesticCupService($this->services->clubModule()->service())))->historyForClub($database, $currentClubId);
@@ -117,6 +118,7 @@ final class CareerPresentationService
             'records' => $legacyRepository->recordsForPlayer($playerId),
             'milestones' => $legacyRepository->milestonesForPlayer($playerId),
         ] : ['honours' => [], 'awards' => [], 'records' => [], 'milestones' => []];
+        $market = $controlled ? $this->services->transferModule()->service()->careerMovement()->marketContext($database, $playerId, $seasonId, $date) : null;
         if ($club !== null) {
             $cups = new DomesticCupService($this->services->clubModule()->service());
             $europe = new EuropeanCompetitionService($this->services->clubModule()->service(), $cups);
@@ -163,6 +165,7 @@ final class CareerPresentationService
             'training_focus' => $controlled ? $controlledSummary['training_focus'] ?? null : null,
             'priority' => $controlled ? $controlledSummary['priority'] ?? null : null,
             'contract' => $controlled ? $controlledSummary['current_contract'] ?? null : null,
+            'market' => $market,
         ];
     }
 
@@ -573,6 +576,13 @@ final class CareerPresentationService
                 'label' => $label,
                 'club' => $clubView,
                 'role' => isset($option['role']) ? CareerLabels::value($option['role']) : null,
+                'wage' => $option['wage'] ?? null,
+                'contract_end_date' => $option['contract_end_date'] ?? null,
+                'reasons' => array_values(array_map(static fn (mixed $reason): string => CareerLabels::value($reason), (array) ($option['reasons'] ?? []))),
+                'club_level' => $option['target_club_level'] ?? null,
+                'projected_role' => isset($option['projected_role']) ? CareerLabels::value($option['projected_role']) : (isset($option['role']) ? CareerLabels::value($option['role']) : null),
+                'european_qualification' => $option['european_qualification'] ?? false,
+                'market_path' => isset($option['market_path']) ? CareerLabels::value($option['market_path']) : null,
             ];
         }
         $currentClub = is_array($summary['current_club'] ?? null) ? ($summary['current_club']['name'] ?? null) : null;

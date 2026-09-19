@@ -212,4 +212,14 @@ These additions should deepen immersion while preserving the philosophy establis
 
 ---
 
+## P2-013 Career Mobility Narrative
+
+Transfer interest describes what a Player has become: developing prospect,
+squad-level Player, established professional, top-level Player, or elite
+target. The narrative is evidence-led: sustained form, playing time, awards,
+honours, and international standing can explain attention, while Club need
+and projected role explain why a move is credible. A transfer is a Career
+choice between football contexts, not a random reward or synthetic currency.
+Former Clubs and achievements remain historical after movement.
+
 END OF DOCUMENT

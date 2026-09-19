@@ -323,6 +323,22 @@ SimulationDate recovery derives current fatigue without a daily global tick.
 Availability is assessed from Injury state, fatigue, and existing Match
 eligibility. Injury absence has no direct attribute penalty in this phase.
 
+✓ P2-016 keeps `PlayerLifecycleService` as the single owner of controlled
+playing-Career completion. Career phase is derived from age and career state;
+`PlayerDevelopmentService` remains the only attribute/OVR development owner.
+Season-boundary retirement eligibility is deterministic and bounded by age,
+performance, playing context, Contract state, and position context without a
+stored hidden score. Contract/free-agent decisions take precedence over a
+retirement prompt.
+
+✓ A controlled retirement resolves exactly once: the Player becomes
+historical, active playing payroll/Contract and future selection paths close,
+one compact retirement record and one Career History landmark are retained,
+and Legacy remains readable. Retirement is not a manager Career, forced
+medical system, farewell-Match generator, or post-Career simulator. NPCs use
+the existing cheap retirement/newgen equilibrium and receive no detailed
+summary or Pulse retirement simulation.
+
 ---
 
 ## Revision History

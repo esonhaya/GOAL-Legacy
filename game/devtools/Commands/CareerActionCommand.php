@@ -68,6 +68,8 @@ final class CareerActionCommand implements CommandInterface
             $resolved = $movement->resolveTransferDecision($database, $opportunity->id(), (string) $selected['id'], $date);
         } elseif (($opportunity->context()['decision_kind'] ?? null) === 'contract_boundary' || $opportunity->type()->value === 'contract_renewal') {
             $resolved = $movement->resolveContractDecision($database, $opportunity->id(), (string) $selected['id'], $date);
+        } elseif (($opportunity->context()['decision_kind'] ?? null) === 'retirement' || $opportunity->type()->value === 'retirement') {
+            $resolved = $this->services->playerModule()->service()->lifecycleService()->resolveRetirementDecision($database, $opportunity->id(), (string) $selected['id'], $date);
         } else {
             throw new RuntimeException('This Career decision has no player-facing resolver.');
         }

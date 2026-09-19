@@ -83,6 +83,21 @@ ordinary Player records immediately. They are save-state entities rather
 than static content and receive the normal Contract, squad, registration,
 selection, availability, and development treatment.
 
+P2-016 keeps the retirement transition Player-owned and adds one compact,
+controlled-career `career_retirement_records` row containing the retirement
+date, retirement Season, final Club when applicable, reason, and forced flag.
+The table is created lazily when a controlled Player retires so legacy saves
+without it remain readable and do not receive fabricated retirement history.
+The row is idempotent by Player ID; it is not a per-Season NPC summary.
+
+Career phase is derived from birth date, SimulationDate, and career state.
+Retirement eligibility is a deterministic Season-boundary assessment using
+bounded age, current football context, Contract availability, position, and
+recent performance. It does not persist a hidden retirement score. Contract
+expiry/free agency and existing controlled Career decisions take precedence
+over opening a retirement choice, and the forced maximum age prevents an
+unbounded active playing Career.
+
 ---
 
 # Primary Key

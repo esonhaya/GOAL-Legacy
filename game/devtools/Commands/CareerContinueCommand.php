@@ -46,6 +46,11 @@ final class CareerContinueCommand implements CommandInterface
         $summary = $query->summary($database, $career->playerId(), $date, $world->currentSeasonId());
         $experience = $this->services->playerModule()->service()->careerExperienceService();
 
+        if (($summary['career_state'] ?? 'active') === 'retired') {
+            $output->write('CAREER COMPLETE — the playing Career is retired. Review Legacy and Career History.');
+            return 0;
+        }
+
         if (($summary['pending_decisions'] ?? []) !== []) {
             $presentation = new CareerPresentationService($this->services);
             $decision = $presentation->decision($summary, $database);

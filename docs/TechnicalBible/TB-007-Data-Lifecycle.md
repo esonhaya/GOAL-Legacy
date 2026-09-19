@@ -306,4 +306,30 @@ timeline/detail rows are written for ordinary World Matches. Save/reload
 therefore preserves the same story by re-derivation, while bounded integrity
 checks validate score, minutes, participation, and Player-stat consistency.
 
+## P2-016 Controlled Playing-Career Lifecycle
+
+`PlayerLifecycleService` owns the controlled Player's Season-boundary age
+phase, bounded decline handoff to `PlayerDevelopmentService`, retirement
+assessment, and retirement decision resolution. Age is always derived from
+Birth Date and `SimulationDate`; phase labels are read-model output. The
+development source key remains the idempotency boundary, so retrying a
+boundary cannot apply decline twice.
+
+Completed-Season Legacy resolution runs before lifecycle retirement and before
+compaction. A normal eligible Player receives one `CareerOpportunity` of type
+`retirement` with Continue Playing and Retire options. Expiring/free-agent
+Contract decisions and other open Career decisions take precedence. Retiring
+terminates active payroll, removes future-season playing eligibility, persists
+one lazy `career_retirement_records` row, and records one Career History
+landmark. A forced maximum-age transition uses the same closure path without
+creating a Player decision.
+
+Retired saves remain readable and read-only. The progression query hides
+active Contract/opportunity/action state, Career Continue stops safely, and
+training, lifestyle purchases, transfer requests, offers, selection, and new
+playing Contracts reject or close cleanly. Legacy saves without the retirement
+table derive only the current phase and do not receive fabricated retirement
+facts. Ordinary NPC retirement continues to use the compact population path;
+no NPC retirement summary, Pulse ceremony, or post-Career simulation is added.
+
 END OF DOCUMENT

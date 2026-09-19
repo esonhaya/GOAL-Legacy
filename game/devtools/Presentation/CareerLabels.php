@@ -10,6 +10,17 @@ final class CareerLabels
     /** @var array<string, string> */
     private const LABELS = [
         'active' => 'Active',
+        'retired' => 'Retired',
+        'career_complete' => 'Career Complete',
+        'retirement_decision' => 'Retirement decision',
+        'late_career' => 'Late Career',
+        'youth' => 'Youth',
+        'prime' => 'Prime',
+        'experienced' => 'Experienced',
+        'veteran' => 'Veteran',
+        'decline' => 'Decline',
+        'continue-playing' => 'Continue playing',
+        'retire' => 'Retire',
         'approaching_decision' => 'Decision approaching',
         'balanced' => 'Balanced',
         'breakout' => 'Breakout',

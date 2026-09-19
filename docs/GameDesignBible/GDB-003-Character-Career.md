@@ -129,6 +129,30 @@ career transfer remains continuous because Player identity, development,
 availability, and historical Matches survive while the new Club-scoped role
 and seasonal registration are rebuilt.
 
+## P2-016 Playing-Career Completion
+
+The controlled Player's playing Career has a derived phase—youth,
+development, prime, experienced, veteran, or decline—based on birth date and
+the current SimulationDate. Phase is descriptive; it is not a second rating
+and does not force a role or an age cliff. The existing PlayerDevelopmentService
+remains the sole owner of attribute growth and bounded age pressure.
+
+At a Season boundary, age and football context may open one controlled
+retirement decision. A Player chooses Continue Playing or Retire when the
+Career is genuinely eligible; expiring/free-agent Contract decisions and
+other open Career decisions retain precedence so the boundary cannot present
+contradictory choices. A forced maximum playing age is a safety boundary,
+not the normal retirement rule. Retirement closes playing eligibility,
+terminates the active playing Contract, preserves assets and history, and
+does not create a manager or post-playing Career.
+
+Retirement is resolved after completed-Season Legacy work and before evidence
+needed for the summary is compacted. The controlled Player receives one
+compact retirement record, one Career History landmark, and one factual
+Echo/Pulse source. NPCs retain the existing bounded retirement/newgen path;
+they receive no retirement summaries, ceremonies, follower state, or
+post-Career simulation.
+
 ## P2-005 Controlled Player Finance and Lifestyle
 
 Phase 1 deliberately deferred personal earnings and spending. Phase 2

@@ -101,10 +101,10 @@ final class Bootstrap
         $availabilityService = new PlayerAvailabilityService($dispatcher);
         $contractModule = new ContractModule(new ContractService());
         $populationService = new PlayerPopulationService($nationModule->service(), $clubModule->service(), $contractModule->service());
-        $playerLifecycleService = new PlayerLifecycleService($developmentService, $contractModule->service());
         $playerFinanceService = new PlayerFinanceService();
         $footballSocialService = new FootballSocialService($clubModule->service(), $pulseService);
-        $playerModule = new PlayerModule(new PlayerService($nationModule->service(), $clubModule->service(), $developmentService, $availabilityService, $populationService, $playerFinanceService, $footballSocialService, $pulseService));
+        $playerLifecycleService = new PlayerLifecycleService($developmentService, $contractModule->service(), $footballSocialService);
+        $playerModule = new PlayerModule(new PlayerService($nationModule->service(), $clubModule->service(), $developmentService, $availabilityService, $populationService, $playerFinanceService, $footballSocialService, $pulseService, $playerLifecycleService));
         $transferModule = new TransferModule(new TransferService($contractModule->service(), $clubModule->service(), $competitionModule->service(), $dispatcher, $footballSocialService));
         $clubRecruitmentService = new ClubRecruitmentService($clubModule->service(), $contractModule->service(), $competitionModule->service(), $transferModule->service());
         $expectationService = new ClubExpectationService($clubModule->service(), $dispatcher);

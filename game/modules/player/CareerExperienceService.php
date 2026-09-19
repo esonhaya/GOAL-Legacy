@@ -21,6 +21,7 @@ use Goal\Legacy\Modules\Player\Domain\TrainingFocus;
 use Goal\Legacy\Modules\Player\Domain\TrainingRequest;
 use Goal\Legacy\Modules\Player\Persistence\CareerEventRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerPriorityRepository;
+use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Finance\PlayerFinanceService;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -40,6 +41,7 @@ final class CareerExperienceService
     public function setPriority(DatabaseInterface $database, PlayerId|string $playerId, CareerPriority|string $priority, SimulationDate $date): CareerPriority
     {
         $id = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        $this->assertActive($database, $id);
         $value = $priority instanceof CareerPriority ? $priority : CareerPriority::fromInput($priority);
         $database->transaction(function () use ($database, $id, $value, $date): void {
             (new PlayerPriorityRepository($database))->saveInTransaction($id, $value, $date);
@@ -50,6 +52,7 @@ final class CareerExperienceService
     public function setTrainingFocus(DatabaseInterface $database, PlayerId|string $playerId, TrainingFocus|string $focus, SimulationDate $date): TrainingFocus
     {
         $id = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        $this->assertActive($database, $id);
         $value = $focus instanceof TrainingFocus ? $focus : TrainingFocus::fromInput($focus);
         $database->transaction(function () use ($database, $id, $value, $date): void {
             $this->development->setTrainingFocusInTransaction($database, $id, $value, $date);
@@ -167,9 +170,17 @@ final class CareerExperienceService
     public function prepareTraining(DatabaseInterface $database, PlayerId|string $playerId, string $matchId, SimulationDate $startDate, SimulationDate $endDate): ?array
     {
         $id = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        $this->assertActive($database, $id);
         $focus = $this->development->state($database, $id)->currentFocus() ?? TrainingFocus::Balanced;
         $result = $this->training->complete($database, new TrainingRequest($id, 'career-between-match:' . $matchId, $focus, $startDate, $endDate));
         return ['focus' => $focus->value, 'applied' => $result->applied(), 'ovr_before' => $result->beforeOverall(), 'ovr_after' => $result->afterOverall(), 'deltas' => $result->attributeDeltas()];
+    }
+
+    private function assertActive(DatabaseInterface $database, PlayerId $playerId): void
+    {
+        if ((new PlayerRepository($database))->get($playerId)->isRetired()) {
+            throw new RuntimeException('The playing Career is complete; this action is no longer available.');
+        }
     }
 
     /** @param list<CareerEvent> $resolved @param array<string, mixed> $signals */

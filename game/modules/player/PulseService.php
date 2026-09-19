@@ -45,6 +45,7 @@ final class PulseService
             'honour' => ['History made: {player} can call {headline} part of the Career now.', 'The medals matter. Congratulations to {player} on {headline}.'],
             'record' => ['Another page in the record book for {player}: {headline}.', '{player} keeps raising the standard with {headline}.'],
             'milestone' => ['A Career milestone for {player}: {headline}.', 'Small steps become a legacy. Well done, {player}.'],
+            'retirement' => ['A full playing Career deserves respect. Thank you for the memories, {player}.', '{player} has closed a playing Career built one Season at a time.'],
             'injury' => ['Tough news for {player}. The supporters are behind the recovery.'],
             'return' => ['Good to see {player} back in the football conversation. Welcome back.'],
             'career_choice' => ['A football decision has shaped {player}\'s next chapter.', 'The Career keeps moving, one meaningful choice at a time.'],
@@ -64,6 +65,7 @@ final class PulseService
             'honour' => ['A landmark achievement enters {player}\'s record: {headline}.', '{player}\'s Career now includes {headline}.'],
             'record' => ['Record watch: {player} has reached {headline}.', 'The numbers have made {headline} part of {player}\'s story.'],
             'milestone' => ['Milestone reached by {player}: {headline}.', 'A durable Career marker for {player}: {headline}.'],
+            'retirement' => ['Playing Career complete: {player} retires with a record of football worth remembering.', 'The final chapter is complete for {player}; the evidence now belongs to Career history.'],
             'injury' => ['Availability update: {player} begins a recovery period after the recorded injury.'],
             'return' => ['Availability update: {player} has returned from the recorded injury.'],
             'career_choice' => ['A controlled Career decision has changed the context around {player}.'],
@@ -82,6 +84,7 @@ final class PulseService
             'honour' => ['Our history grows with {player}: {headline}.'],
             'record' => ['Another Club-era marker for {player}: {headline}.'],
             'milestone' => ['A milestone worth celebrating for {player}: {headline}.'],
+            'retirement' => ['The Club thanks {player} for a completed playing Career and the memories created here.'],
             'injury' => ['The Club is supporting {player} through the recorded injury.'],
             'return' => ['The Club welcomes {player} back after the recorded injury.'],
         ],
@@ -321,7 +324,8 @@ final class PulseService
         $actors = [['type' => 'fan', 'id' => 'supporters:achievement', 'name' => 'Supporters', 'kind' => $route['kind']], ['type' => 'media', 'id' => 'media:football-desk', 'name' => 'Football Desk', 'kind' => $route['kind']]];
         if ($international) { $actors[] = ['type' => 'national', 'id' => 'national:achievement', 'name' => 'National Team', 'kind' => $route['kind']]; }
         if ($clubId !== null && $clubId !== '') { $actors[] = ['type' => 'club', 'id' => 'club:' . $clubId, 'name' => $this->clubName($database, $clubId), 'kind' => $route['kind']]; }
-        $this->recordSourceInTransaction($database, $id, 'achievement:' . $source, $date, (string) $route['kind'], (string) $route['importance'], $context, $actors, $this->responseChoices('achievement'));
+        $responseContext = $route['kind'] === 'retirement' ? 'retirement' : 'achievement';
+        $this->recordSourceInTransaction($database, $id, 'achievement:' . $source, $date, (string) $route['kind'], (string) $route['importance'], $context, $actors, $this->responseChoices($responseContext));
     }
 
     /** @param array<string, mixed> $payload */
@@ -428,6 +432,7 @@ final class PulseService
             'defeat' => [['id' => 'back_team', 'label' => 'Back the team', 'text' => 'We take the lesson together and keep moving.'], ['id' => 'responsibility', 'label' => 'Take responsibility', 'text' => 'I take responsibility and will work to be better next time.'], ['id' => 'silence', 'label' => 'Stay quiet', 'text' => '']],
             'red_card' => [['id' => 'responsibility', 'label' => 'Accept responsibility', 'text' => 'I accept responsibility for the dismissal.'], ['id' => 'back_team', 'label' => 'Back the team', 'text' => 'The team gave everything; we will respond together.'], ['id' => 'silence', 'label' => 'Say nothing', 'text' => '']],
             'transfer' => [['id' => 'thank_former_club', 'label' => 'Thank the former Club', 'text' => 'Thank you to everyone at my former Club for the memories.'], ['id' => 'next_chapter', 'label' => 'Embrace the next chapter', 'text' => 'Excited for the next chapter and ready to work.'], ['id' => 'professional', 'label' => 'Keep it professional', 'text' => 'Focused on football and the work ahead.'], ['id' => 'silence', 'label' => 'Say nothing', 'text' => '']],
+            'retirement' => [['id' => 'thank_supporters', 'label' => 'Thank supporters', 'text' => 'Thank you to everyone who shared this playing Career with me.'], ['id' => 'thank_clubs', 'label' => 'Thank Clubs and teammates', 'text' => 'Thank you to every Club, teammate, and coach who shaped this journey.'], ['id' => 'reflect', 'label' => 'Reflect on the Career', 'text' => 'I will always be proud of the work, the people, and the football.'], ['id' => 'silence', 'label' => 'Keep it brief', 'text' => '']],
             default => [['id' => 'team_first', 'label' => 'Celebrate the team', 'text' => 'Proud of the team tonight. Thank you for the support.'], ['id' => 'supporter_first', 'label' => 'Thank supporters', 'text' => 'Thank you to the supporters for staying with us.'], ['id' => 'professional', 'label' => 'Stay focused', 'text' => 'Enjoy the moment, then back to work.'], ['id' => 'silence', 'label' => 'Say nothing', 'text' => '']],
         };
     }

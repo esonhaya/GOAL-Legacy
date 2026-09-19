@@ -407,6 +407,8 @@ final class WebApplication
             $movement->resolveTransferDecision($database, $opportunity->id(), (string) $selected['id'], $date);
         } elseif ($kind === 'contract_boundary' || $opportunity->type()->value === 'contract_renewal') {
             $movement->resolveContractDecision($database, $opportunity->id(), (string) $selected['id'], $date);
+        } elseif ($kind === 'retirement' || $opportunity->type()->value === 'retirement') {
+            $this->services->playerModule()->service()->lifecycleService()->resolveRetirementDecision($database, $opportunity->id(), (string) $selected['id'], $date);
         } else { throw new RuntimeException('This Career decision has no player-facing resolver.'); }
         $session['web_flash'] = 'Career decision resolved.';
 
@@ -626,7 +628,7 @@ final class WebApplication
         $finance = $this->services->playerFinanceService()->summary($database, (string) ($player['id'] ?? ''), $snapshot['date']);
         $next = (new CareerPresentationService($this->services))->nextMatch($database, $summary);
         $clubContext = (new CareerPresentationService($this->services))->clubContext($database, $summary);
-        $profile = '<div class="profile-hero">' . WebView::portrait($portrait, (string) ($player['preferred_name'] ?? 'Player'), 'portrait portrait-large') . '<div><div class="eyebrow">CAREER HOME · ' . WebView::e($snapshot['date']->toIsoString()) . '</div><h1>' . WebView::e($player['preferred_name'] ?? 'Player') . '</h1><p>' . WebView::e(CareerLabels::position($player['primary_position'] ?? null)) . ' · ' . WebView::e(CareerLabels::nationality($player['primary_nation_id'] ?? null)) . '</p><div class="tag-row"><span class="tag">OVR ' . WebView::e($summary['current_ovr'] ?? '—') . '</span><span class="tag">' . WebView::e($club['name'] ?? 'Free Agent') . '</span><span class="tag">' . WebView::e(CareerLabels::value($summary['current_role'] ?? null)) . '</span></div></div></div>';
+        $profile = '<div class="profile-hero">' . WebView::portrait($portrait, (string) ($player['preferred_name'] ?? 'Player'), 'portrait portrait-large') . '<div><div class="eyebrow">CAREER HOME · ' . WebView::e($snapshot['date']->toIsoString()) . '</div><h1>' . WebView::e($player['preferred_name'] ?? 'Player') . '</h1><p>' . WebView::e(CareerLabels::position($player['primary_position'] ?? null)) . ' · ' . WebView::e(CareerLabels::nationality($player['primary_nation_id'] ?? null)) . '</p><div class="tag-row"><span class="tag">OVR ' . WebView::e($summary['current_ovr'] ?? '—') . '</span><span class="tag">' . WebView::e($club['name'] ?? 'Free Agent') . '</span><span class="tag">' . WebView::e(CareerLabels::value($summary['current_role'] ?? null)) . '</span><span class="tag">' . WebView::e(CareerLabels::value($summary['career_phase'] ?? null, 'Active Career')) . '</span></div></div></div>';
         $seasonBody = '<div class="stat-grid">' . WebView::stat('Appearances', $season['appearances'] ?? 0) . WebView::stat('Starts', $season['starts'] ?? 0) . WebView::stat('Minutes', $season['minutes'] ?? 0) . WebView::stat('Goals', $season['goals'] ?? 0) . WebView::stat('Assists', $season['assists'] ?? 0) . WebView::stat('Rating', $this->rating($season['average_match_rating'] ?? null)) . '</div><div class="metric-lines"><p><strong>Recent form</strong> ' . WebView::e($this->formLabel($form)) . '</p><p><strong>Season performance</strong> ' . WebView::e(CareerLabels::value($performance['classification'] ?? null, 'Not enough evidence')) . '</p></div>';
         $financialContext = (array) ($finance['financial_context'] ?? []);
         $availability = (string) ($summary['availability'] ?? 'available');
@@ -707,6 +709,15 @@ final class WebApplication
         $legacy = is_array($summary['legacy'] ?? null) ? $summary['legacy'] : [];
         $clubStats = is_array($legacy['club_stats'] ?? null) ? $legacy['club_stats'] : [];
         $international = is_array($legacy['international_stats'] ?? null) ? $legacy['international_stats'] : [];
+        $retirement = is_array($legacy['retirement'] ?? null) ? $legacy['retirement'] : null;
+        $span = is_array($legacy['career_span'] ?? null) ? $legacy['career_span'] : [];
+        $finalClubId = (string) ($retirement['final_club_id'] ?? '');
+        $finalClub = 'Free Agent';
+        if ($finalClubId !== '' && $finalClubId !== 'free-agent') {
+            $clubRepository = $this->services->clubModule()->service()->repository($database);
+            $finalClub = $clubRepository->exists($finalClubId) ? $clubRepository->get($finalClubId)->canonicalName() : 'Historical Club';
+        }
+        $retirementPanel = $retirement === null ? '' : WebView::section('CAREER COMPLETE', 'Retired playing Career', '<p><strong>RETIRED</strong> · Final Club: ' . WebView::e($finalClub) . ' · Retirement Season: ' . WebView::e($span['retirement'] ?? $retirement['retirement_season_id'] ?? 'Recorded') . '</p><p>Career span: ' . WebView::e($span['start'] ?? 'Recorded') . ' to ' . WebView::e($span['retirement'] ?? $span['latest'] ?? 'Recorded') . ' · ' . WebView::e($span['seasons_played'] ?? 0) . ' Seasons played.</p>');
         $overview = '<div class="stat-grid"><div class="stat"><span>Club appearances</span><strong>' . WebView::e($clubStats['appearances'] ?? 0) . '</strong></div><div class="stat"><span>Club goals</span><strong>' . WebView::e($clubStats['goals'] ?? 0) . '</strong></div><div class="stat"><span>Club assists</span><strong>' . WebView::e($clubStats['assists'] ?? 0) . '</strong></div><div class="stat"><span>International caps</span><strong>' . WebView::e($international['caps'] ?? 0) . '</strong></div><div class="stat"><span>International goals</span><strong>' . WebView::e($international['goals'] ?? 0) . '</strong></div></div>';
         $clubs = (array) ($legacy['clubs'] ?? []);
         $clubBody = $clubs === [] ? WebView::emptyState('No Club history yet.') : '<ul class="timeline">' . implode('', array_map(static fn (array $club): string => '<li>' . WebView::e($club['name'] ?? 'Club') . '</li>', $clubs)) . '</ul>';
@@ -721,6 +732,7 @@ final class WebApplication
         $body = '<div class="page-heading"><div><div class="eyebrow">CAREER LEGACY</div><h1>' . WebView::e($player['preferred_name'] ?? 'Player') . '</h1><p>Descriptive achievement derived from canonical football facts.</p></div>' . WebView::portrait($this->portraitUrl($saveId, (string) ($player['id'] ?? ''), 'career', 128), 'Player portrait', 'portrait portrait-medium') . '</div>';
         $body .= WebView::section('CAREER OVERVIEW', 'The record so far', $overview) . '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('HONOURS', 'Competition achievements', $honourBody) . WebView::section('INDIVIDUAL AWARDS', 'Season recognition', $awardBody) . WebView::section('RECORDS & PERSONAL BESTS', 'Career-era evidence', $recordBody) . '</div><aside class="dashboard-side">' . WebView::section('CLUBS', 'Career chapters', $clubBody) . WebView::section('MILESTONES', 'Defining numbers', $milestoneBody) . WebView::section('INTERNATIONAL CAREER', 'National-team record', '<p>' . WebView::e($international['caps'] ?? 0) . ' caps · ' . WebView::e($international['goals'] ?? 0) . ' goals</p>' . WebView::link('international', ['save' => $saveId], 'Open International', 'button button-secondary')) . '</aside></div>';
 
+        $body = $retirementPanel . $body;
         return $this->html('Career Legacy', $body, $saveId, 'legacy', 200, $session);
     }
 
@@ -729,6 +741,10 @@ final class WebApplication
         $database = $this->database($saveId);
         $snapshot = (new CareerPresentationService($this->services))->snapshot($database, $saveId, false);
         $summary = $snapshot['summary'];
+        if (($summary['career_state'] ?? 'active') === 'retired') {
+            $body = '<div class="page-heading"><div><div class="eyebrow">TRANSFER MARKET</div><h1>Career complete</h1><p>The playing Career is retired. No new playing offers or transfer requests are available.</p></div></div>' . WebView::section('MARKET STATUS', 'Read-only', WebView::emptyState('Your final Club, Contracts, and Career movement remain available in Legacy and Career History.')) . '<div class="form-actions">' . WebView::link('legacy', ['save' => $saveId], 'Open Career Legacy', 'button button-primary') . WebView::link('home', ['save' => $saveId], 'Career Home') . '</div>';
+            return $this->html('Transfer Market', $body, $saveId, 'market', 200, $session);
+        }
         $market = (array) ($summary['market'] ?? []);
         $playerId = (string) (($summary['player']['id'] ?? ''));
         $opportunities = $playerId === '' ? [] : (new CareerOpportunityRepository($database))->openForPlayer(new \Goal\Legacy\Modules\Player\Domain\PlayerId($playerId), $snapshot['date']);
@@ -831,7 +847,7 @@ final class WebApplication
         $market = is_array($data['market'] ?? null) ? $data['market'] : [];
         $finance = ($data['controlled'] ?? false) === true ? $this->services->playerFinanceService()->summary($database, $playerId, $this->snapshot($saveId, $database)['date']) : null;
         $clubLink = $club === null ? 'Free Agent' : WebView::link('club', ['save' => $saveId, 'club' => $club->id()->value()], $club->canonicalName(), 'text-link');
-        $facts = '<div class="stat-grid compact">' . WebView::stat('OVR', $player->overallRating()) . WebView::stat('Age', $data['age']) . WebView::stat('Position', CareerLabels::position($player->primaryPosition()->value)) . WebView::stat('Nationality', $data['nationality']) . WebView::stat('Role', CareerLabels::value($data['role'] ?? null, 'Not assigned')) . WebView::stat('Market stature', $market['label'] ?? 'Unknown') . WebView::stat('Season', $data['season_id']) . '</div>';
+        $facts = '<div class="stat-grid compact">' . WebView::stat('OVR', $player->overallRating()) . WebView::stat('Age', $data['age']) . WebView::stat('Position', CareerLabels::position($player->primaryPosition()->value)) . WebView::stat('Nationality', $data['nationality']) . WebView::stat('Role', CareerLabels::value($data['role'] ?? null, 'Not assigned')) . WebView::stat('Career phase', CareerLabels::value($data['career_phase'] ?? null, 'Active')) . WebView::stat('Status', CareerLabels::value($data['career_state'] ?? 'active')) . WebView::stat('Market stature', $market['label'] ?? 'Unknown') . WebView::stat('Season', $data['season_id']) . '</div>';
         $seasonLine = '<div class="stat-grid compact">' . WebView::stat('Appearances', $stats['appearances'] ?? 0) . WebView::stat('Starts', $stats['starts'] ?? 0) . WebView::stat('Minutes', $stats['minutes'] ?? 0) . WebView::stat('Goals', $stats['goals'] ?? 0) . WebView::stat('Assists', $stats['assists'] ?? 0) . WebView::stat('Rating', $this->rating($stats['average_match_rating'] ?? null)) . '</div>';
         $extras = '<p><strong>Recent form:</strong> ' . WebView::e($this->formLabel($form)) . '</p>';
         $cupPanel = '';
@@ -869,7 +885,7 @@ final class WebApplication
             $history .= '<li>' . WebView::e($line) . (isset($match['match_id']) && ($match['detailed'] ?? false) === true ? ' ' . WebView::link('matchday', ['save' => $saveId, 'match' => $match['match_id']], 'Open Match', 'text-link') : '') . '</li>';
         }
         $historyBody = $history === '' ? WebView::emptyState('No completed Match history in this Season.') : '<ul class="timeline compact-timeline">' . $history . '</ul>';
-        $marketPanel = ($data['controlled'] ?? false) === true ? WebView::section('TRANSFER MARKET', 'Current context', '<p>' . WebView::e($market['label'] ?? 'Unknown') . ' · ' . WebView::e($market['current_club_level'] ?? 'Free Agent') . '</p>' . WebView::link('market', ['save' => $saveId], 'Open Transfer Market', 'button button-secondary')) : '';
+        $marketPanel = ($data['controlled'] ?? false) === true && ($data['career_state'] ?? 'active') !== 'retired' ? WebView::section('TRANSFER MARKET', 'Current context', '<p>' . WebView::e($market['label'] ?? 'Unknown') . ' · ' . WebView::e($market['current_club_level'] ?? 'Free Agent') . '</p>' . WebView::link('market', ['save' => $saveId], 'Open Transfer Market', 'button button-secondary')) : '';
         $body = '<div class="profile-hero profile-hero-profile">' . WebView::portrait($this->portraitUrl($saveId, $playerId, 'club', 256), $player->preferredName(), 'portrait portrait-large') . '<div><div class="eyebrow">PLAYER PROFILE</div><h1>' . WebView::e($player->preferredName()) . '</h1><p>' . WebView::e($data['age'] . ' years · ' . $data['nationality'] . ' · ') . $clubLink . '</p>' . $facts . '</div></div>' . WebView::section('CURRENT SEASON', 'All competitions', $seasonLine . $extras) . $marketPanel . $cupPanel . $europePanel . $internationalPanel . $socialPanel . $pulsePanel . WebView::section('CAREER TOTALS', 'Recorded career evidence', $careerLine) . $legacyPanel . WebView::section('MATCH HISTORY', 'Recent canonical results', $historyBody) . '<div class="form-actions">' . WebView::link('squad', ['save' => $saveId, 'club' => $club?->id()->value()], 'Back to Squad') . '</div>';
 
         return $this->html('Player Profile', $body, $saveId, 'squad', 200, $session);
@@ -1176,6 +1192,9 @@ final class WebApplication
     {
         $snapshot = $this->snapshot($saveId, $this->database($saveId));
         $summary = $snapshot['summary'];
+        if (($summary['career_state'] ?? 'active') === 'retired') {
+            return $this->html('Training', '<div class="page-heading"><div><div class="eyebrow">TRAINING & PRIORITIES</div><h1>Career complete</h1><p>Training and active playing priorities are closed after retirement.</p></div></div>' . WebView::section('READ-ONLY', 'Final Career state', WebView::emptyState('Your development record remains available in Career Legacy.')) . '<div class="form-actions">' . WebView::link('legacy', ['save' => $saveId], 'Open Career Legacy', 'button button-primary') . '</div>', $saveId, 'training', 200, $session);
+        }
         $focus = (string) ($summary['training_focus'] ?? 'balanced');
         $priority = (string) ($summary['priority'] ?? 'balanced');
         $focusOptions = ''; foreach (TrainingFocus::cases() as $item) { $focusOptions .= '<option value="' . $item->value . '"' . ($focus === $item->value ? ' selected' : '') . '>' . WebView::e(CareerLabels::value($item->value)) . '</option>'; }
@@ -1213,6 +1232,9 @@ final class WebApplication
         $database = $this->database($saveId);
         $snapshot = $this->snapshot($saveId, $database);
         $playerId = (string) (($snapshot['summary']['player']['id'] ?? ''));
+        if (($snapshot['summary']['career_state'] ?? 'active') === 'retired') {
+            return $this->html('Lifestyle', '<div class="page-heading"><div><div class="eyebrow">LIFESTYLE</div><h1>Career complete</h1><p>New active Career purchases are closed after retirement.</p></div></div>' . WebView::section('OWNED ASSETS', 'Historical balance', WebView::emptyState('Existing assets and balance remain visible in Finances.')) . '<div class="form-actions">' . WebView::link('finances', ['save' => $saveId], 'Open Finances', 'button button-primary') . WebView::link('legacy', ['save' => $saveId], 'Open Career Legacy') . '</div>', $saveId, 'lifestyle', 200, $session);
+        }
         $finance = $this->services->playerFinanceService()->summary($database, $playerId, $snapshot['date']);
         $owned = (array) ($finance['owned_ids'] ?? []);
         $ownedRows = [];
@@ -1257,7 +1279,8 @@ final class WebApplication
         $database = $this->database($saveId); $snapshot = $this->snapshot($saveId, $database); $decision = (new CareerPresentationService($this->services))->decision($snapshot['summary'], $database);
         if ($decision === null) { return $this->redirect(WebView::url('home', ['save' => $saveId])); }
         $options = ''; foreach ((array) ($decision['options'] ?? []) as $index => $option) { $club = is_array($option['club'] ?? null) ? ' · ' . ($option['club']['name'] ?? '') . (isset($option['club']['competition']) ? ' · ' . $option['club']['competition'] : '') : ''; $details = ''; if (($option['club_level'] ?? null) !== null) { $details .= ' · ' . (string) $option['club_level']; } if (($option['market_path'] ?? null) !== null) { $details .= ' · ' . (string) $option['market_path']; } if (($option['projected_role'] ?? null) !== null) { $details .= ' · ' . (string) $option['projected_role']; } if (($option['wage'] ?? null) !== null) { $details .= ' · GC ' . number_format((int) $option['wage']) . '/week'; } if (($option['european_qualification'] ?? false) === true) { $details .= ' · Europe'; } if (($option['reasons'] ?? []) !== []) { $details .= ' · ' . implode(', ', (array) $option['reasons']); } $options .= '<label class="choice-card"><input type="radio" name="choice" value="' . ($index + 1) . '" required><span><strong>' . ($index + 1) . '.</strong> ' . WebView::e($option['label'] ?? 'Available choice') . WebView::e($club . $details) . '</span></label>'; }
-        $body = '<div class="decision-shell"><div class="eyebrow">CAREER DECISION · ' . WebView::e(CareerLabels::value($decision['decision_kind'] ?? null)) . '</div><h1>A decision is waiting</h1><p class="lead">Current Club: ' . WebView::e($decision['current_club'] ?? 'Free Agent') . ' · ' . WebView::e(((array) ($decision['current_competition'] ?? []))['name'] ?? 'No competition') . '</p><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel choice-panel" data-busy><input type="hidden" name="action" value="resolve_decision"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'decision_' . $saveId)) . '"><div class="choice-list">' . $options . '</div><button class="button button-primary button-large" type="submit">Confirm decision</button></form></div>';
+        $retirementDetails = ($decision['decision_kind'] ?? null) === 'retirement' ? '<div class="panel"><p><strong>Age:</strong> ' . WebView::e($decision['age'] ?? '—') . ' · <strong>Phase:</strong> ' . WebView::e(CareerLabels::value($decision['career_phase'] ?? null)) . ' · <strong>Role:</strong> ' . WebView::e(CareerLabels::value($decision['role'] ?? null, 'Not assigned')) . '</p><p><strong>Recent performance:</strong> ' . WebView::e(CareerLabels::value($decision['performance'] ?? null, 'Not enough evidence')) . ' · <strong>Career record:</strong> ' . WebView::e(((array) ($decision['career_stats'] ?? []))['appearances'] ?? 0) . ' appearances, ' . WebView::e(((array) ($decision['career_stats'] ?? []))['goals'] ?? 0) . ' goals, ' . WebView::e(((array) ($decision['career_stats'] ?? []))['assists'] ?? 0) . ' assists</p><p><strong>Honours:</strong> ' . WebView::e($decision['honours'] ?? 0) . ' · <strong>Awards:</strong> ' . WebView::e($decision['awards'] ?? 0) . '</p></div>' : '';
+        $body = '<div class="decision-shell"><div class="eyebrow">CAREER DECISION · ' . WebView::e(CareerLabels::value($decision['decision_kind'] ?? null)) . '</div><h1>' . (($decision['decision_kind'] ?? null) === 'retirement' ? 'Your playing Career is at a boundary' : 'A decision is waiting') . '</h1><p class="lead">Current Club: ' . WebView::e($decision['current_club'] ?? 'Free Agent') . ' · ' . WebView::e(((array) ($decision['current_competition'] ?? []))['name'] ?? 'No competition') . '</p>' . $retirementDetails . '<form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel choice-panel" data-busy><input type="hidden" name="action" value="resolve_decision"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'decision_' . $saveId)) . '"><div class="choice-list">' . $options . '</div><button class="button button-primary button-large" type="submit">Confirm decision</button></form></div>';
 
         return $this->html('Career Decision', $body, $saveId, 'home', 200, $session);
     }
@@ -1383,6 +1406,9 @@ final class WebApplication
     /** @param array<string, mixed> $summary @param array<string, mixed> $session @param array<string, mixed>|null $next */
     private function primaryCareerAction(string $saveId, array $summary, array &$session, ?array $next): string
     {
+        if (($summary['career_state'] ?? 'active') === 'retired') {
+            return WebView::link('legacy', ['save' => $saveId], 'Career Complete — Open Legacy', 'button button-primary button-large');
+        }
         if (($summary['pending_decisions'] ?? []) !== []) {
             return WebView::link('decision', ['save' => $saveId], 'Resolve career decision', 'button button-primary button-large');
         }

@@ -114,6 +114,24 @@ can appear as winners from compact aggregates, but the game does not invent
 their detailed Match histories. A trophy is described only when participation
 evidence supports the Player's attribution.
 
+## P2-016 Playing-Career conclusion
+
+Retirement is a factual conclusion to the Career the Player actually played.
+The final summary identifies the Career span, final Club or free-agent state,
+Club and international totals, Club journey, honours, awards, personal bests,
+and meaningful milestones already present in Legacy. A limited Career is
+described respectfully without being promoted to a legend; a decorated star
+receives stronger public context only because canonical achievements support
+it.
+
+The active Career surfaces use `Career phase`, `Late Career`, and a single
+retirement decision only when the Season boundary makes it actionable. After
+retirement, Legacy is the primary read-only summary and the Player remains
+available for history, Pulse, and world browsing but cannot continue playing,
+train, transfer, sign a playing Contract, or receive new routine Career
+activity. Echo/Pulse may acknowledge the factual retirement once; Pulse does
+not invent a farewell Match or a post-Career life.
+
 ---
 
 # Club History

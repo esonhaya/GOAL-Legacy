@@ -129,6 +129,9 @@ final class CareerMovementService
         if ($player->isRetired()) {
             return [];
         }
+        if ($this->hasOpenRetirementDecision($database, $playerId, $date)) {
+            return [];
+        }
         $sourceMembership = $this->currentMembership($database, $playerId, $seasonId);
         $sourceContract = $this->contractService->repository($database)->activeForPlayer($playerId);
         if ($sourceMembership === null || $sourceContract === null || $sourceContract->clubId()->value() !== $sourceMembership->clubId()->value()) {
@@ -201,6 +204,9 @@ final class CareerMovementService
         $player = (new PlayerRepository($database))->get($playerId);
         if ($player->isRetired()) {
             throw new TransferException('Retired Players cannot request a transfer.');
+        }
+        if ($this->hasOpenRetirementDecision($database, $playerId, $date)) {
+            throw new TransferException('Resolve the retirement decision before requesting a transfer.');
         }
         $membership = $this->currentMembership($database, $playerId, $season->id());
         $contract = $this->contractService->repository($database)->activeForPlayer($playerId);
@@ -670,7 +676,7 @@ final class CareerMovementService
         $playerId = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
         $originClubId = $originClubId instanceof ClubId ? $originClubId : new ClubId($originClubId);
         $player = (new PlayerRepository($database))->get($playerId);
-        if ($player->isRetired() || !in_array($playerId->value(), (new CareerPlayerRepository($database))->playerIds(), true) || $this->contractService->repository($database)->activeForPlayer($playerId) !== null || $this->currentMembership($database, $playerId, $season->id()) !== null) {
+        if ($player->isRetired() || $this->hasOpenRetirementDecision($database, $playerId, $date) || !in_array($playerId->value(), (new CareerPlayerRepository($database))->playerIds(), true) || $this->contractService->repository($database)->activeForPlayer($playerId) !== null || $this->currentMembership($database, $playerId, $season->id()) !== null) {
             return null;
         }
         $source = $this->clubService->repository($database)->get($originClubId);
@@ -710,6 +716,17 @@ final class CareerMovementService
         }
 
         return array_values(array_filter($repository->openForPlayer($id, $date), static fn (CareerOpportunity $opportunity): bool => $opportunity->type() === CareerOpportunityType::TransferInterest));
+    }
+
+    private function hasOpenRetirementDecision(DatabaseInterface $database, PlayerId $playerId, SimulationDate $date): bool
+    {
+        foreach ((new CareerOpportunityRepository($database))->openForPlayer($playerId, $date) as $opportunity) {
+            if ($opportunity->type() === CareerOpportunityType::Retirement) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function inspect(DatabaseInterface $database, string $offerId): CareerOpportunity

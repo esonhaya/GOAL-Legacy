@@ -11,4 +11,5 @@ enum CareerOpportunityType: string
     case TransferInterest = 'transfer_interest';
     case RoleReassessment = 'role_reassessment';
     case ContractRenewal = 'contract_renewal';
+    case Retirement = 'retirement';
 }

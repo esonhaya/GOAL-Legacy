@@ -54,9 +54,10 @@ final class EchoService
     {
         $source = strtolower((string) ($facts['source'] ?? ''));
         $headline = strtolower((string) ($facts['headline'] ?? ''));
-        $kind = str_contains($source . '|' . $headline, 'award') ? 'award'
+        $kind = str_contains($source . '|' . $headline, 'retirement') ? 'retirement'
+            : (str_contains($source . '|' . $headline, 'award') ? 'award'
             : (str_contains($source . '|' . $headline, 'honour') || str_contains($source . '|' . $headline, 'champion') ? 'honour'
-            : (str_contains($source . '|' . $headline, 'record') ? 'record' : 'milestone'));
+            : (str_contains($source . '|' . $headline, 'record') ? 'record' : 'milestone')));
 
         return ['kind' => $kind, 'importance' => (string) ($facts['importance'] ?? 'major'), 'response' => 'achievement'];
     }

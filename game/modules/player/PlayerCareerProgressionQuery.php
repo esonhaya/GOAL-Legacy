@@ -24,6 +24,7 @@ use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerPriorityRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
+use Goal\Legacy\Modules\Player\Persistence\PlayerRetirementRepository;
 use Goal\Legacy\Modules\Transfer\Domain\TransferStatus;
 use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
@@ -41,13 +42,14 @@ final class PlayerCareerProgressionQuery
     {
         $id = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
         $player = (new PlayerServiceProxy($database))->get($id);
+        $retirement = (new PlayerRetirementRepository($database, false))->get($id);
         $development = new PlayerDevelopmentService();
         $statistics = new PlayerCareerStatisticsService();
         $availability = (new PlayerAvailabilityService())->assess($database, $id, $date);
         $squads = $this->clubService->squadRepository($database);
         $allMemberships = $squads->byPlayer($id);
         $contracts = new ContractRepository($database);
-        $activeContract = $contracts->activeForPlayer($id);
+        $activeContract = $player->isRetired() ? null : $contracts->activeForPlayer($id);
         $currentMembership = $this->currentMembership($allMemberships, $activeContract);
         $requestedMembership = $seasonId === null
             ? $currentMembership
@@ -59,7 +61,7 @@ final class PlayerCareerProgressionQuery
         $seasonHistory = $this->seasonHistory($database, $id, $allMemberships, $clubRepository, $competitionRepository);
         $positionCompetition = $this->positionCompetition($database, $currentMembership, $player);
         $careerReference = (new CareerPlayerRepository($database))->byPlayer($id);
-        $openOpportunities = array_values(array_filter(
+        $openOpportunities = $player->isRetired() ? [] : array_values(array_filter(
             (new CareerOpportunityRepository($database))->openForPlayer($id, $date),
             static fn ($opportunity): bool => !$date->isBefore($opportunity->createdDate()),
         ));
@@ -71,6 +73,8 @@ final class PlayerCareerProgressionQuery
             'current_season_id' => $seasonId?->value(),
             'current_season_label' => $seasonId === null ? null : (new SeasonRepository($database))->get($seasonId)->label(),
             'career_state' => $player->careerState()->value,
+            'career_phase' => PlayerLifecycleService::careerPhase($player, $date),
+            'retirement' => $retirement,
             'potential' => $player->potential(),
             'development_profile' => $player->developmentProfile()->value,
             'training_focus' => $development->state($database, $id)->currentFocus()?->value,
@@ -135,8 +139,8 @@ final class PlayerCareerProgressionQuery
             'expiry_date' => $opportunity->expiryDate()?->toIsoString(),
             'options' => $opportunity->context()['options'] ?? [],
         ], $openOpportunities);
-        $summary['available_actions'] = $this->availableActions($careerReference, $activeContract, $currentMembership, $openOpportunities);
-        $pendingCareerEvent = (new CareerEventRepository($database))->pendingForPlayer($id)[0] ?? null;
+        $summary['available_actions'] = $player->isRetired() ? [] : $this->availableActions($careerReference, $activeContract, $currentMembership, $openOpportunities);
+        $pendingCareerEvent = $player->isRetired() ? null : ((new CareerEventRepository($database))->pendingForPlayer($id)[0] ?? null);
         $summary['pending_career_event'] = $pendingCareerEvent?->toArray();
         $summary['career_outlook'] = (new CareerOutlookService())->derive($summary, $date);
         $next = null;

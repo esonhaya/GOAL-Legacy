@@ -153,6 +153,11 @@ final class PlayerFinanceService
     public function purchase(DatabaseInterface $database, PlayerId|string $playerId, string $itemId, SimulationDate $date): array
     {
         $id = $this->id($playerId);
+        $careerState = $database->connection()->prepare('SELECT career_state FROM player_records WHERE id = :player_id');
+        $careerState->execute(['player_id' => $id]);
+        if ((string) $careerState->fetchColumn() === 'retired') {
+            throw new RuntimeException('The playing Career is complete; new lifestyle purchases are unavailable.');
+        }
         $item = LifestyleCatalog::find($itemId);
         if ($item === null) {
             throw new RuntimeException('That lifestyle item is unavailable.');

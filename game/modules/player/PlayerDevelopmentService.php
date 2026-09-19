@@ -173,7 +173,7 @@ final class PlayerDevelopmentService
             throw new \RuntimeException('Season lifecycle Player could not be loaded.');
         }
         $before = $player->overallRating();
-        $deltas = $this->seasonalDecline($player, $date);
+        $deltas = $this->seasonalDecline($player, $date, $performance);
         if ($deltas !== []) {
             $attributes = $player->attributes()->toArray();
             foreach ($deltas as $attribute => $delta) {
@@ -370,15 +370,21 @@ final class PlayerDevelopmentService
     }
 
     /** @return array<string, int> */
-    private function seasonalDecline(Player $player, SimulationDate $date): array
+    private function seasonalDecline(Player $player, SimulationDate $date, ?SeasonPerformanceAssessment $performance = null): array
     {
         $age = $player->ageAt($date);
         if ($age < 31) {
             return [];
         }
-        $pace = $age >= 36 ? -2 : -1;
-        $physicality = $age >= 35 ? -2 : -1;
-        $technical = $age >= 38 ? -1 : 0;
+        // A productive veteran can slow, but not erase, the normal age
+        // pressure. Poor or unobserved seasons retain the ordinary curve.
+        $grace = $performance !== null && in_array($performance->classification(), ['breakout', 'strong'], true) ? 1 : 0;
+        $pace = $age >= 36 ? -max(1, 2 - $grace) : -1;
+        $physicality = $age >= 35 ? -max(1, 2 - $grace) : -1;
+        $technical = $age >= 38 && $grace === 0 ? -1 : 0;
+        if ($player->primaryPosition()->value === 'GK') {
+            $pace = 0;
+        }
         $deltas = ['pace' => $pace, 'physicality' => $physicality];
         if ($technical !== 0) {
             $deltas['shooting'] = $technical;

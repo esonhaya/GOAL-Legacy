@@ -23,6 +23,7 @@ use Goal\Legacy\Modules\Player\Persistence\CareerEventRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerLegacyRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
+use Goal\Legacy\Modules\Player\Persistence\PlayerRetirementRepository;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -103,7 +104,7 @@ final class CareerLegacyService
         $stats = (new PlayerCareerStatisticsService())->careerDetailed($database, $playerId);
         $international = $this->internationalStatsReadOnly($database, $playerId);
         $clubs = [];
-        $clubRows = $database->connection()->prepare('SELECT DISTINCT club_id FROM club_squad_memberships WHERE player_id = :player_id ORDER BY club_id ASC');
+        $clubRows = $database->connection()->prepare('SELECT club_id FROM club_squad_memberships WHERE player_id = :player_id GROUP BY club_id ORDER BY MIN(season_id) ASC, club_id ASC');
         $clubRows->execute(['player_id' => $playerId]);
         foreach ($clubRows->fetchAll(\PDO::FETCH_COLUMN) as $clubId) {
             $club = $this->clubs->repository($database)->get(new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $clubId));
@@ -113,10 +114,17 @@ final class CareerLegacyService
         $seasonRows->execute(['player_id' => $playerId]);
         $seasons = array_values(array_unique(array_map('strval', $seasonRows->fetchAll(\PDO::FETCH_COLUMN))));
         $span = ['start' => null, 'latest' => null];
+        $retirement = (new PlayerRetirementRepository($database, false))->get($playerId);
         if ($seasons !== []) {
             $seasonRepository = new \Goal\Legacy\Modules\World\Persistence\SeasonRepository($database);
             $span['start'] = $seasonRepository->get($seasons[0])->label();
             $span['latest'] = $seasonRepository->get($seasons[array_key_last($seasons)])->label();
+            $span['seasons_played'] = count($seasons);
+            if ($retirement !== null && $retirement['retirement_season_id'] !== '' && $seasonRepository->exists((string) $retirement['retirement_season_id'])) {
+                $span['retirement'] = $seasonRepository->get((string) $retirement['retirement_season_id'])->label();
+            }
+        } else {
+            $span['seasons_played'] = 0;
         }
         $awards = $legacy->awardsForPlayer($playerId);
         foreach ($awards as &$award) {
@@ -126,6 +134,7 @@ final class CareerLegacyService
 
         return [
             'career_span' => $span,
+            'retirement' => $retirement,
             'clubs' => $clubs,
             'club_stats' => $stats,
             'international_stats' => $international,

@@ -172,6 +172,9 @@ final class CareerPresentationService
             'priority' => $controlled ? $controlledSummary['priority'] ?? null : null,
             'contract' => $controlled ? $controlledSummary['current_contract'] ?? null : null,
             'market' => $market,
+            'career_state' => $controlled ? ($controlledSummary['career_state'] ?? $player->careerState()->value) : $player->careerState()->value,
+            'career_phase' => $controlled ? ($controlledSummary['career_phase'] ?? null) : null,
+            'retirement' => $controlled ? ($controlledSummary['retirement'] ?? null) : null,
         ];
     }
 
@@ -553,6 +556,29 @@ final class CareerPresentationService
         $decision = $pending[0];
         $options = is_array($decision['options'] ?? null) ? $decision['options'] : [];
         $context = $this->opportunityContext($database, (string) ($decision['id'] ?? ''));
+        if (($context['decision_kind'] ?? $decision['type'] ?? null) === 'retirement') {
+            $legacy = $this->legacyService()->summary($database, (string) (($summary['player']['id'] ?? '')));
+            $performance = is_array($context['performance'] ?? null) ? $context['performance'] : [];
+            $finalClub = (string) ($context['final_club_id'] ?? '');
+            $finalClubName = $finalClub === '' || $finalClub === 'free-agent' ? 'Free Agent' : ($this->services->clubModule()->service()->repository($database)->get($finalClub)->canonicalName());
+            return [
+                'id' => $decision['id'] ?? null,
+                'type' => $decision['type'] ?? null,
+                'decision_kind' => 'retirement',
+                'current_club' => $finalClubName,
+                'current_competition' => null,
+                'contract' => $this->contractText($summary['current_contract'] ?? null),
+                'age' => $context['age'] ?? $summary['age'] ?? null,
+                'career_phase' => $context['phase'] ?? $summary['career_phase'] ?? null,
+                'role' => $context['role'] ?? $summary['current_role'] ?? null,
+                'ovr' => $context['ovr'] ?? $summary['current_ovr'] ?? null,
+                'performance' => $performance['classification'] ?? null,
+                'career_stats' => $summary['career_stats'] ?? [],
+                'honours' => count((array) ($legacy['honours'] ?? [])),
+                'awards' => count((array) ($legacy['awards'] ?? [])),
+                'options' => array_values(array_map(static fn (array $option): array => ['id' => $option['id'] ?? null, 'label' => CareerLabels::value($option['id'] ?? null, 'Available choice'), 'club' => null, 'role' => null, 'wage' => null, 'contract_end_date' => null, 'reasons' => [], 'club_level' => null, 'projected_role' => null, 'european_qualification' => false, 'market_path' => null], array_filter($options, 'is_array'))),
+            ];
+        }
         $seasonId = isset($context['season_id']) && is_string($context['season_id']) ? new SeasonId($context['season_id']) : null;
         $clubs = $this->services->clubModule()->service()->repository($database);
         $competitions = new CompetitionRepository($database);
@@ -599,7 +625,7 @@ final class CareerPresentationService
         $currentClub = is_array($summary['current_club'] ?? null) ? ($summary['current_club']['name'] ?? null) : null;
         $currentCompetition = is_array($summary['current_competition'] ?? null) ? $summary['current_competition'] : null;
         $contextCurrentClubId = (string) ($context['current_club_id'] ?? $context['source_club_id'] ?? '');
-        if ($currentClub === null && $contextCurrentClubId !== '') {
+        if ($currentClub === null && $contextCurrentClubId !== '' && $contextCurrentClubId !== 'free-agent') {
             $currentClubRecord = $clubs->get($contextCurrentClubId);
             $currentClub = $currentClubRecord->canonicalName();
             if ($seasonId !== null) {

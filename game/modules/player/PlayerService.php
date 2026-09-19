@@ -28,6 +28,7 @@ final class PlayerService
         private readonly ?PlayerFinanceService $financeService = null,
         private readonly ?FootballSocialService $socialService = null,
         private readonly ?PulseService $pulseService = null,
+        private readonly ?PlayerLifecycleService $lifecycleService = null,
     ) {
     }
 
@@ -83,6 +84,11 @@ final class PlayerService
     public function pulseService(): PulseService
     {
         return $this->pulseService ?? new PulseService();
+    }
+
+    public function lifecycleService(): PlayerLifecycleService
+    {
+        return $this->lifecycleService ?? new PlayerLifecycleService($this->developmentService(), new \Goal\Legacy\Modules\Contract\ContractService());
     }
 
     /** @return list<Player> */

@@ -29,6 +29,8 @@ final class CareerFormatter
         $lines[] = 'PLAYER';
         $lines[] = 'Name: ' . $this->text($player['preferred_name'] ?? null, 'Unknown player');
         $lines[] = 'Age: ' . $this->number($summary['age'] ?? null);
+        $lines[] = 'Career Phase: ' . CareerLabels::value($summary['career_phase'] ?? null, 'Active');
+        $lines[] = 'Career Status: ' . CareerLabels::value($summary['career_state'] ?? 'active');
         $lines[] = 'Nationality: ' . CareerLabels::nationality($player['primary_nation_id'] ?? null);
         $lines[] = 'Position: ' . CareerLabels::position($player['primary_position'] ?? null);
         $lines[] = 'Club: ' . ($club['name'] ?? 'Free Agent');
@@ -87,7 +89,7 @@ final class CareerFormatter
 
         $lines[] = '';
         $lines[] = 'ACTIONS';
-        $lines[] = '1. Continue';
+        $lines[] = ($summary['career_state'] ?? 'active') === 'retired' ? '1. Career Complete — review Legacy' : '1. Continue';
         $lines[] = '2. Career';
         $lines[] = '3. World';
         $lines[] = '4. News';
@@ -127,6 +129,14 @@ final class CareerFormatter
         }
         if (trim((string) ($decision['contract'] ?? '')) !== '') {
             $lines[] = 'Contract: ' . (string) $decision['contract'];
+        }
+        if (($decision['decision_kind'] ?? null) === 'retirement') {
+            $lines[] = 'Age: ' . $this->number($decision['age'] ?? null);
+            $lines[] = 'Career phase: ' . CareerLabels::value($decision['career_phase'] ?? null);
+            $lines[] = 'Recent role: ' . CareerLabels::value($decision['role'] ?? null, 'Not assigned');
+            $lines[] = 'Recent performance: ' . CareerLabels::value($decision['performance'] ?? null, 'Not enough evidence');
+            $lines[] = 'Career record: ' . $this->number(((array) ($decision['career_stats'] ?? []))['appearances'] ?? 0) . ' apps · ' . $this->number(((array) ($decision['career_stats'] ?? []))['goals'] ?? 0) . ' goals · ' . $this->number(((array) ($decision['career_stats'] ?? []))['assists'] ?? 0) . ' assists';
+            $lines[] = 'Honours: ' . $this->number($decision['honours'] ?? 0) . ' | Awards: ' . $this->number($decision['awards'] ?? 0);
         }
         $lines[] = '';
         $lines[] = 'OPTIONS';

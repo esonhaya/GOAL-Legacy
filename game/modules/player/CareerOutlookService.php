@@ -34,6 +34,19 @@ final class CareerOutlookService
             'higher_ovr_count' => $higherOvrCount,
         ];
 
+        if (($summary['career_state'] ?? 'active') === 'retired') {
+            return $this->result('career_complete', 'Career complete', 'none', 'retired', 'none', array_merge($evidence, ['career_phase' => 'retired']), [
+                $this->guidance('open_legacy', 'Your playing Career is complete. Your Legacy remains available to review.', 'legacy'),
+            ]);
+        }
+        foreach ($pending as $decision) {
+            if (($decision['type'] ?? null) === 'retirement') {
+                return $this->result('retirement_decision', 'Retirement decision', $opportunity, $contractOutlook, $transferOutlook, array_merge($evidence, ['career_phase' => $summary['career_phase'] ?? null]), [
+                    $this->guidance('resolve_retirement', 'Your Season boundary has opened a decision about continuing your playing Career.', 'resolve_opportunity'),
+                ]);
+            }
+        }
+
         if ($contract === null || ($summary['current_club'] ?? null) === null) {
             return $this->result('free_agent', 'Free agent', 'none', 'no_active_contract', 'none', $evidence, [
                 $this->guidance('free_agent', 'You are currently a free agent.', null),
@@ -57,6 +70,12 @@ final class CareerOutlookService
         if ($contractOutlook === 'approaching_decision') {
             return $this->result('contract_uncertainty', 'Contract decision approaching', $opportunity, $contractOutlook, $transferOutlook, $evidence, [
                 $this->guidance('contract_review', 'Your Contract decision is approaching.', null),
+            ]);
+        }
+
+        if (($summary['career_phase'] ?? null) === 'decline') {
+            return $this->result('late_career', 'Late Career', $opportunity, $contractOutlook, $transferOutlook, array_merge($evidence, ['career_phase' => 'decline']), [
+                $this->guidance('late_career', 'Your playing Career is entering its final phase; football evidence still matters.', null),
             ]);
         }
 

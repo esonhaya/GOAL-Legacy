@@ -936,16 +936,32 @@ final class CareerPresentationService
         $players = new PlayerRepository($database);
         $lines = [];
         $timeline = is_array($story['timeline'] ?? null) ? $story['timeline'] : [];
+        $playerIds = [];
+        foreach ($timeline as $event) {
+            foreach ([$event['player_id'] ?? null, $event['assist_player_id'] ?? null] as $candidate) {
+                if (is_string($candidate) && $candidate !== '') { $playerIds[] = $candidate; }
+            }
+            foreach (['incoming_player_id', 'outgoing_player_id'] as $key) {
+                $candidate = is_array($event['data'] ?? null) ? ($event['data'][$key] ?? null) : null;
+                if (is_string($candidate) && $candidate !== '') { $playerIds[] = $candidate; }
+            }
+        }
+        $playersById = [];
+        foreach ($players->byIds(array_values(array_unique($playerIds))) as $record) { $playersById[$record->id()->value()] = $record->preferredName(); }
+        $clubNames = [
+            $match->homeClubId()->value() => $this->teamName($database, $match->homeClubId()->value()),
+            $match->awayClubId()->value() => $this->teamName($database, $match->awayClubId()->value()),
+        ];
         foreach ($timeline as $event) {
             $type = (string) ($event['type'] ?? '');
             $minute = (int) ($event['minute'] ?? 0);
             $clubId = (string) ($event['club_id'] ?? '');
-            $clubName = $clubId === '' ? 'Club' : $this->teamName($database, $clubId);
+            $clubName = $clubNames[$clubId] ?? 'Club';
             $playerIdForEvent = is_string($event['player_id'] ?? null) ? $event['player_id'] : null;
-            $playerName = $playerIdForEvent === null ? null : $players->get($playerIdForEvent)->preferredName();
+            $playerName = $playerIdForEvent === null ? null : ($playersById[$playerIdForEvent] ?? 'Player');
             if ($type === 'goal') {
                 $assistId = is_string($event['assist_player_id'] ?? null) ? $event['assist_player_id'] : null;
-                $assist = $assistId === null ? null : $players->get($assistId)->preferredName();
+                $assist = $assistId === null ? null : ($playersById[$assistId] ?? 'Player');
                 $score = (array) ($event['score_after'] ?? []);
                 $scoreText = (int) ($score['home'] ?? 0) . '-' . (int) ($score['away'] ?? 0);
                 $lead = ((string) ($event['importance'] ?? '') === 'decisive') ? ' decisively' : '';
@@ -960,8 +976,8 @@ final class CareerPresentationService
                 $data = (array) ($event['data'] ?? []);
                 $incomingId = (string) ($data['incoming_player_id'] ?? $playerIdForEvent ?? '');
                 $outgoingId = (string) ($data['outgoing_player_id'] ?? '');
-                $incoming = $incomingId === '' ? 'Player' : $players->get($incomingId)->preferredName();
-                $outgoing = $outgoingId === '' ? 'Player' : $players->get($outgoingId)->preferredName();
+                $incoming = $incomingId === '' ? 'Player' : ($playersById[$incomingId] ?? 'Player');
+                $outgoing = $outgoingId === '' ? 'Player' : ($playersById[$outgoingId] ?? 'Player');
                 $lines[] = $minute . "' " . ($incomingId === $playerId ? 'YOU ENTER THE MATCH' : ($outgoingId === $playerId ? 'YOU LEAVE THE MATCH' : 'SUBSTITUTION')) . ' — ' . $incoming . ' on for ' . $outgoing . ' (' . $clubName . ')';
             } elseif ($type === 'yellow_card' || $type === 'red_card') {
                 $label = $type === 'red_card' ? 'RED CARD — SENT OFF' : 'YELLOW CARD';

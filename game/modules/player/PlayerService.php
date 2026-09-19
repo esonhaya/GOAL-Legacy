@@ -27,6 +27,7 @@ final class PlayerService
         private readonly ?PlayerPopulationService $populationService = null,
         private readonly ?PlayerFinanceService $financeService = null,
         private readonly ?FootballSocialService $socialService = null,
+        private readonly ?PulseService $pulseService = null,
     ) {
     }
 
@@ -76,7 +77,12 @@ final class PlayerService
 
     public function socialService(): FootballSocialService
     {
-        return $this->socialService ?? new FootballSocialService($this->clubService);
+        return $this->socialService ?? new FootballSocialService($this->clubService, $this->pulseService());
+    }
+
+    public function pulseService(): PulseService
+    {
+        return $this->pulseService ?? new PulseService();
     }
 
     /** @return list<Player> */

@@ -15,6 +15,7 @@ use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerAvailabilityRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
+use Goal\Legacy\Modules\Player\PulseService;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -33,7 +34,7 @@ final class NationalTeamService
     private const SQUADS = 'international_team_squads';
     private const STATS = 'international_player_statistics';
 
-    public function __construct(private readonly NationService $nations)
+    public function __construct(private readonly NationService $nations, private readonly ?PulseService $pulse = null)
     {
     }
 
@@ -95,6 +96,7 @@ final class NationalTeamService
     public function ensureSeason(DatabaseInterface $database, Season $season): void
     {
         $this->initializeSchema($database);
+        $this->pulse?->initializeSchema($database);
         $playerTable = (int) $database->connection()->query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'player_records'")->fetchColumn();
         $allPlayers = $playerTable > 0 ? (new PlayerRepository($database))->all() : [];
         foreach ($this->nations->loadSelected() as $nation) {
@@ -241,6 +243,7 @@ final class NationalTeamService
                 if ($events->bySourceKey($sourceKey) === null) {
                     $event = CareerEvent::pending('career-' . hash('sha256', $sourceKey), $player->id(), $season->id(), $season->startDate(), $sourceKey, 'international', 'first_call_up', 'First senior call-up', 'A first senior national-team call-up opened a new international chapter of the Career.', [], ['historyworthy' => true, 'newsworthy' => true, 'competition' => 'international'])->resolved('record', ['milestone' => 'first_call_up', 'history' => 'Received a first senior international call-up.']);
                     $events->saveInTransaction($event);
+                    $this->pulse?->recordAchievement($database, $player->id(), $season->startDate(), $sourceKey, 'First senior international call-up', 'major');
                 }
             }
         }

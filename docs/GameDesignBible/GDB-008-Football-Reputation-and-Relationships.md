@@ -57,3 +57,18 @@ and modest public, supporter, or manager reaction, but never change OVR,
 attributes, wages, Match outcomes, or relationship counts. NPC award winners
 are allowed from compact football evidence; NPC social simulation remains out
 of scope.
+
+## P2-015 PULSE
+
+PULSE is the fictional, reusable player-facing social-media brand. ECHO is a
+deterministic narrative filter between canonical football facts and public
+reaction. Match, transfer, award, international, availability, supporter, and
+relationship services remain authoritative; PULSE cannot create a football
+fact or a second reputation/supporter/relationship score.
+
+The controlled Player may see bounded posts from aggregate supporters, Clubs,
+media, competitions, national teams, valid teammates, valid rivals, and the
+Player. Curated responses are optional and silence is always valid. Audience is
+a descriptive, bounded Career signal, not currency, income, or a Match bonus.
+Pulse wording is deterministic and evidence-bound; quiet Matches and NPC World
+Matches do not receive invented social histories.

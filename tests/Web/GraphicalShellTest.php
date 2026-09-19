@@ -145,6 +145,14 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('Transfer Market', $home['body']);
             self::assertStringContainsString('Manager relationship', $home['body']);
             self::assertStringNotContainsString('No active Club manager', $home['body']);
+            $pulseSources = (int) $database->connection()->query('SELECT COUNT(*) FROM pulse_feed_sources')->fetchColumn();
+            $pulsePosts = (int) $database->connection()->query('SELECT COUNT(*) FROM pulse_posts')->fetchColumn();
+            $pulse = $this->application->handle('GET', '/', ['page' => 'pulse', 'save' => $save], [], $session);
+            self::assertSame(200, $pulse['status']);
+            self::assertStringContainsString('PULSE FEED', $pulse['body']);
+            self::assertStringContainsString('Public reaction derived from canonical football facts', $pulse['body']);
+            self::assertSame($pulseSources, (int) $database->connection()->query('SELECT COUNT(*) FROM pulse_feed_sources')->fetchColumn());
+            self::assertSame($pulsePosts, (int) $database->connection()->query('SELECT COUNT(*) FROM pulse_posts')->fetchColumn());
             $market = $this->application->handle('GET', '/', ['page' => 'market', 'save' => $save], [], $session);
             self::assertSame(200, $market['status']);
             self::assertStringContainsString('TRANSFER MARKET', $market['body']);

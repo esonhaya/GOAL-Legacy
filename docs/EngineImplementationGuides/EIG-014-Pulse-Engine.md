@@ -7,6 +7,22 @@ Title: Pulse Engine
 Version: 1.0
 Status: Approved Blueprint
 
+## P2-015 naming boundary
+
+This historical blueprint uses “Pulse Engine” for an internal trend/momentum
+concept. The current player-facing brand is written `PULSE`, and its football
+integration is implemented by `PulseService`. `EchoService` selects noteworthy
+canonical facts before Pulse presentation. The old internal term is retained
+here to avoid a broad architectural rename; new user-facing or integration
+documentation must use PULSE for the platform and ECHO for routing.
+
+P2-015 deliberately does not implement the world-wide trend managers,
+individual AI participants, popularity history, or global archive described as
+future blueprint concepts below. Goal: Legacy persists only controlled-player
+Pulse sources/posts, one audience state, and curated response state. NPCs may
+appear as contextual actor labels but do not receive Pulse accounts or social
+careers.
+
 Dependencies
 
 - Core Engine

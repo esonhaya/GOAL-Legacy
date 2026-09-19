@@ -8,7 +8,9 @@ use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Core\Persistence\SchemaInitializationGuard;
 use Goal\Legacy\Modules\Club\ClubService;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
+use Goal\Legacy\Modules\Match\Domain\PlayerMatchStat;
 use Goal\Legacy\Modules\Match\Domain\SimulationFidelity;
+use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Competition\Persistence\CompetitionRepository;
 use Goal\Legacy\Modules\Player\Domain\CareerEvent;
@@ -31,7 +33,7 @@ final class FootballSocialService
     private const HISTORY = 'player_social_history';
     private const SOURCES = 'player_social_sources';
 
-    public function __construct(private readonly ?ClubService $clubs = null) {}
+    public function __construct(private readonly ?ClubService $clubs = null, private readonly ?PulseService $pulse = null) {}
 
     public function initializeSchema(DatabaseInterface $database): void
     {
@@ -45,6 +47,7 @@ final class FootballSocialService
             $connection->exec('CREATE INDEX IF NOT EXISTS idx_social_history_player ON ' . self::HISTORY . ' (player_id, visible, event_date DESC)');
             $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::SOURCES . ' (player_id TEXT NOT NULL, source_key TEXT NOT NULL, occurred_date TEXT NOT NULL, PRIMARY KEY (player_id, source_key))');
         });
+        $this->pulse?->initializeSchema($database);
     }
 
     /** @return array<string, mixed> */
@@ -99,6 +102,7 @@ final class FootballSocialService
     public function initializeCareer(DatabaseInterface $database, Player $player, string $clubId, string $role, SimulationDate $date): void
     {
         $this->ensureState($database, $player->id(), $date, $clubId, $role);
+        $this->pulse?->initializePlayer($database, $player->id(), $date, match ($role) { 'key_player' => 28, 'regular' => 20, 'rotation' => 12, default => 7 });
     }
 
     public function recordMatch(DatabaseInterface $database, GameMatch $match, SimulationFidelity $fidelity): void
@@ -169,6 +173,10 @@ final class FootballSocialService
                         $this->writeHistory($database, $playerId, 'rivalry-started|' . $match->id()->value(), $date, 'rivalry', 'major', 'A meaningful football rivalry begins', 'A major Match created a recurring football context.', null, (string) $opponentId);
                     }
                 }
+                $canonicalStat = array_values(array_filter((new PlayerMatchStatRepository($database))->byMatch($match->id()), static fn (PlayerMatchStat $candidate): bool => $candidate->playerId()->value() === $playerId))[0] ?? null;
+                if ($canonicalStat !== null) {
+                    $this->pulse?->recordMatchInTransaction($database, $match, $canonicalStat);
+                }
             });
         }
     }
@@ -205,15 +213,38 @@ final class FootballSocialService
         if (($social['history'] ?? false) === true) {
             $this->writeHistory($database, $playerId, 'choice-history|' . $event->id(), $date, 'social', 'notable', (string) ($choice['history'] ?? 'A meaningful football relationship took shape.'), 'A Career decision changed the Player social context.', (string) ($state['current_club_id'] ?? '') ?: null);
         }
+        $this->pulse?->recordCareerChoiceInTransaction($database, $event->playerId(), $date, $source, $event->category(), (bool) ($event->context()['newsworthy'] ?? false), $choice);
     }
 
-    public function recordTransferRequest(DatabaseInterface $database, PlayerId|string $playerId, SimulationDate $date): void { $this->adjust($database, $playerId, $date, 'transfer-request|' . $date->toIsoString(), -4, -12, -10, 'Transfer request changes the Club conversation.'); }
-    public function recordTransferWithdrawal(DatabaseInterface $database, PlayerId|string $playerId, SimulationDate $date): void { $this->adjust($database, $playerId, $date, 'transfer-withdrawal|' . $date->toIsoString(), 1, 8, 5, 'Withdrawing a transfer request begins to repair the Club relationship.'); }
+    /** @param list<array{event:string,payload:array<string,mixed>}> $changes */
+    public function recordAvailabilityChanges(DatabaseInterface $database, array $changes): void
+    {
+        if ($this->pulse === null || $changes === []) { return; }
+        $controlled = array_fill_keys((new CareerPlayerRepository($database))->playerIds(), true);
+        foreach ($changes as $change) {
+            $payload = $change['payload'] ?? [];
+            if (!is_array($payload) || !isset($controlled[(string) ($payload['player_id'] ?? '')])) { continue; }
+            $this->pulse->recordAvailabilityChange($database, $payload, (string) ($change['event'] ?? ''));
+        }
+    }
+
+    public function recordTransferRequest(DatabaseInterface $database, PlayerId|string $playerId, SimulationDate $date): void
+    {
+        $this->adjust($database, $playerId, $date, 'transfer-request|' . $date->toIsoString(), -4, -12, -10, 'Transfer request changes the Club conversation.');
+        $this->pulse?->recordTransfer($database, $playerId, null, null, $date, 'request');
+    }
+
+    public function recordTransferWithdrawal(DatabaseInterface $database, PlayerId|string $playerId, SimulationDate $date): void
+    {
+        $this->adjust($database, $playerId, $date, 'transfer-withdrawal|' . $date->toIsoString(), 1, 8, 5, 'Withdrawing a transfer request begins to repair the Club relationship.');
+        $this->pulse?->recordTransfer($database, $playerId, null, null, $date, 'withdrawal');
+    }
 
     public function recordTransfer(DatabaseInterface $database, PlayerId|string $playerId, ?string $oldClubId, ?string $newClubId, SimulationDate $date): void
     {
         if ($oldClubId !== null && $oldClubId !== '' && $oldClubId === $newClubId) {
             $this->adjust($database, $playerId, $date, 'contract-stay|' . $newClubId . '|' . $date->toIsoString(), 1, 5, 5, 'A Contract decision keeps the Club relationship moving forward.');
+            $this->pulse?->recordTransfer($database, $playerId, $oldClubId, $newClubId, $date, 'contract');
             return;
         }
         $id = $this->id($playerId); $state = $this->ensureState($database, $id, $date, $newClubId);
@@ -222,6 +253,7 @@ final class FootballSocialService
         if ($oldClubId !== null && $oldClubId !== '') { $this->markFormer($database, $id->value(), $oldClubId); }
         if ($newClubId !== null && $newClubId !== '') { $this->writeClubContext($database, $id->value(), $newClubId, $date, 10, 0, 'neutral', 50, 'professional', false); }
         $this->writeHistory($database, $id->value(), 'transfer-social|' . ($newClubId ?? 'free-agent') . '|' . $date->toIsoString(), $date, 'social', 'notable', 'A new Club chapter changes the public conversation', 'Transfer context is preserved without deleting prior relationships.', $newClubId);
+        $this->pulse?->recordTransfer($database, $id, $oldClubId, $newClubId, $date);
     }
 
     public function recordAchievement(DatabaseInterface $database, PlayerId|string $playerId, SimulationDate $date, string $source, string $headline, string $importance = 'major', ?string $clubId = null): void
@@ -259,6 +291,7 @@ final class FootballSocialService
             'updated_date' => $date->toIsoString(),
         ]);
         $this->writeHistory($database, $id->value(), $source, $date, 'achievement', $importance, $headline, 'A canonical football achievement changed the public Career context.', $clubId ?? ($state['current_club_id'] === null ? null : (string) $state['current_club_id']));
+        $this->pulse?->recordAchievementInTransaction($database, $id, $date, $source, $headline, $importance, $clubId ?? ($state['current_club_id'] === null ? null : (string) $state['current_club_id']));
     }
 
     /** @return list<array<string, mixed>> */

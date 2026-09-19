@@ -44,6 +44,7 @@ final class WebView
                 'legacy' => ['Legacy', 'legacy'],
                 'market' => ['Transfer Market', 'market'],
                 'relationships' => ['Relationships', 'relationships'],
+                'pulse' => ['Pulse', 'pulse'],
                 'squad' => ['Squad', 'squad'],
                 'world' => ['World', 'world'],
                 'international' => ['International', 'international'],

@@ -113,6 +113,11 @@ th { color: var(--muted); font-size: .75rem; letter-spacing: .06em; text-transfo
 .news-item { padding: 17px 0; border-bottom: 1px solid var(--line); }
 .news-item time { color: var(--blue); font-size: .8rem; font-weight: 750; }
 .news-item p { margin: 5px 0 0; font-weight: 700; }
+.pulse-feed { display: grid; gap: 12px; max-width: 840px; }
+.pulse-post { padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: #fbfcff; overflow-wrap: anywhere; }
+.pulse-post-meta { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.pulse-post-meta span, .pulse-post small { color: var(--muted); font-size: .8rem; }
+.pulse-post p { margin: 10px 0 8px; font-weight: 650; }
 .player-card { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; transition: transform .15s, box-shadow .15s; }
 .player-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 .player-card-info { min-width: 0; display: grid; gap: 4px; }

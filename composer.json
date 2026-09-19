@@ -44,7 +44,7 @@
         "test": "@php vendor/bin/phpunit",
         "test:core": "@php vendor/bin/phpunit --testsuite core",
         "test:additional": "@php vendor/bin/phpunit --testsuite additional",
-        "test:all": "@php vendor/bin/phpunit --testsuite core --testsuite additional",
+        "test:all": "@php vendor/bin/phpunit",
         "doctor": "@php game/devtools/console.php doctor",
         "core:self-check": "@php game/devtools/console.php core:self-check",
         "time:self-check": "@php game/devtools/console.php time:self-check",

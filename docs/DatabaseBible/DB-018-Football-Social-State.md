@@ -20,3 +20,19 @@ The schema is initialized additively by World load/initialize and by the
 canonical owners that may consume a legacy save. Reading context does not
 insert a Player row. Initial bootstrap is current-state only and does not
 rewrite Match or Career History.
+
+## P2-015 boundary
+
+Pulse is separate additive presentation storage. `pulse_feed_sources` holds a
+stable canonical source key, date, ECHO kind/importance, and compact context;
+`pulse_posts` holds deterministic actor text and aggregate engagement;
+`pulse_player_states` holds one controlled-Player audience state; and
+`pulse_response_states` holds curated pending/resolved responses. These rows
+are not a second social state owner. FootballSocialService remains authoritative
+for supporters, relationships, manager context, and public profile.
+
+Pulse tables are initialized on legacy-save load without replaying historical
+facts. Only controlled Player IDs may receive rows. Retention removes routine
+old source/post/response rows after the bounded feed limit; Career History,
+News, awards, honours, records, and Match statistics retain their own canonical
+history. All Pulse reads are side-effect free.

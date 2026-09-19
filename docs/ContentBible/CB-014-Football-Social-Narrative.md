@@ -17,3 +17,21 @@ feed the same public layer; no competition-specific social engine exists.
 National teams remain generic and unlicensed. International context is
 sporting only and does not implement national politics or a national social
 graph.
+
+## P2-015 PULSE writing boundary
+
+PULSE is public reaction, not a second report or event catalogue. ECHO routes
+canonical facts into a small, deterministic actor voice: aggregate supporters,
+Club, football media, competition, national team, valid teammate, valid rival,
+or the controlled Player. A post must contain evidence for its kind: a goal
+reaction needs a canonical goal, an award reaction needs an earned award, and a
+transfer reaction needs a completed transfer or recorded request. Quiet,
+unused-substitute, and not-selected states do not receive invented Match
+drama.
+
+News states what happened; Career History remembers the durable landmark; Pulse
+shows bounded public response. Curated Player responses are optional and always
+include silence. Templates use isolated deterministic selection, never free
+text, LLM calls, network calls, or random filler. Injury and return language
+uses only recorded availability facts and never speculates about diagnosis or
+recovery timetable.

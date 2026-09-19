@@ -123,6 +123,7 @@ final class MatchService
             if ($application->applied()) { $this->events->dispatch(new GenericEvent('player.developed', $application->toArray())); }
         }
         $this->availability?->dispatchChanges($availability);
+        $this->footballSocial?->recordAvailabilityChanges($database, $availability);
         $this->domesticCups?->recordCompletedMatch($database, $completed);
         $this->europeanCompetitions?->recordCompletedMatch($database, $completed);
         $this->internationalCompetitions?->recordCompletedMatch($database, $completed);

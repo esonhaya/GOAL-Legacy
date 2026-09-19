@@ -124,6 +124,13 @@ Modules respond to these events.
 
 The Core Engine does not process football logic itself.
 
+P2-015 terminology clarification: references below to the historical “Pulse
+Engine” as a registered or ordered module describe an older orchestration
+blueprint. They do not authorize a second social simulation. The current
+player-facing PULSE platform is a controlled-Career presentation service;
+ECHO routes canonical facts to it, while Core/Event infrastructure owns
+execution order.
+
 ---
 
 # Module Registration

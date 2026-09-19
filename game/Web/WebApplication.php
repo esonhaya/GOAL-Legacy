@@ -87,6 +87,7 @@ final class WebApplication
             'squad' => $this->squad($saveId, $session, isset($query['club']) ? (string) $query['club'] : null),
             'profile' => $this->profile($saveId, (string) ($query['player'] ?? ''), $session),
             'relationships' => $this->relationships($saveId, $session),
+            'pulse' => $this->pulse($saveId, $session),
             'world' => $this->world($saveId, $session),
             'international' => $this->international($saveId, $session),
             'national-team' => $this->nationalTeam($saveId, (string) ($query['team'] ?? ''), $session),
@@ -126,6 +127,7 @@ final class WebApplication
                 'request_transfer' => $this->transferRequest($post, $session, false),
                 'withdraw_transfer' => $this->transferRequest($post, $session, true),
                 'accept_transfer_offer' => $this->acceptTransferOffer($post, $session),
+                'resolve_pulse' => $this->resolvePulse($post, $session),
                 default => throw new RuntimeException('That action is not available.'),
             };
         } catch (\Throwable $exception) {
@@ -335,6 +337,27 @@ final class WebApplication
         $session['web_flash'] = $output->messages()[0] ?? 'Career updated.';
 
         return $this->redirect(WebView::url('home', ['save' => $saveId]));
+    }
+
+    /** @param array<string,mixed> $post @param array<string,mixed> $session */
+    private function resolvePulse(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        $sourceKey = trim((string) ($post['source_key'] ?? ''));
+        if ($sourceKey === '' || !$this->consumeToken($session, 'pulse_' . $saveId . '_' . $sourceKey, (string) ($post['token'] ?? ''))) {
+            throw new RuntimeException('That Pulse response has already been handled.');
+        }
+        $database = $this->database($saveId);
+        $worldService = $this->services->worldModule()->service();
+        $world = $worldService->load($database, $saveId);
+        $career = (new CareerPlayerRepository($database))->get($saveId);
+        $choice = trim((string) ($post['choice'] ?? ''));
+        if ($choice === '' || !$this->services->playerModule()->service()->pulseService()->respond($database, $career->playerId(), $sourceKey, $choice, $world->currentDate($worldService->calendar()))) {
+            throw new RuntimeException('That Pulse response is no longer available.');
+        }
+        $session['web_flash'] = 'Your response is now on Pulse.';
+
+        return $this->redirect(WebView::url('pulse', ['save' => $saveId]));
     }
 
     /** Saving is already transactional; this action closes the player session cleanly. */
@@ -620,11 +643,15 @@ final class WebApplication
         $international = (array) ($summary['international'] ?? []);
         $social = (array) ($summary['social'] ?? []);
         $socialBody = '<div class="split-list"><p><span>Public profile</span><strong>' . WebView::e($social['public_profile_label'] ?? 'Unknown') . '</strong></p><p><span>Club standing</span><strong>' . WebView::e($social['club_standing_label'] ?? 'New Arrival') . '</strong></p><p><span>Supporters</span><strong>' . WebView::e($social['supporter_sentiment'] ?? 'Neutral') . '</strong></p><p><span>Manager relationship</span><strong>' . WebView::e($social['manager_relationship'] ?? 'Professional') . '</strong></p></div><p>' . WebView::link('relationships', ['save' => $saveId], 'View relationships', 'button button-secondary') . '</p>';
+        $pulse = (array) ($summary['pulse'] ?? []);
+        $pulseFeed = '';
+        foreach ((array) ($summary['pulse_feed'] ?? []) as $item) { if (is_array($item)) { $pulseFeed .= '<li><strong>' . WebView::e($item['actor_name'] ?? 'Football world') . '</strong> ' . WebView::e($item['text'] ?? '') . '</li>'; } }
+        $pulseBody = '<div class="stat-grid compact">' . WebView::stat('Audience', $pulse['audience_band'] ?? 'Local Following') . WebView::stat('Following', $pulse['followers_label'] ?? '120') . '</div>' . ($pulseFeed === '' ? WebView::emptyState('Your football story is only starting to get noticed.') : '<ul class="fixture-list">' . $pulseFeed . '</ul>') . '<p>' . WebView::link('pulse', ['save' => $saveId], 'Open Pulse', 'button button-secondary') . '</p>';
         $internationalBody = '<div class="split-list"><p><span>Country</span><strong>' . WebView::e($international['country'] ?? $summary['player']['primary_nation_id'] ?? '') . '</strong></p><p><span>Selection</span><strong>' . WebView::e(CareerLabels::value($international['selection_status'] ?? 'not_selected')) . '</strong></p><p><span>Caps</span><strong>' . WebView::e((int) (($international['stats']['caps'] ?? 0))) . '</strong></p></div>';
         $clubBody = $clubContext === null ? WebView::emptyState('League position is not available for this fixture context.') : '<div class="stat-grid compact">' . WebView::stat('Position', $clubContext['position'] ?? '—') . WebView::stat('Played', $clubContext['played'] ?? 0) . WebView::stat('Points', $clubContext['points'] ?? 0) . '</div>';
-        $actions = '<div class="action-grid">' . $this->primaryCareerAction($saveId, $summary, $session, $next) . WebView::link('career', ['save' => $saveId], 'Career') . WebView::link('squad', ['save' => $saveId], 'Squad') . WebView::link('world', ['save' => $saveId], 'World') . WebView::link('news', ['save' => $saveId], 'News') . WebView::link('relationships', ['save' => $saveId], 'Relationships') . WebView::link('training', ['save' => $saveId], 'Training') . WebView::link('finances', ['save' => $saveId], 'Finances') . WebView::link('lifestyle', ['save' => $saveId], 'Lifestyle') . '</div>';
+        $actions = '<div class="action-grid">' . $this->primaryCareerAction($saveId, $summary, $session, $next) . WebView::link('career', ['save' => $saveId], 'Career') . WebView::link('squad', ['save' => $saveId], 'Squad') . WebView::link('world', ['save' => $saveId], 'World') . WebView::link('news', ['save' => $saveId], 'News') . WebView::link('pulse', ['save' => $saveId], 'Pulse') . WebView::link('relationships', ['save' => $saveId], 'Relationships') . WebView::link('training', ['save' => $saveId], 'Training') . WebView::link('finances', ['save' => $saveId], 'Finances') . WebView::link('lifestyle', ['save' => $saveId], 'Lifestyle') . '</div>';
         $actions .= $this->contextActions($saveId, $summary) . WebView::form('save_exit', 'Save & Exit', ['save' => $saveId], 'button button-secondary', 'data-busy');
-        $body = $profile . '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $seasonBody) . WebView::section('NEXT MATCH', 'What is coming next', $nextBody) . WebView::section('CLUB', $club['name'] ?? 'Free Agent', $clubBody) . WebView::section('INTERNATIONAL DUTY', 'National-team context', $internationalBody) . WebView::section('PUBLIC CONTEXT', 'Football reputation', $socialBody) . '</div><aside class="dashboard-side">' . WebView::section('CAREER SITUATION', 'Your direction', $situation) . WebView::section('ACTIONS', 'Play', $actions) . '</aside></div>';
+        $body = $profile . '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $seasonBody) . WebView::section('NEXT MATCH', 'What is coming next', $nextBody) . WebView::section('CLUB', $club['name'] ?? 'Free Agent', $clubBody) . WebView::section('INTERNATIONAL DUTY', 'National-team context', $internationalBody) . WebView::section('PUBLIC CONTEXT', 'Football reputation', $socialBody) . WebView::section('PULSE', 'Trending on Pulse', $pulseBody) . '</div><aside class="dashboard-side">' . WebView::section('CAREER SITUATION', 'Your direction', $situation) . WebView::section('ACTIONS', 'Play', $actions) . '</aside></div>';
 
         return $this->html('Career Home', $body, $saveId, 'home', 200, $session);
     }
@@ -819,6 +846,8 @@ final class WebApplication
         $internationalPanel = WebView::section('INTERNATIONAL', (string) ($internationalContext['country'] ?? $data['nationality'] ?? 'National Team'), '<p><strong>Selection:</strong> ' . WebView::e(CareerLabels::value($internationalContext['selection_status'] ?? 'not_selected')) . '</p><div class="stat-grid compact">' . WebView::stat('Caps', $internationalStats['caps'] ?? 0) . WebView::stat('Starts', $internationalStats['starts'] ?? 0) . WebView::stat('Minutes', $internationalStats['minutes'] ?? 0) . WebView::stat('Goals', $internationalStats['goals'] ?? 0) . WebView::stat('Assists', $internationalStats['assists'] ?? 0) . WebView::stat('Rating', $this->rating($internationalStats['average_rating'] ?? null)) . '</div>');
         $social = (array) ($data['social'] ?? []);
         $socialPanel = WebView::section('PUBLIC PROFILE', 'Football context', '<div class="stat-grid compact">' . WebView::stat('Public profile', $social['public_profile_label'] ?? 'Unknown') . WebView::stat('Club standing', $social['club_standing_label'] ?? 'New Arrival') . WebView::stat('Supporters', $social['supporter_sentiment'] ?? 'Neutral') . WebView::stat('Manager', $social['manager_relationship'] ?? 'Professional') . '</div>' . WebView::link('relationships', ['save' => $saveId], 'Open relationships', 'button button-secondary'));
+        $pulseContext = (array) ($data['pulse'] ?? []);
+        $pulsePanel = ($data['controlled'] ?? false) === true ? WebView::section('PULSE', 'Public presence', '<div class="stat-grid compact">' . WebView::stat('Audience', $pulseContext['audience_band'] ?? 'Local Following') . WebView::stat('Following', $pulseContext['followers_label'] ?? '120') . '</div>' . WebView::link('pulse', ['save' => $saveId], 'Open Pulse', 'button button-secondary')) : '';
         if (($data['controlled'] ?? false) === true) {
             $financialContext = (array) ($finance['financial_context'] ?? []);
             $notable = array_values(array_filter((array) ($finance['owned'] ?? []), static fn (array $item): bool => LifestyleCatalog::tierRank((string) ($item['tier'] ?? '')) >= 3));
@@ -841,7 +870,7 @@ final class WebApplication
         }
         $historyBody = $history === '' ? WebView::emptyState('No completed Match history in this Season.') : '<ul class="timeline compact-timeline">' . $history . '</ul>';
         $marketPanel = ($data['controlled'] ?? false) === true ? WebView::section('TRANSFER MARKET', 'Current context', '<p>' . WebView::e($market['label'] ?? 'Unknown') . ' · ' . WebView::e($market['current_club_level'] ?? 'Free Agent') . '</p>' . WebView::link('market', ['save' => $saveId], 'Open Transfer Market', 'button button-secondary')) : '';
-        $body = '<div class="profile-hero profile-hero-profile">' . WebView::portrait($this->portraitUrl($saveId, $playerId, 'club', 256), $player->preferredName(), 'portrait portrait-large') . '<div><div class="eyebrow">PLAYER PROFILE</div><h1>' . WebView::e($player->preferredName()) . '</h1><p>' . WebView::e($data['age'] . ' years · ' . $data['nationality'] . ' · ') . $clubLink . '</p>' . $facts . '</div></div>' . WebView::section('CURRENT SEASON', 'All competitions', $seasonLine . $extras) . $marketPanel . $cupPanel . $europePanel . $internationalPanel . $socialPanel . WebView::section('CAREER TOTALS', 'Recorded career evidence', $careerLine) . $legacyPanel . WebView::section('MATCH HISTORY', 'Recent canonical results', $historyBody) . '<div class="form-actions">' . WebView::link('squad', ['save' => $saveId, 'club' => $club?->id()->value()], 'Back to Squad') . '</div>';
+        $body = '<div class="profile-hero profile-hero-profile">' . WebView::portrait($this->portraitUrl($saveId, $playerId, 'club', 256), $player->preferredName(), 'portrait portrait-large') . '<div><div class="eyebrow">PLAYER PROFILE</div><h1>' . WebView::e($player->preferredName()) . '</h1><p>' . WebView::e($data['age'] . ' years · ' . $data['nationality'] . ' · ') . $clubLink . '</p>' . $facts . '</div></div>' . WebView::section('CURRENT SEASON', 'All competitions', $seasonLine . $extras) . $marketPanel . $cupPanel . $europePanel . $internationalPanel . $socialPanel . $pulsePanel . WebView::section('CAREER TOTALS', 'Recorded career evidence', $careerLine) . $legacyPanel . WebView::section('MATCH HISTORY', 'Recent canonical results', $historyBody) . '<div class="form-actions">' . WebView::link('squad', ['save' => $saveId, 'club' => $club?->id()->value()], 'Back to Squad') . '</div>';
 
         return $this->html('Player Profile', $body, $saveId, 'squad', 200, $session);
     }
@@ -1095,6 +1124,41 @@ final class WebApplication
         $body = '<div class="page-heading"><div><div class="eyebrow">CAREER · RELATIONSHIPS</div><h1>Football relationships</h1><p>Meaningful relationships emerge from football moments and remain bounded to your Career.</p></div></div>' . WebView::section('CURRENT CONTEXT', 'Club and public standing', $manager) . ($cards === '' ? WebView::section('RELATIONSHIPS', 'Dressing room and rivals', WebView::emptyState('No persistent football relationships yet.')) : '<div class="two-column">' . $cards . '</div>') . WebView::section('SOCIAL HISTORY', 'Landmark moments', $history === '' ? WebView::emptyState('No landmark social moments yet.') : '<ul class="timeline compact-timeline">' . $history . '</ul>');
 
         return $this->html('Relationships', $body, $saveId, 'relationships', 200, $session);
+    }
+
+    private function pulse(string $saveId, array &$session): array
+    {
+        $database = $this->database($saveId);
+        $snapshot = $this->snapshot($saveId, $database);
+        $summary = $snapshot['summary'];
+        $player = (array) ($summary['player'] ?? []);
+        $playerId = (string) ($player['id'] ?? '');
+        $pulse = $this->services->playerModule()->service()->pulseService();
+        $context = $pulse->context($database, $playerId);
+        $feed = $pulse->feed($database, $playerId, 40);
+        $pending = $pulse->pendingResponse($database, $playerId);
+        $posts = '';
+        $actorLabels = ['fan' => 'Supporters', 'club' => 'Club', 'media' => 'Media', 'teammate' => 'Teammate', 'rival' => 'Rival', 'competition' => 'Competition', 'national' => 'National Team', 'player' => 'You'];
+        foreach ($feed as $item) {
+            if (!is_array($item)) { continue; }
+            $actorType = (string) ($item['actor_type'] ?? 'fan');
+            $label = $actorLabels[$actorType] ?? 'Football world';
+            $posts .= '<article class="pulse-post"><div class="pulse-post-meta"><strong>' . WebView::e($item['actor_name'] ?? 'Football world') . '</strong><span>' . WebView::e($label) . ' · ' . WebView::e($item['date'] ?? '') . '</span></div><p>' . WebView::e($item['text'] ?? '') . '</p><small>' . WebView::e(number_format((int) ($item['engagement'] ?? 0))) . ' reactions</small></article>';
+        }
+        $response = '';
+        if (is_array($pending)) {
+            $choices = '';
+            foreach ((array) ($pending['choices'] ?? []) as $choice) {
+                if (!is_array($choice)) { continue; }
+                $choices .= '<label class="choice-card"><input type="radio" name="choice" value="' . WebView::e($choice['id'] ?? '') . '" required><span>' . WebView::e($choice['label'] ?? 'Respond') . '</span></label>';
+            }
+            $response = WebView::section('PENDING RESPONSE', 'Your voice on Pulse', '<form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel choice-panel" data-busy><input type="hidden" name="action" value="resolve_pulse"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="source_key" value="' . WebView::e($pending['source_key'] ?? '') . '"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'pulse_' . $saveId . '_' . (string) ($pending['source_key'] ?? ''))) . '"><div class="choice-list">' . $choices . '</div><button class="button button-primary" type="submit">Post response</button></form>');
+        }
+        $header = '<div class="page-heading"><div><div class="eyebrow">PULSE · PUBLIC FOOTBALL WORLD</div><h1>' . WebView::e($player['preferred_name'] ?? 'Player') . ' on Pulse</h1><p>Public reaction derived from canonical football facts. Pulse never changes the Match or Career truth.</p></div></div>';
+        $profile = WebView::section('PLAYER SOCIAL HEADER', 'Audience', '<div class="stat-grid compact">' . WebView::stat('Audience', $context['audience_band'] ?? 'Local Following') . WebView::stat('Following', $context['followers_label'] ?? '120') . WebView::stat('Public profile', ((array) ($summary['social'] ?? []))['public_profile_label'] ?? 'Unknown') . WebView::stat('Supporters', ((array) ($summary['social'] ?? []))['supporter_sentiment'] ?? 'Neutral') . '</div>');
+        $feedBody = $posts === '' ? WebView::emptyState('Your football story is only starting to get noticed.') : '<div class="pulse-feed">' . $posts . '</div>';
+
+        return $this->html('Pulse', $header . $profile . $response . WebView::section('PULSE FEED', 'Reactions on Pulse', $feedBody), $saveId, 'pulse', 200, $session);
     }
 
     private function news(string $saveId, array &$session): array

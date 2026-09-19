@@ -145,6 +145,12 @@ The game should remain responsive on mid-range Android devices running Termux.
 
 The game consists of independent systems.
 
+> Terminology note (P2-015): older architecture diagrams use “Pulse Engine”
+> for the internal simulation/orchestration layer. That historical term is not
+> the player-facing PULSE platform. Current implementation uses Core/Event
+> infrastructure for execution order, ECHO for narrative routing, and PULSE
+> for controlled-career public reaction.
+
 Player
 
 ↓

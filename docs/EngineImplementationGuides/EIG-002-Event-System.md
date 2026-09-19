@@ -193,6 +193,12 @@ Queue Cleared
 
 # Event Priority
 
+The historical Pulse Engine labels in this event-flow blueprint mean the old
+internal narrative/orchestration step. In the current architecture, canonical
+domain owners emit facts, ECHO selects public significance, News reports facts,
+and PULSE presents bounded controlled-career reaction. The player-facing
+PULSE service does not determine execution order.
+
 Events may be classified as:
 
 - Critical

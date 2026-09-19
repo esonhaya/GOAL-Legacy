@@ -7,6 +7,12 @@ Title: Legacy Engine
 Version: 1.0
 Status: Approved Blueprint
 
+P2-015 uses PULSE as the player-facing social-media brand. The historical
+“Pulse Engine” dependency name in this blueprint is retained for compatibility
+and means the narrative/public-reaction boundary, not NPC social simulation or
+Legacy ownership. ECHO routes canonical facts; Legacy remains the owner of
+durable achievements and historical truth.
+
 Dependencies
 
 - Core Engine

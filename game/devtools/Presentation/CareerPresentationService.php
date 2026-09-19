@@ -58,6 +58,10 @@ final class CareerPresentationService
             $summary['legacy'] = $this->legacyService()->summary($database, $career->playerId()->value());
         }
         $summary['market'] = $this->services->transferModule()->service()->careerMovement()->marketContext($database, $career->playerId(), $world->currentSeasonId(), $date);
+        $pulse = $this->services->playerModule()->service()->pulseService();
+        $summary['pulse'] = $pulse->context($database, $career->playerId());
+        $summary['pulse_feed'] = $pulse->feed($database, $career->playerId(), 3);
+        $summary['pulse_response'] = $pulse->pendingResponse($database, $career->playerId());
         $currentClubId = is_array($summary['current_club'] ?? null) ? (string) ($summary['current_club']['id'] ?? '') : '';
         $summary['cup_history'] = $currentClubId === '' ? [] : (new DomesticCupService($this->services->clubModule()->service()))->historyForClub($database, $currentClubId);
         $summary['europe_history'] = $currentClubId === '' ? [] : (new EuropeanCompetitionService($this->services->clubModule()->service(), new DomesticCupService($this->services->clubModule()->service())))->historyForClub($database, $currentClubId);
@@ -157,6 +161,8 @@ final class CareerPresentationService
             'social' => $social->context($database, $playerId),
             'relationships' => $controlled ? $social->relationships($database, $playerId) : [],
             'social_history' => $controlled ? $social->history($database, $playerId, 8) : [],
+            'pulse' => $controlled ? $this->services->playerModule()->service()->pulseService()->context($database, $playerId) : null,
+            'pulse_feed' => $controlled ? $this->services->playerModule()->service()->pulseService()->feed($database, $playerId, 5) : [],
             'career_stats' => $careerStats,
             'recent_form' => $form,
             'match_history' => $this->playerMatchHistory($database, $playerId, $seasonId, $club?->id()->value()),

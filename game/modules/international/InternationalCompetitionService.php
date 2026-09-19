@@ -20,6 +20,7 @@ use Goal\Legacy\Modules\Player\Persistence\CareerEventRepository;
 use Goal\Legacy\Modules\Player\Domain\CareerEvent;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
+use Goal\Legacy\Modules\Player\PulseService;
 use Goal\Legacy\Modules\Competition\Persistence\CompetitionRepository;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
@@ -44,7 +45,7 @@ final class InternationalCompetitionService
 
     private readonly KnockoutResolutionService $knockout;
 
-    public function __construct(private readonly ClubService $clubs, private readonly NationalTeamService $teams)
+    public function __construct(private readonly ClubService $clubs, private readonly NationalTeamService $teams, private readonly ?PulseService $pulse = null)
     {
         $this->knockout = new KnockoutResolutionService($clubs, $teams);
     }
@@ -61,6 +62,7 @@ final class InternationalCompetitionService
             $c->exec('CREATE INDEX IF NOT EXISTS idx_intl_entries_stage ON ' . self::ENTRIES . ' (competition_id, season_id, status, national_team_id)');
             $c->exec('CREATE INDEX IF NOT EXISTS idx_intl_matches_stage ON ' . self::MATCHES . ' (competition_id, season_id, stage, round_number, match_id)');
         });
+        $this->pulse?->initializeSchema($database);
     }
 
     public function isInternationalCompetition(DatabaseInterface $database, string $competitionId): bool
@@ -330,6 +332,7 @@ final class InternationalCompetitionService
     {
         $key = 'international|' . $playerId->value() . '|' . $milestone; if ($events->bySourceKey($key) !== null) { return; }
         $event = CareerEvent::pending('career-' . hash('sha256', $key), $playerId, $match->seasonId(), $match->scheduledDate(), $key, 'international', $milestone, $title, $description, [], ['historyworthy' => true, 'newsworthy' => true, 'competition_id' => $match->competitionId()->value()])->resolved('record', ['milestone' => $milestone, 'history' => $description]); $events->saveInTransaction($event);
+        $this->pulse?->recordAchievement($database, $playerId, $match->scheduledDate(), $key, $title, 'major');
     }
 
     private function recordKnockoutMilestones(DatabaseInterface $database, GameMatch $match, string $stage, string $winner): void

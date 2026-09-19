@@ -19,6 +19,19 @@ final class TrainingService
         if ($this->availability === null) {
             return $this->development->applyTraining($database, $request);
         }
+        [$result, $changes] = $this->completeWithChanges($database, $request);
+        $this->development->dispatchTrainingResult($result);
+        $this->availability?->dispatchChanges($changes);
+
+        return $result;
+    }
+
+    /** @return array{0:DevelopmentApplicationResult,1:list<array{event:string,payload:array<string,mixed>}>} */
+    public function completeWithChanges(DatabaseInterface $database, TrainingRequest $request): array
+    {
+        if ($this->availability === null) {
+            return [$this->development->applyTraining($database, $request), []];
+        }
         $changes = [];
         $result = $database->transaction(function () use ($database, $request, &$changes): DevelopmentApplicationResult {
             $assessment = $this->availability->assess($database, $request->playerId(), $request->endDate());
@@ -26,13 +39,10 @@ final class TrainingService
                 ? $this->development->skipTrainingInTransaction($database, $request)
                 : $this->development->applyTrainingInTransaction($database, $request);
             $weeks = max(1, intdiv($request->startDate()->daysUntil($request->endDate()), 7));
-            $changes = $this->availability->applyTrainingInTransaction($database, $request->playerId(), $request->blockId(), $request->endDate(), $weeks);
+            $changes = $this->availability->applyTrainingInTransaction($database, $request->playerId(), $request->blockId(), $request->endDate(), $weeks, $request->intensity());
 
             return $result;
         });
-        $this->development->dispatchTrainingResult($result);
-        $this->availability->dispatchChanges($changes);
-
-        return $result;
+        return [$result, $changes];
     }
 }

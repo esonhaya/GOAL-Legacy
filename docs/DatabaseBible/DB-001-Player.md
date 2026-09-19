@@ -439,4 +439,20 @@ deterministic mutable save state, not static content-package records.
 Generation metadata identifies the generator version and seed without adding
 an NPC-only football model.
 
+## P2-017 Readiness State
+
+`player_availability_state` remains a compact current-state row: fatigue,
+last processed SimulationDate, and revision. `player_availability_sources`
+provides stable Match/training source identity, while `player_injuries` stores
+bounded Injury occurrences and expected/actual recovery dates. No daily
+fitness history is stored. Readiness labels such as Fresh, Ready, Managed,
+Tired, Fatigued, and Injured are derived from these facts for the controlled
+Player read model.
+
+Training intensity is derived from existing Career priority and is not a new
+persisted progression value. Light/normal/intense workload is applied by the
+Player availability service; development stimulus is still owned by
+`PlayerDevelopmentService`. Legacy saves safely default to zero fatigue and
+no fabricated Injury history when these tables or rows do not exist.
+
 END OF DOCUMENT

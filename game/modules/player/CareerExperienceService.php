@@ -18,6 +18,7 @@ use Goal\Legacy\Modules\Player\Domain\CareerEventStatus;
 use Goal\Legacy\Modules\Player\Domain\CareerPriority;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\TrainingFocus;
+use Goal\Legacy\Modules\Player\Domain\TrainingIntensity;
 use Goal\Legacy\Modules\Player\Domain\TrainingRequest;
 use Goal\Legacy\Modules\Player\Persistence\CareerEventRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerPriorityRepository;
@@ -30,7 +31,7 @@ use RuntimeException;
 /** Owns the persisted, bounded layer between controlled Matches. */
 final class CareerExperienceService
 {
-    public function __construct(private readonly PlayerDevelopmentService $development, private readonly TrainingService $training, private readonly ?ClubService $clubs = null, private readonly ?PlayerFinanceService $finance = null, private readonly ?FootballSocialService $social = null) {}
+    public function __construct(private readonly PlayerDevelopmentService $development, private readonly TrainingService $training, private readonly ?ClubService $clubs = null, private readonly ?PlayerFinanceService $finance = null, private readonly ?FootballSocialService $social = null, private readonly ?PlayerAvailabilityService $availability = null) {}
 
     public function priority(DatabaseInterface $database, PlayerId|string $playerId): CareerPriority
     {
@@ -172,8 +173,26 @@ final class CareerExperienceService
         $id = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
         $this->assertActive($database, $id);
         $focus = $this->development->state($database, $id)->currentFocus() ?? TrainingFocus::Balanced;
-        $result = $this->training->complete($database, new TrainingRequest($id, 'career-between-match:' . $matchId, $focus, $startDate, $endDate));
-        return ['focus' => $focus->value, 'applied' => $result->applied(), 'ovr_before' => $result->beforeOverall(), 'ovr_after' => $result->afterOverall(), 'deltas' => $result->attributeDeltas()];
+        $priority = $this->priority($database, $id);
+        $intensity = TrainingIntensity::forPriority($priority);
+        $before = $this->availability?->assess($database, $id, $startDate)->readiness();
+        [$result, $changes] = $this->training->completeWithChanges($database, new TrainingRequest($id, 'career-between-match:' . $matchId, $focus, $startDate, $endDate, $intensity));
+        if ($this->availability !== null) {
+            $this->development->dispatchTrainingResult($result);
+            $this->availability->dispatchChanges($changes);
+        }
+        $this->social?->recordAvailabilityChanges($database, $changes);
+        $after = $this->availability?->assess($database, $id, $endDate)->readiness();
+        return [
+            'after_readiness' => $after,
+            'applied' => $result->applied(),
+            'before_readiness' => $before,
+            'deltas' => $result->attributeDeltas(),
+            'focus' => $focus->value,
+            'intensity' => $intensity->value,
+            'ovr_after' => $result->afterOverall(),
+            'ovr_before' => $result->beforeOverall(),
+        ];
     }
 
     private function assertActive(DatabaseInterface $database, PlayerId $playerId): void

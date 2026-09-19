@@ -19,6 +19,7 @@ use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
+use Goal\Legacy\Modules\Player\Domain\TrainingIntensity;
 use Goal\Legacy\Modules\Player\Persistence\CareerEventRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
@@ -50,6 +51,7 @@ final class PlayerCareerProgressionQuery
         $allMemberships = $squads->byPlayer($id);
         $contracts = new ContractRepository($database);
         $activeContract = $player->isRetired() ? null : $contracts->activeForPlayer($id);
+        $priority = (new PlayerPriorityRepository($database))->current($id);
         $currentMembership = $this->currentMembership($allMemberships, $activeContract);
         $requestedMembership = $seasonId === null
             ? $currentMembership
@@ -78,7 +80,8 @@ final class PlayerCareerProgressionQuery
             'potential' => $player->potential(),
             'development_profile' => $player->developmentProfile()->value,
             'training_focus' => $development->state($database, $id)->currentFocus()?->value,
-            'priority' => (new PlayerPriorityRepository($database))->current($id)->value,
+            'training_intensity' => TrainingIntensity::forPriority($priority)->value,
+            'priority' => $priority->value,
             'career_life_history' => array_map(
                 static fn ($event): array => $event->toArray(),
                 array_values(array_filter(
@@ -93,6 +96,7 @@ final class PlayerCareerProgressionQuery
             'availability' => $availability->status()->value,
             'fatigue' => $availability->fatigue(),
             'active_injury' => $availability->injury()?->toArray(),
+            'readiness' => $availability->readiness(),
             'current_club' => $this->clubView($currentClub),
             'current_competition' => $this->competitionView($currentCompetition),
             'current_role' => $currentMembership?->role()->value,

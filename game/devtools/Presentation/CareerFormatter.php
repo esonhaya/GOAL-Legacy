@@ -41,6 +41,9 @@ final class CareerFormatter
         $lines[] = 'Squad Role: ' . CareerLabels::value($summary['current_role'] ?? null);
         $lines[] = 'Training Focus: ' . CareerLabels::value($summary['training_focus'] ?? 'balanced');
         $lines[] = 'Priority: ' . CareerLabels::value($summary['priority'] ?? 'balanced');
+        $readiness = is_array($summary['readiness'] ?? null) ? $summary['readiness'] : [];
+        $lines[] = 'Readiness: ' . CareerLabels::value($readiness['label'] ?? null, 'Ready') . ' (' . $this->number($readiness['fatigue'] ?? 0) . '/100 workload)';
+        $lines[] = 'Training Intensity: ' . CareerLabels::value($summary['training_intensity'] ?? 'normal');
         $social = is_array($summary['social'] ?? null) ? $summary['social'] : [];
         $lines[] = 'Public Profile: ' . $this->text($social['public_profile_label'] ?? null, 'Unknown');
         $lines[] = 'Club Standing: ' . $this->text($social['club_standing_label'] ?? null, 'New Arrival');

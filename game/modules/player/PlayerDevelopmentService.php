@@ -19,6 +19,7 @@ use Goal\Legacy\Modules\Player\Domain\PlayerAttributeSet;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\SeasonPerformanceAssessment;
 use Goal\Legacy\Modules\Player\Domain\TrainingFocus;
+use Goal\Legacy\Modules\Player\Domain\TrainingIntensity;
 use Goal\Legacy\Modules\Player\Domain\TrainingRequest;
 use Goal\Legacy\Modules\Player\Persistence\PlayerDevelopmentRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
@@ -245,7 +246,7 @@ final class PlayerDevelopmentService
         $player = (new PlayerRepository($database))->get($request->playerId());
         $weeks = max(1, intdiv($request->startDate()->daysUntil($request->endDate()), 7));
 
-        return $weeks * 1500 * $this->curvePercent($player, $request->endDate()) * $this->potentialPercent($player) / 10000;
+        return (int) floor($weeks * 1500 * $this->curvePercent($player, $request->endDate()) * $this->potentialPercent($player) * $request->intensity()->developmentPercent() / 1000000);
     }
 
     private function applyStimulusInTransaction(

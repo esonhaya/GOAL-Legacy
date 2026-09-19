@@ -303,4 +303,20 @@ there is no rehabilitation or medical-staff subsystem.
 
 ---
 
+## P2-017 Controlled Readiness Integration
+
+The current Phase-2 implementation intentionally remains a bounded
+between-Match block, not a daily schedule or training minigame. Existing
+Career priority derives a `TrainingIntensity`: Recovery/Lifestyle are light,
+Professional/Balanced are normal, and Development is intense. The Training
+Service passes that policy to both the existing Player Development Service and
+Player availability workload boundary in one idempotent source transaction.
+
+Light training trades development stimulus for recovery pressure; intense
+training supplies only a bounded extra development opportunity and modest
+deterministic Injury exposure when workload is already high. An unavailable
+Player receives no normal development stimulus or training load. Readiness is
+read-only projection from fatigue and active Injury state, and ordinary NPCs
+do not receive individual training plans or detailed fitness history.
+
 END OF DOCUMENT

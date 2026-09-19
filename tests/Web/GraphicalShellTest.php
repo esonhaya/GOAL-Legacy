@@ -144,7 +144,12 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('Public profile', $home['body']);
             self::assertStringContainsString('Transfer Market', $home['body']);
             self::assertStringContainsString('Manager relationship', $home['body']);
+            self::assertStringContainsString('READINESS', $home['body']);
+            self::assertStringContainsString('Workload', $home['body']);
             self::assertStringNotContainsString('No active Club manager', $home['body']);
+            $training = $this->application->handle('GET', '/', ['page' => 'training', 'save' => $save], [], $session);
+            self::assertSame(200, $training['status']);
+            self::assertStringContainsString('Current football state', $training['body']);
             $pulseSources = (int) $database->connection()->query('SELECT COUNT(*) FROM pulse_feed_sources')->fetchColumn();
             $pulsePosts = (int) $database->connection()->query('SELECT COUNT(*) FROM pulse_posts')->fetchColumn();
             $pulse = $this->application->handle('GET', '/', ['page' => 'pulse', 'save' => $save], [], $session);
@@ -161,6 +166,7 @@ final class GraphicalShellTest extends TestCase
             self::assertSame(200, $controlled['status']);
             self::assertStringContainsString('CURRENT SEASON', $controlled['body']);
             self::assertStringContainsString('Training focus', $controlled['body']);
+            self::assertStringContainsString('Readiness', $controlled['body']);
             self::assertStringNotContainsString('Potential', $controlled['body']);
             $legacy = $this->application->handle('GET', '/', ['page' => 'legacy', 'save' => $save], [], $session);
             self::assertSame(200, $legacy['status']);

@@ -106,4 +106,17 @@ and weighting but does not make every purchase generate a popup. Choice copy
 must make the football/life tradeoff clear without moral scoring or a
 universally correct answer.
 
+## P2-017 Readiness Presentation
+
+Between-Match presentation may explain the controlled Player's derived
+readiness as Fresh, Ready, Managed, Tired, Fatigued, or Injured. Copy should
+describe the football consequence without exposing coefficients or implying
+a diagnosis. Training focus remains the development choice; existing Career
+priority supplies the light/normal/intense workload approach.
+
+Routine fatigue, recovery, and training completion are not social or News
+stories. Significant Injury and return facts use the existing availability,
+Career History, News, and Pulse routes. Pages remain read-only: recovery is
+owned by simulation time and no page view creates an event.
+
 END OF DOCUMENT

@@ -355,4 +355,20 @@ Procedural senior Players are ordinary Player entities created as save state
 by a versioned deterministic population service. The service does not create
 an NPC subclass or bypass PlayerCreationService validation.
 
+## P2-017 Readiness Boundary
+
+`PlayerAvailabilityService` remains the owner of current fatigue, workload,
+and Injury availability. It derives player-facing readiness labels from the
+bounded current state; no separate fitness or match-sharpness meter is added.
+Match participation/minutes and explicit between-Match training are the only
+workload sources. Recovery is lazy and SimulationDate-based.
+
+Career priority maps to light, normal, or intense training policy. The policy
+changes bounded workload and the stimulus passed to `PlayerDevelopmentService`
+without creating a second development engine. Intense training can create a
+small deterministic Injury exposure at high workload. Injury recovery and
+Pulse return events use existing availability dispatch. NPCs keep compact
+availability only and receive no detailed readiness history or training
+choice simulation.
+
 END OF DOCUMENT

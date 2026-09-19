@@ -16,6 +16,7 @@ use Goal\Legacy\Modules\Player\Domain\Injury;
 use Goal\Legacy\Modules\Player\Domain\InjuryCategory;
 use Goal\Legacy\Modules\Player\Domain\InjurySeverity;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
+use Goal\Legacy\Modules\Player\Domain\TrainingIntensity;
 use Goal\Legacy\Modules\Player\Persistence\PlayerAvailabilityRepository;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 
@@ -24,7 +25,6 @@ final class PlayerAvailabilityService
     private const LIMITED_FATIGUE = 50;
     private const UNAVAILABLE_FATIGUE = 85;
     private const MATCH_LOAD_PER_MINUTE = 2 / 3;
-    private const TRAINING_LOAD_PER_WEEK = 8;
 
     public function __construct(private readonly ?EventDispatcherInterface $events = null)
     {
@@ -76,7 +76,7 @@ final class PlayerAvailabilityService
     }
 
     /** @return list<array{event:string,payload:array<string,mixed>}> */
-    public function applyTrainingInTransaction(DatabaseInterface $database, PlayerId $playerId, string $sourceId, SimulationDate $date, int $weeks): array
+    public function applyTrainingInTransaction(DatabaseInterface $database, PlayerId $playerId, string $sourceId, SimulationDate $date, int $weeks, TrainingIntensity $intensity = TrainingIntensity::Normal): array
     {
         $repository = new PlayerAvailabilityRepository($database);
         if ($repository->hasSource($playerId, 'training', $sourceId)) {
@@ -88,9 +88,16 @@ final class PlayerAvailabilityService
 
             return [];
         }
-        $this->applyLoadInTransaction($repository, $playerId, $date, 'training', $sourceId, max(0, $weeks) * self::TRAINING_LOAD_PER_WEEK);
+        $before = $assessment->fatigue();
+        $this->applyLoadInTransaction($repository, $playerId, $date, 'training', $sourceId, max(0, $weeks) * $intensity->loadPerWeek());
+        $injury = $this->determineTrainingInjury($playerId, $date, $sourceId, $before, $intensity);
+        if ($injury === null) {
+            return [];
+        }
+        $repository->saveInjuryInTransaction($injury);
+        $repository->recordSourceInTransaction($playerId, 'injury', 'training:' . $sourceId, 0, $date);
 
-        return [];
+        return [['event' => AvailabilityEventNames::INJURED, 'payload' => $injury->toArray()]];
     }
 
     /** @return list<array{event:string,payload:array<string,mixed>}> */
@@ -152,6 +159,23 @@ final class PlayerAvailabilityService
         $start = $match->scheduledDate();
 
         return new Injury(hash('sha256', 'injury|' . $sourceId), $playerId, 'match', $match->id()->value(), $category, $severity, $start, $start->addDays($severity->durationDays()));
+    }
+
+    private function determineTrainingInjury(PlayerId $playerId, SimulationDate $date, string $sourceId, int $fatigueBefore, TrainingIntensity $intensity): ?Injury
+    {
+        if ($intensity !== TrainingIntensity::Intense) {
+            return null;
+        }
+        $riskPercent = min(6, 1 + intdiv($fatigueBefore, 20));
+        if ($this->unit('training-risk|' . $sourceId) >= ($riskPercent / 100)) {
+            return null;
+        }
+        $severityRoll = $this->unit('training-severity|' . $sourceId);
+        $severity = $severityRoll < 0.85 ? InjurySeverity::Minor : InjurySeverity::Moderate;
+        $categories = InjuryCategory::cases();
+        $category = $categories[(int) floor($this->unit('training-category|' . $sourceId) * count($categories)) % count($categories)];
+
+        return new Injury(hash('sha256', 'injury|training|' . $sourceId), $playerId, 'training', $sourceId, $category, $severity, $date, $date->addDays($severity->durationDays()));
     }
 
     private function unit(string $key): float

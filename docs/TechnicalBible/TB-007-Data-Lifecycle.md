@@ -332,4 +332,19 @@ table derive only the current phase and do not receive fabricated retirement
 facts. Ordinary NPC retirement continues to use the compact population path;
 no NPC retirement summary, Pulse ceremony, or post-Career simulation is added.
 
+## P2-017 Readiness Ordering
+
+Controlled Match completion applies workload from persisted participation
+minutes and may apply one deterministic Match Injury source. Between-Match
+training resolves once per `TrainingRequest` source key, first through the
+existing development transaction and then through the availability workload
+boundary. Intense training may add one deterministic training Injury source;
+dispatch and Pulse processing happen after the transaction commits.
+
+Fatigue recovery is a pure SimulationDate projection from current state.
+Read-only Career Home, Profile, Training, and Matchday reads do not persist
+recovery or reroll Injury state. At a simulation checkpoint, availability
+reconciliation may mark due Injuries recovered before the next Match. No
+temporary daily readiness rows are compacted or copied into a new Season.
+
 END OF DOCUMENT

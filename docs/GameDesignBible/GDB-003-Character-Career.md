@@ -242,4 +242,26 @@ moves with bounded wage, duration, and projected role. NPCs receive no market
 stature rows, detailed scouting, finance simulation, or offer-history
 expansion.
 
+## P2-017 Training and Player Readiness
+
+The controlled Player's readiness is a projection of the existing bounded
+fatigue/load state and active Injury records. There is no second fitness,
+energy, or match-sharpness meter. Match minutes and between-Match training
+blocks add workload; SimulationDate-based recovery removes it lazily, so
+opening a page never advances recovery.
+
+The existing Career priority supplies a small training-intensity policy:
+Development uses an intense block, Recovery and Lifestyle use a light block,
+and Professional/Balanced use a normal block. Intensity changes workload and
+bounded development stimulus through the existing Player Development Service;
+it does not create attribute farming or replace training focus. Active Injury
+remains a hard selection gate, and selection continues to consume
+PlayerAvailabilityService rather than a second lineup system.
+
+Intense training has a modest deterministic Injury exposure when workload is
+already high. Match and training sources are keyed for idempotency, injuries
+carry a bounded expected recovery date, and recovery/return events use the
+existing social/Pulse path. NPCs receive no detailed readiness history or
+training-choice simulation.
+
 END OF DOCUMENT

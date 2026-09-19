@@ -54,12 +54,13 @@ final class PlayerService
 
     public function trainingService(): TrainingService
     {
-        return new TrainingService($this->developmentService(), $this->availabilityService);
+        return new TrainingService($this->developmentService(), $this->availabilityService ?? new PlayerAvailabilityService());
     }
 
     public function careerExperienceService(): CareerExperienceService
     {
-        return new CareerExperienceService($this->developmentService(), $this->trainingService(), $this->clubService, $this->financeService(), $this->socialService());
+        $availability = $this->availabilityService ?? new PlayerAvailabilityService();
+        return new CareerExperienceService($this->developmentService(), new TrainingService($this->developmentService(), $availability), $this->clubService, $this->financeService(), $this->socialService(), $availability);
     }
 
     public function populationService(): PlayerPopulationService

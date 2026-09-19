@@ -32,6 +32,7 @@ use Goal\Legacy\Modules\Player\ClubExpectationService;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use Goal\Legacy\Modules\World\Persistence\PlayerSeasonStatisticsRepository;
+use Goal\Legacy\Modules\World\Persistence\PlayerCompetitionStatisticsRepository;
 use Goal\Legacy\Modules\Competition\DomesticCupService;
 use Goal\Legacy\Modules\Competition\EuropeanCompetitionService;
 use Goal\Legacy\Modules\International\InternationalCompetitionService;
@@ -95,7 +96,10 @@ final class MatchService
         // atomic write. Warm their schemas before the transaction so guarded
         // DDL can never become part of a rollback-prone Match transaction.
         new MatchSelectionRepository($database); new MatchSubstitutionRepository($database); new PlayerMatchStatRepository($database); new MatchHighlightRepository($database); new PlayerAvailabilityRepository($database); new PlayerDevelopmentRepository($database); new CareerEvaluationRepository($database);
-        if ($fidelity === SimulationFidelity::World && !$international) { new PlayerSeasonStatisticsRepository($database); }
+        if ($fidelity === SimulationFidelity::World && !$international) {
+            new PlayerSeasonStatisticsRepository($database);
+            new PlayerCompetitionStatisticsRepository($database);
+        }
         $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database, $fidelity, $positions, $international): array {
             $completed = $match->complete($simulation->result());
             $repository->saveInTransaction($completed);
@@ -105,6 +109,7 @@ final class MatchService
                 (new PlayerMatchStatRepository($database))->replaceForMatchInTransaction($stats);
             } elseif (!$international) {
                 (new PlayerSeasonStatisticsRepository($database))->addMatchInTransaction($completed, $stats, $positions);
+                (new PlayerCompetitionStatisticsRepository($database))->addMatchInTransaction($completed, $stats, $positions);
             }
             (new MatchHighlightRepository($database))->replaceForMatchInTransaction($highlights);
             $availability = $this->availability?->reconcileInTransaction($database, $completed->scheduledDate()) ?? [];

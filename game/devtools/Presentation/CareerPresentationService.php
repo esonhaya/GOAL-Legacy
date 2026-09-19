@@ -22,9 +22,11 @@ use Goal\Legacy\Modules\Match\PlayerMatchRatingService;
 use Goal\Legacy\Modules\Nation\Persistence\NationRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
+use Goal\Legacy\Modules\Player\Persistence\CareerLegacyRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
+use Goal\Legacy\Modules\Player\CareerLegacyService;
 use Goal\Legacy\Modules\Player\PlayerCareerStatisticsService;
 use Goal\Legacy\Modules\Player\PlayerFormService;
 use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
@@ -40,7 +42,7 @@ final class CareerPresentationService
     }
 
     /** @return array{world:object,summary:array<string,mixed>,date:SimulationDate} */
-    public function snapshot(DatabaseInterface $database, string $saveId): array
+    public function snapshot(DatabaseInterface $database, string $saveId, bool $includeLegacy = true): array
     {
         $worldService = $this->services->worldModule()->service();
         $world = $worldService->load($database, $saveId);
@@ -52,6 +54,9 @@ final class CareerPresentationService
             $date,
             $world->currentSeasonId(),
         );
+        if ($includeLegacy) {
+            $summary['legacy'] = $this->legacyService()->summary($database, $career->playerId()->value());
+        }
         $currentClubId = is_array($summary['current_club'] ?? null) ? (string) ($summary['current_club']['id'] ?? '') : '';
         $summary['cup_history'] = $currentClubId === '' ? [] : (new DomesticCupService($this->services->clubModule()->service()))->historyForClub($database, $currentClubId);
         $summary['europe_history'] = $currentClubId === '' ? [] : (new EuropeanCompetitionService($this->services->clubModule()->service(), new DomesticCupService($this->services->clubModule()->service())))->historyForClub($database, $currentClubId);
@@ -105,6 +110,13 @@ final class CareerPresentationService
         $internationalHistory = $this->services->internationalCompetitions()->history($database, $playerId);
         $internationalContext = (new PlayerCareerProgressionQuery($this->services->clubModule()->service()))->summary($database, $playerId, $date, $seasonId)['international'] ?? [];
         $social = $this->services->playerModule()->service()->socialService();
+        $legacyRepository = new CareerLegacyRepository($database, false);
+        $legacy = $controlled ? [
+            'honours' => $legacyRepository->honoursForPlayer($playerId),
+            'awards' => $legacyRepository->awardsForPlayer($playerId),
+            'records' => $legacyRepository->recordsForPlayer($playerId),
+            'milestones' => $legacyRepository->milestonesForPlayer($playerId),
+        ] : ['honours' => [], 'awards' => [], 'records' => [], 'milestones' => []];
         if ($club !== null) {
             $cups = new DomesticCupService($this->services->clubModule()->service());
             $europe = new EuropeanCompetitionService($this->services->clubModule()->service(), $cups);
@@ -146,6 +158,7 @@ final class CareerPresentationService
             'career_stats' => $careerStats,
             'recent_form' => $form,
             'match_history' => $this->playerMatchHistory($database, $playerId, $seasonId, $club?->id()->value()),
+            'legacy' => $legacy,
             'controlled' => $controlled,
             'training_focus' => $controlled ? $controlledSummary['training_focus'] ?? null : null,
             'priority' => $controlled ? $controlledSummary['priority'] ?? null : null,
@@ -705,6 +718,9 @@ final class CareerPresentationService
         $internationalStats = $playerId !== '' && $seasonId !== null
             ? $this->services->nationalTeams()->playerStats($database, $playerId, new SeasonId($seasonId))
             : [];
+        $legacy = is_array($summary['legacy'] ?? null) ? $summary['legacy'] : [];
+        $legacyAwards = array_values(array_filter((array) ($legacy['awards'] ?? []), static fn (array $row): bool => ($row['season_id'] ?? null) === $seasonId));
+        $legacyHonours = array_values(array_filter((array) ($legacy['honours'] ?? []), static fn (array $row): bool => ($row['season_id'] ?? null) === $seasonId));
         $cupResults = $this->seasonCompetitionOutcomes((array) ($summary['cup_history'] ?? []), $seasonId);
         $europeResults = $this->seasonCompetitionOutcomes((array) ($summary['europe_history'] ?? []), $seasonId);
 
@@ -722,6 +738,8 @@ final class CareerPresentationService
             'cup_results' => $cupResults,
             'europe_results' => $europeResults,
             'international_stats' => $internationalStats,
+            'legacy_awards' => $legacyAwards,
+            'legacy_honours' => $legacyHonours,
         ];
     }
 
@@ -807,7 +825,19 @@ final class CareerPresentationService
             'tier_outcome' => $tierOutcome,
             'role_change' => $roleChange,
             'ovr' => $summary['current_ovr'] ?? null,
+            'awards' => array_values(array_filter((array) (($summary['legacy'] ?? [])['awards'] ?? []), static fn (array $row): bool => ($row['season_id'] ?? null) === $previousSeasonId)),
+            'honours' => array_values(array_filter((array) (($summary['legacy'] ?? [])['honours'] ?? []), static fn (array $row): bool => ($row['season_id'] ?? null) === $previousSeasonId)),
         ];
+    }
+
+    private function legacyService(): CareerLegacyService
+    {
+        return new CareerLegacyService(
+            $this->services->clubModule()->service(),
+            $this->services->nationalTeams(),
+            $this->services->internationalCompetitions(),
+            $this->services->playerModule()->service()->socialService(),
+        );
     }
 
     /** @return array<string, mixed> */

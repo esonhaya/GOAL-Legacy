@@ -118,7 +118,9 @@ Possible categories:
 - Managers
 - Clubs
 
-Admission requirements are determined by Legacy Score.
+Hall of Fame admission is future scope. P2-012 does not calculate a synthetic
+Legacy Score; the implemented Career Legacy view reports descriptive football
+facts and leaves any future induction policy separate.
 
 ---
 
@@ -184,7 +186,7 @@ Examples
 The Legacy Engine owns:
 
 - Historical archives
-- Legacy scores
+- Awards, honours, records, and milestones
 - Hall of Fame records
 - Record books
 - Timelines
@@ -217,7 +219,8 @@ Examples:
 
 - Archive completed seasons
 - Hall of Fame review
-- Legacy score recalculation
+- Resolve completed-Season awards and honours
+- Update controlled-Player personal bests and idempotent milestones
 - Timeline generation
 
 ---
@@ -239,7 +242,7 @@ The Legacy Engine should be tested for:
 
 - Record tracking
 - Hall of Fame induction
-- Legacy score calculations
+- Deterministic award, honour, record, and milestone resolution
 - Historical archiving
 - Long-term save stability
 
@@ -281,7 +284,7 @@ These additions should extend the Legacy Engine without changing its core respon
 
 ✓ Historical archives are permanent.
 
-✓ Legacy Score determines historical importance.
+✓ P2-012 uses descriptive football facts; no synthetic Legacy Score is required.
 
 ---
 

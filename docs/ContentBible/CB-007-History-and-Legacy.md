@@ -98,6 +98,22 @@ Examples:
 
 Records provide historical context for future generations.
 
+## Player Career Legacy presentation
+
+The controlled Player's Legacy is a compact retrospective, not an achievement
+grind. It may show the Career span, represented Clubs, Club and international
+totals, competition honours, individual Season awards, personal best Seasons,
+and durable numeric milestones. Copy should name the football achievement
+itself — for example, “League Champion” or “Top Scorer” — rather than expose a
+synthetic points balance.
+
+Annual recognition is intentionally small: Player of the Season, Young Player
+of the Season, Top Scorer, and Top Assist Provider are domestic-League facts
+when the completed Season contains sufficient evidence. World-fidelity NPCs
+can appear as winners from compact aggregates, but the game does not invent
+their detailed Match histories. A trophy is described only when participation
+evidence supports the Player's attribution.
+
 ---
 
 # Club History

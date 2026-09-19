@@ -15,7 +15,7 @@ Last Updated: 2026-07-14
 
 The Legacy table preserves the long-term history of GOAL: Legacy.
 
-It records achievements, records, milestones, awards, historical rankings, and career accomplishments that define the football world's collective memory.
+It records achievements, records, milestones, awards, historical rankings, and career accomplishments that define the football world's collective memory. The first implemented Player-facing slice is descriptive: it does not create an achievement currency or synthetic Legacy score.
 
 Legacy ensures that past events continue to influence future generations.
 
@@ -191,6 +191,45 @@ Legacy ID cannot change.
 Referenced entities must exist.
 
 Legacy records cannot be removed through normal gameplay.
+
+---
+
+# P2-012 Player Career Legacy
+
+P2-012 persists four compact fact collections in the Career save:
+
+- `career_awards`: one immutable source key per completed Season, League scope,
+  award type, and winner.
+- `career_honours`: one immutable source key per Player participation in a
+  winning League, domestic Cup, European competition, or World Championship.
+- `career_legacy_records`: one current row per controlled Player personal-best
+  metric, with the Season and evidence value that set it.
+- `career_legacy_milestones`: one immutable source key per Player, metric, and
+  threshold.
+
+The controlled Player must have at least one canonical competition appearance
+for a Club honour. International honours require at least one national-team
+cap in the winning World Championship. A mid-Season transfer therefore keeps
+an honour only when the Player's recorded participation is for the winning
+Club/team; Club membership alone is insufficient.
+
+The initial annual awards are Player of the Season, Young Player of the
+Season, Top Scorer, and Top Assist Provider for domestic Leagues. They use
+compact World-fidelity competition aggregates or retained controlled-Player
+Match evidence. Player of the Season is rating-led with minutes, appearances,
+and contribution tie-breaks, so position is not reduced to goals. Young Player
+eligibility is age 21 or younger at Season end. All ties are deterministic and
+resolve by documented secondary evidence, then stable Player ID.
+
+Awards resolve before Season compaction. Compaction retains the compact
+competition aggregates, while old saves without sufficient evidence receive no
+fabricated historical awards. NPCs may win from available aggregates, but no
+NPC Match-detail or legacy simulation is generated.
+
+Career Legacy is reconstructed read-only from these rows plus canonical
+Player, Club, Match, and international statistics. It exposes Career span,
+Clubs, totals, honours, awards, personal bests, and milestones; no Legacy
+Points or default Legacy score is persisted.
 
 ---
 

@@ -165,4 +165,25 @@ final class CareerPresentationTest extends TestCase
         self::assertStringContainsString('UPCOMING FIXTURES', $text);
         self::assertStringContainsString('* 2024-08-08: FC Example vs United', $text);
     }
+
+    public function testCareerLegacyFormatterKeepsAchievementSectionsDescriptive(): void
+    {
+        $text = implode("\n", (new CareerFormatter())->legacy([
+            'career_span' => ['start' => '2024/25', 'latest' => '2030/31'],
+            'clubs' => [['name' => 'Arsenal'], ['name' => 'Milan']],
+            'club_stats' => ['appearances' => 126, 'goals' => 42, 'assists' => 19],
+            'international_stats' => ['caps' => 28, 'goals' => 7],
+            'honours' => [['label' => 'League Champion — Premier League']],
+            'awards' => [['award_type' => 'PLAYER_OF_THE_SEASON']],
+            'records' => [['metric' => 'best_season_goals', 'value' => 14]],
+            'milestones' => [['label' => '50 Club appearances']],
+        ]));
+
+        self::assertStringContainsString('CAREER LEGACY', $text);
+        self::assertStringContainsString('Arsenal · Milan', $text);
+        self::assertStringContainsString('League Champion — Premier League', $text);
+        self::assertStringContainsString('Player of the Season', $text);
+        self::assertStringContainsString('Legacy score: descriptive only', $text);
+        self::assertStringNotContainsString('Legacy Points', $text);
+    }
 }

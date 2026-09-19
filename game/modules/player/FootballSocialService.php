@@ -224,6 +224,43 @@ final class FootballSocialService
         $this->writeHistory($database, $id->value(), 'transfer-social|' . ($newClubId ?? 'free-agent') . '|' . $date->toIsoString(), $date, 'social', 'notable', 'A new Club chapter changes the public conversation', 'Transfer context is preserved without deleting prior relationships.', $newClubId);
     }
 
+    public function recordAchievement(DatabaseInterface $database, PlayerId|string $playerId, SimulationDate $date, string $source, string $headline, string $importance = 'major', ?string $clubId = null): void
+    {
+        $this->initializeSchema($database);
+        $database->transaction(function () use ($database, $playerId, $date, $source, $headline, $importance, $clubId): void {
+            $this->recordAchievementInTransaction($database, $playerId, $date, $source, $headline, $importance, $clubId);
+        });
+    }
+
+    public function recordAchievementInTransaction(DatabaseInterface $database, PlayerId|string $playerId, SimulationDate $date, string $source, string $headline, string $importance = 'major', ?string $clubId = null): void
+    {
+        $id = $this->id($playerId);
+        $marker = $database->connection()->prepare('INSERT OR IGNORE INTO ' . self::SOURCES . ' (player_id, source_key, occurred_date) VALUES (:player_id, :source_key, :occurred_date)');
+        $marker->execute(['player_id' => $id->value(), 'source_key' => $source, 'occurred_date' => $date->toIsoString()]);
+        if ($marker->rowCount() === 0) {
+            return;
+        }
+        $state = $this->ensureState($database, $id, $date, $clubId);
+        $publicDelta = $importance === 'landmark' ? 5 : ($importance === 'major' ? 3 : 1);
+        $supporterDelta = $clubId === null ? 0 : ($importance === 'landmark' ? 4 : ($importance === 'major' ? 2 : 1));
+        $managerDelta = $clubId === null ? 0 : ($importance === 'landmark' ? 3 : ($importance === 'major' ? 1 : 0));
+        $nextSupporter = $this->clampSigned((int) $state['supporter_score'] + $supporterDelta);
+        $nextManager = $this->clamp((int) $state['manager_score'] + $managerDelta);
+        $this->writeState($database, $id->value(), [
+            'public_profile' => $this->clamp((int) $state['public_profile'] + $publicDelta),
+            'international_profile' => (int) $state['international_profile'],
+            'current_club_id' => $state['current_club_id'],
+            'club_standing' => $this->clamp((int) $state['club_standing'] + $managerDelta),
+            'supporter_score' => $nextSupporter,
+            'supporter_sentiment' => $this->sentiment($nextSupporter),
+            'manager_score' => $nextManager,
+            'manager_relationship' => $this->managerRelationship($nextManager),
+            'manager_club_id' => $state['manager_club_id'],
+            'updated_date' => $date->toIsoString(),
+        ]);
+        $this->writeHistory($database, $id->value(), $source, $date, 'achievement', $importance, $headline, 'A canonical football achievement changed the public Career context.', $clubId ?? ($state['current_club_id'] === null ? null : (string) $state['current_club_id']));
+    }
+
     /** @return list<array<string, mixed>> */
     public function relationships(DatabaseInterface $database, PlayerId|string $playerId): array
     {

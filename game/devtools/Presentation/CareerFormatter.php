@@ -196,6 +196,12 @@ final class CareerFormatter
         if ((int) ($international['caps'] ?? 0) > 0) {
             $lines[] = 'International: ' . $this->number($international['caps']) . ' caps, ' . $this->number($international['goals'] ?? 0) . ' goals';
         }
+        foreach ((array) ($summary['legacy_awards'] ?? []) as $award) {
+            if (is_array($award)) { $lines[] = 'AWARD: ' . $this->text($award['award_type'] ?? null) . ' — ' . $this->text(($award['evidence']['competition_name'] ?? null), 'League'); }
+        }
+        foreach ((array) ($summary['legacy_honours'] ?? []) as $honour) {
+            if (is_array($honour)) { $lines[] = 'HONOUR: ' . $this->text($honour['label'] ?? null); }
+        }
         if (isset($summary['ovr_before'], $summary['ovr_after']) && $summary['ovr_before'] !== $summary['ovr_after']) {
             $lines[] = 'OVR: ' . $this->number($summary['ovr_before']) . ' -> ' . $this->number($summary['ovr_after']);
         }
@@ -317,9 +323,51 @@ final class CareerFormatter
             }
         }
 
+        $legacy = is_array($summary['legacy'] ?? null) ? $summary['legacy'] : [];
+        $lines[] = '';
+        $lines[] = 'CAREER LEGACY';
+        $clubStats = is_array($legacy['club_stats'] ?? null) ? $legacy['club_stats'] : [];
+        $internationalStats = is_array($legacy['international_stats'] ?? null) ? $legacy['international_stats'] : [];
+        $lines[] = 'Club: ' . $this->number($clubStats['appearances'] ?? 0) . ' apps | ' . $this->number($clubStats['goals'] ?? 0) . ' goals | ' . $this->number($clubStats['assists'] ?? 0) . ' assists';
+        $lines[] = 'International: ' . $this->number($internationalStats['caps'] ?? 0) . ' caps | ' . $this->number($internationalStats['goals'] ?? 0) . ' goals';
+        $lines[] = 'Honours: ' . $this->number(count((array) ($legacy['honours'] ?? []))) . ' | Awards: ' . $this->number(count((array) ($legacy['awards'] ?? []))) . ' | Milestones: ' . $this->number(count((array) ($legacy['milestones'] ?? [])));
+
         $lines[] = '';
         $lines[] = 'ACTIONS';
         $lines[] = '1. Back to Career Home';
+        return $lines;
+    }
+
+    /** @param array<string, mixed> $legacy */
+    public function legacy(array $legacy): array
+    {
+        $lines = $this->title('CAREER LEGACY');
+        $span = is_array($legacy['career_span'] ?? null) ? $legacy['career_span'] : [];
+        $lines[] = 'Career span: ' . $this->text($span['start'] ?? null, 'Not started') . ' -> ' . $this->text($span['latest'] ?? null, 'Current');
+        $clubs = (array) ($legacy['clubs'] ?? []);
+        $lines[] = 'Clubs: ' . ($clubs === [] ? 'No Club history yet.' : implode(' · ', array_map(static fn (array $club): string => (string) ($club['name'] ?? 'Club'), $clubs)));
+        $clubStats = is_array($legacy['club_stats'] ?? null) ? $legacy['club_stats'] : [];
+        $international = is_array($legacy['international_stats'] ?? null) ? $legacy['international_stats'] : [];
+        $lines[] = 'Club record: ' . $this->number($clubStats['appearances'] ?? 0) . ' apps | ' . $this->number($clubStats['goals'] ?? 0) . ' goals | ' . $this->number($clubStats['assists'] ?? 0) . ' assists';
+        $lines[] = 'International: ' . $this->number($international['caps'] ?? 0) . ' caps | ' . $this->number($international['goals'] ?? 0) . ' goals';
+        foreach ([['title' => 'HONOURS', 'rows' => $legacy['honours'] ?? [], 'field' => 'label'], ['title' => 'INDIVIDUAL AWARDS', 'rows' => $legacy['awards'] ?? [], 'field' => 'award_type'], ['title' => 'RECORDS', 'rows' => $legacy['records'] ?? [], 'field' => 'metric'], ['title' => 'MILESTONES', 'rows' => $legacy['milestones'] ?? [], 'field' => 'label']] as $group) {
+            $lines[] = '';
+            $lines[] = (string) $group['title'];
+            $rows = (array) $group['rows'];
+            if ($rows === []) { $lines[] = 'No evidence yet.'; continue; }
+            foreach ($rows as $row) {
+                if (!is_array($row)) { continue; }
+                $value = isset($row['value']) ? ' — ' . $this->number($row['value']) : '';
+                $label = $row[$group['field']] ?? null;
+                $label = $group['field'] === 'award_type' || $group['field'] === 'metric' ? CareerLabels::value($label) : $label;
+                $lines[] = $this->text($label) . $value;
+            }
+        }
+        $lines[] = '';
+        $lines[] = 'Legacy score: descriptive only; no synthetic score is used.';
+        $lines[] = '';
+        $lines[] = '1. Back to Career Home';
+
         return $lines;
     }
 

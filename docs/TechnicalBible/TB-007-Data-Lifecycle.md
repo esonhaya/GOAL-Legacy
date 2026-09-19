@@ -144,6 +144,15 @@ entity
 ✓ Matchday selections and substitution records are Career-durable Match state;
 substitute minutes remain Match-owned facts and are not copied to Player
 
+✓ Completed-Season awards, participation honours, personal bests, and
+threshold milestones are durable Career facts owned by the Legacy boundary
+
+✓ Awards resolve after the completed Season has all required competition
+results and before replay-only Match detail is compacted
+
+✓ World-fidelity competition aggregates are compact evidence for seasonal
+consumers; they are not NPC Match-detail or NPC legacy simulation
+
 ✓ Standings are a Seasonal projection deterministically rebuilt from durable
 completed Match results
 

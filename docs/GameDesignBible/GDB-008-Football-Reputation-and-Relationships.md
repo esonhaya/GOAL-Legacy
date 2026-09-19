@@ -46,3 +46,14 @@ Legacy P2-009 saves bootstrap lazily from current role and current football
 context. They do not receive fabricated historical reputation or social
 events. International football remains Club-to-country football only; no
 national social or political simulation is implied.
+
+## P2-012 achievement reactions
+
+Completed-Season awards, honours, meaningful personal records, and major
+milestones are bounded inputs to the existing controlled-Player reaction layer.
+Stable source IDs make award and trophy effects idempotent across reloads and
+repeated boundary calls. They may add a landmark Career History/News context
+and modest public, supporter, or manager reaction, but never change OVR,
+attributes, wages, Match outcomes, or relationship counts. NPC award winners
+are allowed from compact football evidence; NPC social simulation remains out
+of scope.

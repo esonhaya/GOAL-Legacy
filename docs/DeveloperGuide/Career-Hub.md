@@ -41,6 +41,21 @@ No wages, transfer valuations, unsupported Match statistics, awards, or
 narrative events are inferred. Free-agent periods remain valid career state,
 and a tier change is not presented as a Player transfer.
 
+## P2-012 Career Legacy
+
+The Career Legacy page is a read-only synthesis of canonical football facts.
+It exposes Club and international totals, represented Clubs, participation-
+based honours, completed-Season awards, personal bests, and idempotent numeric
+milestones. It does not create a second statistics owner, an achievement
+currency, or a synthetic Legacy score.
+
+Awards are resolved once at the completed-Season boundary, before compaction.
+Domestic-League awards use retained controlled-Player evidence or compact
+World-fidelity competition aggregates. NPC winners are valid; NPC detailed
+Match evidence is never generated. A controlled Player receives a League,
+Cup, European, or World Championship honour only with the documented
+registration/participation evidence, including at least one appearance/cap.
+
 ## P2-011 coherence rules
 
 The graphical Career Home is an action boundary as well as a read model. A

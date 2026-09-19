@@ -133,6 +133,10 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('CURRENT SEASON', $controlled['body']);
             self::assertStringContainsString('Training focus', $controlled['body']);
             self::assertStringNotContainsString('Potential', $controlled['body']);
+            $legacy = $this->application->handle('GET', '/', ['page' => 'legacy', 'save' => $save], [], $session);
+            self::assertSame(200, $legacy['status']);
+            self::assertStringContainsString('CAREER LEGACY', $legacy['body']);
+            self::assertStringContainsString('No earned honours yet.', $legacy['body']);
 
             $finances = $this->application->handle('GET', '/', ['page' => 'finances', 'save' => $save], [], $session);
             self::assertSame(200, $finances['status']);

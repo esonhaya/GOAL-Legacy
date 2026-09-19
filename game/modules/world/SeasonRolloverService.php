@@ -29,6 +29,7 @@ use Goal\Legacy\Modules\Match\MatchService;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Player\PlayerPopulationService;
 use Goal\Legacy\Modules\Player\PlayerLifecycleService;
+use Goal\Legacy\Modules\Player\CareerLegacyService;
 use Goal\Legacy\Modules\Player\PlayerSeasonPerformanceService;
 use Goal\Legacy\Modules\Player\ClubExpectationService;
 use Goal\Legacy\Modules\Player\Domain\SeasonPerformanceAssessment;
@@ -73,6 +74,7 @@ final class SeasonRolloverService
         private readonly ?DomesticCupService $domesticCups = null,
         private readonly ?EuropeanCompetitionService $europeanCompetitions = null,
         private readonly ?InternationalCompetitionService $internationalCompetitions = null,
+        private readonly ?CareerLegacyService $careerLegacy = null,
     ) {
         $this->promotionRelegation = new PromotionRelegationService($clubService);
     }
@@ -116,6 +118,9 @@ final class SeasonRolloverService
         if ($current->status() !== SeasonStatus::Completed) {
             throw new WorldException('Only completed Seasons can prepare a successor.');
         }
+        // Resolve durable football achievement before the next Season is
+        // prepared and before compaction can remove replay-only evidence.
+        $this->careerLegacy?->resolveCompletedSeason($database, $current, $current->endDate());
         $seasonRepository = new SeasonRepository($database);
         $next = $this->nextSeason($current);
         if ($seasonRepository->exists($next->id())) {

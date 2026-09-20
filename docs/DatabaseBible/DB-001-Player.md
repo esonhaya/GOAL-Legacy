@@ -477,4 +477,19 @@ trust rows, competition-history rows, or conversation state. Position
 competitor names are a bounded current read model, not a persistent rivalry
 graph.
 
+## P2-021 Preferred Foot and Weak-Foot Identity
+
+`player_records.preferred_foot` is the single immutable preferred-foot identity
+(`left` or `right`). `weak_foot` is a compact capability tier: `limited`,
+`usable`, `comfortable`, or `strong`. These values are Player identity, not
+attributes and not a second OVR. They are consumed only through bounded wide-
+position context and controlled-Match action selection.
+
+Newgens receive stable values from the versioned creation identity. Legacy
+rows are migrated with nullable columns so hydration can derive the same value
+from Player ID/creation seed and then persist it; no historical Match action is
+assigned a foot retroactively. Only controlled Players may have a
+`player_weak_foot_development` row. Training uses the existing cadence and
+specialized-focus boundary, with compact progress and no NPC training history.
+
 END OF DOCUMENT

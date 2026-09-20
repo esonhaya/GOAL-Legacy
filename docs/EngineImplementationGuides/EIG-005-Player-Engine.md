@@ -388,4 +388,15 @@ of `primary_position`; `career_position_changes` is a compact landmark log.
 Only controlled Players receive these rows. NPCs retain their primary
 positions and use existing broad position grouping.
 
+## P2-021 Football Identity
+
+`Player` owns one canonical preferred foot and one bounded weak-foot tier.
+`PlayerFootService` provides deterministic position suitability and meaningful
+controlled-action context without changing attributes or Match ratings.
+`PlayerRepository` owns persistence and stable legacy migration. `TrainingService`
+remains the cadence owner for optional controlled weak-foot focus; it shares
+the existing workload/development transaction and cannot run alongside
+positional focus. NPCs receive immutable compact identity only, not retraining
+decisions or history.
+
 END OF DOCUMENT

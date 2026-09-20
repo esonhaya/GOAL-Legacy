@@ -24,6 +24,8 @@ final readonly class PlayerCreationRequest
         public string $developmentProfile,
         public int $seed = 0,
         public ?PlayerAttributeSet $attributes = null,
+        public ?PlayerFoot $preferredFoot = null,
+        public ?WeakFootTier $weakFoot = null,
     ) {
     }
 }

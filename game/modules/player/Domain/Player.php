@@ -29,6 +29,8 @@ final readonly class Player
         private DevelopmentProfile $developmentProfile,
         private int $creationSeed,
         private PlayerCareerState $careerState = PlayerCareerState::Active,
+        private PlayerFoot $preferredFoot = PlayerFoot::Right,
+        private WeakFootTier $weakFoot = WeakFootTier::Usable,
     ) {
         foreach (['first name' => $firstName, 'last name' => $lastName, 'preferred name' => $preferredName] as $label => $value) {
             if (trim($value) === '') {
@@ -95,6 +97,12 @@ final readonly class Player
 
     public function creationSeed(): int { return $this->creationSeed; }
 
+    public function preferredFoot(): PlayerFoot { return $this->preferredFoot; }
+
+    public function weakFoot(): WeakFootTier { return $this->weakFoot; }
+
+    public function weakFootTier(): WeakFootTier { return $this->weakFoot; }
+
     public function careerState(): PlayerCareerState { return $this->careerState; }
 
     public function isRetired(): bool { return $this->careerState === PlayerCareerState::Retired; }
@@ -133,6 +141,8 @@ final readonly class Player
             $this->developmentProfile,
             $this->creationSeed,
             $this->careerState,
+            $this->preferredFoot,
+            $this->weakFoot,
         );
     }
 
@@ -156,6 +166,8 @@ final readonly class Player
             $this->developmentProfile,
             $this->creationSeed,
             $this->careerState,
+            $this->preferredFoot,
+            $this->weakFoot,
         );
     }
 
@@ -179,6 +191,33 @@ final readonly class Player
             $this->developmentProfile,
             $this->creationSeed,
             $careerState,
+            $this->preferredFoot,
+            $this->weakFoot,
+        );
+    }
+
+    public function withWeakFoot(WeakFootTier $weakFoot): self
+    {
+        return new self(
+            $this->id,
+            $this->firstName,
+            $this->lastName,
+            $this->preferredName,
+            $this->birthDate,
+            $this->primaryNationId,
+            $this->secondaryNationIds,
+            $this->birthNationId,
+            $this->eligibilityNationIds,
+            $this->heightCm,
+            $this->weightKg,
+            $this->primaryPosition,
+            $this->attributes,
+            $this->potential,
+            $this->developmentProfile,
+            $this->creationSeed,
+            $this->careerState,
+            $this->preferredFoot,
+            $weakFoot,
         );
     }
 
@@ -201,8 +240,10 @@ final readonly class Player
             'overall_rating' => $this->overallRating(),
             'potential' => $this->potential,
             'preferred_name' => $this->preferredName,
+            'preferred_foot' => $this->preferredFoot->value,
             'primary_nation_id' => $this->primaryNationId->value(),
             'primary_position' => $this->primaryPosition->value,
+            'weak_foot' => $this->weakFoot->value,
             'weight_kg' => $this->weightKg,
         ];
     }

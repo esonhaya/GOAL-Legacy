@@ -331,4 +331,14 @@ secondary capability, and a separate explicit action changes the primary
 position. Position focus does not restore readiness, create routine injury,
 or guarantee selection.
 
+## P2-021 Weak-Foot Focus
+
+`TrainingFocus::WeakFoot` is the one controlled specialized focus alongside
+positional development. It advances compact `player_weak_foot_development`
+progress at the existing training cadence and converts bounded thresholds into
+the Player's weak-foot tier. It competes with position focus, does not create a
+second readiness meter, does not alter attributes, and is disabled for retired
+or NPC Players. Preferred foot is immutable identity; weak-foot improvement is
+private and does not create routine News, Pulse, or Career History entries.
+
 END OF DOCUMENT

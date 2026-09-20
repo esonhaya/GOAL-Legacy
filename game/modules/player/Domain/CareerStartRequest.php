@@ -18,6 +18,7 @@ final readonly class CareerStartRequest
         public string $position,
         public string $archetype,
         public int $seed,
+        public ?string $preferredFoot = null,
     ) {
         new CareerId($careerId);
         if (strlen($careerId) > 40) {
@@ -28,6 +29,9 @@ final readonly class CareerStartRequest
         }
         if ($seed < 0) {
             throw new InvalidArgumentException('Career seed cannot be negative.');
+        }
+        if ($preferredFoot !== null) {
+            PlayerFoot::fromInput($preferredFoot);
         }
     }
 }

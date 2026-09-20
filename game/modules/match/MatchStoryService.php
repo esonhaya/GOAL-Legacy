@@ -234,8 +234,8 @@ final class MatchStoryService
                 $data = (array) ($event['data'] ?? []);
                 if (($data['incoming_player_id'] ?? $event['player_id']) === $playerId->value()) { $facts[] = ['kind' => 'substitution', 'minute' => $event['minute'], 'direction' => 'in']; }
                 if (($data['outgoing_player_id'] ?? null) === $playerId->value()) { $facts[] = ['kind' => 'substitution', 'minute' => $event['minute'], 'direction' => 'out']; }
-            } elseif ($event['player_id'] === $playerId->value()) { $facts[] = ['kind' => $event['type'], 'minute' => $event['minute'], 'assist_player_id' => $event['assist_player_id'], 'scorer_player_id' => $event['player_id']]; }
-            elseif ($event['assist_player_id'] === $playerId->value()) { $facts[] = ['kind' => 'assist', 'minute' => $event['minute'], 'scorer_player_id' => $event['player_id']]; }
+            } elseif ($event['player_id'] === $playerId->value()) { $facts[] = ['kind' => $event['type'], 'minute' => $event['minute'], 'assist_player_id' => $event['assist_player_id'], 'scorer_player_id' => $event['player_id'], 'action_foot' => (($event['data']['action_foot'] ?? null) !== null ? (string) $event['data']['action_foot'] : null)]; }
+            elseif ($event['assist_player_id'] === $playerId->value()) { $facts[] = ['kind' => 'assist', 'minute' => $event['minute'], 'scorer_player_id' => $event['player_id'], 'action_foot' => (($event['data']['assist_foot'] ?? null) !== null ? (string) $event['data']['assist_foot'] : null)]; }
         }
         if ($stat !== null) {
             if ($stat->saves() > 0) { $facts[] = ['kind' => 'saves', 'count' => $stat->saves()]; }

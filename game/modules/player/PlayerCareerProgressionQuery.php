@@ -49,6 +49,7 @@ final class PlayerCareerProgressionQuery
         $retirement = (new PlayerRetirementRepository($database, false))->get($id);
         $development = new PlayerDevelopmentService();
         $positions = new PositionDevelopmentService();
+        $weakFoot = (new WeakFootDevelopmentService())->context($database, $id);
         $statistics = new PlayerCareerStatisticsService();
         $availability = (new PlayerAvailabilityService())->assess($database, $id, $date);
         $squads = $this->clubService->squadRepository($database);
@@ -76,6 +77,7 @@ final class PlayerCareerProgressionQuery
         $summary = [
             'player' => $player->toArray(),
             'position_development' => $positionContext,
+            'weak_foot_development' => $weakFoot,
             'position_history' => $positions->history($database, $id),
             'age' => $player->ageAt($date),
             'current_ovr' => $player->overallRating(),

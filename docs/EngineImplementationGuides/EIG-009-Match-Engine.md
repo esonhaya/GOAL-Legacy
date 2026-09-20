@@ -358,4 +358,15 @@ run a minute-by-minute medical simulation.
 
 ---
 
+## P2-021 Foot-Sensitive Controlled Actions
+
+The shared Match engine remains the owner of outcomes and Player statistics.
+Only controlled-Player fidelity uses `PlayerFootService` to choose a stable
+action foot for meaningful goal, assist, and shot-selection context. The
+bounded weak-foot modifier is deliberately small and Shooting/Passing remain
+the primary evidence. Ordinary World Matches do not create foot action rows;
+the optional foot metadata is carried in existing controlled highlight data.
+Ratings do not receive a direct preferred-foot bonus, and the action namespace
+is isolated from Match outcome RNG.
+
 END OF DOCUMENT

@@ -305,7 +305,7 @@ final class PlayerDevelopmentService
     private function weights(?TrainingFocus $focus): array
     {
         $weights = array_fill_keys(['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physicality'], 1);
-        if ($focus !== null && $focus !== TrainingFocus::Balanced) {
+        if ($focus !== null && $focus !== TrainingFocus::Balanced && $focus !== TrainingFocus::WeakFoot) {
             $weights[$focus->value] = 4;
         }
 

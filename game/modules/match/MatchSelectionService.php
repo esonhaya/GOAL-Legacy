@@ -18,6 +18,7 @@ use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
 use Goal\Legacy\Modules\Player\ManagerTrustService;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
+use Goal\Legacy\Modules\Player\PlayerFootService;
 
 final class MatchSelectionService
 {
@@ -51,7 +52,8 @@ final class MatchSelectionService
                 $groups = isset($controlledPlayers[$player->id()->value()])
                     ? $this->positionGroups($database, $player)
                     : [$this->positionGroup($player)];
-                $ranked[] = ['player' => $player, 'score' => $role->weight() + ($player->overallRating() * 10) + $this->formBonus($database, $player->id()->value(), $match) - $fatiguePenalty + $trustInfluence + $positionInfluence, 'tie' => hash('sha256', $match->id()->value() . '|' . $player->id()->value()), 'group' => $this->positionGroup($player), 'groups' => $groups];
+                $footInfluence = isset($controlledPlayers[$player->id()->value()]) ? (new PlayerFootService())->positionSuitability($player, $player->primaryPosition()) : 0;
+                $ranked[] = ['player' => $player, 'score' => $role->weight() + ($player->overallRating() * 10) + $this->formBonus($database, $player->id()->value(), $match) - $fatiguePenalty + $trustInfluence + $positionInfluence + $footInfluence, 'tie' => hash('sha256', $match->id()->value() . '|' . $player->id()->value()), 'group' => $this->positionGroup($player), 'groups' => $groups];
             }
             usort($ranked, static fn (array $a, array $b): int => ($b['score'] <=> $a['score']) ?: strcmp($a['tie'], $b['tie']));
             $starters = $this->positionAwareStarters($ranked);

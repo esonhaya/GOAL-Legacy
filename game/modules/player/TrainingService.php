@@ -6,11 +6,12 @@ namespace Goal\Legacy\Modules\Player;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Player\Domain\DevelopmentApplicationResult;
+use Goal\Legacy\Modules\Player\Domain\TrainingFocus;
 use Goal\Legacy\Modules\Player\Domain\TrainingRequest;
 
 final class TrainingService
 {
-    public function __construct(private readonly PlayerDevelopmentService $development, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?PositionDevelopmentService $positions = null)
+    public function __construct(private readonly PlayerDevelopmentService $development, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?PositionDevelopmentService $positions = null, private readonly ?WeakFootDevelopmentService $weakFoot = null)
     {
     }
 
@@ -41,7 +42,10 @@ final class TrainingService
             $weeks = max(1, intdiv($request->startDate()->daysUntil($request->endDate()), 7));
             $changes = $this->availability->applyTrainingInTransaction($database, $request->playerId(), $request->blockId(), $request->endDate(), $weeks, $request->intensity());
             if ($result->applied()) {
-                $this->positions?->applyTrainingInTransaction($database, $request->playerId(), $request->endDate(), $weeks, $request->intensity());
+                if ($request->focus() !== TrainingFocus::WeakFoot) {
+                    $this->positions?->applyTrainingInTransaction($database, $request->playerId(), $request->endDate(), $weeks, $request->intensity());
+                }
+                $this->weakFoot?->applyTrainingInTransaction($database, $request->playerId(), $request->endDate(), $weeks, $request->intensity(), $request->focus());
             }
 
             return $result;

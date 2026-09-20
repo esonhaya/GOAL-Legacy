@@ -329,4 +329,18 @@ expectation and final assessment survive. NPC Clubs may use the cheap derived
 read model, but there are no NPC objective histories, pressure snapshots,
 player-contribution tracking, or manager objective conversations.
 
+## P2-021 Player Football Identity
+
+Every Player has a preferred foot, while weak-foot capability is represented
+by a small readable tier. The identity creates believable bounded differences
+in wide-position context and selected controlled-Match actions, but never
+overrides position, attributes, readiness, form, or role. The Player may
+choose a private weak-foot training focus through the existing training block;
+progress is slow, capped, and competes with positional retraining.
+
+The Player Profile presents preferred foot and weak foot. The creator asks
+only for preferred foot; weak-foot capability is derived deterministically from
+the creation identity. Legacy saves and NPCs receive stable compact identity,
+with no fabricated historical action-foot data or NPC weak-foot training.
+
 END OF DOCUMENT

@@ -23,6 +23,7 @@ use Goal\Legacy\Modules\Player\Domain\PlayerAttributeSet;
 use Goal\Legacy\Modules\Player\Domain\PlayerCreationRequest;
 use Goal\Legacy\Modules\Player\Domain\PlayerException;
 use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
+use Goal\Legacy\Modules\Player\Domain\PlayerFoot;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 
@@ -69,6 +70,7 @@ final class YouthCareerStartService
             $profile->value,
             $request->seed,
             $attributes,
+            $request->preferredFoot === null ? null : PlayerFoot::fromInput($request->preferredFoot),
         ));
     }
 

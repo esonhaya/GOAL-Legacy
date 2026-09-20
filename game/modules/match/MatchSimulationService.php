@@ -17,6 +17,7 @@ use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
+use Goal\Legacy\Modules\Player\PlayerFootService;
 use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
 use Goal\Legacy\Modules\Match\Domain\SimulationFidelity;
 
@@ -62,17 +63,22 @@ final class MatchSimulationService
         $substitutions = array_merge($homeSubstitutions, $awaySubstitutions);
         usort($substitutions, static fn (MatchSubstitution $left, MatchSubstitution $right): int => ($left->minute() <=> $right->minute()) ?: (($left->clubId()->value() <=> $right->clubId()->value()) ?: ($left->sequence() <=> $right->sequence())));
         $goalEvents = [];
+        $footService = new PlayerFootService();
         for ($i = 0; $i < $homeGoals; $i++) {
             $minute = 1 + (int) floor($this->unit($match->id()->value() . '|home-goal|' . $i) * 89);
             $active = $this->activePlayersAtMinute($homeStarters, $homeSubstitutions, $minute, $playersById, $dismissals);
-            $scorer = $this->scorerAtMinute($match->id()->value(), $active, $minute, $i);
-            $goalEvents[] = ['club' => $match->homeClubId()->value(), 'player' => $scorer, 'assist' => $this->assistAtMinute($match->id()->value(), $active, $scorer, $minute, $i), 'minute' => $minute, 'side' => 'home', 'type' => 'goal'];
+            $actionKey = 'goal|home|' . $minute . '|' . $i;
+            $scorer = $this->scorerAtMinute($match->id()->value(), $active, $minute, $i, $controlledPlayers, $actionKey);
+            $assist = $this->assistAtMinute($match->id()->value(), $active, $scorer, $minute, $i, $controlledPlayers, $actionKey);
+            $goalEvents[] = ['club' => $match->homeClubId()->value(), 'player' => $scorer, 'assist' => $assist, 'action_foot' => $scorer !== null && isset($controlledPlayers[$scorer]) ? $footService->actionFoot($playersById[$scorer], $actionKey)->value : null, 'assist_foot' => $assist !== null && isset($controlledPlayers[$assist]) ? $footService->actionFoot($playersById[$assist], $actionKey . '|assist')->value : null, 'minute' => $minute, 'side' => 'home', 'type' => 'goal'];
         }
         for ($i = 0; $i < $awayGoals; $i++) {
             $minute = 1 + (int) floor($this->unit($match->id()->value() . '|away-goal|' . $i) * 89);
             $active = $this->activePlayersAtMinute($awayStarters, $awaySubstitutions, $minute, $playersById, $dismissals);
-            $scorer = $this->scorerAtMinute($match->id()->value(), $active, $minute, $i);
-            $goalEvents[] = ['club' => $match->awayClubId()->value(), 'player' => $scorer, 'assist' => $this->assistAtMinute($match->id()->value(), $active, $scorer, $minute, $i), 'minute' => $minute, 'side' => 'away', 'type' => 'goal'];
+            $actionKey = 'goal|away|' . $minute . '|' . $i;
+            $scorer = $this->scorerAtMinute($match->id()->value(), $active, $minute, $i, $controlledPlayers, $actionKey);
+            $assist = $this->assistAtMinute($match->id()->value(), $active, $scorer, $minute, $i, $controlledPlayers, $actionKey);
+            $goalEvents[] = ['club' => $match->awayClubId()->value(), 'player' => $scorer, 'assist' => $assist, 'action_foot' => $scorer !== null && isset($controlledPlayers[$scorer]) ? $footService->actionFoot($playersById[$scorer], $actionKey)->value : null, 'assist_foot' => $assist !== null && isset($controlledPlayers[$assist]) ? $footService->actionFoot($playersById[$assist], $actionKey . '|assist')->value : null, 'minute' => $minute, 'side' => 'away', 'type' => 'goal'];
         }
         $shotCounts = [];
         $shotsOnTargetCounts = [];
@@ -83,8 +89,8 @@ final class MatchSimulationService
         $blockCounts = [];
         $fullDetail = $fidelity === SimulationFidelity::Player;
         if ($fullDetail) {
-            $this->additionalAttempts($match->id()->value(), 'home', $homeStarters, $homeSubstitutions, $awayStarters, $awaySubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts, $dismissals);
-            $this->additionalAttempts($match->id()->value(), 'away', $awayStarters, $awaySubstitutions, $homeStarters, $homeSubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts, $dismissals);
+            $this->additionalAttempts($match->id()->value(), 'home', $homeStarters, $homeSubstitutions, $awayStarters, $awaySubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts, $dismissals, $controlledPlayers);
+            $this->additionalAttempts($match->id()->value(), 'away', $awayStarters, $awaySubstitutions, $homeStarters, $homeSubstitutions, $playersById, $shotCounts, $shotsOnTargetCounts, $saveCounts, $dismissals, $controlledPlayers);
             $this->defensiveActions($match->id()->value(), 'home', $homeStarters, $homeSubstitutions, $playersById, $tackleCounts, $interceptionCounts, $blockCounts, $dismissals);
             $this->defensiveActions($match->id()->value(), 'away', $awayStarters, $awaySubstitutions, $playersById, $tackleCounts, $interceptionCounts, $blockCounts, $dismissals);
         }
@@ -116,7 +122,7 @@ final class MatchSimulationService
             } elseif ($event['type'] === 'yellow_card' || $event['type'] === 'red_card') {
                 $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], $event['type'], new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['dismissal' => (int) $event['dismissal']]);
             } else {
-                $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], 'goal', new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), $event['player'] === null ? null : new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['side' => $event['side'], 'home_goals' => $homeGoals, 'away_goals' => $awayGoals, 'assist_player_id' => $event['assist']]);
+                $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], 'goal', new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), $event['player'] === null ? null : new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['side' => $event['side'], 'home_goals' => $homeGoals, 'away_goals' => $awayGoals, 'assist_player_id' => $event['assist'], 'action_foot' => $event['action_foot'] ?? null, 'assist_foot' => $event['assist_foot'] ?? null]);
             }
         }
         $stats = [];
@@ -191,25 +197,31 @@ final class MatchSimulationService
     }
 
     /** @param list<Player> $players */
-    private function scorerAtMinute(string $matchId, array $players, int $minute, int $goalIndex): ?string
+    private function scorerAtMinute(string $matchId, array $players, int $minute, int $goalIndex, array $controlledPlayers = [], string $actionKey = 'goal'): ?string
     {
         if ($players === []) {
             return null;
         }
 
-        return $this->weightedPlayer($players, $matchId . '|scorer|' . $minute . '|' . $goalIndex, static fn (Player $player): int => max(1, match ($player->primaryPosition()->value) {
-            'GK' => 1,
-            'CB', 'LB', 'RB' => 4,
-            'DM' => 7,
-            'CM' => 9,
-            'AM' => 14,
-            'LW', 'RW' => 16,
-            'ST' => 20,
-        } + intdiv($player->attributes()->shooting(), 5) + intdiv($player->attributes()->dribbling(), 10)));
+        return $this->weightedPlayer($players, $matchId . '|scorer|' . $minute . '|' . $goalIndex, function (Player $player) use ($controlledPlayers, $actionKey): int {
+            $base = match ($player->primaryPosition()->value) {
+                'GK' => 1,
+                'CB', 'LB', 'RB' => 4,
+                'DM' => 7,
+                'CM' => 9,
+                'AM' => 14,
+                'LW', 'RW' => 16,
+                'ST' => 20,
+            } + intdiv($player->attributes()->shooting(), 5) + intdiv($player->attributes()->dribbling(), 10);
+            if (!isset($controlledPlayers[$player->id()->value()])) { return max(1, $base); }
+            $foot = new PlayerFootService();
+
+            return max(1, $base + $foot->executionModifier($player, $foot->actionFoot($player, $actionKey)));
+        });
     }
 
     /** @param list<Player> $players */
-    private function assistAtMinute(string $matchId, array $players, ?string $scorer, int $minute, int $goalIndex): ?string
+    private function assistAtMinute(string $matchId, array $players, ?string $scorer, int $minute, int $goalIndex, array $controlledPlayers = [], string $actionKey = 'assist'): ?string
     {
         if ($scorer === null || count($players) < 2 || $this->unit($matchId . '|assist-chance|' . $minute . '|' . $goalIndex) >= 0.65) {
             return null;
@@ -220,25 +232,31 @@ final class MatchSimulationService
             return null;
         }
 
-        return $this->weightedPlayer($candidates, $matchId . '|assist|' . $minute . '|' . $goalIndex, static fn (Player $player): int => max(1, match ($player->primaryPosition()->value) {
-            'GK' => 1,
-            'CB', 'LB', 'RB' => 5,
-            'DM' => 8,
-            'CM' => 12,
-            'AM' => 16,
-            'LW', 'RW' => 14,
-            'ST' => 8,
-        } + intdiv($player->attributes()->passing(), 5) + intdiv($player->attributes()->dribbling(), 8)));
+        return $this->weightedPlayer($candidates, $matchId . '|assist|' . $minute . '|' . $goalIndex, function (Player $player) use ($controlledPlayers, $actionKey): int {
+            $base = match ($player->primaryPosition()->value) {
+                'GK' => 1,
+                'CB', 'LB', 'RB' => 5,
+                'DM' => 8,
+                'CM' => 12,
+                'AM' => 16,
+                'LW', 'RW' => 14,
+                'ST' => 8,
+            } + intdiv($player->attributes()->passing(), 5) + intdiv($player->attributes()->dribbling(), 8);
+            if (!isset($controlledPlayers[$player->id()->value()])) { return max(1, $base); }
+            $foot = new PlayerFootService();
+
+            return max(1, $base + $foot->executionModifier($player, $foot->actionFoot($player, $actionKey . '|assist')));
+        });
     }
 
     /** @param list<Player> $attackers @param list<MatchSubstitution> $attackerSubs @param list<Player> $defenders @param list<MatchSubstitution> $defenderSubs @param array<string, Player> $playersById @param array<string, int> $shotCounts @param array<string, int> $shotsOnTargetCounts @param array<string, int> $saveCounts */
-    private function additionalAttempts(string $matchId, string $side, array $attackers, array $attackerSubs, array $defenders, array $defenderSubs, array $playersById, array &$shotCounts, array &$shotsOnTargetCounts, array &$saveCounts, array $dismissals = []): void
+    private function additionalAttempts(string $matchId, string $side, array $attackers, array $attackerSubs, array $defenders, array $defenderSubs, array $playersById, array &$shotCounts, array &$shotsOnTargetCounts, array &$saveCounts, array $dismissals = [], array $controlledPlayers = []): void
     {
         $attempts = 4 + (int) floor($this->unit($matchId . '|' . $side . '|shot-count') * 5);
         for ($index = 0; $index < $attempts; ++$index) {
             $minute = 1 + (int) floor($this->unit($matchId . '|' . $side . '|shot-minute|' . $index) * 89);
             $activeAttackers = $this->activePlayersAtMinute($attackers, $attackerSubs, $minute, $playersById, $dismissals);
-            $shooter = $this->scorerAtMinute($matchId . '|shot|' . $side, $activeAttackers, $minute, $index);
+            $shooter = $this->scorerAtMinute($matchId . '|shot|' . $side, $activeAttackers, $minute, $index, $controlledPlayers, 'shot|' . $side . '|' . $minute . '|' . $index);
             if ($shooter === null) { continue; }
             $shotCounts[$shooter] = ($shotCounts[$shooter] ?? 0) + 1;
             $shooterPlayer = $playersById[$shooter] ?? null;

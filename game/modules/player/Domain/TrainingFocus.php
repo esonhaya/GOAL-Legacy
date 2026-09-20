@@ -15,6 +15,7 @@ enum TrainingFocus: string
     case Dribbling = 'dribbling';
     case Defending = 'defending';
     case Physicality = 'physicality';
+    case WeakFoot = 'weak_foot';
 
     public static function fromInput(string $value): self
     {

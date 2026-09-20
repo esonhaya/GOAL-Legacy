@@ -27,12 +27,13 @@ final class PositionDevelopmentService
         $player = (new PlayerRepository($database))->get($id);
         $state = (new PositionDevelopmentRepository($database, false))->state($id);
         $secondary = array_values(array_filter($state->secondaryPositions(), static fn (PlayerPosition $position): bool => $position !== $player->primaryPosition()));
+        $foot = new PlayerFootService();
         $eligible = [];
         foreach (PositionDevelopmentRules::compatibleWith($player->primaryPosition()) as $position) {
             if (in_array($position, $secondary, true) || !PositionDevelopmentRules::hasAttributeFit($position, $player->attributes())) {
                 continue;
             }
-            $eligible[] = ['position' => $position->value, 'fit_score' => PositionDevelopmentRules::fitScore($position, $player->attributes())];
+            $eligible[] = ['position' => $position->value, 'fit_score' => PositionDevelopmentRules::fitScore($position, $player->attributes()), 'foot_context' => $foot->positionContext($player, $position), 'foot_suitability' => $foot->positionSuitability($player, $position)];
         }
         usort($eligible, static fn (array $left, array $right): int => (($right['fit_score'] <=> $left['fit_score']) ?: strcmp($left['position'], $right['position'])));
         $familiarity = [];
@@ -47,6 +48,9 @@ final class PositionDevelopmentService
 
         return [
             'primary_position' => $player->primaryPosition()->value,
+            'preferred_foot' => $player->preferredFoot()->value,
+            'weak_foot' => $player->weakFoot()->value,
+            'foot_context' => $foot->positionContext($player, $player->primaryPosition()),
             'secondary_positions' => array_map(static fn (PlayerPosition $position): string => $position->value, $secondary),
             'developing_position' => $state->developingPosition()?->value,
             'progress' => $state->developingPosition() === null ? 0 : $state->progressFor($state->developingPosition()),

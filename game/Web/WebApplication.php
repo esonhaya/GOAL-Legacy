@@ -24,6 +24,7 @@ use Goal\Legacy\Modules\Player\Domain\CareerStartRequest;
 use Goal\Legacy\Modules\Player\Domain\PlayerAppearance;
 use Goal\Legacy\Modules\Player\Domain\TrainingFocus;
 use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
+use Goal\Legacy\Modules\Player\Domain\PlayerFoot;
 use Goal\Legacy\Modules\Player\Finance\LifestyleCatalog;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
@@ -221,13 +222,15 @@ final class WebApplication
         $draft = $this->draft($session);
         $position = trim((string) ($post['position'] ?? ''));
         $archetype = trim((string) ($post['archetype'] ?? ''));
+        $preferredFoot = PlayerFoot::fromInput((string) ($post['preferred_foot'] ?? 'right'));
         $seed = filter_var($post['seed'] ?? null, FILTER_VALIDATE_INT);
         if ($position === '' || $archetype === '' || $seed === false || $seed < 0) { throw new RuntimeException('Complete the football profile with a position, archetype, and non-negative seed.'); }
-        $request = $this->careerRequest($draft, $position, $archetype, (int) $seed);
+        $request = $this->careerRequest($draft, $position, $archetype, (int) $seed, $preferredFoot->value);
         $preview = (new WebCareerStartWorkflow($this->services, $this->projectRoot))->preview($request);
         $draft['position'] = $position;
         $draft['archetype'] = $archetype;
         $draft['seed'] = (int) $seed;
+        $draft['preferred_foot'] = $preferredFoot->value;
         $draft['player'] = $preview['player']->toArray();
         $draft['opportunities'] = $preview['opportunities'];
         $session[self::DRAFT] = $draft;
@@ -623,7 +626,9 @@ final class WebApplication
         $archetypes = ['late_bloomer' => 'Late Bloomer', 'regular' => 'Regular', 'prodigy' => 'Prodigy'];
         $archetypeOptions = '';
         foreach ($archetypes as $id => $label) { $archetypeOptions .= '<option value="' . $id . '"' . (($draft['archetype'] ?? '') === $id ? ' selected' : '') . '>' . $label . '</option>'; }
-        $body = '<div class="flow-heading"><div class="eyebrow">NEW CAREER · 4 OF 6</div><h1>Football Profile</h1><p>Choose the football identity that Youth Camp will evaluate.</p></div><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="new_profile"><input type="hidden" name="seed" value="' . WebView::e($draft['seed'] ?? 24001) . '"><label>Position<select name="position" required>' . $positionOptions . '</select></label><label>Development path<select name="archetype" required>' . $archetypeOptions . '</select></label><p class="muted">Youth Camp will evaluate this profile against the available Clubs.</p><div class="form-actions">' . WebView::link('new', ['step' => 'appearance'], 'Back') . '<button class="button button-primary" type="submit">Review profile</button></div></form>';
+        $footOptions = '';
+        foreach (PlayerFoot::cases() as $foot) { $footOptions .= '<option value="' . $foot->value . '"' . (($draft['preferred_foot'] ?? 'right') === $foot->value ? ' selected' : '') . '>' . $foot->label() . '</option>'; }
+        $body = '<div class="flow-heading"><div class="eyebrow">NEW CAREER · 4 OF 6</div><h1>Football Profile</h1><p>Choose the football identity that Youth Camp will evaluate.</p></div><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="new_profile"><input type="hidden" name="seed" value="' . WebView::e($draft['seed'] ?? 24001) . '"><label>Position<select name="position" required>' . $positionOptions . '</select></label><label>Preferred foot<select name="preferred_foot" required>' . $footOptions . '</select></label><label>Development path<select name="archetype" required>' . $archetypeOptions . '</select></label><p class="muted">Weak-foot capability is a bounded Player trait derived from the development path; it is not a creator point-buy.</p><p class="muted">Youth Camp will evaluate this profile against the available Clubs.</p><div class="form-actions">' . WebView::link('new', ['step' => 'appearance'], 'Back') . '<button class="button button-primary" type="submit">Review profile</button></div></form>';
 
         return WebView::layout('New Career — Football Profile', $body, null, '', null);
     }
@@ -631,7 +636,7 @@ final class WebApplication
     private function newReviewView(array $draft): string
     {
         $player = (array) ($draft['player'] ?? []);
-        $body = '<div class="flow-heading"><div class="eyebrow">NEW CAREER · 5 OF 6</div><h1>Review</h1><p>Everything is ready for Youth Camp.</p></div><div class="panel review-card"><div class="review-avatar"><img class="portrait portrait-large" src="' . WebView::e(WebView::url('portrait', ['draft' => 1, 'size' => 256])) . '" alt="Player portrait"></div><div class="review-facts"><h2>' . WebView::e($draft['name'] ?? '') . '</h2><p>' . WebView::e(CareerLabels::position($draft['position'] ?? null)) . ' · ' . WebView::e(CareerLabels::value($draft['archetype'] ?? null)) . '</p><div class="stat-grid compact">' . WebView::stat('Starting OVR', $player['overall_rating'] ?? '—') . WebView::stat('Potential', $player['potential'] ?? '—') . WebView::stat('Height', ($draft['height'] ?? '—') . ' cm') . WebView::stat('Weight', ($draft['weight'] ?? '—') . ' kg') . '</div></div></div><div class="form-actions">' . WebView::link('new', ['step' => 'profile'], 'Back') . WebView::form('new_youth_view', 'Enter Youth Camp', [], 'button button-primary', 'data-busy') . '</div>';
+        $body = '<div class="flow-heading"><div class="eyebrow">NEW CAREER · 5 OF 6</div><h1>Review</h1><p>Everything is ready for Youth Camp.</p></div><div class="panel review-card"><div class="review-avatar"><img class="portrait portrait-large" src="' . WebView::e(WebView::url('portrait', ['draft' => 1, 'size' => 256])) . '" alt="Player portrait"></div><div class="review-facts"><h2>' . WebView::e($draft['name'] ?? '') . '</h2><p>' . WebView::e(CareerLabels::position($draft['position'] ?? null)) . ' · ' . WebView::e(($draft['preferred_foot'] ?? 'right') === 'left' ? 'Left-footed' : 'Right-footed') . ' · ' . WebView::e(CareerLabels::value($draft['archetype'] ?? null)) . '</p><div class="stat-grid compact">' . WebView::stat('Starting OVR', $player['overall_rating'] ?? '—') . WebView::stat('Potential', $player['potential'] ?? '—') . WebView::stat('Weak foot', CareerLabels::value($player['weak_foot'] ?? null, 'Derived')) . WebView::stat('Height', ($draft['height'] ?? '—') . ' cm') . WebView::stat('Weight', ($draft['weight'] ?? '—') . ' kg') . '</div></div></div><div class="form-actions">' . WebView::link('new', ['step' => 'profile'], 'Back') . WebView::form('new_youth_view', 'Enter Youth Camp', [], 'button button-primary', 'data-busy') . '</div>';
 
         return WebView::layout('New Career — Review', $body, null, '', null);
     }
@@ -932,7 +937,7 @@ final class WebApplication
         $clubLink = $club === null ? 'Free Agent' : WebView::link('club', ['save' => $saveId, 'club' => $club->id()->value()], $club->canonicalName(), 'text-link');
         $positionDevelopment = (array) ($data['position_development'] ?? []);
         $secondaryLabel = ($positionDevelopment['secondary_positions'] ?? []) === [] ? 'None' : implode(', ', array_map(static fn (mixed $value): string => CareerLabels::position(is_string($value) ? $value : null), (array) $positionDevelopment['secondary_positions']));
-        $facts = '<div class="stat-grid compact">' . WebView::stat('OVR', $player->overallRating()) . WebView::stat('Age', $data['age']) . WebView::stat('Position', CareerLabels::position($player->primaryPosition()->value)) . WebView::stat('Secondary', $secondaryLabel) . WebView::stat('Nationality', $data['nationality']) . WebView::stat('Role', CareerLabels::value($data['role'] ?? null, 'Not assigned')) . WebView::stat('Career phase', CareerLabels::value($data['career_phase'] ?? null, 'Active')) . WebView::stat('Status', CareerLabels::value($data['career_state'] ?? 'active')) . WebView::stat('Market stature', $market['label'] ?? 'Unknown') . WebView::stat('Season', $data['season_id']) . '</div>';
+        $facts = '<div class="stat-grid compact">' . WebView::stat('OVR', $player->overallRating()) . WebView::stat('Age', $data['age']) . WebView::stat('Position', CareerLabels::position($player->primaryPosition()->value)) . WebView::stat('Secondary', $secondaryLabel) . WebView::stat('Preferred foot', $player->preferredFoot()->label()) . WebView::stat('Weak foot', $player->weakFoot()->label()) . WebView::stat('Nationality', $data['nationality']) . WebView::stat('Role', CareerLabels::value($data['role'] ?? null, 'Not assigned')) . WebView::stat('Career phase', CareerLabels::value($data['career_phase'] ?? null, 'Active')) . WebView::stat('Status', CareerLabels::value($data['career_state'] ?? 'active')) . WebView::stat('Market stature', $market['label'] ?? 'Unknown') . WebView::stat('Season', $data['season_id']) . '</div>';
         $seasonLine = '<div class="stat-grid compact">' . WebView::stat('Appearances', $stats['appearances'] ?? 0) . WebView::stat('Starts', $stats['starts'] ?? 0) . WebView::stat('Minutes', $stats['minutes'] ?? 0) . WebView::stat('Goals', $stats['goals'] ?? 0) . WebView::stat('Assists', $stats['assists'] ?? 0) . WebView::stat('Rating', $this->rating($stats['average_match_rating'] ?? null)) . '</div>';
         $extras = '<p><strong>Recent form:</strong> ' . WebView::e($this->formLabel($form)) . '</p>';
         $cupPanel = '';
@@ -1314,7 +1319,9 @@ final class WebApplication
             }
         }
         $positionPanel = '<div class="stat-grid compact">' . WebView::stat('Primary', CareerLabels::position($position['primary_position'] ?? null)) . WebView::stat('Secondary', ($position['secondary_positions'] ?? []) === [] ? 'None' : implode(', ', array_map(static fn (mixed $value): string => CareerLabels::position(is_string($value) ? $value : null), (array) $position['secondary_positions']))) . WebView::stat('Progress', ($position['developing_position'] ?? null) === null ? 'No active focus' : ((int) ($position['progress'] ?? 0)) . '%') . '</div><p class="muted">Position development is a medium-term training choice. It uses canonical training blocks and does not change attributes or guarantee selection. Making a completed secondary position primary preserves the Player and attributes while changing future football context.</p>' . ($positionActions === '' ? WebView::emptyState('No adjacent position currently fits this Player profile.') : $positionActions);
-        $body = '<div class="page-heading"><div><div class="eyebrow">TRAINING & PRIORITIES</div><h1>Shape the next block</h1><p>These choices feed the canonical development and readiness systems.</p></div></div>' . WebView::section('READINESS', 'Current football state', $readinessPanel) . WebView::section('POSITION DEVELOPMENT', 'Build another football option', $positionPanel) . '<div class="two-column"><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_training"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Training focus<select name="focus">' . $focusOptions . '</select></label><p class="muted">Focus influences where existing development progress is directed.</p><button class="button button-primary" type="submit">Save training focus</button></form><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_priority"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Career priority<select name="priority">' . $priorityOptions . '</select></label><p class="muted">Recovery and lifestyle priorities use a light training load; Development uses an intense block; other priorities remain normal.</p><button class="button button-primary" type="submit">Save priority</button></form></div>';
+        $weakFoot = (array) ($summary['weak_foot_development'] ?? []);
+        $weakFootPanel = '<div class="stat-grid compact">' . WebView::stat('Preferred foot', (($summary['player']['preferred_foot'] ?? 'right') === 'left') ? 'Left' : 'Right') . WebView::stat('Weak foot', $weakFoot['label'] ?? 'Derived') . WebView::stat('Progress', isset($weakFoot['progress']) ? ((int) $weakFoot['progress']) . '%' : 'Identity') . '</div><p class="muted">Weak-foot focus uses the same bounded training blocks as other development and competes with position focus. It never changes attributes or readiness by itself.</p>';
+        $body = '<div class="page-heading"><div><div class="eyebrow">TRAINING & PRIORITIES</div><h1>Shape the next block</h1><p>These choices feed the canonical development and readiness systems.</p></div></div>' . WebView::section('READINESS', 'Current football state', $readinessPanel) . WebView::section('POSITION DEVELOPMENT', 'Build another football option', $positionPanel) . WebView::section('FOOTBALL IDENTITY', 'Bounded weak-foot development', $weakFootPanel) . '<div class="two-column"><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_training"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Training focus<select name="focus">' . $focusOptions . '</select></label><p class="muted">Focus influences where existing development progress is directed.</p><button class="button button-primary" type="submit">Save training focus</button></form><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_priority"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Career priority<select name="priority">' . $priorityOptions . '</select></label><p class="muted">Recovery and lifestyle priorities use a light training load; Development uses an intense block; other priorities remain normal.</p><button class="button button-primary" type="submit">Save priority</button></form></div>';
 
         return $this->html('Training', $body, $saveId, 'training', 200, $session);
     }
@@ -1494,8 +1501,8 @@ final class WebApplication
         foreach ($facts as $fact) {
             $kind = (string) ($fact['kind'] ?? '');
             $lines[] = match ($kind) {
-                'goal' => 'Scored at ' . (int) ($fact['minute'] ?? 0) . "'",
-                'assist' => 'Provided an assist at ' . (int) ($fact['minute'] ?? 0) . "'",
+                'goal' => 'Scored at ' . (int) ($fact['minute'] ?? 0) . "'" . (($fact['action_foot'] ?? null) !== null ? ' (' . ucfirst((string) $fact['action_foot']) . '-footed finish)' : ''),
+                'assist' => 'Provided an assist at ' . (int) ($fact['minute'] ?? 0) . "'" . (($fact['action_foot'] ?? null) !== null ? ' (' . ucfirst((string) $fact['action_foot']) . '-footed delivery)' : ''),
                 'yellow_card' => 'Booked at ' . (int) ($fact['minute'] ?? 0) . "'",
                 'red_card' => 'Sent off at ' . (int) ($fact['minute'] ?? 0) . "'",
                 'substitution' => (($fact['direction'] ?? '') === 'in' ? 'Entered the Match at ' : 'Left the Match at ') . (int) ($fact['minute'] ?? 0) . "'",
@@ -1543,9 +1550,9 @@ final class WebApplication
         return $matches[0] ?? null;
     }
 
-    private function careerRequest(array $draft, string $position, string $archetype, int $seed): CareerStartRequest
+    private function careerRequest(array $draft, string $position, string $archetype, int $seed, ?string $preferredFoot = null): CareerStartRequest
     {
-        return new CareerStartRequest((string) $draft['save'], (string) $draft['name'], (string) $draft['nation'], (int) $draft['height'], (int) $draft['weight'], $position, $archetype, $seed);
+        return new CareerStartRequest((string) $draft['save'], (string) $draft['name'], (string) $draft['nation'], (int) $draft['height'], (int) $draft['weight'], $position, $archetype, $seed, $preferredFoot ?? (($draft['preferred_foot'] ?? null) !== null ? (string) $draft['preferred_foot'] : null));
     }
 
     private function ensureDraftAppearance(array &$session): void

@@ -16,6 +16,8 @@ use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\PlayerNotFoundException;
 use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
 use Goal\Legacy\Modules\Player\Domain\PlayerCareerState;
+use Goal\Legacy\Modules\Player\Domain\PlayerFoot;
+use Goal\Legacy\Modules\Player\Domain\WeakFootTier;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use PDO;
 
@@ -47,12 +49,25 @@ final class PlayerRepository
             . 'potential INTEGER NOT NULL, '
             . 'development_profile TEXT NOT NULL, '
             . 'creation_seed INTEGER NOT NULL, '
-            . "career_state TEXT NOT NULL DEFAULT 'active'"
+            . "career_state TEXT NOT NULL DEFAULT 'active', "
+            . "preferred_foot TEXT NOT NULL DEFAULT 'right', "
+            . "weak_foot TEXT NOT NULL DEFAULT 'usable'"
             . ')'
         );
         $columns = $this->database->connection()->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(PDO::FETCH_ASSOC);
         if (!in_array('career_state', array_column($columns, 'name'), true)) {
             $this->database->connection()->exec("ALTER TABLE " . self::TABLE . " ADD COLUMN career_state TEXT NOT NULL DEFAULT 'active'");
+        }
+        $columns = $this->database->connection()->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(PDO::FETCH_ASSOC);
+        $names = array_fill_keys(array_column($columns, 'name'), true);
+        if (!isset($names['preferred_foot'])) {
+            // Leave migrated legacy rows null so hydration can assign a stable
+            // identity from the Player id/creation seed rather than making all
+            // historical Players right-footed in one migration.
+            $this->database->connection()->exec("ALTER TABLE " . self::TABLE . " ADD COLUMN preferred_foot TEXT NULL");
+        }
+        if (!isset($names['weak_foot'])) {
+            $this->database->connection()->exec("ALTER TABLE " . self::TABLE . " ADD COLUMN weak_foot TEXT NULL");
         }
         $this->database->connection()->exec(
             'CREATE TABLE IF NOT EXISTS player_nationalities ('
@@ -94,15 +109,16 @@ final class PlayerRepository
         $values['physicality'] = $player->attributes()->physicality();
         $statement = $this->database->connection()->prepare(
             'INSERT INTO ' . self::TABLE . ' '
-            . '(id, first_name, last_name, preferred_name, birth_date, birth_nation_id, primary_nation_id, height_cm, weight_kg, primary_position, pace, shooting, passing, dribbling, defending, physicality, potential, development_profile, creation_seed, career_state) '
-            . 'VALUES (:id, :first_name, :last_name, :preferred_name, :birth_date, :birth_nation_id, :primary_nation_id, :height_cm, :weight_kg, :primary_position, :pace, :shooting, :passing, :dribbling, :defending, :physicality, :potential, :development_profile, :creation_seed, :career_state) '
+            . '(id, first_name, last_name, preferred_name, birth_date, birth_nation_id, primary_nation_id, height_cm, weight_kg, primary_position, pace, shooting, passing, dribbling, defending, physicality, potential, development_profile, creation_seed, career_state, preferred_foot, weak_foot) '
+            . 'VALUES (:id, :first_name, :last_name, :preferred_name, :birth_date, :birth_nation_id, :primary_nation_id, :height_cm, :weight_kg, :primary_position, :pace, :shooting, :passing, :dribbling, :defending, :physicality, :potential, :development_profile, :creation_seed, :career_state, :preferred_foot, :weak_foot) '
             . 'ON CONFLICT(id) DO UPDATE SET '
             . 'first_name = excluded.first_name, last_name = excluded.last_name, preferred_name = excluded.preferred_name, '
             . 'birth_date = excluded.birth_date, birth_nation_id = excluded.birth_nation_id, primary_nation_id = excluded.primary_nation_id, '
             . 'height_cm = excluded.height_cm, weight_kg = excluded.weight_kg, primary_position = excluded.primary_position, '
             . 'pace = excluded.pace, shooting = excluded.shooting, passing = excluded.passing, dribbling = excluded.dribbling, '
             . 'defending = excluded.defending, physicality = excluded.physicality, potential = excluded.potential, '
-            . 'development_profile = excluded.development_profile, creation_seed = excluded.creation_seed, career_state = excluded.career_state'
+            . 'development_profile = excluded.development_profile, creation_seed = excluded.creation_seed, career_state = excluded.career_state, '
+            . 'preferred_foot = excluded.preferred_foot, weak_foot = excluded.weak_foot'
         );
         $statement->execute([
             'id' => $values['id'],
@@ -125,6 +141,8 @@ final class PlayerRepository
             'development_profile' => $values['development_profile'],
             'creation_seed' => $values['creation_seed'],
             'career_state' => $values['career_state'],
+            'preferred_foot' => $values['preferred_foot'],
+            'weak_foot' => $values['weak_foot'],
         ]);
 
         $this->database->connection()->prepare('DELETE FROM player_nationalities WHERE player_id = :player_id')->execute(['player_id' => $player->id()->value()]);
@@ -228,6 +246,8 @@ final class PlayerRepository
             DevelopmentProfile::from((string) $row['development_profile']),
             (int) $row['creation_seed'],
             PlayerCareerState::from((string) ($row['career_state'] ?? PlayerCareerState::Active->value)),
+            PlayerFoot::tryFrom((string) ($row['preferred_foot'] ?? '')) ?? PlayerFoot::fromStableSeed((string) $row['id'], (int) ($row['creation_seed'] ?? 0)),
+            WeakFootTier::tryFrom((string) ($row['weak_foot'] ?? '')) ?? WeakFootTier::fromStableSeed((string) $row['id'], (int) ($row['creation_seed'] ?? 0), DevelopmentProfile::from((string) $row['development_profile'])),
         );
     }
 

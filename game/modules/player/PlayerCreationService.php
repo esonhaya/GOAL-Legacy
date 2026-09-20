@@ -11,8 +11,11 @@ use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerAttributeSet;
 use Goal\Legacy\Modules\Player\Domain\PlayerCreationRequest;
 use Goal\Legacy\Modules\Player\Domain\PlayerException;
+use Goal\Legacy\Modules\Player\Domain\PlayerCareerState;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
+use Goal\Legacy\Modules\Player\Domain\PlayerFoot;
+use Goal\Legacy\Modules\Player\Domain\WeakFootTier;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 
 final class PlayerCreationService
@@ -40,6 +43,8 @@ final class PlayerCreationService
         $position = PlayerPosition::fromInput($request->primaryPosition);
         $profile = DevelopmentProfile::fromInput($request->developmentProfile);
         $attributes = $request->attributes ?? $this->generateAttributes($request, $profile);
+        $preferredFoot = $request->preferredFoot ?? PlayerFoot::fromStableSeed($request->playerId, $request->seed);
+        $weakFoot = $request->weakFoot ?? WeakFootTier::fromStableSeed($request->playerId, $request->seed, $profile);
 
         try {
             return new Player(
@@ -59,6 +64,9 @@ final class PlayerCreationService
                 $request->potential,
                 $profile,
                 $request->seed,
+                PlayerCareerState::Active,
+                $preferredFoot,
+                $weakFoot,
             );
         } catch (PlayerException $exception) {
             throw $exception;

@@ -392,4 +392,18 @@ relegation membership has been materialized. Existing saves without an
 objective row safely receive current derived context; no historical objective
 or pressure event is fabricated.
 
+### P2-021 foot identity lifecycle
+
+Player preferred-foot and weak-foot values are persisted with the canonical
+Player row. New Players receive stable deterministic defaults. When an older
+save lacks these columns, migration leaves them null and Player hydration
+derives the identity from stable Player data; the first normal save persists
+the result. This avoids both rerolls and a false all-right-footed migration.
+
+Controlled weak-foot progress is compact, idempotent training state. It is
+resolved in the existing training transaction before a save/reload boundary,
+while Match action-foot metadata remains selective controlled-Match evidence.
+No historical action is backfilled and no NPC foot-development rows are
+created. Reading Profile, Training, or Match history does not advance state.
+
 END OF DOCUMENT

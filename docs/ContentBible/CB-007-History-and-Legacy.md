@@ -240,4 +240,11 @@ and projected role explain why a move is credible. A transfer is a Career
 choice between football contexts, not a random reward or synthetic currency.
 Former Clubs and achievements remain historical after movement.
 
+## P2-021 Identity Boundary
+
+Preferred foot is permanent football identity and weak-foot progress is a
+private development detail. Neither creates routine historical entries. Only
+an actual controlled-Match highlight may mention the foot used, and older
+Match history is never reconstructed with invented action-foot facts.
+
 END OF DOCUMENT

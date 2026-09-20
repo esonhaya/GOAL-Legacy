@@ -6,6 +6,7 @@ namespace Goal\Legacy\Modules\Match;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\ClubService;
+use Goal\Legacy\Modules\Club\ClubCaptaincyService;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
 use Goal\Legacy\Modules\Match\Domain\MatchHighlight;
 use Goal\Legacy\Modules\Match\Domain\MatchResult;
@@ -27,7 +28,7 @@ final class MatchSimulationService
 {
     private ?OnPitchRoleService $roles = null;
 
-    public function __construct(private readonly ClubService $clubService, private readonly MatchSelectionService $selectionService, private readonly ?PositionDevelopmentService $positions = null)
+    public function __construct(private readonly ClubService $clubService, private readonly MatchSelectionService $selectionService, private readonly ?PositionDevelopmentService $positions = null, private readonly ?ClubCaptaincyService $captaincy = null)
     {
         $this->roles = new OnPitchRoleService();
     }
@@ -42,6 +43,7 @@ final class MatchSimulationService
             ? $this->roleService()->controlledRoles($database)
             : [];
         $selections = $this->selectionService->select($database, $match, $controlledPlayers);
+        $selections = $this->withMatchCaptains($database, $match, $selections, $fidelity);
         $participantIds = [];
         foreach ($selections as $selection) {
             if ($selection->status() === SelectionStatus::Starter || $selection->status() === SelectionStatus::Bench) { $participantIds[] = $selection->playerId(); }
@@ -139,6 +141,30 @@ final class MatchSimulationService
         foreach ($this->participantStats($match, $match->homeClubId(), $homeStarters, $homeSubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $foulCounts, $yellowCounts, $redCounts, $dismissals, $playersById, $controlledRoles, $fullDetail) as $stat) { $stats[] = $stat; }
         foreach ($this->participantStats($match, $match->awayClubId(), $awayStarters, $awaySubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $foulCounts, $yellowCounts, $redCounts, $dismissals, $playersById, $controlledRoles, $fullDetail) as $stat) { $stats[] = $stat; }
         return new MatchSimulation($result, $stats, $highlights, $selections, $substitutions);
+    }
+
+    /** @param list<\Goal\Legacy\Modules\Match\Domain\PlayerSelection> $selections @return list<\Goal\Legacy\Modules\Match\Domain\PlayerSelection> */
+    private function withMatchCaptains(DatabaseInterface $database, GameMatch $match, array $selections, SimulationFidelity $fidelity): array
+    {
+        if ($this->captaincy === null || $fidelity !== SimulationFidelity::Player) {
+            return $selections;
+        }
+        $result = $selections;
+        foreach ([$match->homeClubId()->value(), $match->awayClubId()->value()] as $clubId) {
+            $starters = array_values(array_filter($selections, static fn ($selection): bool => $selection->clubId()->value() === $clubId && $selection->status() === SelectionStatus::Starter));
+            $captainId = $this->captaincy->matchCaptain($database, $clubId, $match->seasonId(), array_map(static fn ($selection): string => $selection->playerId()->value(), $starters));
+            if ($captainId === null) {
+                continue;
+            }
+            foreach ($result as $index => $selection) {
+                if ($selection->playerId()->value() === $captainId && $selection->clubId()->value() === $clubId && $selection->status() === SelectionStatus::Starter) {
+                    $result[$index] = $selection->asCaptain();
+                    break;
+                }
+            }
+        }
+
+        return $result;
     }
 
     /** @param list<\Goal\Legacy\Modules\Match\Domain\PlayerSelection> $selections @return list<Player> */

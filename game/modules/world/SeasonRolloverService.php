@@ -8,6 +8,7 @@ use Goal\Legacy\Core\Events\EventDispatcherInterface;
 use Goal\Legacy\Core\Events\GenericEvent;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\ClubService;
+use Goal\Legacy\Modules\Club\ClubCaptaincyService;
 use Goal\Legacy\Modules\Club\ClubRecruitmentService;
 use Goal\Legacy\Modules\Club\Domain\Club;
 use Goal\Legacy\Modules\Club\Domain\ClubCompetitionMembership;
@@ -306,6 +307,10 @@ final class SeasonRolloverService
             'candidates_evaluated' => (int) ($recruitment['candidates_evaluated'] ?? 0),
             'clubs_with_activity' => (int) ($recruitment['clubs_with_activity'] ?? 0),
         ];
+        // Captaincy is reviewed at the explicit Season boundary only. The
+        // appointment service preserves valid Club-scoped status and selects
+        // deterministic replacements when a captain has left or retired.
+        (new ClubCaptaincyService($this->clubService))->ensureSeason($database, $next, $asOfDate, $previous->id());
         $fixtures = 0;
         $phaseStart = hrtime(true);
         $matches = new MatchRepository($database);

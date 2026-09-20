@@ -6,6 +6,7 @@ namespace Goal\Legacy\Modules\Player;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\ClubService;
+use Goal\Legacy\Modules\Club\ClubCaptaincyService;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Nation\NationService;
 use Goal\Legacy\Modules\Player\Domain\CareerPlayerReference;
@@ -124,6 +125,7 @@ final class PlayerService
             $careerRepository->save($career);
         });
         $this->socialService()->initializeCareer($database, $player, $squadMembership->clubId()->value(), $squadMembership->role()->value, $career->startDate());
+        (new ClubCaptaincyService($this->clubService))->ensureClub($database, $squadMembership->clubId()->value(), $squadMembership->seasonId(), $career->startDate());
     }
 
 }

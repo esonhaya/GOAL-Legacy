@@ -10,6 +10,7 @@ use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
 use Goal\Legacy\Modules\Club\ClubService;
+use Goal\Legacy\Modules\Club\ClubCaptaincyService;
 use Goal\Legacy\Modules\Competition\Domain\PlayerRegistration;
 use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Contract\Domain\ContractCreationRequest;
@@ -72,6 +73,7 @@ final class PlayerPopulationService
             $reports[] = $database->transaction(fn (): array => $this->populateClubInTransaction($database, $club, $season, $worldSeed, $nations, $byClub[$club->id()->value()] ?? [], $populationRepository));
         }
 
+        (new ClubCaptaincyService($this->clubService))->ensureSeason($database, $season);
         return $this->summarize($database, $clubs, $season, $reports);
     }
 
@@ -111,6 +113,7 @@ final class PlayerPopulationService
         }
 
         $summary = $this->summarize($database, $clubs, $season, $reports);
+        (new ClubCaptaincyService($this->clubService))->ensureSeason($database, $season, $asOfDate);
         $summary['replenishment'] = true;
 
         return $summary;
@@ -151,6 +154,7 @@ final class PlayerPopulationService
             ));
         }
         $summary = $this->summarize($database, $clubs, $season, $reports);
+        (new ClubCaptaincyService($this->clubService))->ensureSeason($database, $season, $asOfDate);
         $summary['newgens'] = true;
 
         return $summary;

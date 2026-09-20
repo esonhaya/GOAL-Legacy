@@ -91,6 +91,23 @@ reload/double-submit behavior.
 |---|---|---|
 | 1.0 | 2026-09-17 | Documented the enriched Phase 1 career-event boundary. |
 
+## P2-029 Club Captaincy
+
+`ClubCaptaincyService` owns Club/Season appointments and exposes a read model
+separate from Squad Role, Manager Trust, Club attachment, on-pitch role, and
+traits. The only persisted identity is the compact current Club/Season
+captain/vice-captain appointment. Appointment review happens at explicit
+career-start, population, transfer, and Season-boundary writes; no weekly
+candidate ranking or page-render write exists.
+
+Match captaincy is derived from the starting XI: Club captain, then
+vice-captain, then a deterministic eligible senior fallback. It is stored only
+as the existing detailed selection snapshot and is descriptive. It cannot
+modify Match action distribution or success, rating, attributes, team strength,
+morale, readiness, development, or RNG. World fidelity does not simulate NPC
+leadership. Legacy saves use a deterministic read fallback and do not receive
+fabricated historical appointments. International captaincy is deferred.
+
 ## P2-020 Club Season Objective Context
 
 `ClubSeasonObjectiveService` is the controlled-Career adapter for Club Season

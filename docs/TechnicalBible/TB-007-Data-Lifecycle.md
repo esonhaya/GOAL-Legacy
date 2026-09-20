@@ -500,6 +500,34 @@ eligible for the same selection gate, but no NPC narrative, history, Pulse,
 or Career event is created. No RNG, development callback, manager penalty,
 readiness mutation, or page-render write is attached to discipline.
 
+### P2-029 Club captaincy and leadership status
+
+Club captaincy has one owner: `ClubCaptaincyService`. Its states are Captain,
+Vice-Captain, and None; consideration is a contextual read label rather than
+a persisted leadership score. Evidence is bounded to Club membership, Squad
+Role, meaningful Club tenure, retained appearances/minutes, career phase, and
+stable Player-ID tie-breaking. Manager trust, traits, footedness, salary,
+nationality, finances, lifestyle, followers, and short-term form do not create
+a feedback loop.
+
+`club_captaincy_appointments` contains one compact Club/Season appointment and
+is written only from explicit career-start, population, transfer, and Season
+review paths. Home/Profile/Career reads can derive a missing legacy appointment
+in memory but never write it. Transfers and free agency end active status at
+the old Club; a new Club does not inherit it. Injury, suspension, benching,
+position, on-pitch role, playing style, and Squad Role remain separate.
+
+Detailed Match selection marks only the actual starting captain. Captain,
+vice-captain, and deterministic senior fallback are resolved from selected
+participants; a bench, injured, suspended, or unselected Player cannot captain
+kickoff. The snapshot is descriptive and gives no action, success, rating,
+attribute, morale, manager-trust, readiness, development, or RNG effect.
+International captaincy is deferred. NPC Clubs receive only cheap current
+appointment/fallback data on explicit lifecycle paths: no leadership
+attributes, ambition, event, social, weekly, or World scan processing. The
+same inputs produce the same appointment, fallback, and presentation; missing
+legacy history is never fabricated.
+
 ### P2-028 Phase-2 integration and release gate
 
 The Phase-2 stack keeps one owner per canonical fact: Match simulation writes

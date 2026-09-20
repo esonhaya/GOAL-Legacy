@@ -362,6 +362,25 @@ squad-membership, and Competition registration ownership; Clubs do not own
 canonical Player records. Reserve, youth, and academy populations remain
 deferred.
 
+## DOMAIN-029 Club Captaincy Appointments
+
+`club_captaincy_appointments` stores at most one compact current appointment
+per Club and Season: captain, vice-captain, and the explicit appointment date.
+It is Club-scoped status, not a leadership attribute, score, relationship
+history, or Match modifier. Candidate ordering is derived from active squad
+membership, Squad Role, meaningful Club tenure, retained appearances/minutes,
+age where available, overall rating, and stable Player-ID tie-breaking.
+Salary, nationality, lifestyle, followers, footedness, traits, and short-term
+form are not inputs.
+
+Appointments are reviewed only at explicit career start, population, transfer,
+and Season-boundary paths. Reads derive a deterministic legacy fallback in
+memory and never create rows. A valid captain/vice-captain is retained through
+minor injury, suspension, benching, and poor form; transfers and retirement
+end active Club status without rewriting the Player's identity. Historical
+presentation uses appointment rows only; no Match-by-Match NPC captaincy
+history is stored.
+
 ## DOMAIN-020 Controlled Club Season Objective Outcome
 
 `career_club_season_objectives` stores only durable Season-end context for a

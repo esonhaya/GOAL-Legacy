@@ -323,6 +323,17 @@ invents injury dates, diagnoses, opponents, Clubs, or past Match appearances.
 News, Echo, and Pulse continue to consume the existing P2-017 availability
 events; page reads do not publish recovery updates or create sympathy spam.
 
+## P2-029 Captaincy Memory
+
+Career History may remember an appointment as vice-captain or captain and a
+small number of meaningful captaincy facts, such as a first Match as captain
+when a retained Match snapshot proves it. It must not become a row for every
+Match wearing the armband, and it must not invent dates, Clubs, trophies, or
+captaincy history on a legacy save. Routine availability changes do not remove
+an appointment or produce public chatter. News/Echo/Pulse may describe a
+genuine major appointment through their existing factual/reactive boundaries,
+but no weekly dressing-room narrative is created.
+
 ## P2-027 Disciplinary Consequences
 
 Disciplinary copy distinguishes eligibility from health: “SUSPENDED” names the

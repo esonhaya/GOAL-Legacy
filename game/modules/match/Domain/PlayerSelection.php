@@ -9,7 +9,7 @@ use Goal\Legacy\Modules\Player\Domain\PlayerId;
 
 final readonly class PlayerSelection
 {
-    public function __construct(private MatchId $matchId, private PlayerId $playerId, private ClubId $clubId, private SelectionStatus $status)
+    public function __construct(private MatchId $matchId, private PlayerId $playerId, private ClubId $clubId, private SelectionStatus $status, private bool $captain = false)
     {
     }
 
@@ -18,9 +18,16 @@ final readonly class PlayerSelection
     public function clubId(): ClubId { return $this->clubId; }
     public function status(): SelectionStatus { return $this->status; }
 
+    public function isCaptain(): bool { return $this->captain; }
+
+    public function asCaptain(): self
+    {
+        return new self($this->matchId, $this->playerId, $this->clubId, $this->status, true);
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {
-        return ['match_id' => $this->matchId->value(), 'player_id' => $this->playerId->value(), 'club_id' => $this->clubId->value(), 'status' => $this->status->value];
+        return ['match_id' => $this->matchId->value(), 'player_id' => $this->playerId->value(), 'club_id' => $this->clubId->value(), 'status' => $this->status->value, 'is_captain' => $this->captain ? 1 : 0];
     }
 }

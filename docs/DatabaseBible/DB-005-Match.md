@@ -428,6 +428,20 @@ Large event logs should remain separated from the primary Match table.
 
 ---
 
+# DOMAIN-029 Match Captain Snapshot
+
+Detailed Player-fidelity selection rows may carry `is_captain`. Exactly one
+starting Player per Club is marked when the Club captain is selected, otherwise
+the vice-captain or a deterministic senior fallback is used. A bench captain
+does not become kickoff captain. This is a historical Match snapshot and
+presentation fact only; it does not alter Match probabilities, action success,
+ratings, attributes, morale, or team strength. World-fidelity Matches do not
+materialize detailed captaincy processing.
+
+Legacy selection tables receive a default-zero column through the existing
+selection schema guard. Missing appointment data remains a read-only
+deterministic fallback; page rendering never initializes Club appointments.
+
 # Future Expansion
 
 Future versions may include:

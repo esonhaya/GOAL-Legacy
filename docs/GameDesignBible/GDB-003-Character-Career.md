@@ -435,6 +435,24 @@ ratings, development, money, selection, or gameplay effects, and routine
 facts do not create Pulse/News spam. NPCs do not receive milestone histories,
 ticks, or a World scan.
 
+## P2-029 Club Captaincy and Career Status
+
+Captaincy is a Club-scoped football appointment earned through established
+standing: senior Club tenure, meaningful playing evidence, Squad Role, career
+phase, and stable appointment review. It is not loyalty morality, a leadership
+attribute, a score, a personality type, or a reward. The controlled Player can
+be Captain, Vice-Captain, or have no appointment; the Player does not manage
+Club tactics or teammates.
+
+The current captain is used when selected to start. The vice-captain is the
+fallback, followed by a deterministic senior starter. Unavailability,
+suspension, or selection absence prevents Match captaincy but does not strip a
+stable Club appointment. A transfer, free agency, or retirement ends active
+status at that Club; historical appointment facts may remain in Career memory.
+Captaincy never changes attributes, Match action success, ratings, morale,
+selection, manager trust, readiness, development, position, footedness, role,
+traits, reputation, or Club objectives. International captaincy is deferred.
+
 ## P2-026 Injury Recovery and Comebacks
 
 P2-017 remains the only owner of injury severity, planned/actual recovery

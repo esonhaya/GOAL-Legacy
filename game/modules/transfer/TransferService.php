@@ -8,6 +8,7 @@ use Goal\Legacy\Core\Events\EventDispatcherInterface;
 use Goal\Legacy\Core\Events\GenericEvent;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\ClubService;
+use Goal\Legacy\Modules\Club\ClubCaptaincyService;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
@@ -87,6 +88,7 @@ final class TransferService
             }
         });
         $this->social?->recordTransfer($database, $player->id(), $socialPreviousClubId, $clubId->value(), $asOfDate);
+        (new ClubCaptaincyService($this->clubService))->reconcileClubs($database, [$clubId->value()], $season->id(), $asOfDate);
 
         return $contract;
     }
@@ -135,6 +137,7 @@ final class TransferService
         });
         $this->events->dispatch(new GenericEvent(TransferEventNames::COMPLETED, ['transfer_id' => $completed->id()->value(), 'player_id' => $completed->playerId()->value(), 'source_club_id' => $completed->sourceClubId()->value(), 'destination_club_id' => $completed->destinationClubId()->value(), 'fee' => $completed->fee(), 'effective_date' => $completed->effectiveDate()->toIsoString()]));
         $this->social?->recordTransfer($database, $completed->playerId(), $completed->sourceClubId()->value(), $completed->destinationClubId()->value(), $completed->effectiveDate());
+        (new ClubCaptaincyService($this->clubService))->reconcileClubs($database, [$completed->sourceClubId()->value(), $completed->destinationClubId()->value()], $completed->seasonId(), $completed->effectiveDate());
         return $completed;
     }
 }

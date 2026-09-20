@@ -79,6 +79,8 @@ final class MatchStoryService
             'player_id' => $id->value(),
             'player_name' => $player->preferredName(),
             'selection_status' => $status->value,
+            'captain' => $selection?->isCaptain() ?? false,
+            'captain_label' => ($selection?->isCaptain() ?? false) ? 'Club captain' : null,
             'participation_state' => $state['state'],
             'participation_label' => $state['label'],
             'availability_reason' => $state['reason'],

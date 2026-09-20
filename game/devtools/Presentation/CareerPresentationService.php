@@ -33,6 +33,7 @@ use Goal\Legacy\Modules\Player\PlayerTraitService;
 use Goal\Legacy\Modules\Player\PlayerFormService;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Player\OnPitchRoleService;
+use Goal\Legacy\Modules\Club\ClubCaptaincyService;
 use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
 use Goal\Legacy\Modules\Club\Persistence\ClubSquadRepository;
 use Goal\Legacy\Modules\Club\ClubSeasonObjectiveService;
@@ -89,6 +90,13 @@ final class CareerPresentationService
         $summary['pulse_feed'] = $pulse->feed($database, $career->playerId(), 3);
         $summary['pulse_response'] = $pulse->pendingResponse($database, $career->playerId());
         $currentClubId = is_array($summary['current_club'] ?? null) ? (string) ($summary['current_club']['id'] ?? '') : '';
+        $summary['captaincy'] = (new ClubCaptaincyService($this->services->clubModule()->service()))->contextForPlayer(
+            $database,
+            $career->playerId()->value(),
+            $currentClubId === '' ? null : $currentClubId,
+            $world->currentSeasonId(),
+            $date,
+        );
         $summary['cup_history'] = $currentClubId === '' ? [] : (new DomesticCupService($this->services->clubModule()->service()))->historyForClub($database, $currentClubId);
         $summary['europe_history'] = $currentClubId === '' ? [] : (new EuropeanCompetitionService($this->services->clubModule()->service(), new DomesticCupService($this->services->clubModule()->service())))->historyForClub($database, $currentClubId);
 
@@ -160,6 +168,13 @@ final class CareerPresentationService
         $careerContext = $controlled && is_array($controlledSummary['career_context'] ?? null)
             ? $controlledSummary['career_context']
             : (is_array($publicSummary['career_context'] ?? null) ? $publicSummary['career_context'] : []);
+        $captaincy = (new ClubCaptaincyService($this->services->clubModule()->service()))->contextForPlayer(
+            $database,
+            $playerId,
+            $club?->id()->value(),
+            $seasonId,
+            $date,
+        );
         $social = $this->services->playerModule()->service()->socialService();
         $legacy = $controlled
             ? $this->legacyService()->summary($database, $playerId)
@@ -222,6 +237,7 @@ final class CareerPresentationService
             'on_pitch_role' => $onPitchRole,
             'traits' => $traits,
             'career_context' => $careerContext,
+            'captaincy' => $captaincy,
             'club_journey' => $careerContext['club_journey'] ?? [],
             'club_attachment' => $careerContext['attachment'] ?? null,
             'career_direction' => $careerContext['direction'] ?? null,
@@ -557,6 +573,8 @@ final class CareerPresentationService
             'international_progression' => $internationalProgression,
             'rival_context' => $this->services->playerModule()->service()->socialService()->matchContext($database, $match, $playerId),
             'performance' => $performance,
+            'captain' => (bool) ($story['captain'] ?? false),
+            'captain_label' => $story['captain_label'] ?? null,
             'timeline' => $story['timeline'],
             'highlights' => $this->storyLines($database, $match, $story, $playerId),
             'player_highlights' => $story['player_highlight_facts'],

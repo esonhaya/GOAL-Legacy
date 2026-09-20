@@ -20,7 +20,11 @@ final class MatchSelectionRepository
     public function __construct(private readonly DatabaseInterface $database)
     {
         SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
-            $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, player_id TEXT NOT NULL, club_id TEXT NOT NULL, status TEXT NOT NULL, PRIMARY KEY (match_id, player_id))');
+            $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, player_id TEXT NOT NULL, club_id TEXT NOT NULL, status TEXT NOT NULL, is_captain INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (match_id, player_id))');
+            $columns = $this->database->connection()->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(PDO::FETCH_ASSOC);
+            if (!in_array('is_captain', array_column($columns, 'name'), true)) {
+                $this->database->connection()->exec('ALTER TABLE ' . self::TABLE . ' ADD COLUMN is_captain INTEGER NOT NULL DEFAULT 0');
+            }
             $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_selection_player ON ' . self::TABLE . ' (player_id, match_id)');
             $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_match_selection_match_order ON ' . self::TABLE . ' (match_id, club_id, status, player_id)');
         });
@@ -32,7 +36,7 @@ final class MatchSelectionRepository
         if ($selections === []) { return; }
         $matchId = $selections[0]->matchId()->value();
         $this->database->connection()->prepare('DELETE FROM ' . self::TABLE . ' WHERE match_id = :match_id')->execute(['match_id' => $matchId]);
-        $statement = $this->database->connection()->prepare('INSERT INTO ' . self::TABLE . ' (match_id, player_id, club_id, status) VALUES (:match_id, :player_id, :club_id, :status)');
+        $statement = $this->database->connection()->prepare('INSERT INTO ' . self::TABLE . ' (match_id, player_id, club_id, status, is_captain) VALUES (:match_id, :player_id, :club_id, :status, :is_captain)');
         foreach ($selections as $selection) { $statement->execute($selection->toArray()); }
     }
 
@@ -57,6 +61,6 @@ final class MatchSelectionRepository
     /** @param list<array<string, mixed>> $rows @return list<PlayerSelection> */
     private function hydrate(array $rows): array
     {
-        return array_map(static fn (array $row): PlayerSelection => new PlayerSelection(new MatchId((string) $row['match_id']), new PlayerId((string) $row['player_id']), new ClubId((string) $row['club_id']), SelectionStatus::from((string) $row['status'])), $rows);
+        return array_map(static fn (array $row): PlayerSelection => new PlayerSelection(new MatchId((string) $row['match_id']), new PlayerId((string) $row['player_id']), new ClubId((string) $row['club_id']), SelectionStatus::from((string) $row['status']), (bool) ($row['is_captain'] ?? false)), $rows);
     }
 }

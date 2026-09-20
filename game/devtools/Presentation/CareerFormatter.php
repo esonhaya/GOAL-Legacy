@@ -58,6 +58,10 @@ final class CareerFormatter
             $lines[] = 'Return to Play: ' . CareerLabels::value($recovery['phase'] ?? null) . ' — ' . $this->text($recovery['message'] ?? null);
             if (($recovery['medical_end_date'] ?? null) !== null) { $lines[] = 'Medical end: ' . $this->text($recovery['medical_end_date']); }
         }
+        $discipline = is_array($summary['discipline'] ?? null) ? $summary['discipline'] : [];
+        foreach ((array) ($discipline['suspensions'] ?? []) as $suspension) {
+            if (is_array($suspension)) { $lines[] = 'Disciplinary eligibility: SUSPENDED — ' . $this->text($suspension['scope_label'] ?? 'Competition') . ' · ' . $this->text($suspension['reason_label'] ?? 'Disciplinary suspension') . ' · ' . $this->number($suspension['remaining'] ?? 0) . ' applicable Match' . ((int) ($suspension['remaining'] ?? 0) === 1 ? '' : 'es') . ' remaining'; }
+        }
         $social = is_array($summary['social'] ?? null) ? $summary['social'] : [];
         $lines[] = 'Public Profile: ' . $this->text($social['public_profile_label'] ?? null, 'Unknown');
         $lines[] = 'Club Standing: ' . $this->text($social['club_standing_label'] ?? null, 'New Arrival');

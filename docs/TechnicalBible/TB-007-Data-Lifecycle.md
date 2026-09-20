@@ -482,4 +482,22 @@ NPC rehabilitation ticks or World scan. Rehab choices and reinjury/setback
 simulation remain deferred until an existing owner can support them without a
 second injury state.
 
+### P2-027 disciplinary lifecycle
+
+Detailed Player-fidelity Match processing persists Match selections/statistics,
+then processes disciplinary state in the same transaction. Existing active
+state is served before current-Match card facts create a new sanction, so a
+red received in the serving fixture cannot serve itself. A unique
+`player_id|match_id|scope` source key makes repeated processing a no-op. The
+selection gate reads this one state path and returns `Suspended`; it never
+routes suspension through `PlayerAvailabilityService`.
+
+The normalized scope mapper accepts League, Domestic Cup, Continental, and
+International competitions and ignores friendlies. World-fidelity Matches do
+not persist detailed Match stats or run a lifecycle-wide sanction scan. In
+Player-fidelity Matches, compact state for detailed NPC participants is
+eligible for the same selection gate, but no NPC narrative, history, Pulse,
+or Career event is created. No RNG, development callback, manager penalty,
+readiness mutation, or page-render write is attached to discipline.
+
 END OF DOCUMENT

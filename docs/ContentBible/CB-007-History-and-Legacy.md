@@ -323,4 +323,22 @@ invents injury dates, diagnoses, opponents, Clubs, or past Match appearances.
 News, Echo, and Pulse continue to consume the existing P2-017 availability
 events; page reads do not publish recovery updates or create sympathy spam.
 
+## P2-027 Disciplinary Consequences
+
+Disciplinary copy distinguishes eligibility from health: “SUSPENDED” names the
+competition scope, factual reason, and applicable Matches remaining. It never
+calls a suspension an injury, readiness problem, comeback, morality judgment,
+or personality trait. A red dismissal creates a one-Match scope-specific ban;
+five same-scope Season yellows create a one-Match accumulation ban. League,
+Domestic Cup, Europe, and International discipline do not contaminate one
+another, while a completed applicable fixture serves the ban even when the
+Player cannot play for medical or selection reasons.
+
+Matchday uses the existing selection/story surface to say “Suspended —
+disciplinary eligibility.” Career Home and controlled Profile show only active
+sanctions. News, Echo, and Pulse may use the already recorded dismissal or a
+major suspension fact, but do not create card-by-card spam. Routine yellows,
+first suspensions, and eligibility changes are not Career milestones. Missing
+legacy evidence does not create an old ban or historical disciplinary claim.
+
 END OF DOCUMENT

@@ -27,9 +27,11 @@ use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\PlayerDevelopmentService;
 use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
+use Goal\Legacy\Modules\Player\PlayerDisciplineService;
 use Goal\Legacy\Modules\Player\Persistence\CareerEvaluationRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerAvailabilityRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerDevelopmentRepository;
+use Goal\Legacy\Modules\Player\Persistence\PlayerDisciplineRepository;
 use Goal\Legacy\Modules\Player\ClubExpectationService;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -116,7 +118,7 @@ final class MatchService
         // Match persistence repositories are constructed again inside the
         // atomic write. Warm their schemas before the transaction so guarded
         // DDL can never become part of a rollback-prone Match transaction.
-        new MatchSelectionRepository($database); new MatchSubstitutionRepository($database); new PlayerMatchStatRepository($database); new MatchHighlightRepository($database); new PlayerAvailabilityRepository($database); new PlayerDevelopmentRepository($database); new CareerEvaluationRepository($database);
+        new MatchSelectionRepository($database); new MatchSubstitutionRepository($database); new PlayerMatchStatRepository($database); new MatchHighlightRepository($database); new PlayerAvailabilityRepository($database); new PlayerDevelopmentRepository($database); new CareerEvaluationRepository($database); new PlayerDisciplineRepository($database);
         if ($controlledPositions !== []) {
             new ControlledMatchPositionRepository($database);
         }
@@ -124,13 +126,15 @@ final class MatchService
             new PlayerSeasonStatisticsRepository($database);
             new PlayerCompetitionStatisticsRepository($database);
         }
-        $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database, $fidelity, $positions, $international, $controlledPositions, $controlledRoles): array {
+        $discipline = new PlayerDisciplineService();
+        $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database, $fidelity, $positions, $international, $controlledPositions, $controlledRoles, $discipline): array {
             $completed = $match->complete($simulation->result());
             $repository->saveInTransaction($completed);
             if ($fidelity === SimulationFidelity::Player) {
                 (new MatchSelectionRepository($database))->replaceForMatchInTransaction($selections);
                 (new MatchSubstitutionRepository($database))->replaceForMatchInTransaction($substitutions);
                 (new PlayerMatchStatRepository($database))->replaceForMatchInTransaction($stats);
+                $discipline->processCompletedMatchInTransaction($database, $completed);
                 foreach ($controlledPositions as $playerId => $position) {
                     (new ControlledMatchPositionRepository($database, false))->saveInTransaction($completed->id(), new PlayerId($playerId), $position, $controlledRoles[$playerId] ?? null);
                 }

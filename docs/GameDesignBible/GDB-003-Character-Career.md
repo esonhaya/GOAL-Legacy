@@ -461,4 +461,32 @@ or comeback rows. Existing availability events remain the only Career
 event/Pulse/Echo path, while NPCs receive no rehabilitation ticks, histories,
 or World scan.
 
+## P2-027 Suspensions and Return to Eligibility
+
+Match statistics remain the owner of yellow cards, red cards, and dismissals;
+P2-017 remains the owner of medical availability and readiness.
+`PlayerDisciplineService` adds the single competition-eligibility boundary: a
+Player can be healthy and ready while still suspended. The normalized rules
+are five yellow cards in a League, Cup, Europe, or International scope within a
+Season for a one-Match ban, or one applicable Match for any red dismissal.
+Second-yellow and straight red are intentionally not distinguished because the
+canonical Match facts do not preserve a reliable conduct taxonomy.
+
+Scope is isolated by competition family. A completed applicable fixture for a
+registered team serves one remaining Match even if the Player is injured,
+unselected, or suspended; calendar days, friendlies, page reads, and free
+agency do not serve a ban. Yellow accumulation resets at the Season boundary;
+an active ban carries into the next Season. Transfers do not erase a sanction,
+but the new registered competition scope determines where it can be served.
+
+Selection rejects a suspended Player with a distinct disciplinary reason, and
+Career Home/Profile show scope, reason, and remaining fixtures. Suspension
+does not change attributes, ratings, readiness, injury, manager trust,
+development, position, footedness, traits, role, finance, or international
+selection. Match-source keys make processing idempotent. Only compact current
+state and active/card-bearing source keys are persisted; no daily eligibility
+history, narrative sanction ledger, page-render writes, or fabricated legacy
+ban is created. World-fidelity Matches remain cheap; detailed eligibility is
+consumed only where a detailed selection/Match path exists.
+
 END OF DOCUMENT

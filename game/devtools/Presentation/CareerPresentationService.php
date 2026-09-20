@@ -25,6 +25,7 @@ use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\CareerRecoveryService;
+use Goal\Legacy\Modules\Player\PlayerDisciplineService;
 use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
 use Goal\Legacy\Modules\Player\CareerLegacyService;
 use Goal\Legacy\Modules\Player\PlayerCareerStatisticsService;
@@ -59,8 +60,12 @@ final class CareerPresentationService
             $world->currentSeasonId(),
         );
         $summary['injury_recovery'] = $this->recoveryService()->context($database, $career->playerId(), $date);
+        $summary['discipline'] = (new PlayerDisciplineService())->context($database, $career->playerId());
         $summary['career_outlook']['recovery_context'] = ($summary['injury_recovery']['visible'] ?? false) === true
             ? ['phase' => $summary['injury_recovery']['phase'] ?? null, 'message' => $summary['injury_recovery']['message'] ?? null]
+            : null;
+        $summary['career_outlook']['discipline_context'] = ($summary['discipline']['active'] ?? false) === true
+            ? ['message' => $summary['discipline']['message'] ?? null]
             : null;
         $summary['next_career_milestone'] = (new CareerLegacyService(
             $this->services->clubModule()->service(),
@@ -108,6 +113,7 @@ final class CareerPresentationService
         $controlled = $career->playerId()->value() === $playerId;
         $controlledSummary = $controlled ? $this->controlledSummary($database, $saveId) : [];
         $recovery = $controlled ? $this->recoveryService()->context($database, $player->id(), $date) : null;
+        $discipline = $controlled ? (new PlayerDisciplineService())->context($database, $player->id()) : null;
         if ($controlled) {
             $currentClubId = is_array($controlledSummary['current_club'] ?? null)
                 ? (string) ($controlledSummary['current_club']['id'] ?? '')
@@ -208,6 +214,7 @@ final class CareerPresentationService
             'training_intensity' => $controlled ? $controlledSummary['training_intensity'] ?? null : null,
             'readiness' => $controlled ? $controlledSummary['readiness'] ?? null : null,
             'injury_recovery' => $recovery,
+            'discipline' => $discipline,
             'manager_context' => $controlled ? $controlledSummary['manager_context'] ?? null : null,
             'club_season' => $controlled ? $controlledSummary['club_season'] ?? null : null,
             'position_competition' => $controlled ? $controlledSummary['position_competition'] ?? null : null,

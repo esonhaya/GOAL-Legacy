@@ -560,4 +560,24 @@ do not write state, daily snapshots, event rows, or NPC data. If old saves do
 not retain enough injury or Match chronology, the projection omits the claim
 rather than fabricating a date or comeback.
 
+## P2-027 Disciplinary Eligibility State
+
+`match_player_stats` remains the canonical card/dismissal fact store. The
+`player_discipline_states` table is a compact current projection keyed by
+`player_id` and normalized scope (`domestic_league`, `domestic_cup`, `europe`,
+or `international`). It stores the current Season's yellow accumulator,
+remaining applicable-Match ban, reason, and source Match/competition. The
+`player_discipline_sources` table is only an idempotency boundary for a
+card-bearing or actively suspended Player/Match pair; it is not an eligibility
+history or narrative event table.
+
+The projection is created lazily and is safe for P2-026 and older saves. Reads
+derive no sanction from old aggregate card totals, so legacy saves begin with
+no fabricated active ban. Five yellows create a one-Match scoped ban and reset
+that accumulator; any red creates a one-Match ban and resets yellow
+accumulation. The accumulator cycle changes with the Season without deleting an
+active ban. Serving is written only by completed applicable detailed Match
+processing, never by page rendering, calendar passage, friendly fixtures,
+injury recovery, or free agency.
+
 END OF DOCUMENT

@@ -458,4 +458,27 @@ old injury or Match chronology remains unknown, and no date or historical
 comeback is fabricated. Rehab choice and reinjury modeling are explicitly
 deferred; no new RNG namespace is introduced.
 
+## P2-027 Suspension Eligibility
+
+`PlayerDisciplineService` owns only the bridge from canonical Match card facts
+to competition eligibility. `PlayerMatchStat` remains the card owner,
+`PlayerAvailabilityService` remains the medical/readiness owner, and
+`MatchSelectionService` remains the selection owner. A compact state row stores
+five-yellow accumulation or a one-Match red/accumulation ban per normalized
+competition family; a source key prevents duplicate processing.
+
+The processing order is: completed applicable fixture serves an existing ban,
+then current Match cards update the state. An active ban carries across a
+Season and transfer; same-Season yellow accumulation resets on the next cycle.
+Friendlies, calendar time, page rendering, injury recovery, and free agency do
+not serve it. A suspended Player receives `SelectionStatus::Suspended` and a
+clear story reason, never medical `Unavailable`. This is an eligibility gate,
+not a rating, morale, manager-trust, readiness, development, attribute,
+position, footedness, trait, role, or RNG effect.
+
+Only detailed Player-fidelity Matches consume compact sanction state. World
+fidelity remains free of a full Player scan and creates no disciplinary
+narrative or history UI. Legacy saves safely start without fabricated active
+sanctions because old aggregate card totals cannot prove future eligibility.
+
 END OF DOCUMENT

@@ -15,6 +15,7 @@ use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\AvailabilityStatus;
 use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
+use Goal\Legacy\Modules\Player\PlayerDisciplineService;
 use Goal\Legacy\Modules\Player\ManagerTrustService;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
@@ -38,8 +39,20 @@ final class MatchSelectionService
             $eligible = $this->eligiblePlayers($database, $match, $clubId, $players, $squadMemberships);
             $roles = [];
             foreach ($squadMemberships as $membership) { $roles[$membership->playerId()->value()] = $membership->role(); }
+            $disciplineByPlayer = $controlledPlayers === []
+                ? []
+                : (new PlayerDisciplineService())->eligibilities($database, $match, array_map(static fn (Player $player): string => $player->id()->value(), $eligible));
             $ranked = [];
             foreach ($eligible as $player) {
+                // World-fidelity fixtures do not materialize detailed
+                // disciplinary state. Player-fidelity fixtures already have
+                // a controlled reference and may cheaply gate compact state
+                // for the detailed participants, including NPC teammates.
+                $discipline = $disciplineByPlayer[$player->id()->value()] ?? ['eligible' => true];
+                if (($discipline['eligible'] ?? true) !== true) {
+                    $selections[] = new PlayerSelection($match->id(), $player->id(), new \Goal\Legacy\Modules\Club\Domain\ClubId($clubId), SelectionStatus::Suspended);
+                    continue;
+                }
                 $assessment = ($this->availability ?? new PlayerAvailabilityService())->assess($database, $player->id(), $match->scheduledDate());
                 if ($assessment->status() === AvailabilityStatus::Unavailable) {
                     $selections[] = new PlayerSelection($match->id(), $player->id(), new \Goal\Legacy\Modules\Club\Domain\ClubId($clubId), SelectionStatus::Unavailable);

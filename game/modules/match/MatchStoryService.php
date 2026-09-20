@@ -167,6 +167,7 @@ final class MatchStoryService
                 $assists[$side] += $stat->assists();
                 $selection = array_values(array_filter($selections, static fn (PlayerSelection $value): bool => $value->playerId()->value() === $stat->playerId()->value()))[0] ?? null;
                 if ($selection?->status() === SelectionStatus::Unavailable) { $errors[] = 'unavailable_player_has_stat'; }
+                if ($selection?->status() === SelectionStatus::Suspended) { $errors[] = 'suspended_player_has_stat'; }
             }
             if ($result !== null && ($goals['home'] !== $result->homeGoals() || $goals['away'] !== $result->awayGoals())) { $errors[] = 'stat_score_mismatch'; }
             if ($assists['home'] > $goals['home'] || $assists['away'] > $goals['away']) { $errors[] = 'assist_goal_mismatch'; }
@@ -174,6 +175,7 @@ final class MatchStoryService
                 $stat = array_values(array_filter($stats, static fn (PlayerMatchStat $value): bool => $value->playerId()->value() === $selection->playerId()->value()))[0] ?? null;
                 if ($selection->status() === SelectionStatus::Starter && ($stat === null || !$stat->started())) { $errors[] = 'starter_minutes_mismatch'; }
                 if ($selection->status() === SelectionStatus::Unavailable && $stat !== null) { $errors[] = 'unavailable_selection_mismatch'; }
+                if ($selection->status() === SelectionStatus::Suspended && $stat !== null) { $errors[] = 'suspended_selection_mismatch'; }
             }
 
             $substitutions = (new MatchSubstitutionRepository($database))->byMatch($match->id());
@@ -193,6 +195,9 @@ final class MatchStoryService
     /** @return array{state:string,label:string,reason:?string} */
     private function participationState(SelectionStatus $status, ?PlayerMatchStat $stat, AvailabilityStatus $availability): array
     {
+        if ($status === SelectionStatus::Suspended) {
+            return ['state' => 'suspended', 'label' => 'Suspended — disciplinary eligibility', 'reason' => 'Disciplinary suspension'];
+        }
         if ($status === SelectionStatus::Unavailable || $availability === AvailabilityStatus::Unavailable) {
             return ['state' => 'unavailable', 'label' => 'Unavailable — injury or fitness', 'reason' => 'Unavailable'];
         }

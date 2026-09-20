@@ -15,7 +15,6 @@ use Goal\Legacy\Modules\Competition\CompetitionService;
 use Goal\Legacy\Modules\Competition\DomesticCupService;
 use Goal\Legacy\Modules\Competition\EuropeanCompetitionService;
 use Goal\Legacy\Modules\International\InternationalCompetitionService;
-use Goal\Legacy\Modules\Competition\Domain\CompetitionType;
 use Goal\Legacy\Modules\Competition\Domain\Competition;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionStatus;
 use Goal\Legacy\Modules\Competition\Persistence\CompetitionRepository;
@@ -110,38 +109,10 @@ final class WorldService
         $this->footballSocial?->initializeSchema($database);
         $repository = new WorldRepository($database);
         $world = $repository->get($id);
-        if ($world->currentSeasonId() !== null && ($this->domesticCups !== null || $this->europeanCompetitions !== null || $this->internationalCompetitions !== null)) {
-            $selected = $this->competitionService->loadSelected();
-            $leagueIds = array_map(static fn ($definition): string => $definition->id()->value(), array_filter($selected, static fn ($definition): bool => $definition->type() === CompetitionType::DomesticLeague));
-            $cupDefinitions = array_values(array_filter($selected, static fn ($definition): bool => $definition->type() === CompetitionType::DomesticCup));
-            $europeDefinitions = array_values(array_filter($selected, static fn ($definition): bool => $definition->type() === CompetitionType::Continental));
-            $internationalDefinitions = array_values(array_filter($selected, static fn ($definition): bool => $definition->type() === CompetitionType::International));
-            $hasAllLeagues = array_diff($leagueIds, $world->competitionIds()) === [];
-            $additionalDefinitions = array_values(array_filter(array_merge($cupDefinitions, $europeDefinitions, $internationalDefinitions), fn ($definition): bool => !in_array($definition->id()->value(), $world->competitionIds(), true)));
-            if ($hasAllLeagues && $additionalDefinitions !== []) {
-                $database->transaction(fn (): int => $this->competitionService->materializeInTransaction($database, $additionalDefinitions, $world->currentSeasonId()));
-                $world = $world->withCompetitionIds(array_merge($world->competitionIds(), array_map(static fn ($definition): string => $definition->id()->value(), $additionalDefinitions)));
-                $repository->save($world);
-            }
-            $season = (new SeasonRepository($database))->get($world->currentSeasonId());
-            $this->domesticCups?->ensureSeason($database, $season);
-            $this->europeanCompetitions?->ensureSeason($database, $season);
-            $this->internationalCompetitions?->ensureSeason($database, $season);
-            // Existing saves may already contain the competition definitions
-            // without having generated fixture rows yet. Preserve the
-            // legacy load contract: only newly materialized competitions are
-            // scheduled here. Normal career creation and Season rollover
-            // generate the complete fixture set through MatchService.
-            foreach ($additionalDefinitions as $definition) {
-                if ($definition->type() === CompetitionType::DomesticCup) {
-                    $this->domesticCups?->generateFixtures($database, $definition->id(), $season->id());
-                } elseif ($definition->type() === CompetitionType::International) {
-                    $this->internationalCompetitions?->generateFixtures($database, $definition->id(), $season->id());
-                } else {
-                    $this->europeanCompetitions?->generateFixtures($database, $definition->id(), $season->id());
-                }
-            }
-        }
+        // Loading a save is a read operation. Season preparation and fixture
+        // materialization belong to initialize/rollover/advance paths; doing
+        // them here made Career Home/Profile GETs write national-team rows and
+        // could also mutate a legacy save merely by browsing it.
         $this->synchronizeClock($world);
 
         return $world;

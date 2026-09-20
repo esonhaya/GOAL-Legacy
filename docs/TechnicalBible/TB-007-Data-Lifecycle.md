@@ -500,4 +500,39 @@ eligible for the same selection gate, but no NPC narrative, history, Pulse,
 or Career event is created. No RNG, development callback, manager penalty,
 readiness mutation, or page-render write is attached to discipline.
 
+### P2-028 Phase-2 integration and release gate
+
+The Phase-2 stack keeps one owner per canonical fact: Match simulation writes
+Match evidence, selection consumes medical and disciplinary eligibility,
+P2-019 owns positional capability, P2-024 owns the single controlled on-pitch
+role preference, P2-022 derives traits, P2-018 owns manager/squad context,
+P2-020 owns Club objectives, P2-023 projects Club context and movement
+decisions, P2-025 owns historical memory, P2-026 projects recovery context, and
+P2-027 owns competition-scoped disciplinary eligibility. Position, role, traits,
+squad role, readiness, medical availability, disciplinary eligibility, Club
+attachment, Career direction, and reputation remain distinct read-model
+concepts; none is a universal Player score or hidden gameplay modifier.
+
+The consolidation gate found and removed two read-side Match lookup N+1 paths:
+selection history and meaningful-injury return detection now use the chunked
+`MatchRepository::byIds()` boundary. The same bounded read pattern is used by
+Career Match-history projections, while transfer market context caches repeated
+competition lookups within one projection. The batch stays below SQLite's
+parameter limit and ignores missing historical references safely. This changes
+no Match, injury, discipline, Career, or NPC state. `WorldService::load()` is
+also strictly read-only; Season preparation, fixture materialization, and
+national-team setup remain in initialize/advance/rollover paths. Profile/Home/
+History reads therefore allow only the existing idempotent schema DDL guard,
+not domain DML, narrative rows, World scans, or detailed NPC
+traits/roles/rehab/social/finance processing. Save/reload remains the
+persistence boundary for actual decisions, Match facts, and compact current
+disciplinary state.
+
+P2-028 validation covers the controlled production path, participation and
+medical/disciplinary combinations, position-role-trait separation, Club and
+international boundaries, transfer continuity, legacy defaults, idempotency,
+determinism, bounded NPC/world fidelity, storage, and representative read and
+Continue performance. Termux screenshot inspection remains an environment
+limitation; automated graphical shell checks remain the release evidence.
+
 END OF DOCUMENT

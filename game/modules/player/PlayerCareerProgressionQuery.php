@@ -163,8 +163,16 @@ final class PlayerCareerProgressionQuery
         $selectionRepository = new MatchSelectionRepository($database);
         $matchRepository = new MatchRepository($database);
         $selectionHistory = [];
-        foreach ($selectionRepository->byPlayer($id) as $selection) {
-            $match = $matchRepository->get($selection->matchId());
+        $selections = $selectionRepository->byPlayer($id);
+        $matchesById = [];
+        foreach ($matchRepository->byIds(array_map(static fn ($selection): string => $selection->matchId()->value(), $selections)) as $match) {
+            $matchesById[$match->id()->value()] = $match;
+        }
+        foreach ($selections as $selection) {
+            $match = $matchesById[$selection->matchId()->value()] ?? null;
+            if ($match === null) {
+                continue;
+            }
             $selectionHistory[] = ['date' => $match->scheduledDate()->toIsoString(), 'match_id' => $selection->matchId()->value(), 'club_id' => $selection->clubId()->value(), 'status' => $selection->status()->value];
         }
         usort($selectionHistory, static fn (array $a, array $b): int => strcmp($b['date'] . $b['match_id'], $a['date'] . $a['match_id']));

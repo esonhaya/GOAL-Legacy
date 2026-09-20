@@ -164,13 +164,17 @@ final class CareerRecoveryService
         $matches = new MatchRepository($database);
         $stats = new PlayerMatchStatRepository($database);
         $appearances = [];
-        foreach ($stats->byPlayer($playerId) as $stat) {
+        $playerStats = $stats->byPlayer($playerId);
+        $matchesById = [];
+        foreach ($matches->byIds(array_map(static fn ($stat): string => $stat->matchId()->value(), $playerStats)) as $match) {
+            $matchesById[$match->id()->value()] = $match;
+        }
+        foreach ($playerStats as $stat) {
             if (!$stat->appeared() || $stat->minutes() < 1) {
                 continue;
             }
-            try {
-                $match = $matches->get($stat->matchId());
-            } catch (\Throwable) {
+            $match = $matchesById[$stat->matchId()->value()] ?? null;
+            if ($match === null) {
                 continue;
             }
             if ($match->status()->value !== 'completed' || $match->scheduledDate()->isBefore($end) || ($asOf !== null && $match->scheduledDate()->isAfter($asOf))) {

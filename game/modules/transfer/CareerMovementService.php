@@ -1311,12 +1311,14 @@ final class CareerMovementService
         foreach ($squads->bySeason($seasonId) as $membership) { $squadsByClub[$membership->clubId()->value()][] = $membership; }
         $membershipsByClub = [];
         foreach ($memberships->bySeason($seasonId) as $membership) { $membershipsByClub[$membership->clubId()->value()][] = $membership; }
+        $competitionsById = [];
         $profiles = [];
         foreach ($clubs as $club) {
             $competitionRows = [];
             $hasEurope = false;
             foreach ($membershipsByClub[$club->id()->value()] ?? [] as $membership) {
-                $competition = $competitions->get($membership->competitionId());
+                $competitionId = $membership->competitionId()->value();
+                $competition = $competitionsById[$competitionId] ??= $competitions->get($membership->competitionId());
                 if ($competition->type() === CompetitionType::Continental) { $hasEurope = true; }
                 $competitionRows[] = $competition;
             }

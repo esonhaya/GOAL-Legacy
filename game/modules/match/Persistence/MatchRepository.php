@@ -49,6 +49,44 @@ final class MatchRepository
 
     public function exists(string|MatchId $id): bool { $matchId = $id instanceof MatchId ? $id : new MatchId($id); return $this->findRow($matchId) !== null; }
     public function get(string|MatchId $id): GameMatch { $matchId = $id instanceof MatchId ? $id : new MatchId($id); $row = $this->findRow($matchId); if ($row === null) { throw new MatchNotFoundException($matchId->value()); } return $this->hydrate($row); }
+    /** @param list<string|MatchId> $ids @return list<GameMatch> */
+    public function byIds(array $ids): array
+    {
+        $values = [];
+        foreach ($ids as $id) {
+            $value = $id instanceof MatchId ? $id->value() : (string) $id;
+            if ($value !== '' && !in_array($value, $values, true)) {
+                $values[] = $value;
+            }
+        }
+        if ($values === []) {
+            return [];
+        }
+
+        // Keep the batch below SQLite's bound-parameter limit for long Career
+        // histories while preserving one read per bounded chunk.
+        $matches = [];
+        foreach (array_chunk($values, 400) as $chunk) {
+            $placeholders = [];
+            $parameters = [];
+            foreach ($chunk as $index => $value) {
+                $key = 'match_' . $index;
+                $placeholders[] = ':' . $key;
+                $parameters[$key] = $value;
+            }
+            $statement = $this->database->connection()->prepare(
+                'SELECT * FROM ' . self::TABLE . ' WHERE id IN (' . implode(', ', $placeholders) . ') ORDER BY scheduled_date ASC, id ASC'
+            );
+            $statement->execute($parameters);
+            $matches = array_merge($matches, $this->hydrateRows($statement->fetchAll(PDO::FETCH_ASSOC)));
+        }
+        usort($matches, static fn (GameMatch $left, GameMatch $right): int => strcmp(
+            $left->scheduledDate()->toIsoString() . '|' . $left->id()->value(),
+            $right->scheduledDate()->toIsoString() . '|' . $right->id()->value(),
+        ));
+
+        return $matches;
+    }
     /** @return list<GameMatch> */
     public function all(): array { return $this->hydrateRows($this->database->connection()->query('SELECT * FROM ' . self::TABLE . ' ORDER BY scheduled_date ASC, id ASC')->fetchAll(PDO::FETCH_ASSOC)); }
     /** @return list<GameMatch> */

@@ -85,6 +85,13 @@ final class KnockoutResolutionService
             return null;
         }
         $match = (new MatchRepository($database))->get($matchId);
+        // A completed Match may be durable while the bracket write was
+        // interrupted. Resolve it for a read without repairing the bracket
+        // from a GET. Lifecycle/replay paths still call resolve(), which
+        // persists the winner and advances the competition exactly once.
+        if ($state[$this->winnerColumn($table)] === null && $match->status() === MatchStatus::Completed && $match->result() !== null) {
+            return $this->derivedResolution($database, $state, $match);
+        }
         $regulationHome = $match->result()?->homeGoals() ?? 0;
         $regulationAway = $match->result()?->awayGoals() ?? 0;
         $extraHome = $state['extra_time_home_goals'] === null ? 0 : (int) $state['extra_time_home_goals'];
@@ -107,6 +114,47 @@ final class KnockoutResolutionService
             'decided_by' => $state['shootout_home_goals'] !== null
                 ? 'penalties'
                 : ($extraHome !== 0 || $extraAway !== 0 ? 'extra_time' : 'regulation'),
+        ];
+    }
+
+    /** @param array<string, mixed> $state @return array<string, int|string|null> */
+    private function derivedResolution(DatabaseInterface $database, array $state, GameMatch $match): array
+    {
+        $result = $match->result();
+        if ($result === null) {
+            return [];
+        }
+        $regulationHome = $result->homeGoals();
+        $regulationAway = $result->awayGoals();
+        $extraTime = $regulationHome === $regulationAway ? $this->extraTime($match) : [0, 0];
+        $aetHome = $regulationHome + $extraTime[0];
+        $aetAway = $regulationAway + $extraTime[1];
+        $winner = $aetHome > $aetAway
+            ? $match->homeClubId()->value()
+            : ($aetAway > $aetHome ? $match->awayClubId()->value() : null);
+        $shootout = [null, null];
+        if ($winner === null) {
+            $shootout = $this->shootout($database, $match);
+            $winner = $shootout[0] > $shootout[1]
+                ? $match->homeClubId()->value()
+                : $match->awayClubId()->value();
+        }
+
+        return [
+            'round' => (int) ($state['round_number'] ?? 0),
+            'stage' => (string) ($state['stage'] ?? ''),
+            'winner_club_id' => $winner,
+            'regulation_home_goals' => $regulationHome,
+            'regulation_away_goals' => $regulationAway,
+            'extra_time_home_goals' => $extraTime[0],
+            'extra_time_away_goals' => $extraTime[1],
+            'aet_home_goals' => $aetHome,
+            'aet_away_goals' => $aetAway,
+            'shootout_home_goals' => $shootout[0],
+            'shootout_away_goals' => $shootout[1],
+            'decided_by' => $shootout[0] !== null
+                ? 'penalties'
+                : ($extraTime[0] !== 0 || $extraTime[1] !== 0 ? 'extra_time' : 'regulation'),
         ];
     }
 

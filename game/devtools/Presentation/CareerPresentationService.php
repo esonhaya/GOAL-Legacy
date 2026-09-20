@@ -333,14 +333,27 @@ final class CareerPresentationService
         $player = (new PlayerRepository($database))->get($playerId);
         $ratings = new PlayerMatchRatingService();
         $detailed = [];
-        foreach ((new PlayerMatchStatRepository($database))->byPlayer($playerId) as $stat) {
-            $match = $matches->get($stat->matchId());
+        $playerStats = (new PlayerMatchStatRepository($database))->byPlayer($playerId);
+        $matchesById = [];
+        foreach ($matches->byIds(array_map(static fn ($stat): string => $stat->matchId()->value(), $playerStats)) as $match) {
+            $matchesById[$match->id()->value()] = $match;
+        }
+        $competitionsById = [];
+        foreach ($competitions->bySeason($seasonId) as $competition) {
+            $competitionsById[$competition->id()->value()] = $competition;
+        }
+        foreach ($playerStats as $stat) {
+            $match = $matchesById[$stat->matchId()->value()] ?? null;
+            if ($match === null) {
+                continue;
+            }
             if ($match->seasonId()->value() !== $seasonId->value() || $match->status() !== MatchStatus::Completed) { continue; }
             $result = $match->result();
+            $competition = $competitionsById[$match->competitionId()->value()] ?? $competitions->get($match->competitionId());
             $detailed[] = [
                 'match_id' => $match->id()->value(),
                 'date' => $match->scheduledDate()->toIsoString(),
-                'competition' => $competitions->get($match->competitionId())->name(),
+                'competition' => $competition->name(),
                 'home' => $this->teamName($database, $match->homeClubId()->value()),
                 'away' => $this->teamName($database, $match->awayClubId()->value()),
                 'home_goals' => $result?->homeGoals() ?? 0,
@@ -359,13 +372,19 @@ final class CareerPresentationService
         }
         if ($clubId === null) { return []; }
         $compact = [];
-        foreach ($matches->byClub($clubId, $seasonId) as $match) {
+        $compactMatches = $matches->byClub($clubId, $seasonId);
+        $competitionsById = [];
+        foreach ($competitions->bySeason($seasonId) as $competition) {
+            $competitionsById[$competition->id()->value()] = $competition;
+        }
+        foreach ($compactMatches as $match) {
             if ($match->status() !== MatchStatus::Completed) { continue; }
             $result = $match->result();
+            $competition = $competitionsById[$match->competitionId()->value()] ?? $competitions->get($match->competitionId());
             $compact[] = [
                 'match_id' => $match->id()->value(),
                 'date' => $match->scheduledDate()->toIsoString(),
-                'competition' => $competitions->get($match->competitionId())->name(),
+                'competition' => $competition->name(),
                 'home' => $this->teamName($database, $match->homeClubId()->value()),
                 'away' => $this->teamName($database, $match->awayClubId()->value()),
                 'home_goals' => $result?->homeGoals() ?? 0,
@@ -877,11 +896,21 @@ final class CareerPresentationService
         $stats = new PlayerMatchStatRepository($database);
         $competitions = new CompetitionRepository($database);
         $ids = [];
-        foreach ($stats->byPlayer(new PlayerId($playerId)) as $stat) {
+        $playerStats = $stats->byPlayer(new PlayerId($playerId));
+        $matchesById = [];
+        foreach ($matches->byIds(array_map(static fn ($stat): string => $stat->matchId()->value(), $playerStats)) as $match) {
+            $matchesById[$match->id()->value()] = $match;
+        }
+        $competitionsById = [];
+        foreach ($competitions->bySeason($seasonId) as $competition) {
+            $competitionsById[$competition->id()->value()] = $competition;
+        }
+        foreach ($playerStats as $stat) {
             if (!$stat->appeared()) { continue; }
-            $match = $matches->get($stat->matchId());
+            $match = $matchesById[$stat->matchId()->value()] ?? null;
+            if ($match === null) { continue; }
             if ($match->seasonId()->value() !== $seasonId->value()) { continue; }
-            $competition = $competitions->get($match->competitionId());
+            $competition = $competitionsById[$match->competitionId()->value()] ?? $competitions->get($match->competitionId());
             if ($competition->type() === CompetitionType::International) { continue; }
             $ids[$competition->id()->value()] = $competition;
         }

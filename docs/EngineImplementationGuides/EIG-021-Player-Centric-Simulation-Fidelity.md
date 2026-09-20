@@ -83,3 +83,12 @@ presentation-only and replay-only NPC evidence does not.
 Existing detailed Phase-1 and P2 saves remain valid. New simulation behavior
 applies to future scheduled fixtures. Season compaction remains available for
 old high-detail saves and for idempotent cleanup of completed Seasons.
+
+## P2-024 Role Fidelity Boundary
+
+On-pitch role is a controlled Player usage preference, not a World simulation
+dimension. `MatchSimulationService` may use it only in Player fidelity to
+redistribute attempted action volume. World fidelity does not scan Players for
+roles, create NPC preferences, or run role ticks. Existing result, selection,
+statistic, rating, and Season-aggregate owners remain unchanged, and role
+calculation has no effect on team outcome or action success.

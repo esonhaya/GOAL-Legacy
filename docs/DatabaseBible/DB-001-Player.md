@@ -528,4 +528,19 @@ decision facts remain unknown rather than being fabricated. NPCs create no
 attachment rows, ambition ticks, Career-decision events, or relationship
 history system.
 
+## P2-024 On-Pitch Role Persistence
+
+`career_player_references.preferred_on_pitch_role` is the single nullable
+controlled-Career preference for position-compatible on-pitch usage. It is not
+a role history, experience, training, or NPC table. Existing references with a
+missing value derive the deterministic position default, so P2-023 and earlier
+saves require no migration data and receive no fabricated history.
+
+`controlled_match_positions.role` reuses the existing controlled Match
+position snapshot. It records the actual role used for a controlled Player who
+participated, allowing Matchday/Post-Match to distinguish the deployed role
+from a current preference. No weekly snapshots, role-performance table, role
+XP, or page-render writes are introduced. The nullable column is added safely
+to older save schemas and unknown values resolve to the position default.
+
 END OF DOCUMENT

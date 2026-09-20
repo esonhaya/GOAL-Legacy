@@ -18,6 +18,7 @@ final class CareerPresentationTest extends TestCase
             'potential' => 81,
             'development_profile' => 'late_bloomer',
             'current_role' => 'key_player',
+            'on_pitch_role' => ['role_label' => 'Central Midfielder'],
             'current_club' => ['name' => 'Arsenal'],
             'current_competition' => ['name' => 'Premier League', 'tier' => 1],
             'season_stats' => ['appearances' => 0, 'starts' => 0, 'minutes' => 0, 'goals' => 0, 'assists' => 0, 'average_match_rating' => null],
@@ -32,6 +33,7 @@ final class CareerPresentationTest extends TestCase
         self::assertStringContainsString('Not enough matches yet', $text);
         self::assertStringContainsString('Not enough evidence', $text);
         self::assertStringContainsString('Key Player', $text);
+        self::assertStringContainsString('On-Pitch Role: Central Midfielder', $text);
         self::assertStringContainsString('Late Bloomer', $text);
         self::assertStringNotContainsString('insufficient_evidence', $text);
         self::assertStringNotContainsString('undefined', strtolower($text));
@@ -68,7 +70,7 @@ final class CareerPresentationTest extends TestCase
             'result' => ['home_goals' => 2, 'away_goals' => 1],
             'performance' => [
                 'selection_status' => 'starter', 'appeared' => true, 'started' => true, 'minutes' => 90,
-                'rating' => 7.4, 'position' => 'CB', 'goals' => 1, 'assists' => 0,
+                'rating' => 7.4, 'position' => 'CB', 'on_pitch_role_label' => 'Central Defender', 'goals' => 1, 'assists' => 0,
                 'tackles' => 4, 'interceptions' => 2, 'blocks' => 1, 'passes_attempted' => 35,
                 'passes_completed' => 30, 'clean_sheets' => 0, 'yellow_cards' => 0, 'red_cards' => 0,
             ],
@@ -85,6 +87,7 @@ final class CareerPresentationTest extends TestCase
         self::assertStringContainsString('Rating: 7.4', $text);
         self::assertStringContainsString('Goals 1', $text);
         self::assertStringContainsString('Tackles 4', $text);
+        self::assertStringContainsString('Central Defender', $text);
         self::assertStringContainsString('Interceptions 2', $text);
         self::assertStringContainsString('Recent Form: Good', $text);
         self::assertStringContainsString("78' GOAL", $text);

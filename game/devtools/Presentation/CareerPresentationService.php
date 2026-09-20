@@ -31,6 +31,7 @@ use Goal\Legacy\Modules\Player\PlayerCareerStatisticsService;
 use Goal\Legacy\Modules\Player\PlayerTraitService;
 use Goal\Legacy\Modules\Player\PlayerFormService;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
+use Goal\Legacy\Modules\Player\OnPitchRoleService;
 use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
 use Goal\Legacy\Modules\Club\Persistence\ClubSquadRepository;
 use Goal\Legacy\Modules\Club\ClubSeasonObjectiveService;
@@ -131,6 +132,9 @@ final class CareerPresentationService
         $positionContext = $controlled
             ? (new PositionDevelopmentService())->context($database, $playerId, $date)
             : null;
+        $onPitchRole = $controlled && is_array($controlledSummary['on_pitch_role'] ?? null)
+            ? $controlledSummary['on_pitch_role']
+            : (new OnPitchRoleService())->publicContext($database, $player);
         $traits = $controlled && is_array($controlledSummary['traits'] ?? null)
             ? $controlledSummary['traits']
             : (is_array($publicSummary['traits'] ?? null) ? $publicSummary['traits'] : (new PlayerTraitService())->derive($database, $player, $seasonId));
@@ -198,6 +202,7 @@ final class CareerPresentationService
             'club_season' => $controlled ? $controlledSummary['club_season'] ?? null : null,
             'position_competition' => $controlled ? $controlledSummary['position_competition'] ?? null : null,
             'position_development' => $positionContext,
+            'on_pitch_role' => $onPitchRole,
             'traits' => $traits,
             'career_context' => $careerContext,
             'club_journey' => $careerContext['club_journey'] ?? [],

@@ -427,6 +427,23 @@ transfer and Contract opportunity rows may carry the factual comparison needed
 for an already-open controlled decision; no weekly attachment, ambition,
 sentiment, or decision-score history is stored.
 
+### P2-024 controlled role lifecycle
+
+`OnPitchRoleService` owns the single controlled-Career role preference,
+position compatibility, deterministic defaults, descriptive suitability, and
+on-demand NPC derivation. P2-019 owns position capability, P2-021 owns
+footedness, P2-022 owns evidence-derived style traits, and the Match selection,
+action, and rating services retain their existing owners. A primary-position
+change deterministically replaces an incompatible preference with the new
+position's safe default; it does not grant a new capability.
+
+Player-fidelity Match processing reads the role only for controlled Players and
+uses it to nudge action-volume weights. It does not modify team outcome, action
+success, rating, attributes, training, development, readiness, injury,
+selection, finance, or RNG namespaces. World-fidelity processing remains
+role-free. Match role is written only into the existing controlled position
+snapshot, and no lifecycle-wide NPC work is scheduled.
+
 The Profile owns normal presentation. Career Home surfaces only actionable or
 meaningful direction, while Career and Legacy expose the compact Club journey.
 Offer context is deterministic and neutral: source/target Club, competition,

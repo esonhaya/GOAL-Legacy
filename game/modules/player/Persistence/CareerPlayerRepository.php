@@ -8,6 +8,7 @@ use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Player\Domain\CareerId;
 use Goal\Legacy\Modules\Player\Domain\CareerPlayerReference;
 use Goal\Legacy\Modules\Player\Domain\CareerTransferRequestStatus;
+use Goal\Legacy\Modules\Player\Domain\OnPitchRole;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\PlayerException;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -24,7 +25,8 @@ final class CareerPlayerRepository
             . 'player_id TEXT NOT NULL UNIQUE, '
             . 'start_date TEXT NOT NULL, '
             . 'transfer_request_status TEXT NOT NULL DEFAULT \'none\', '
-            . 'transfer_request_season_id TEXT NULL'
+            . 'transfer_request_season_id TEXT NULL, '
+            . 'preferred_on_pitch_role TEXT NULL'
             . ')'
         );
         $columns = $this->database->connection()->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(\PDO::FETCH_ASSOC);
@@ -33,6 +35,9 @@ final class CareerPlayerRepository
         }
         if (!in_array('transfer_request_season_id', array_column($columns, 'name'), true)) {
             $this->database->connection()->exec('ALTER TABLE ' . self::TABLE . ' ADD COLUMN transfer_request_season_id TEXT NULL');
+        }
+        if (!in_array('preferred_on_pitch_role', array_column($columns, 'name'), true)) {
+            $this->database->connection()->exec('ALTER TABLE ' . self::TABLE . ' ADD COLUMN preferred_on_pitch_role TEXT NULL');
         }
         $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_career_player_player ON ' . self::TABLE . ' (player_id)');
     }
@@ -43,9 +48,10 @@ final class CareerPlayerRepository
         $values = $reference->toArray();
         $values['transfer_request_status'] = $reference->transferRequestStatus()->value;
         $values['transfer_request_season_id'] = $reference->transferRequestSeasonId()?->value();
+        $values['preferred_on_pitch_role'] = $reference->preferredOnPitchRole()?->value;
         $statement = $this->database->connection()->prepare(
-            'INSERT INTO ' . self::TABLE . ' (career_id, player_id, start_date, transfer_request_status, transfer_request_season_id) VALUES (:career_id, :player_id, :start_date, :transfer_request_status, :transfer_request_season_id) '
-            . 'ON CONFLICT(career_id) DO UPDATE SET player_id = excluded.player_id, start_date = excluded.start_date, transfer_request_status = excluded.transfer_request_status, transfer_request_season_id = excluded.transfer_request_season_id'
+            'INSERT INTO ' . self::TABLE . ' (career_id, player_id, start_date, transfer_request_status, transfer_request_season_id, preferred_on_pitch_role) VALUES (:career_id, :player_id, :start_date, :transfer_request_status, :transfer_request_season_id, :preferred_on_pitch_role) '
+            . 'ON CONFLICT(career_id) DO UPDATE SET player_id = excluded.player_id, start_date = excluded.start_date, transfer_request_status = excluded.transfer_request_status, transfer_request_season_id = excluded.transfer_request_season_id, preferred_on_pitch_role = excluded.preferred_on_pitch_role'
         );
         try {
             $statement->execute($values);
@@ -70,6 +76,7 @@ final class CareerPlayerRepository
             SimulationDate::fromIsoString((string) $row['start_date']),
             CareerTransferRequestStatus::from((string) ($row['transfer_request_status'] ?? CareerTransferRequestStatus::None->value)),
             $row['transfer_request_season_id'] === null ? null : new SeasonId((string) $row['transfer_request_season_id']),
+            OnPitchRole::tryFrom((string) ($row['preferred_on_pitch_role'] ?? '')),
         );
     }
 

@@ -144,6 +144,7 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('Public profile', $home['body']);
             self::assertStringContainsString('Transfer Market', $home['body']);
             self::assertStringContainsString('Manager relationship', $home['body']);
+            self::assertStringContainsString('On-pitch role', $home['body']);
             self::assertStringContainsString('READINESS', $home['body']);
             self::assertStringContainsString('Workload', $home['body']);
             self::assertStringNotContainsString('No active Club manager', $home['body']);
@@ -167,8 +168,16 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('CURRENT SEASON', $controlled['body']);
             self::assertStringContainsString('Training focus', $controlled['body']);
             self::assertStringContainsString('Readiness', $controlled['body']);
+            self::assertStringContainsString('ON-PITCH ROLE', $controlled['body']);
+            self::assertStringContainsString('Set preferred role', $controlled['body']);
             self::assertStringContainsString('PLAYING STYLE', $controlled['body']);
             self::assertStringNotContainsString('Potential', $controlled['body']);
+            $roleUpdate = $this->application->handle('POST', '/', [], [
+                'action' => 'set_on_pitch_role', 'save' => $save, 'role' => 'box_to_box_midfielder',
+            ], $session);
+            self::assertSame(303, $roleUpdate['status']);
+            $roleProfile = $this->application->handle('GET', '/', ['page' => 'profile', 'save' => $save, 'player' => $career->playerId()->value()], [], $session);
+            self::assertStringContainsString('Box-to-Box Midfielder', $roleProfile['body']);
             $legacy = $this->application->handle('GET', '/', ['page' => 'legacy', 'save' => $save], [], $session);
             self::assertSame(200, $legacy['status']);
             self::assertStringContainsString('CAREER LEGACY', $legacy['body']);

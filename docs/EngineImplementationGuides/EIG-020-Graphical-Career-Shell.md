@@ -103,3 +103,18 @@ The situation panel includes availability and active injury recovery context.
 The controlled profile uses the active Contract/current-career read model for
 Club identity, so a former Club cannot leak into a free-agent presentation.
 These are presentation fixes over canonical state, not a new UI state store.
+
+## P2-024 On-Pitch Role Presentation
+
+The controlled Profile presents Position, Squad Role, On-Pitch Role, and
+Playing Style as distinct facts. The role panel lists only roles compatible
+with P2-019 capability, gives a short football-readable description and
+descriptive suitability, and posts one preference to the existing Career
+reference. It exposes no formula, score, mastery, or recommendation. Career
+Home shows the current role compactly; the role panel is not a permanent
+tactics-management screen.
+
+Matchday/Post-Match use the role stored in the existing controlled Match
+position snapshot, so an actual fallback/default is shown when needed. NPC
+Profiles may show a deterministic on-demand role; no NPC role state is written.
+All role presentation is read-safe and uses no page-render mutation.

@@ -390,4 +390,30 @@ benefit. Context is read-only, deterministic, save-safe, and absent from NPC
 lifecycle decision processing. No attachment snapshots, ambition rows,
 decision scores, page-render writes, or fabricated Club history are created.
 
+## P2-024 Position, On-Pitch Role, and Playing Style
+
+Position remains the P2-019 answer to where a Player can play. On-pitch role is
+the controlled Player's single, position-compatible preference for how they are
+used while playing: for example Central Defender, Creator, Winger, or Poacher.
+Playing style remains P2-022's evidence-derived description of what the Player
+has demonstrated. Squad Role remains the Club status assigned by the existing
+selection/manager context. These are separate concepts and are never collapsed
+into a personality or tactical-management system.
+
+The role catalog is small and position-scoped (16 reusable roles across 21
+position mappings) with deterministic safe defaults for every canonical
+position. Attributes, footedness, and style traits can explain descriptive
+suitability, but role choice never grants position capability, an attribute,
+success, a rating bonus, development, readiness, or selection. While the
+controlled Player actually participates, the role may modestly redistribute
+attempted shots, assists, defensive actions, or passing volume; canonical
+attributes still decide execution and canonical actions still decide ratings.
+
+Role preference is one compact controlled-Career value. Match role is captured
+only through the existing controlled Match position snapshot so Matchday and
+Post-Match can show the actual deployed role. NPC profiles may derive a role on
+demand, but World simulation creates no role rows, ticks, or scans. Missing
+legacy preference defaults safely; no historical role is fabricated, and role
+selection uses no RNG.
+
 END OF DOCUMENT

@@ -417,4 +417,20 @@ Controlled and NPC Players share the derivation boundary. NPC Profile reads use
 the compact `player_season_statistics` evidence only; there is no lifecycle
 tick, trait training, trait history, or World scan.
 
+## P2-024 On-Pitch Roles
+
+`OnPitchRoleService` is the sole owner of the controlled Player's optional
+`preferred_on_pitch_role` preference. It consumes P2-019 position capability and
+can describe suitability using attributes, P2-021 foot context, and P2-022
+style evidence; it never grants a position or creates a second identity
+system. The catalog has deterministic defaults for all ten positions and
+rejects incompatible controlled choices. A primary-position change replaces an
+incompatible preference with that position's safe default.
+
+The preference is one nullable Career-reference value. Existing saves derive
+the default, and NPC profiles derive compact role context on demand without
+role rows, ticks, training, or World scans. No role history, XP, mastery, or
+page-render write exists. Role labels remain separate from squad role,
+position, playing style, reputation, outlook, and awards.
+
 END OF DOCUMENT

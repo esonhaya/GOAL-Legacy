@@ -41,6 +41,7 @@ use Goal\Legacy\Modules\International\InternationalCompetitionService;
 use Goal\Legacy\Modules\Player\FootballSocialService;
 use Goal\Legacy\Modules\Player\ManagerTrustService;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
+use Goal\Legacy\Modules\Player\OnPitchRoleService;
 
 final class MatchService
 {
@@ -98,12 +99,17 @@ final class MatchService
             foreach ($stats as $stat) { $positions[$stat->playerId()->value()] = $players->get($stat->playerId())->primaryPosition(); }
         }
         $controlledPositions = [];
+        $controlledRoles = [];
         if ($fidelity === SimulationFidelity::Player) {
             $controlled = array_fill_keys((new CareerPlayerRepository($database))->playerIds(), true);
+            $roleService = new OnPitchRoleService();
+            $controlledRoleMap = $roleService->controlledRoles($database);
             $players = new PlayerRepository($database);
             foreach ($stats as $stat) {
                 if (isset($controlled[$stat->playerId()->value()])) {
-                    $controlledPositions[$stat->playerId()->value()] = $players->get($stat->playerId())->primaryPosition();
+                    $player = $players->get($stat->playerId());
+                    $controlledPositions[$stat->playerId()->value()] = $player->primaryPosition();
+                    $controlledRoles[$stat->playerId()->value()] = $controlledRoleMap[$stat->playerId()->value()] ?? $roleService->defaultRole($player->primaryPosition());
                 }
             }
         }
@@ -118,7 +124,7 @@ final class MatchService
             new PlayerSeasonStatisticsRepository($database);
             new PlayerCompetitionStatisticsRepository($database);
         }
-        $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database, $fidelity, $positions, $international, $controlledPositions): array {
+        $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database, $fidelity, $positions, $international, $controlledPositions, $controlledRoles): array {
             $completed = $match->complete($simulation->result());
             $repository->saveInTransaction($completed);
             if ($fidelity === SimulationFidelity::Player) {
@@ -126,7 +132,7 @@ final class MatchService
                 (new MatchSubstitutionRepository($database))->replaceForMatchInTransaction($substitutions);
                 (new PlayerMatchStatRepository($database))->replaceForMatchInTransaction($stats);
                 foreach ($controlledPositions as $playerId => $position) {
-                    (new ControlledMatchPositionRepository($database, false))->saveInTransaction($completed->id(), new PlayerId($playerId), $position);
+                    (new ControlledMatchPositionRepository($database, false))->saveInTransaction($completed->id(), new PlayerId($playerId), $position, $controlledRoles[$playerId] ?? null);
                 }
             } elseif (!$international) {
                 (new PlayerSeasonStatisticsRepository($database))->addMatchInTransaction($completed, $stats, $positions);
@@ -192,7 +198,7 @@ final class MatchService
     /** @return array<string, mixed>|null */
     public function playerSummary(DatabaseInterface $database, string|MatchId $matchId, string|PlayerId $playerId): ?array
     {
-        $match = $this->repository($database)->get($matchId); $player = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId); $stat = array_values(array_filter($this->statRepository($database)->byMatch($match->id()), static fn (PlayerMatchStat $value): bool => $value->playerId()->value() === $player->value()))[0] ?? null; if ($stat === null) { return null; } $opponent = $stat->clubId()->value() === $match->homeClubId()->value() ? $match->awayClubId()->value() : $match->homeClubId()->value(); $position = (new ControlledMatchPositionRepository($database, false))->position($match->id(), $player) ?? (new PlayerRepository($database))->get($player)->primaryPosition(); return ['match_id' => $match->id()->value(), 'player_id' => $player->value(), 'club_id' => $stat->clubId()->value(), 'opponent_club_id' => $opponent, 'home_club_id' => $match->homeClubId()->value(), 'away_club_id' => $match->awayClubId()->value(), 'appeared' => $stat->appeared(), 'started' => $stat->started(), 'minutes' => $stat->minutes(), 'goals' => $stat->goals(), 'assists' => $stat->assists(), 'shots' => $stat->shots(), 'shots_on_target' => $stat->shotsOnTarget(), 'saves' => $stat->saves(), 'clean_sheets' => $stat->cleanSheets(), 'tackles' => $stat->tackles(), 'interceptions' => $stat->interceptions(), 'blocks' => $stat->blocks(), 'passes_attempted' => $stat->passesAttempted(), 'passes_completed' => $stat->passesCompleted(), 'fouls_committed' => $stat->foulsCommitted(), 'yellow_cards' => $stat->yellowCards(), 'red_cards' => $stat->redCards(), 'rating' => (new PlayerMatchRatingService())->rate($stat, $position), 'position' => $position->value, 'highlights' => array_values(array_map(static fn ($highlight): array => $highlight->toArray(), array_filter($this->highlightRepository($database)->byMatch($match->id()), static fn ($highlight): bool => $highlight->playerId()?->value() === $player->value() || (($highlight->data()['assist_player_id'] ?? null) === $player->value()))))];
+        $match = $this->repository($database)->get($matchId); $player = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId); $stat = array_values(array_filter($this->statRepository($database)->byMatch($match->id()), static fn (PlayerMatchStat $value): bool => $value->playerId()->value() === $player->value()))[0] ?? null; if ($stat === null) { return null; } $opponent = $stat->clubId()->value() === $match->homeClubId()->value() ? $match->awayClubId()->value() : $match->homeClubId()->value(); $positionSnapshot = new ControlledMatchPositionRepository($database, false); $position = $positionSnapshot->position($match->id(), $player) ?? (new PlayerRepository($database))->get($player)->primaryPosition(); $onPitchRole = $stat->appeared() ? (new OnPitchRoleService())->matchRole($positionSnapshot->role($match->id(), $player), $position) : null; return ['match_id' => $match->id()->value(), 'player_id' => $player->value(), 'club_id' => $stat->clubId()->value(), 'opponent_club_id' => $opponent, 'home_club_id' => $match->homeClubId()->value(), 'away_club_id' => $match->awayClubId()->value(), 'appeared' => $stat->appeared(), 'started' => $stat->started(), 'minutes' => $stat->minutes(), 'goals' => $stat->goals(), 'assists' => $stat->assists(), 'shots' => $stat->shots(), 'shots_on_target' => $stat->shotsOnTarget(), 'saves' => $stat->saves(), 'clean_sheets' => $stat->cleanSheets(), 'tackles' => $stat->tackles(), 'interceptions' => $stat->interceptions(), 'blocks' => $stat->blocks(), 'passes_attempted' => $stat->passesAttempted(), 'passes_completed' => $stat->passesCompleted(), 'fouls_committed' => $stat->foulsCommitted(), 'yellow_cards' => $stat->yellowCards(), 'red_cards' => $stat->redCards(), 'rating' => (new PlayerMatchRatingService())->rate($stat, $position), 'position' => $position->value, 'on_pitch_role' => $onPitchRole['key'] ?? null, 'on_pitch_role_label' => $onPitchRole['label'] ?? null, 'highlights' => array_values(array_map(static fn ($highlight): array => $highlight->toArray(), array_filter($this->highlightRepository($database)->byMatch($match->id()), static fn ($highlight): bool => $highlight->playerId()?->value() === $player->value() || (($highlight->data()['assist_player_id'] ?? null) === $player->value()))))];
     }
 
     /** @return array<string, mixed> */

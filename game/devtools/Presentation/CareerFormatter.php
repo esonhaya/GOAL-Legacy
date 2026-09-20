@@ -23,6 +23,7 @@ final class CareerFormatter
         $competition = is_array($summary['current_competition'] ?? null) ? $summary['current_competition'] : null;
         $contract = is_array($summary['current_contract'] ?? null) ? $summary['current_contract'] : null;
         $careerContext = is_array($summary['career_context'] ?? null) ? $summary['career_context'] : [];
+        $onPitchRole = is_array($summary['on_pitch_role'] ?? null) ? $summary['on_pitch_role'] : [];
         $attachment = is_array($careerContext['attachment'] ?? null) ? $careerContext['attachment'] : [];
         $direction = is_array($careerContext['direction'] ?? null) ? $careerContext['direction'] : [];
         $lines = $this->title('CAREER HOME');
@@ -46,6 +47,7 @@ final class CareerFormatter
         $lines[] = 'Potential: ' . $this->number($summary['potential'] ?? null);
         $lines[] = 'Development: ' . CareerLabels::value($summary['development_profile'] ?? null);
         $lines[] = 'Squad Role: ' . CareerLabels::value($summary['current_role'] ?? null);
+        $lines[] = 'On-Pitch Role: ' . $this->text($onPitchRole['role_label'] ?? null, 'Safe default');
         $lines[] = 'Training Focus: ' . CareerLabels::value($summary['training_focus'] ?? 'balanced');
         $lines[] = 'Priority: ' . CareerLabels::value($summary['priority'] ?? 'balanced');
         $readiness = is_array($summary['readiness'] ?? null) ? $summary['readiness'] : [];
@@ -663,10 +665,18 @@ final class CareerFormatter
             };
         }
         if ($status === 'starter' || ($performance['started'] ?? false) === true) {
-            return 'Started';
+            return 'Started' . $this->roleSuffix($performance);
         }
         $minute = $performance['substitution_minute'] ?? null;
-        return $minute === null ? 'Came on' : "Came on in {$minute}'";
+        return ($minute === null ? 'Came on' : "Came on in {$minute}'") . $this->roleSuffix($performance);
+    }
+
+    /** @param array<string, mixed> $performance */
+    private function roleSuffix(array $performance): string
+    {
+        $role = trim((string) ($performance['on_pitch_role_label'] ?? ''));
+
+        return $role === '' ? '' : ' · ' . $role;
     }
 
     /** @param array<string, mixed> $performance */

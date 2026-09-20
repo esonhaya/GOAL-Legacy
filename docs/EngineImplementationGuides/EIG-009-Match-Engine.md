@@ -369,4 +369,20 @@ the optional foot metadata is carried in existing controlled highlight data.
 Ratings do not receive a direct preferred-foot bonus, and the action namespace
 is isolated from Match outcome RNG.
 
+## P2-024 Controlled On-Pitch Role Boundary
+
+Player-fidelity simulation reads the controlled Career's compatible role and
+applies only small action-volume weight changes: Creator/Link Forward roles can
+receive more passing or assist involvement, Poacher more shooting involvement,
+and defensive roles more defensive-action involvement. The role is never a
+success modifier, team-strength modifier, Match-result modifier, or rating
+bonus. Attribute quality and the existing action/rating services remain
+authoritative.
+
+The role map is empty in World fidelity, so ordinary NPC Matches retain the
+cheap simulation path. A controlled Match snapshot stores the actual role
+alongside the existing position snapshot; Matchday and Post-Match read that
+fact only for a Player who appeared. Role reads use existing deterministic
+action keys and introduce no RNG stream or role-performance persistence.
+
 END OF DOCUMENT

@@ -276,4 +276,20 @@ calling one choice best. Routine changes remain private. News, Echo, and Pulse
 may narrate actual requests, moves, renewals, signings, and return events, but
 never announce attachment increases or simulate a Player personality.
 
+## P2-024 Football Usage Identity
+
+Profile language keeps three readable facts apart: Position says where the
+Player is deployed, On-Pitch Role says how they are generally used there, and
+Playing Style says what their demonstrated evidence describes. A role such as
+Box-to-Box Midfielder or Inside Forward is a modest usage context, not a
+superpower, personality, award, or tactical-management duty. Matchday names the
+actual deployed role only when the Player appears; an unused or unavailable
+Player does not receive invented role performance.
+
+Role selection is private and player-led. It may make a controlled Match's
+attempt distribution more expressive, but public narrative remains about real
+goals, chances, passing, defensive work, and ratings. News, Echo, and Pulse do
+not announce role changes or unlocks. NPC role language is on-demand profile
+flavour only; the World does not simulate role preferences.
+
 END OF DOCUMENT

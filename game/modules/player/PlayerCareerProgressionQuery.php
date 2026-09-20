@@ -68,6 +68,7 @@ final class PlayerCareerProgressionQuery
         $seasonHistory = $this->seasonHistory($database, $id, $allMemberships, $clubRepository, $competitionRepository);
         $positionContext = $positions->context($database, $id, $date);
         $traits = (new PlayerTraitService())->derive($database, $player, $seasonId);
+        $onPitchRole = (new OnPitchRoleService())->context($database, $id, $player);
         $positionCompetition = $this->positionCompetition($database, $currentMembership, $player, $positionContext['secondary_positions'] ?? [], $positionContext['developing_position'] ?? null);
         $careerReference = (new CareerPlayerRepository($database))->byPlayer($id);
         $openOpportunities = $player->isRetired() ? [] : array_values(array_filter(
@@ -79,6 +80,7 @@ final class PlayerCareerProgressionQuery
             'player' => $player->toArray(),
             'position_development' => $positionContext,
             'traits' => $traits,
+            'on_pitch_role' => $onPitchRole,
             'weak_foot_development' => $weakFoot,
             'position_history' => $positions->history($database, $id),
             'age' => $player->ageAt($date),

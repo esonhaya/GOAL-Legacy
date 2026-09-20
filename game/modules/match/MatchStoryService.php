@@ -22,6 +22,7 @@ use Goal\Legacy\Modules\Player\FootballSocialService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerDevelopmentRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
+use Goal\Legacy\Modules\Player\OnPitchRoleService;
 
 /**
  * Read-only controlled-Match storytelling over canonical Match facts.
@@ -64,7 +65,9 @@ final class MatchStoryService
         }
         $status = $selection?->status() ?? SelectionStatus::NotSelected;
         $state = $this->participationState($status, $stat, $availabilityStatus);
-        $position = (new ControlledMatchPositionRepository($database, false))->position($match->id(), $id) ?? $player->primaryPosition();
+        $positionSnapshot = new ControlledMatchPositionRepository($database, false);
+        $position = $positionSnapshot->position($match->id(), $id) ?? $player->primaryPosition();
+        $onPitchRole = $stat?->appeared() ? (new OnPitchRoleService())->matchRole($positionSnapshot->role($match->id(), $id), $position) : null;
         $ratingExplanation = $stat === null ? $this->ratings->explain(new PlayerMatchStat($match->id(), $id, $selection?->clubId() ?? $match->homeClubId(), false, false, 0, 0), $position) : $this->ratings->explain($stat, $position);
         $facts = $this->playerFacts($id, $stat, $timeline);
         $teamId = $stat?->clubId()->value() ?? $selection?->clubId()->value();
@@ -81,6 +84,10 @@ final class MatchStoryService
             'availability_reason' => $state['reason'],
             'position' => $position->value,
             'position_label' => $this->positionLabel($position),
+            'on_pitch_role' => $onPitchRole['key'] ?? null,
+            'on_pitch_role_label' => $onPitchRole['label'] ?? null,
+            'on_pitch_role_description' => $onPitchRole['description'] ?? null,
+            'on_pitch_role_fallback' => $onPitchRole['fallback'] ?? false,
             'club_id' => $teamId,
             'appeared' => $stat?->appeared() ?? false,
             'started' => $stat?->started() ?? false,

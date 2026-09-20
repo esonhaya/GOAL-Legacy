@@ -130,10 +130,16 @@ final class PositionDevelopmentService
             throw new RuntimeException('That position has not been fully developed yet.');
         }
         $old = $player->primaryPosition();
-        $database->transaction(function () use ($database, $players, $repository, $player, $old, $target, $state, $date): void {
+        $careerRepository = new CareerPlayerRepository($database);
+        $careerReference = $careerRepository->byPlayer($player->id());
+        $roles = new OnPitchRoleService();
+        $database->transaction(function () use ($database, $players, $repository, $careerRepository, $careerReference, $roles, $player, $old, $target, $state, $date): void {
             $players->saveInTransaction($player->withPrimaryPosition($target));
             $repository->saveStateInTransaction($state->afterPrimaryChange($old, $target, $date));
             $repository->saveChangeInTransaction($player->id(), $old, $target, $date);
+            if ($careerReference !== null && ($preferred = $careerReference->preferredOnPitchRole()) !== null && !$roles->isCompatible($preferred, $target)) {
+                $careerRepository->save($careerReference->withPreferredOnPitchRole($roles->defaultRole($target)));
+            }
         });
 
         return $this->context($database, $id, $date);

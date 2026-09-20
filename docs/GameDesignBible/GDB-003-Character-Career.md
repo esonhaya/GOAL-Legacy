@@ -435,4 +435,30 @@ ratings, development, money, selection, or gameplay effects, and routine
 facts do not create Pulse/News spam. NPCs do not receive milestone histories,
 ticks, or a World scan.
 
+## P2-026 Injury Recovery and Comebacks
+
+P2-017 remains the only owner of injury severity, planned/actual recovery
+dates, availability, fatigue, and readiness. `CareerRecoveryService` derives a
+read-only controlled-Player context around those facts: an active meaningful
+injury can be shown as rehabilitating, the post-medical boundary can be shown
+as returning to training or available but not ready, and a completed Match
+appearance can establish the first Match back. It never creates a second
+injury clock, readiness value, rehab score, or daily rehabilitation process.
+
+Only moderate and major canonical injuries create historical comeback context;
+minor injuries remain ordinary availability facts. An unused bench place is
+not a return. A substitute or starter appearance counts only when retained
+Match statistics prove it, and any goals, assists, minutes, or rating shown are
+the ordinary Match evidence. Comeback context grants no attribute, rating,
+morale, manager-trust, selection, or development benefit.
+
+Rehabilitation choices and reinjury/setback simulation are deferred because
+the current architecture has no separate safe workload or medical authority.
+Career Home and Profile show current context only while it is relevant;
+Matchday/Post-Match can show the factual first return, and Career Legacy lists
+only significant retained episodes. Reads are idempotent and create no rehab
+or comeback rows. Existing availability events remain the only Career
+event/Pulse/Echo path, while NPCs receive no rehabilitation ticks, histories,
+or World scan.
+
 END OF DOCUMENT

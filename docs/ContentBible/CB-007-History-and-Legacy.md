@@ -308,4 +308,19 @@ undated Career fact or omit it; it never invents a date, opponent, competition,
 Club, role, or trait. Home shows at most one nearby factual threshold, and
 Post-Match shows only landmarks proven by that completed Match.
 
+## P2-026 Recovery and Comeback Memory
+
+Injury language is factual and bounded: an active meaningful injury, its
+recorded medical boundary, return toward readiness, and the first actual
+Match back may be described for the controlled Player. A return line can say
+“returned as a substitute,” “scored on return,” or “difficult return” only
+when the retained Match statistics support that wording. It never promises a
+heroic outcome, creates a comeback score, or turns recovery into a reward.
+
+Routine minor injuries remain availability context rather than Legacy
+landmarks. Career Legacy lists only significant retained episodes and never
+invents injury dates, diagnoses, opponents, Clubs, or past Match appearances.
+News, Echo, and Pulse continue to consume the existing P2-017 availability
+events; page reads do not publish recovery updates or create sympathy spam.
+
 END OF DOCUMENT

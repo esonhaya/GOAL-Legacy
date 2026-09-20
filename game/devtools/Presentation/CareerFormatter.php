@@ -53,6 +53,11 @@ final class CareerFormatter
         $readiness = is_array($summary['readiness'] ?? null) ? $summary['readiness'] : [];
         $lines[] = 'Readiness: ' . CareerLabels::value($readiness['label'] ?? null, 'Ready') . ' (' . $this->number($readiness['fatigue'] ?? 0) . '/100 workload)';
         $lines[] = 'Training Intensity: ' . CareerLabels::value($summary['training_intensity'] ?? 'normal');
+        $recovery = is_array($summary['injury_recovery'] ?? null) ? $summary['injury_recovery'] : [];
+        if (($recovery['visible'] ?? false) === true) {
+            $lines[] = 'Return to Play: ' . CareerLabels::value($recovery['phase'] ?? null) . ' — ' . $this->text($recovery['message'] ?? null);
+            if (($recovery['medical_end_date'] ?? null) !== null) { $lines[] = 'Medical end: ' . $this->text($recovery['medical_end_date']); }
+        }
         $social = is_array($summary['social'] ?? null) ? $summary['social'] : [];
         $lines[] = 'Public Profile: ' . $this->text($social['public_profile_label'] ?? null, 'Unknown');
         $lines[] = 'Club Standing: ' . $this->text($social['club_standing_label'] ?? null, 'New Arrival');
@@ -577,6 +582,10 @@ final class CareerFormatter
                 $lines[] = 'Rating: ' . number_format((float) $performance['rating'], 1);
             }
             $lines[] = 'STATS: ' . $this->matchStats($performance);
+        }
+        $comeback = is_array($match['comeback'] ?? null) ? $match['comeback'] : null;
+        if ($comeback !== null) {
+            $lines[] = 'RETURN FROM INJURY: ' . $this->text(implode(', ', array_map('strval', (array) ($comeback['performance'] ?? []))));
         }
 
         $lines[] = '';

@@ -433,4 +433,29 @@ role rows, ticks, training, or World scans. No role history, XP, mastery, or
 page-render write exists. Role labels remain separate from squad role,
 position, playing style, reputation, outlook, and awards.
 
+## P2-026 Injury Rehabilitation and Return to Play
+
+`CareerRecoveryService` is a read-only Career presentation adapter, not a
+second injury subsystem. `PlayerAvailabilityService` and
+`PlayerAvailabilityRepository` remain authoritative for severity, active
+status, planned/actual recovery dates, fatigue, and readiness. The adapter
+derives `INJURED`, `REHABILITATING`, `RETURNING_TO_TRAINING`,
+`AVAILABLE_NOT_READY`, `MATCH_READY`, and `RETURNED` only from those facts;
+some phases are naturally absent when a save lacks supporting state.
+
+The first Match-back detector joins meaningful recovered injury rows to
+completed `PlayerMatchStat` rows. It requires `appeared = 1` and positive
+minutes, so an unused substitute cannot create a comeback. Minutes, goals,
+assists, and rating are presented from existing Match owners. No comeback
+bonus, manager penalty, morale effect, development penalty, or rating change
+is applied. No new injury, rehabilitation, daily snapshot, setback, or NPC
+table is created, and read paths remain idempotent.
+
+Existing availability dispatch continues to feed the established Career
+event/Pulse/Echo path. Only significant episodes appear in controlled Career
+Legacy; ordinary minor knocks do not create a new historical storyline. Missing
+old injury or Match chronology remains unknown, and no date or historical
+comeback is fabricated. Rehab choice and reinjury modeling are explicitly
+deferred; no new RNG namespace is introduced.
+
 END OF DOCUMENT

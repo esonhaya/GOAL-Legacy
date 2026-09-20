@@ -24,6 +24,7 @@ use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
+use Goal\Legacy\Modules\Player\CareerRecoveryService;
 use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
 use Goal\Legacy\Modules\Player\CareerLegacyService;
 use Goal\Legacy\Modules\Player\PlayerCareerStatisticsService;
@@ -57,6 +58,10 @@ final class CareerPresentationService
             $date,
             $world->currentSeasonId(),
         );
+        $summary['injury_recovery'] = $this->recoveryService()->context($database, $career->playerId(), $date);
+        $summary['career_outlook']['recovery_context'] = ($summary['injury_recovery']['visible'] ?? false) === true
+            ? ['phase' => $summary['injury_recovery']['phase'] ?? null, 'message' => $summary['injury_recovery']['message'] ?? null]
+            : null;
         $summary['next_career_milestone'] = (new CareerLegacyService(
             $this->services->clubModule()->service(),
             $this->services->nationalTeams(),
@@ -70,6 +75,7 @@ final class CareerPresentationService
             $summary['legacy']['longest_club_spell'] = $summary['career_context']['longest_club_spell'] ?? null;
             $summary['legacy']['returns'] = $summary['career_context']['returns'] ?? [];
             $summary['legacy']['one_club_career'] = $summary['career_context']['one_club_career'] ?? false;
+            $summary['legacy']['injury_comebacks'] = $summary['injury_recovery']['episodes'] ?? [];
             $summary['legacy'] = $this->appendMovementLandmarks($summary['legacy'], (array) ($summary['movement_history'] ?? []));
         }
         $summary['market'] = $this->services->transferModule()->service()->careerMovement()->marketContext($database, $career->playerId(), $world->currentSeasonId(), $date);
@@ -101,6 +107,7 @@ final class CareerPresentationService
         $career = (new CareerPlayerRepository($database))->get($saveId);
         $controlled = $career->playerId()->value() === $playerId;
         $controlledSummary = $controlled ? $this->controlledSummary($database, $saveId) : [];
+        $recovery = $controlled ? $this->recoveryService()->context($database, $player->id(), $date) : null;
         if ($controlled) {
             $currentClubId = is_array($controlledSummary['current_club'] ?? null)
                 ? (string) ($controlledSummary['current_club']['id'] ?? '')
@@ -200,6 +207,7 @@ final class CareerPresentationService
             'training_focus' => $controlled ? $controlledSummary['training_focus'] ?? null : null,
             'training_intensity' => $controlled ? $controlledSummary['training_intensity'] ?? null : null,
             'readiness' => $controlled ? $controlledSummary['readiness'] ?? null : null,
+            'injury_recovery' => $recovery,
             'manager_context' => $controlled ? $controlledSummary['manager_context'] ?? null : null,
             'club_season' => $controlled ? $controlledSummary['club_season'] ?? null : null,
             'position_competition' => $controlled ? $controlledSummary['position_competition'] ?? null : null,
@@ -503,6 +511,7 @@ final class CareerPresentationService
             ? $this->clubContext($database, $postSummary)
             : null;
         $landmarkCallouts = $this->legacyService()->matchLandmarks($database, $match, $playerId);
+        $comeback = $this->recoveryService()->returnForMatch($database, $match, $playerId);
 
         return [
             'competition' => $competition->name(),
@@ -530,6 +539,7 @@ final class CareerPresentationService
             'decisive_contribution' => $story['decisive_contribution'],
             'player_of_match' => $story['player_of_match'],
             'landmark_callouts' => $landmarkCallouts,
+            'comeback' => $comeback,
             'post_match' => [
                 'recent_form' => $postSummary['recent_form'] ?? [],
                 'season_stats' => $postSummary['season_stats'] ?? [],
@@ -539,6 +549,7 @@ final class CareerPresentationService
                 'club_position' => $postContext['position'] ?? null,
                 'club_points' => $postContext['points'] ?? null,
                 'career_impact' => $story['career_impact'],
+                'comeback' => $comeback,
             ],
         ];
     }
@@ -956,6 +967,11 @@ final class CareerPresentationService
             $this->services->internationalCompetitions(),
             $this->services->playerModule()->service()->socialService(),
         );
+    }
+
+    private function recoveryService(): CareerRecoveryService
+    {
+        return new CareerRecoveryService();
     }
 
     /** @param array<string, mixed> $legacy @param list<array<string, mixed>> $movement @return array<string, mixed> */

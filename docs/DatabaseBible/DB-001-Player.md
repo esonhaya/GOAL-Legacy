@@ -543,4 +543,21 @@ from a current preference. No weekly snapshots, role-performance table, role
 XP, or page-render writes are introduced. The nullable column is added safely
 to older save schemas and unknown values resolve to the position default.
 
+## P2-026 Injury Recovery Context
+
+P2-017's `player_injuries`, `player_availability_state`, and availability
+assessment remain the sole durable/derived owners of injury status, recovery
+dates, fatigue, and readiness. `CareerRecoveryService` reads those records
+together with retained completed Match statistics to classify a bounded
+controlled-Player recovery phase and identify a first real Match back after a
+meaningful injury. It does not add a rehabilitation, comeback, setback, or
+medical-history table.
+
+Only moderate/major injury rows are exposed as significant episodes. An
+unused selection never counts as a return; the Match-stat `appeared` and
+positive minutes boundary is authoritative. Recovery pages are read-only and
+do not write state, daily snapshots, event rows, or NPC data. If old saves do
+not retain enough injury or Match chronology, the projection omits the claim
+rather than fabricating a date or comeback.
+
 END OF DOCUMENT

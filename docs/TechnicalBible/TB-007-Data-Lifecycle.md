@@ -464,4 +464,22 @@ records and never receive fabricated academy, breakthrough, return, or history
 dates; the projection uses no RNG and cannot affect Match, rating, attributes,
 development, readiness, selection, or finances.
 
+### P2-026 recovery projection
+
+Injury rehabilitation context is a read projection over P2-017's canonical
+injury and availability rows plus completed controlled-Player Match statistics.
+The projection has no write path: no rehab rows, comeback rows, daily fitness
+rows, recovery scores, or page-render mutations are permitted. Planned and
+actual recovery dates remain medical/availability facts, and Match selection
+remains the authority for availability and return to selection.
+
+The first Match back requires a retained meaningful injury followed by a real
+appeared stat with positive minutes after the medical boundary. Substitution
+and starter status are copied from canonical stats; unused bench and
+unavailable states do not qualify. The projection is controlled-Player only,
+on demand, bounded to significant episodes, and deterministic. It performs no
+NPC rehabilitation ticks or World scan. Rehab choices and reinjury/setback
+simulation remain deferred until an existing owner can support them without a
+second injury state.
+
 END OF DOCUMENT

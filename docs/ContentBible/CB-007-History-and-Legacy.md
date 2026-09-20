@@ -257,4 +257,23 @@ not awards, perks, personality traits, or hidden powers. A Player may have no
 active trait when the available sample is too small or does not support a
 distinct style.
 
+## P2-023 Club Journey and Career Direction
+
+The Player's Club journey is told chronologically and factually: Clubs
+represented, Seasons and appearances where available, goals/assists, major
+honours, promotion or relegation evidence, former Clubs, a meaningful
+breakthrough Club, and legitimate returns. A one-Club Career is descriptive
+Legacy language, never a perk. The longest Club spell remains historical after
+a move, and a new Club begins a new current relationship without erasing
+positions, footedness, playing style, readiness, manager context, objectives,
+finances, reputation, or international state.
+
+Attachment labels describe history, while Career direction describes the
+current football context. Transfer and Contract screens explain what staying,
+renewing, moving, or entering free agency changes—role, competition, Club
+level, wage, term, Europe, objective, playing time, and connection—without
+calling one choice best. Routine changes remain private. News, Echo, and Pulse
+may narrate actual requests, moves, renewals, signings, and return events, but
+never announce attachment increases or simulate a Player personality.
+
 END OF DOCUMENT

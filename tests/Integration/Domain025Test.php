@@ -123,6 +123,11 @@ final class Domain025Test extends TestCase
         $next = new Season(new SeasonId('season-2025-26'), '2025/26', SimulationDate::fromIsoString('2025-08-01'), SimulationDate::fromIsoString('2026-05-31'));
         $decision = $services->transferModule()->service()->careerMovement()->prepareContractDecision($database, $player->id(), $season, $next, SimulationDate::fromIsoString('2025-05-31'), $membership, true);
         self::assertNotNull($decision);
+        self::assertArrayHasKey('current_club_context', $decision->context());
+        self::assertNotEmpty(array_filter($decision->context()['options'], static fn (array $option): bool => ($option['kind'] ?? null) === 'renew_current_club'));
+        $renewal = array_values(array_filter($decision->context()['options'], static fn (array $option): bool => ($option['kind'] ?? null) === 'renew_current_club'))[0];
+        self::assertArrayHasKey('attachment_label', $renewal);
+        self::assertArrayHasKey('trade_offs', $renewal);
         $query = new PlayerCareerProgressionQuery($services->clubModule()->service());
         $pending = $query->summary($database, $player->id(), SimulationDate::fromIsoString('2025-06-01'), $season->id());
         self::assertSame('active', $pending['current_contract']['status']);

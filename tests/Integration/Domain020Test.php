@@ -69,6 +69,13 @@ final class Domain020Test extends TestCase
         self::assertSame('controlled_transfer', $transferOpportunity->context()['decision_kind']);
         self::assertCount(1, array_filter($transferOpportunity->context()['options'], static fn (array $option): bool => $option['kind'] === 'stay'));
         self::assertLessThanOrEqual(3, count(array_filter($transferOpportunity->context()['options'], static fn (array $option): bool => $option['kind'] === 'accept_transfer')));
+        self::assertArrayHasKey('current_club_context', $transferOpportunity->context());
+        $stayOption = array_values(array_filter($transferOpportunity->context()['options'], static fn (array $option): bool => $option['kind'] === 'stay'))[0];
+        self::assertArrayHasKey('attachment_label', $stayOption);
+        $transferOption = array_values(array_filter($transferOpportunity->context()['options'], static fn (array $option): bool => $option['kind'] === 'accept_transfer'))[0] ?? null;
+        self::assertNotNull($transferOption);
+        self::assertArrayHasKey('trade_offs', $transferOption);
+        self::assertArrayHasKey('target_club_level', $transferOption);
         self::assertSame([], array_values(array_filter((new TransferRepository($database))->byPlayer($player->id()), static fn ($transfer): bool => $transfer->status() === TransferStatus::Completed)));
 
         $resolved = $services->transferModule()->service()->careerMovement()->resolveTransferDecision($database, $transferOpportunity->id(), 'stay', $season->startDate());

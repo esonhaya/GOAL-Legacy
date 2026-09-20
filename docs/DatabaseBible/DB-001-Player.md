@@ -509,4 +509,23 @@ remains a development/archetype input and is not a playing-style trait. A
 derived style can therefore differ between Players with the same creation
 profile, and no style value is written back into Player identity or attributes.
 
+## P2-023 Derived Club Journey Context
+
+Club attachment, Career direction, former Clubs, breakthrough Club, Club
+journey, returns, longest spell, and one-Club descriptors are read-only
+projections of existing `club_squad_memberships`, Contract/transfer history,
+Season aggregates, roles, and controlled Career context. There is deliberately
+no attachment, loyalty, ambition, sentiment, decision-score, or weekly
+snapshot table. A former Club is only presented as a return context when a
+legitimate existing offer or movement record identifies it; no offer is
+manufactured.
+
+Decision opportunities may retain the factual context needed to resolve an
+already-canonical controlled choice, but no new gameplay state is introduced.
+Save/reload and older P2-022 saves derive the same context from whatever
+canonical records exist. Missing academy, breakthrough, return, or historical
+decision facts remain unknown rather than being fabricated. NPCs create no
+attachment rows, ambition ticks, Career-decision events, or relationship
+history system.
+
 END OF DOCUMENT

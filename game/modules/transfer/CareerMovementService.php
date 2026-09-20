@@ -21,6 +21,7 @@ use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
 use Goal\Legacy\Modules\Player\PlayerFormService;
+use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
 use Goal\Legacy\Modules\Player\PlayerSeasonPerformanceService;
 use Goal\Legacy\Modules\Player\PlayerPopulationService;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
@@ -68,6 +69,55 @@ final class CareerMovementService
         private readonly CompetitionService $competitionService,
         private readonly EventDispatcherInterface $events,
     ) {
+    }
+
+    /**
+     * Add factual comparison context to a Contract boundary option.
+     * @param array<string, mixed> $option
+     * @param array<string, mixed> $careerContext
+     * @param array<string, mixed>|null $sourceProfile
+     * @param array<string, mixed>|null $targetProfile
+     * @return array<string, mixed>
+     */
+    private function decorateContractOption(array $option, array $careerContext, Club $sourceClub, Club $targetClub, ?array $sourceProfile, ?array $targetProfile, ?string $currentRole, ?int $currentWage): array
+    {
+        $attachment = is_array($careerContext['attachment'] ?? null) ? $careerContext['attachment'] : [];
+        $formerIds = array_map('strval', (array) ($careerContext['former_club_ids'] ?? []));
+        $targetId = $targetClub->id()->value();
+        $return = in_array($targetId, $formerIds, true);
+        $sameClub = $targetId === $sourceClub->id()->value();
+        $targetLevel = (string) ($targetProfile['level'] ?? 'Offering Club');
+        $tradeOffs = $sameClub
+            ? ['Keep the current Club relationship and existing role context.']
+            : ['A new Contract would start a new Club chapter.'];
+        if (($option['role'] ?? null) !== null && $currentRole !== null && $option['role'] !== $currentRole) {
+            $tradeOffs[] = 'The proposed role differs from the current role.';
+        }
+        if ($return) {
+            $tradeOffs[] = 'This would return the Player to a former Club.';
+        }
+        if ($currentWage !== null && (int) ($option['wage'] ?? 0) < $currentWage) {
+            $tradeOffs[] = 'The proposed wage is below the current wage.';
+        } elseif ($currentWage !== null && (int) ($option['wage'] ?? 0) > $currentWage) {
+            $tradeOffs[] = 'The proposed wage is above the current wage.';
+        }
+
+        return $option + [
+            'current_club_name' => $sourceClub->canonicalName(),
+            'target_club_name' => $targetClub->canonicalName(),
+            'current_club_level' => $sourceProfile['level'] ?? null,
+            'target_club_level' => $targetLevel,
+            'current_competition_name' => $sourceProfile['competition_name'] ?? null,
+            'target_competition_name' => $targetProfile['competition_name'] ?? null,
+            'current_wage' => $currentWage,
+            'european_qualification' => (bool) ($targetProfile['has_europe'] ?? false),
+            'current_european_qualification' => (bool) ($sourceProfile['has_europe'] ?? false),
+            'return_to_former_club' => $return,
+            'journey_context' => $return ? 'Return to former Club' : null,
+            'attachment_state' => $attachment['state'] ?? null,
+            'attachment_label' => $attachment['label'] ?? null,
+            'trade_offs' => array_values(array_unique($tradeOffs)),
+        ];
     }
 
     /**
@@ -153,6 +203,11 @@ final class CareerMovementService
         $legacy = new CareerLegacyRepository($database, false);
         $market = $this->marketAssessment($player, $currentMetrics, $sourceMembership->role(), $legacy->awardsForPlayer($playerId->value()), $legacy->honoursForPlayer($playerId->value()), $this->internationalMarketStats($database, $playerId->value()), $date);
         $profiles = $this->clubMarketProfiles($database, $seasonId);
+        $careerContext = null;
+        if (in_array($playerId->value(), (new CareerPlayerRepository($database))->playerIds(), true)) {
+            $careerSummary = (new PlayerCareerProgressionQuery($this->clubService))->summary($database, $playerId, $date, $seasonId);
+            $careerContext = is_array($careerSummary['career_context'] ?? null) ? $careerSummary['career_context'] : [];
+        }
         $candidates = [];
         foreach ($this->clubService->byCompetition($database, $competitionId, $seasonId) as $targetClub) {
             if ($targetClub->id()->value() === $currentClub->id()->value()) {
@@ -179,6 +234,9 @@ final class CareerMovementService
                 continue;
             }
             $context = $this->offerContext($player, $currentClub->reputation(), $sourceMembership->role(), $currentMetrics, $targetClub->reputation(), $candidate['metrics'], $candidate['score'], $date, $sourceKey, $seasonId, $market);
+            if ($careerContext !== null) {
+                $context = $this->decorateOfferContext($context, $careerContext, $currentClub, $targetClub, $profiles[$currentClub->id()->value()] ?? null, $profiles[$targetClub->id()->value()] ?? null, $sourceContract->wage());
+            }
             $offer = new CareerOpportunity(
                 'offer-' . substr(hash('sha256', $sourceKey), 0, 24),
                 $playerId,
@@ -355,11 +413,30 @@ final class CareerMovementService
 
         $careerReference = (new CareerPlayerRepository($database))->byPlayer($playerId);
         $requestActive = $careerReference?->hasActiveTransferRequest($season->id()) ?? false;
-        $options = [['id' => 'stay', 'kind' => 'stay', 'club_id' => $sourceClub->id()->value()]];
+        $careerSummary = (new PlayerCareerProgressionQuery($this->clubService))->summary($database, $playerId, $date, $season->id());
+        $careerContext = is_array($careerSummary['career_context'] ?? null) ? $careerSummary['career_context'] : [];
+        $sourceProfile = $profiles[$sourceClub->id()->value()] ?? null;
+        $stayAttachment = is_array($careerContext['attachment'] ?? null) ? $careerContext['attachment'] : [];
+        $stayDirection = is_array($careerContext['direction'] ?? null) ? $careerContext['direction'] : [];
+        $options = [[
+            'id' => 'stay',
+            'kind' => 'stay',
+            'club_id' => $sourceClub->id()->value(),
+            'club_name' => $sourceClub->canonicalName(),
+            'role' => $sourceMembership->role()->value,
+            'wage' => $sourceContract->wage(),
+            'current_club_level' => $sourceProfile['level'] ?? null,
+            'competition_name' => $sourceProfile['competition_name'] ?? null,
+            'european_qualification' => (bool) ($sourceProfile['has_europe'] ?? false),
+            'attachment_state' => $stayAttachment['state'] ?? null,
+            'attachment_label' => $stayAttachment['label'] ?? null,
+            'trade_offs' => ['Keep the current Club role and existing Career connection.'],
+        ]];
         foreach (array_slice($candidates, 0, self::MAX_OFFERS) as $candidate) {
             $targetClub = $candidate['club'];
             $optionKey = $sourceKey . '|' . $targetClub->id()->value();
             $context = $this->offerContext($player, $sourceClub->reputation(), $sourceMembership->role(), $currentMetrics, $targetClub->reputation(), $candidate['metrics'], $candidate['score'], $date, $optionKey, $season->id(), $market);
+            $context = $this->decorateOfferContext($context, $careerContext, $sourceClub, $targetClub, $sourceProfile, $profiles[$targetClub->id()->value()] ?? null, $sourceContract->wage());
             $options[] = [
                 'id' => 'accept-' . $targetClub->id()->value(),
                 'kind' => 'accept_transfer',
@@ -377,6 +454,16 @@ final class CareerMovementService
                 'european_qualification' => $context['european_qualification'],
                 'projected_role' => $context['projected_role'],
                 'market_path' => $context['market_path'],
+                'target_club_name' => $context['target_club_name'],
+                'current_club_name' => $context['current_club_name'],
+                'current_club_level' => $context['current_club_level'],
+                'current_competition_name' => $context['current_competition_name'],
+                'current_wage' => $context['current_wage'],
+                'return_to_former_club' => $context['return_to_former_club'],
+                'journey_context' => $context['journey_context'],
+                'trade_offs' => $context['trade_offs'],
+                'attachment_state' => $context['attachment_state'],
+                'attachment_label' => $context['attachment_label'],
             ];
         }
         $opportunity = new CareerOpportunity(
@@ -395,6 +482,13 @@ final class CareerMovementService
                 'request_season_id' => $requestActive ? $season->id()->value() : null,
                 'season_id' => $season->id()->value(),
                 'source_club_id' => $sourceClub->id()->value(),
+                'current_club_context' => [
+                    'attachment' => $stayAttachment,
+                    'direction' => $stayDirection,
+                    'role' => $sourceMembership->role()->value,
+                    'playing_time' => $careerSummary['manager_context']['playing_time_status'] ?? null,
+                    'club_objective' => $careerSummary['club_season']['expectation'] ?? null,
+                ],
                 'options' => $options,
             ],
             $sourceKey,
@@ -545,9 +639,14 @@ final class CareerMovementService
         $currentMetrics = $this->playerMetrics($database, $player, $sourceClub->id(), $currentSeason->id());
         $legacy = new CareerLegacyRepository($database, false);
         $market = $this->marketAssessment($player, $currentMetrics, $currentMembership->role(), $legacy->awardsForPlayer($playerId->value()), $legacy->honoursForPlayer($playerId->value()), $this->internationalMarketStats($database, $playerId->value()), $date);
+        $careerSummary = (new PlayerCareerProgressionQuery($this->clubService))->summary($database, $playerId, $date, $currentSeason->id());
+        $careerContext = is_array($careerSummary['career_context'] ?? null) ? $careerSummary['career_context'] : [];
+        $profiles = $this->clubMarketProfiles($database, $currentSeason->id());
+        $sourceProfile = $profiles[$sourceClub->id()->value()] ?? null;
+        $currentWage = $this->contractService->repository($database)->activeForPlayer($playerId)?->wage();
         $options = [];
         if ($currentClubOffersRenewal) {
-            $options[] = [
+            $renewal = [
                 'id' => 'renew-current-club',
                 'kind' => 'renew_current_club',
                 'club_id' => $sourceClub->id()->value(),
@@ -555,10 +654,11 @@ final class CareerMovementService
                 'wage' => max(100, min(5000, ($sourceClub->reputation() * 10) + ($player->overallRating() * 5))),
                 'role' => ($nextSeasonRole ?? $currentMembership->role())->value,
             ];
+            $options[] = $this->decorateContractOption($renewal, $careerContext, $sourceClub, $sourceClub, $sourceProfile, $sourceProfile, null, $currentWage);
         }
         foreach ($this->contractBoundaryCandidates($database, $player, $sourceClub, $currentMembership, $currentMetrics, $currentSeason) as $candidate) {
             $target = $candidate['club'];
-            $options[] = [
+            $option = [
                 'id' => 'sign-' . $target->id()->value(),
                 'kind' => 'sign_with_club',
                 'club_id' => $target->id()->value(),
@@ -568,6 +668,7 @@ final class CareerMovementService
                 'interest_score' => $candidate['score'],
                 'reasons' => $candidate['reasons'],
             ];
+            $options[] = $this->decorateContractOption($option, $careerContext, $sourceClub, $target, $sourceProfile, $profiles[$target->id()->value()] ?? null, $currentMembership->role()->value, $currentWage);
         }
         if ($options === []) {
             return null;
@@ -593,6 +694,13 @@ final class CareerMovementService
             'performance' => [
                 'classification' => (string) ($currentMetrics['performance'] ?? 'insufficient_evidence'),
                 'score' => (int) ($currentMetrics['performance_score'] ?? 0),
+            ],
+            'current_club_context' => [
+                'attachment' => $careerContext['attachment'] ?? null,
+                'direction' => $careerContext['direction'] ?? null,
+                'role' => $currentMembership->role()->value,
+                'playing_time' => $careerSummary['manager_context']['playing_time_status'] ?? null,
+                'club_objective' => $careerSummary['club_season']['expectation'] ?? null,
             ],
             'options' => $options,
         ];
@@ -692,18 +800,20 @@ final class CareerMovementService
         if ($repository->bySourceKey($sourceKey) !== null) {
             return $repository->bySourceKey($sourceKey);
         }
+        $careerSummary = (new PlayerCareerProgressionQuery($this->clubService))->summary($database, $playerId, $date, $season->id());
+        $careerContext = is_array($careerSummary['career_context'] ?? null) ? $careerSummary['career_context'] : [];
         $options = [];
         $freeAgentMarket = $this->marketAssessment($player, ['form' => 0, 'appearances' => 0, 'minutes' => 0, 'performance' => 'insufficient_evidence'], null, [], [], $this->internationalMarketStats($database, $playerId->value()), $date);
         foreach ($this->freeAgentCandidates($database, $player, $season, $source) as $candidate) {
             $age = (int) ($freeAgentMarket['age'] ?? 25);
             $duration = $age >= 31 ? 365 : ($age <= 23 ? 1095 : 730);
-            $options[] = ['id' => 'sign-' . $candidate['club']->id()->value(), 'kind' => 'sign_with_club', 'club_id' => $candidate['club']->id()->value(), 'contract_end_date' => $date->addDays($duration)->toIsoString(), 'wage' => $this->offerWage($player, $candidate['target'], $freeAgentMarket), 'role' => $candidate['role']->value, 'interest_score' => $candidate['score'], 'reasons' => $candidate['reasons'], 'target_club_level' => $candidate['target']['club_level'], 'projected_role' => $candidate['role']->value];
+            $options[] = ['id' => 'sign-' . $candidate['club']->id()->value(), 'kind' => 'sign_with_club', 'club_id' => $candidate['club']->id()->value(), 'target_club_name' => $candidate['club']->canonicalName(), 'contract_end_date' => $date->addDays($duration)->toIsoString(), 'wage' => $this->offerWage($player, $candidate['target'], $freeAgentMarket), 'role' => $candidate['role']->value, 'interest_score' => $candidate['score'], 'reasons' => $candidate['reasons'], 'target_club_level' => $candidate['target']['club_level'], 'target_competition_name' => $candidate['target']['competition_name'] ?? null, 'european_qualification' => (bool) ($candidate['target']['has_europe'] ?? false), 'projected_role' => $candidate['role']->value, 'trade_offs' => ['A new Contract would start a new Club chapter after free agency.']];
         }
         if ($options === []) {
             return null;
         }
         $options[] = ['id' => 'remain-free', 'kind' => 'enter_free_agency', 'club_id' => null];
-        $opportunity = new CareerOpportunity('free-agent-contract-' . substr(hash('sha256', $sourceKey), 0, 24), $playerId, CareerOpportunityType::ContractRenewal, $originClubId, null, $date, $season->startDate()->addDays(14), CareerOpportunityStatus::Open, ['decision_kind' => 'free_agent_contract', 'offer_status' => 'open', 'season_id' => $season->id()->value(), 'options' => $options], $sourceKey);
+        $opportunity = new CareerOpportunity('free-agent-contract-' . substr(hash('sha256', $sourceKey), 0, 24), $playerId, CareerOpportunityType::ContractRenewal, $originClubId, null, $date, $season->startDate()->addDays(14), CareerOpportunityStatus::Open, ['decision_kind' => 'free_agent_contract', 'offer_status' => 'open', 'season_id' => $season->id()->value(), 'free_agency_context' => 'Contract expiry or departure has left the Player without an active Club; no offer is guaranteed.', 'career_context' => $careerContext, 'options' => $options], $sourceKey);
         $database->transaction(function () use ($repository, $opportunity): void { $repository->saveInTransaction($opportunity); });
 
         return $opportunity;
@@ -1061,6 +1171,70 @@ final class CareerMovementService
         }
 
         return true;
+    }
+
+    /**
+     * Add factual comparison context to an existing market offer.  Transfer
+     * eligibility and all scoring remain owned by this service; these fields
+     * only make the already-legitimate choice legible to the Player.
+     * @param array<string, mixed> $context
+     * @param array<string, mixed> $careerContext
+     * @param array<string, mixed>|null $sourceProfile
+     * @param array<string, mixed>|null $targetProfile
+     * @return array<string, mixed>
+     */
+    private function decorateOfferContext(array $context, array $careerContext, Club $sourceClub, Club $targetClub, ?array $sourceProfile, ?array $targetProfile, ?int $currentWage): array
+    {
+        $attachment = is_array($careerContext['attachment'] ?? null) ? $careerContext['attachment'] : [];
+        $formerIds = array_map('strval', (array) ($careerContext['former_club_ids'] ?? []));
+        $targetId = $targetClub->id()->value();
+        $return = in_array($targetId, $formerIds, true);
+        $sourceLevel = (string) ($sourceProfile['level'] ?? 'Current Club');
+        $targetLevel = (string) ($targetProfile['level'] ?? $context['target_club_level'] ?? 'Offering Club');
+        $sourceCompetition = $sourceProfile['competition_name'] ?? null;
+        $targetCompetition = $targetProfile['competition_name'] ?? $context['competition_name'] ?? null;
+        $sourceEurope = (bool) ($sourceProfile['has_europe'] ?? false);
+        $targetEurope = (bool) ($targetProfile['has_europe'] ?? $context['european_qualification'] ?? false);
+        $tradeOffs = [];
+        if (($targetProfile['level_score'] ?? 0) > ($sourceProfile['level_score'] ?? $sourceClub->reputation()) + 5) {
+            $tradeOffs[] = $targetLevel . ' football may bring a higher competition level.';
+        } elseif (($targetProfile['level_score'] ?? 0) + 5 < ($sourceProfile['level_score'] ?? $sourceClub->reputation())) {
+            $tradeOffs[] = 'The move may trade Club stature for a different opportunity.';
+        }
+        if (($context['expected_playing_time'] ?? null) === 'regular') {
+            $tradeOffs[] = 'The projected role offers a regular route into the team.';
+        } elseif (($context['expected_playing_time'] ?? null) !== null) {
+            $tradeOffs[] = 'The projected role is not a guaranteed starting place.';
+        }
+        if ($targetEurope && !$sourceEurope) {
+            $tradeOffs[] = 'European football is available at the offering Club.';
+        } elseif (!$targetEurope && $sourceEurope) {
+            $tradeOffs[] = 'The current Club has European football that may not follow the move.';
+        }
+        if ($currentWage !== null && (int) ($context['wage'] ?? 0) < $currentWage) {
+            $tradeOffs[] = 'The offered wage is below the current wage.';
+        } elseif ($currentWage !== null && (int) ($context['wage'] ?? 0) > $currentWage) {
+            $tradeOffs[] = 'The offered wage is above the current wage.';
+        }
+        if ($tradeOffs === []) {
+            $tradeOffs[] = 'The move changes the Club context while the Player keeps agency over the choice.';
+        }
+
+        $context['current_club_name'] = $sourceClub->canonicalName();
+        $context['target_club_name'] = $targetClub->canonicalName();
+        $context['current_club_level'] = $sourceLevel;
+        $context['current_competition_name'] = $sourceCompetition;
+        $context['current_european_qualification'] = $sourceEurope;
+        $context['current_wage'] = $currentWage;
+        $context['target_competition_name'] = $targetCompetition;
+        $context['target_european_qualification'] = $targetEurope;
+        $context['return_to_former_club'] = $return;
+        $context['journey_context'] = $return ? 'Return to former Club' : null;
+        $context['attachment_state'] = $attachment['state'] ?? null;
+        $context['attachment_label'] = $attachment['label'] ?? null;
+        $context['trade_offs'] = array_values(array_unique($tradeOffs));
+
+        return $context;
     }
 
     /** @param array<string, int|float|string> $current @param array<string, mixed> $target @param array<string, mixed> $market @return array<string, mixed> */

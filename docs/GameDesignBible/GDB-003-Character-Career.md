@@ -365,4 +365,29 @@ The service derives controlled and NPC Profile traits on demand from detailed
 controlled evidence or compact World Season aggregates. No trait rows,
 training choices, unlock dates, or NPC progression history are stored.
 
+## P2-023 Club Attachment and Career Direction
+
+Club attachment is a bounded description of the Player's actual Club journey:
+senior Seasons, appearances, minutes, roles, former Clubs, breakthrough Club
+where meaningful evidence exists, and returns visible in the canonical record.
+It is not loyalty, morality, salary preference, or a 0–100 meter. Attachment
+is derived as New Arrival, Settling In, Established, Strong Connection, or
+Club Figure and is never a gameplay modifier.
+
+Career direction is likewise a current factual context, not a permanent
+personality. It may describe breaking through, establishing oneself, winning
+here, seeking a bigger challenge or regular football, securing the future,
+recovering a Career, or legacy years. Age/phase, role, playing time, manager
+context, Contract boundary, Club level, objectives, and real Career history
+provide context; the controlled Player always chooses to stay, move, renew, or
+enter free agency.
+
+Existing transfer, Contract, request, objective, reputation, finance, manager,
+outlook, Pulse, and Legacy services retain ownership of their mechanics. An
+offer presents factual Club/competition, role, wage, term, Europe, objective,
+attachment, and trade-offs without ranking the choice or applying a hidden
+benefit. Context is read-only, deterministic, save-safe, and absent from NPC
+lifecycle decision processing. No attachment snapshots, ambition rows,
+decision scores, page-render writes, or fabricated Club history are created.
+
 END OF DOCUMENT

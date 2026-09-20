@@ -335,4 +335,22 @@ introduced. The canonical PHPUnit configuration names `core` and the
 explicit `additional` suite for the 18 legitimate Avatar, Match, and Web
 tests.
 
+## P2-023 Decision Context Boundary
+
+`CareerMovementService` remains the owner of transfer eligibility, transfer
+requests, offer creation, stay/accept resolution, Contract-boundary options,
+and free-agency mechanics. P2-023 only enriches legitimate controlled choices
+with factual current/target Club comparison: human-readable Club and
+competition, Club level, role, wage, Contract term, Europe, current role and
+playing time, attachment label, Club objective context, trade-offs, and a
+former-Club return note when the target is already in canonical history.
+
+No offer is created because a Club is former, no offer is ranked by a synthetic
+"better move" score, and the Player is never auto-directed. Stay, transfer
+request, renewal, expiry, free agency, and return resolution retain their
+existing owners and rules. Context is deterministic and neutral; it does not
+modify OVR, attributes, Match results/ratings, development, injury/readiness,
+selection, finances, reputation, or football traits. NPC transfer processing
+does not receive attachment/ambition ticks or a new relationship history.
+
 END OF DOCUMENT

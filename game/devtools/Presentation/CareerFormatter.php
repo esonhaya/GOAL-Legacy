@@ -22,6 +22,9 @@ final class CareerFormatter
         $club = is_array($summary['current_club'] ?? null) ? $summary['current_club'] : null;
         $competition = is_array($summary['current_competition'] ?? null) ? $summary['current_competition'] : null;
         $contract = is_array($summary['current_contract'] ?? null) ? $summary['current_contract'] : null;
+        $careerContext = is_array($summary['career_context'] ?? null) ? $summary['career_context'] : [];
+        $attachment = is_array($careerContext['attachment'] ?? null) ? $careerContext['attachment'] : [];
+        $direction = is_array($careerContext['direction'] ?? null) ? $careerContext['direction'] : [];
         $lines = $this->title('CAREER HOME');
 
         $lines[] = 'Date: ' . $date;
@@ -95,6 +98,10 @@ final class CareerFormatter
         $transferRequest = is_array($summary['transfer_request'] ?? null) ? $summary['transfer_request'] : [];
         $lines[] = 'Transfer Request: ' . CareerLabels::value($transferRequest['status'] ?? 'none');
         $lines[] = 'Career Outlook: ' . CareerLabels::value($outlook['category'] ?? null);
+        if (($direction['actionable'] ?? false) === true || in_array($attachment['state'] ?? '', ['strong_connection', 'club_figure'], true)) {
+            $lines[] = 'Career Direction: ' . $this->text($direction['label'] ?? null, 'Developing');
+            $lines[] = 'Club Connection: ' . $this->text($attachment['label'] ?? null, 'No current Club');
+        }
         if (is_string($manager['feedback'] ?? null) && trim($manager['feedback']) !== '') {
             $lines[] = 'Manager Feedback: ' . $manager['feedback'];
         }
@@ -165,6 +172,14 @@ final class CareerFormatter
         if (trim((string) ($decision['contract'] ?? '')) !== '') {
             $lines[] = 'Contract: ' . (string) $decision['contract'];
         }
+        $currentContext = is_array($decision['current_club_context'] ?? null) ? $decision['current_club_context'] : [];
+        $currentAttachment = is_array($currentContext['attachment'] ?? null) ? $currentContext['attachment'] : [];
+        $currentDirection = is_array($currentContext['direction'] ?? null) ? $currentContext['direction'] : [];
+        if (($currentAttachment['label'] ?? null) !== null) { $lines[] = 'Club Connection: ' . $this->text($currentAttachment['label']); }
+        if (($currentDirection['label'] ?? null) !== null) { $lines[] = 'Career Direction: ' . $this->text($currentDirection['label']); }
+        if (($currentContext['role'] ?? null) !== null) { $lines[] = 'Current Role: ' . CareerLabels::value($currentContext['role']); }
+        if (($currentContext['playing_time'] ?? null) !== null) { $lines[] = 'Playing Time: ' . CareerLabels::value($currentContext['playing_time']); }
+        if (($currentContext['club_objective'] ?? null) !== null) { $lines[] = 'Club Objective: ' . CareerLabels::value($currentContext['club_objective']); }
         if (($decision['decision_kind'] ?? null) === 'retirement') {
             $lines[] = 'Age: ' . $this->number($decision['age'] ?? null);
             $lines[] = 'Career phase: ' . CareerLabels::value($decision['career_phase'] ?? null);
@@ -190,6 +205,12 @@ final class CareerFormatter
                     if (isset($club['tier'])) { $line .= ' (Tier ' . $this->number($club['tier']) . ')'; }
                 }
                 if (trim((string) ($option['role'] ?? '')) !== '') { $line .= ' | Role: ' . (string) $option['role']; }
+                if (trim((string) ($option['club_level'] ?? '')) !== '') { $line .= ' | Level: ' . (string) $option['club_level']; }
+                if (trim((string) ($option['wage'] ?? '')) !== '') { $line .= ' | Wage: ' . $this->number($option['wage']); }
+                if (trim((string) ($option['contract_end_date'] ?? '')) !== '') { $line .= ' | Through: ' . (string) $option['contract_end_date']; }
+                if (($option['european_qualification'] ?? false) === true) { $line .= ' | Europe'; }
+                if (trim((string) ($option['journey_context'] ?? '')) !== '') { $line .= ' | ' . (string) $option['journey_context']; }
+                foreach (array_slice((array) ($option['trade_offs'] ?? []), 0, 2) as $tradeOff) { $line .= ' | ' . $this->text($tradeOff); }
                 $lines[] = $line;
             }
         }
@@ -424,6 +445,20 @@ final class CareerFormatter
         $lines[] = 'Career span: ' . $this->text($span['start'] ?? null, 'Not started') . ' -> ' . $this->text($span['latest'] ?? null, 'Current');
         $clubs = (array) ($legacy['clubs'] ?? []);
         $lines[] = 'Clubs: ' . ($clubs === [] ? 'No Club history yet.' : implode(' · ', array_map(static fn (array $club): string => (string) ($club['name'] ?? 'Club'), $clubs)));
+        $journey = (array) ($legacy['club_journey'] ?? []);
+        if ($journey !== []) {
+            foreach ($journey as $club) {
+                if (is_array($club)) {
+                    $lines[] = 'Club chapter: ' . $this->text($club['club_name'] ?? null, 'Club') . ' · ' . $this->number($club['season_count'] ?? 0) . ' Seasons · ' . $this->number($club['appearances'] ?? 0) . ' apps';
+                }
+            }
+        }
+        $breakthrough = is_array($legacy['breakthrough_club'] ?? null) ? $legacy['breakthrough_club'] : null;
+        if ($breakthrough !== null) { $lines[] = 'Breakthrough Club: ' . $this->text($breakthrough['club_name'] ?? null); }
+        $longest = is_array($legacy['longest_club_spell'] ?? null) ? $legacy['longest_club_spell'] : null;
+        if ($longest !== null) { $lines[] = 'Longest Club spell: ' . $this->text($longest['club_name'] ?? null) . ' (' . $this->number($longest['season_count'] ?? 0) . ' Seasons)'; }
+        if (($legacy['one_club_career'] ?? false) === true) { $lines[] = 'One-Club Career: Yes — the recorded senior Career has one Club.'; }
+        foreach ((array) ($legacy['returns'] ?? []) as $return) { if (is_array($return)) { $lines[] = 'Return: ' . $this->text($return['club_name'] ?? null) . ' in ' . $this->text($return['season'] ?? null); } }
         $clubStats = is_array($legacy['club_stats'] ?? null) ? $legacy['club_stats'] : [];
         $international = is_array($legacy['international_stats'] ?? null) ? $legacy['international_stats'] : [];
         $lines[] = 'Club record: ' . $this->number($clubStats['appearances'] ?? 0) . ' apps | ' . $this->number($clubStats['goals'] ?? 0) . ' goals | ' . $this->number($clubStats['assists'] ?? 0) . ' assists';

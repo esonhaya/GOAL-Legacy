@@ -193,6 +193,11 @@ final class PlayerCareerProgressionQuery
         $summary['social_history'] = $socialService->history($database, $id, 12);
         $summary['manager_context'] = (new ManagerTrustService())->derive($summary);
         $summary['career_outlook'] = (new CareerOutlookService())->derive($summary, $date);
+        $summary['career_context'] = (new CareerClubContextService())->derive($summary);
+        $summary['career_outlook']['career_context'] = [
+            'attachment' => $summary['career_context']['attachment'] ?? null,
+            'direction' => $summary['career_context']['direction'] ?? null,
+        ];
         $internationalNext = $summary['international']['next_fixture'] ?? null;
         if (is_array($internationalNext) && ($next === null || strcmp((string) $internationalNext['date'] . (string) $internationalNext['match_id'], (string) $next['date'] . (string) $next['match_id']) < 0)) {
             $next = ['match_id' => $internationalNext['match_id'], 'date' => $internationalNext['date'], 'competition_id' => $internationalNext['competition_id'], 'opponent_club_id' => $internationalNext['opponent_team_id'], 'controlled_team_id' => $summary['international']['team_id']];
@@ -394,6 +399,8 @@ final class PlayerCareerProgressionQuery
                 'date' => $transfer->effectiveDate()->toIsoString(),
                 'type' => 'transfer',
                 'season_id' => $transfer->seasonId()->value(),
+                'from_club_id' => $transfer->sourceClubId()->value(),
+                'to_club_id' => $transfer->destinationClubId()->value(),
                 'from_club' => $clubs->get($transfer->sourceClubId())->canonicalName(),
                 'to_club' => $clubs->get($transfer->destinationClubId())->canonicalName(),
             ];

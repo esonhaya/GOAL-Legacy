@@ -416,4 +416,25 @@ available evidence supports. Trait ordering, maturity, and active limits are
 deterministic, and no trait derivation consumes gameplay RNG or participates in
 Season lifecycle processing.
 
+### P2-023 Career context lifecycle
+
+`CareerClubContextService` is a pure read-model projection over the existing
+progression summary. It groups chronological Club memberships into a bounded
+journey, derives attachment and current Career direction, and identifies
+former/breakthrough/longest/return context only when canonical evidence exists.
+It writes no rows and is not called by lifecycle-wide NPC processing. Existing
+transfer and Contract opportunity rows may carry the factual comparison needed
+for an already-open controlled decision; no weekly attachment, ambition,
+sentiment, or decision-score history is stored.
+
+The Profile owns normal presentation. Career Home surfaces only actionable or
+meaningful direction, while Career and Legacy expose the compact Club journey.
+Offer context is deterministic and neutral: source/target Club, competition,
+level, role, wage, term, Europe, objective/playing-time context, and trade-offs
+are facts rather than a universal score. Resolution continues through the
+existing transfer/Contract owners. Legacy saves derive safely from available
+records and never receive fabricated academy, breakthrough, return, or history
+dates; the projection uses no RNG and cannot affect Match, rating, attributes,
+development, readiness, selection, or finances.
+
 END OF DOCUMENT

@@ -59,6 +59,11 @@ final class CareerPresentationService
         );
         if ($includeLegacy) {
             $summary['legacy'] = $this->legacyService()->summary($database, $career->playerId()->value());
+            $summary['legacy']['club_journey'] = $summary['career_context']['club_journey'] ?? [];
+            $summary['legacy']['breakthrough_club'] = $summary['career_context']['breakthrough_club'] ?? null;
+            $summary['legacy']['longest_club_spell'] = $summary['career_context']['longest_club_spell'] ?? null;
+            $summary['legacy']['returns'] = $summary['career_context']['returns'] ?? [];
+            $summary['legacy']['one_club_career'] = $summary['career_context']['one_club_career'] ?? false;
         }
         $summary['market'] = $this->services->transferModule()->service()->careerMovement()->marketContext($database, $career->playerId(), $world->currentSeasonId(), $date);
         $pulse = $this->services->playerModule()->service()->pulseService();
@@ -129,6 +134,9 @@ final class CareerPresentationService
         $traits = $controlled && is_array($controlledSummary['traits'] ?? null)
             ? $controlledSummary['traits']
             : (is_array($publicSummary['traits'] ?? null) ? $publicSummary['traits'] : (new PlayerTraitService())->derive($database, $player, $seasonId));
+        $careerContext = $controlled && is_array($controlledSummary['career_context'] ?? null)
+            ? $controlledSummary['career_context']
+            : (is_array($publicSummary['career_context'] ?? null) ? $publicSummary['career_context'] : []);
         $social = $this->services->playerModule()->service()->socialService();
         $legacyRepository = new CareerLegacyRepository($database, false);
         $legacy = $controlled ? [
@@ -191,6 +199,10 @@ final class CareerPresentationService
             'position_competition' => $controlled ? $controlledSummary['position_competition'] ?? null : null,
             'position_development' => $positionContext,
             'traits' => $traits,
+            'career_context' => $careerContext,
+            'club_journey' => $careerContext['club_journey'] ?? [],
+            'club_attachment' => $careerContext['attachment'] ?? null,
+            'career_direction' => $careerContext['direction'] ?? null,
             'position_history' => $controlled ? (new PositionDevelopmentService())->history($database, $playerId) : [],
             'priority' => $controlled ? $controlledSummary['priority'] ?? null : null,
             'contract' => $controlled ? $controlledSummary['current_contract'] ?? null : null,
@@ -640,14 +652,24 @@ final class CareerPresentationService
                 'id' => $option['id'] ?? null,
                 'label' => $label,
                 'club' => $clubView,
+                'target_club_name' => $option['target_club_name'] ?? ($clubView['name'] ?? null),
                 'role' => isset($option['role']) ? CareerLabels::value($option['role']) : null,
                 'wage' => $option['wage'] ?? null,
+                'current_wage' => $option['current_wage'] ?? null,
                 'contract_end_date' => $option['contract_end_date'] ?? null,
                 'reasons' => array_values(array_map(static fn (mixed $reason): string => CareerLabels::value($reason), (array) ($option['reasons'] ?? []))),
                 'club_level' => $option['target_club_level'] ?? null,
+                'current_club_level' => $option['current_club_level'] ?? null,
+                'current_competition' => $option['current_competition_name'] ?? null,
+                'target_competition' => $option['target_competition_name'] ?? ($clubView['competition'] ?? null),
                 'projected_role' => isset($option['projected_role']) ? CareerLabels::value($option['projected_role']) : (isset($option['role']) ? CareerLabels::value($option['role']) : null),
                 'european_qualification' => $option['european_qualification'] ?? false,
+                'current_european_qualification' => $option['current_european_qualification'] ?? false,
                 'market_path' => isset($option['market_path']) ? CareerLabels::value($option['market_path']) : null,
+                'journey_context' => $option['journey_context'] ?? null,
+                'return_to_former_club' => $option['return_to_former_club'] ?? false,
+                'attachment_label' => $option['attachment_label'] ?? null,
+                'trade_offs' => array_values((array) ($option['trade_offs'] ?? [])),
             ];
         }
         $currentClub = is_array($summary['current_club'] ?? null) ? ($summary['current_club']['name'] ?? null) : null;
@@ -671,6 +693,8 @@ final class CareerPresentationService
             'current_club' => $currentClub,
             'current_competition' => $currentCompetition,
             'contract' => $this->contractText($summary['current_contract'] ?? null),
+            'current_club_context' => is_array($context['current_club_context'] ?? null) ? $context['current_club_context'] : [],
+            'career_context' => is_array($summary['career_context'] ?? null) ? $summary['career_context'] : [],
             'options' => $formatted,
         ];
     }

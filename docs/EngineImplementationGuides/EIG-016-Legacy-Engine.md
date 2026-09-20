@@ -34,6 +34,25 @@ Rather than tracking every event, it identifies and archives the people, clubs, 
 
 The Legacy Engine owns historical significance.
 
+## P2-025 Career Memory
+
+The existing CareerLegacyRepository remains the only durable owner for
+controlled Player awards, honours, personal records, and numeric milestones.
+CareerLegacyService adds a read-only classification layer: canonical facts
+become firsts, thresholds, Club movements, honours, awards, records, and
+selected defining Seasons before presentation. It does not create an
+achievement/badge system, points, rewards, a Legacy score, or a duplicate
+Club-history ledger.
+
+The timeline is bounded and deterministically ordered by canonical date,
+importance, and stable source key. Exact chronology is omitted when an old
+save retains only compact aggregates. First senior Match moments use retained
+completed Match rows; first call-up and international landmarks reuse the
+existing Career Event source keys. Matchday callouts are read-only comparisons
+of canonical pre/post totals and never write from page rendering. Routine
+counters remain private and NPCs receive no milestone rows, ticks, or World
+scan.
+
 ---
 
 # Responsibilities
@@ -260,6 +279,8 @@ The Legacy Engine should be tested for:
 - Stable long-term storage
 - Deterministic legacy evaluation
 - Minimal duplicate history
+- Historical accuracy when reconstructing legacy saves
+- Bounded timeline/Profile reads with no NPC scan
 
 ---
 

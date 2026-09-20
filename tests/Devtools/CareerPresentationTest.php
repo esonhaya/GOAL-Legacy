@@ -180,6 +180,8 @@ final class CareerPresentationTest extends TestCase
             'awards' => [['award_type' => 'PLAYER_OF_THE_SEASON']],
             'records' => [['metric' => 'best_season_goals', 'value' => 14]],
             'milestones' => [['label' => '50 Club appearances']],
+            'career_timeline' => [['date' => '2024-08-02', 'title' => 'Senior debut']],
+            'personal_bests' => [['label' => 'Most goals in a Season', 'value' => 14]],
         ]));
 
         self::assertStringContainsString('CAREER LEGACY', $text);
@@ -187,6 +189,8 @@ final class CareerPresentationTest extends TestCase
         self::assertStringContainsString('League Champion — Premier League', $text);
         self::assertStringContainsString('Player of the Season', $text);
         self::assertStringContainsString('Legacy score: descriptive only', $text);
+        self::assertStringContainsString('CAREER TIMELINE', $text);
+        self::assertStringContainsString('Most goals in a Season', $text);
         self::assertStringNotContainsString('Legacy Points', $text);
     }
 }

@@ -182,6 +182,8 @@ final class GraphicalShellTest extends TestCase
             self::assertSame(200, $legacy['status']);
             self::assertStringContainsString('CAREER LEGACY', $legacy['body']);
             self::assertStringContainsString('PLAYING IDENTITY', $legacy['body']);
+            self::assertStringContainsString('CAREER TIMELINE', $legacy['body']);
+            self::assertStringContainsString('DEFINING SEASONS', $legacy['body']);
             self::assertStringContainsString('No earned honours yet.', $legacy['body']);
 
             $finances = $this->application->handle('GET', '/', ['page' => 'finances', 'save' => $save], [], $session);

@@ -416,4 +416,23 @@ demand, but World simulation creates no role rows, ticks, or scans. Missing
 legacy preference defaults safely; no historical role is fabricated, and role
 selection uses no RNG.
 
+## P2-025 Career Milestones and Historical Memory
+
+Career Memory is the Player-facing retrospective of canonical football facts.
+It distinguishes exact firsts, sparse statistical thresholds, Club movement,
+honours, awards, international landmarks, records, personal best Seasons, and
+retirement context. The Legacy owner remains authoritative for durable rows;
+Career History and Profile merely classify and present them. The system uses
+stable source keys and deterministic date/importance ordering, with a bounded
+timeline rather than an activity feed.
+
+The memory layer never fabricates chronology, Clubs, competitions, opponents,
+Match events, roles, or traits. A retained Match/Event row is required for a
+dated first; compact aggregates may support only an undated fact. Matchday can
+show a small callout after canonical processing proves a threshold, while
+Home may show one nearby factual threshold. No milestone grants attributes,
+ratings, development, money, selection, or gameplay effects, and routine
+facts do not create Pulse/News spam. NPCs do not receive milestone histories,
+ticks, or a World scan.
+
 END OF DOCUMENT

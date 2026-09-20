@@ -62,6 +62,8 @@ final class CareerFormatter
         $lines[] = 'Football Trust: ' . CareerLabels::value($manager['trust_label'] ?? null, 'Not available');
         $lines[] = 'Squad Competition: ' . CareerLabels::value($manager['competition_status'] ?? null, 'Not available');
         $lines[] = 'Playing Time: ' . CareerLabels::value($manager['playing_time_status'] ?? null, 'Not enough evidence');
+        $nextMilestone = is_array($summary['next_career_milestone'] ?? null) ? $summary['next_career_milestone'] : null;
+        if ($nextMilestone !== null) { $lines[] = 'Career Memory: approaching ' . $this->number($nextMilestone['threshold'] ?? null) . ' ' . $this->text($nextMilestone['label'] ?? null) . ' (' . $this->number($nextMilestone['remaining'] ?? null) . ' to go)'; }
         $clubSeason = is_array($summary['club_season'] ?? null) ? $summary['club_season'] : null;
         $lines[] = '';
         $lines[] = 'CLUB SEASON';
@@ -478,6 +480,16 @@ final class CareerFormatter
                 $lines[] = $this->text($label) . $value;
             }
         }
+        $lines[] = '';
+        $lines[] = 'CAREER TIMELINE';
+        $timeline = array_values(array_filter((array) ($legacy['career_timeline'] ?? []), 'is_array'));
+        if ($timeline === []) { $lines[] = 'No dated landmark evidence yet.'; }
+        foreach ($timeline as $item) { $lines[] = $this->text($item['date'] ?? null, 'Recorded') . ' — ' . $this->text($item['title'] ?? null, 'Career landmark'); }
+        $lines[] = '';
+        $lines[] = 'PERSONAL BESTS';
+        $bests = array_values(array_filter((array) ($legacy['personal_bests'] ?? []), 'is_array'));
+        if ($bests === []) { $lines[] = 'No personal Season bests yet.'; }
+        foreach ($bests as $best) { $lines[] = $this->text($best['label'] ?? null, 'Personal best') . ' — ' . $this->number($best['value'] ?? null); }
         $lines[] = '';
         $lines[] = 'Legacy score: descriptive only; no synthetic score is used.';
         $lines[] = '';

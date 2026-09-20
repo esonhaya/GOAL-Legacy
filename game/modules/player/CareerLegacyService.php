@@ -24,6 +24,8 @@ use Goal\Legacy\Modules\Player\Persistence\CareerLegacyRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRetirementRepository;
+use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
+use Goal\Legacy\Modules\Transfer\Domain\TransferStatus;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -88,7 +90,10 @@ final class CareerLegacyService
                     continue;
                 }
                 ++$result['milestones'];
-                $this->achievementEventInTransaction($database, $events, (string) $milestone['player_id'], (string) $milestone['source_key'], $season->id(), $awardedDate, 'milestone', (string) $milestone['metric'], (string) $milestone['label'], 'A Career milestone was reached through canonical football statistics.', 'notable', null);
+                $importance = $this->milestoneImportance((string) $milestone['metric'], (int) $milestone['threshold']);
+                if (in_array($importance, ['major', 'landmark'], true)) {
+                    $this->achievementEventInTransaction($database, $events, (string) $milestone['player_id'], (string) $milestone['source_key'], $season->id(), $awardedDate, 'milestone', (string) $milestone['metric'], (string) $milestone['label'], 'A Career milestone was reached through canonical football statistics.', $importance, null);
+                }
             }
         });
 
@@ -132,6 +137,10 @@ final class CareerLegacyService
             $award['winner_name'] = $player->preferredName();
         }
         unset($award);
+        $honours = $legacy->honoursForPlayer($playerId);
+        $records = $legacy->recordsForPlayer($playerId);
+        $milestones = $legacy->milestonesForPlayer($playerId);
+        $memory = $this->historicalMemory($database, $playerId, $stats, $international, $honours, $awards, $records, $milestones);
 
         return [
             'career_span' => $span,
@@ -139,13 +148,240 @@ final class CareerLegacyService
             'clubs' => $clubs,
             'club_stats' => $stats,
             'international_stats' => $international,
-            'honours' => $legacy->honoursForPlayer($playerId),
+            'honours' => $honours,
             'awards' => $awards,
-            'records' => $legacy->recordsForPlayer($playerId),
-            'milestones' => $legacy->milestonesForPlayer($playerId),
+            'records' => $records,
+            'milestones' => $milestones,
+            'career_landmarks' => $memory['career_landmarks'],
+            'career_timeline' => $memory['career_timeline'],
+            'personal_bests' => $memory['personal_bests'],
+            'defining_seasons' => $memory['defining_seasons'],
+            'next_milestone' => $this->nextMilestone($stats, $international),
             'traits' => $traits,
             'legacy_score' => null,
         ];
+    }
+
+    /**
+     * A compact, read-only view used by Career Home. It deliberately returns
+     * nothing until a milestone is close enough to be useful context.
+     * @param array<string, mixed> $clubStats @param array<string, mixed> $internationalStats
+     * @return array<string, mixed>|null
+     */
+    public function nextMilestone(array $clubStats, array $internationalStats = []): ?array
+    {
+        $candidates = [];
+        foreach ([
+            ['metric' => 'club_appearances', 'label' => 'Club appearances', 'current' => (int) ($clubStats['appearances'] ?? 0), 'thresholds' => [50, 100, 200, 300, 500], 'near' => 5],
+            ['metric' => 'club_goals', 'label' => 'Club goals', 'current' => (int) ($clubStats['goals'] ?? 0), 'thresholds' => [25, 50, 100, 200, 300], 'near' => 3],
+            ['metric' => 'club_assists', 'label' => 'Club assists', 'current' => (int) ($clubStats['assists'] ?? 0), 'thresholds' => [25, 50, 100, 200], 'near' => 3],
+            ['metric' => 'international_caps', 'label' => 'international caps', 'current' => (int) ($internationalStats['caps'] ?? 0), 'thresholds' => [10, 25, 50, 100], 'near' => 2],
+        ] as $candidate) {
+            foreach ($candidate['thresholds'] as $threshold) {
+                $remaining = $threshold - $candidate['current'];
+                if ($remaining > 0 && $remaining <= $candidate['near']) {
+                    $candidates[] = $candidate + ['threshold' => $threshold, 'remaining' => $remaining];
+                    break;
+                }
+            }
+        }
+        usort($candidates, static fn (array $left, array $right): int => ((int) $left['remaining'] <=> (int) $right['remaining']) ?: ((int) $left['threshold'] <=> (int) $right['threshold']) ?: strcmp((string) $left['metric'], (string) $right['metric']));
+
+        return $candidates[0] ?? null;
+    }
+
+    /**
+     * Resolve landmark callouts after a completed Match without persisting or
+     * replaying history. Matchday uses this only for the controlled Player.
+     * @return list<array<string, mixed>>
+     */
+    public function matchLandmarks(DatabaseInterface $database, \Goal\Legacy\Modules\Match\Domain\GameMatch $match, string $playerId): array
+    {
+        $stat = null;
+        foreach ((new PlayerMatchStatRepository($database))->byMatch($match->id()) as $candidate) {
+            if ($candidate->playerId()->value() === $playerId && $candidate->appeared()) { $stat = $candidate; break; }
+        }
+        if ($stat === null) { return []; }
+        $competition = (new CompetitionRepository($database))->get($match->competitionId());
+        $international = $competition->type() === CompetitionType::International;
+        $after = $international ? $this->internationalStatsReadOnly($database, $playerId) : (new PlayerCareerStatisticsService())->careerDetailed($database, $playerId);
+        $before = $after;
+        foreach (['appearances', 'caps', 'goals', 'assists', 'starts'] as $field) {
+            if (array_key_exists($field, $before)) { $before[$field] = max(0, (int) $before[$field] - ($field === 'caps' || $field === 'appearances' || $field === 'starts' ? 1 : ($field === 'goals' ? $stat->goals() : $stat->assists()))); }
+        }
+        $facts = [];
+        $date = $match->scheduledDate()->toIsoString();
+        if ($international) {
+            if ((int) ($before['caps'] ?? 0) === 0) { $facts[] = $this->liveLandmark('first-international-cap|' . $playerId . '|' . $match->id()->value(), 'International debut', 'The first senior international appearance.', $date, 'major'); }
+            if ($stat->goals() > 0 && (int) ($before['goals'] ?? 0) === 0) { $facts[] = $this->liveLandmark('first-international-goal|' . $playerId . '|' . $match->id()->value(), 'First international goal', 'The first senior international goal.', $date, 'major'); }
+            $facts = array_merge($facts, $this->thresholdCallouts('international_caps', (int) ($before['caps'] ?? 0), (int) ($after['caps'] ?? 0), $date, $playerId, $match->id()->value()));
+            $facts = array_merge($facts, $this->thresholdCallouts('international_goals', (int) ($before['goals'] ?? 0), (int) ($after['goals'] ?? 0), $date, $playerId, $match->id()->value()));
+        } else {
+            if ((int) ($before['appearances'] ?? 0) === 0) { $facts[] = $this->liveLandmark('first-appearance|' . $playerId . '|' . $match->id()->value(), 'Senior debut', 'The first senior Club appearance.', $date, 'major'); }
+            if ($stat->started() && (int) ($before['starts'] ?? 0) === 0) { $facts[] = $this->liveLandmark('first-start|' . $playerId . '|' . $match->id()->value(), 'First senior start', 'The first senior starting appearance.', $date, 'notable'); }
+            if ($stat->goals() > 0 && (int) ($before['goals'] ?? 0) === 0) { $facts[] = $this->liveLandmark('first-goal|' . $playerId . '|' . $match->id()->value(), 'First senior goal', 'The first senior Club goal.', $date, 'major'); }
+            if ($stat->assists() > 0 && (int) ($before['assists'] ?? 0) === 0) { $facts[] = $this->liveLandmark('first-assist|' . $playerId . '|' . $match->id()->value(), 'First senior assist', 'The first senior Club assist.', $date, 'notable'); }
+            $facts = array_merge($facts, $this->thresholdCallouts('club_appearances', (int) ($before['appearances'] ?? 0), (int) ($after['appearances'] ?? 0), $date, $playerId, $match->id()->value()));
+            $facts = array_merge($facts, $this->thresholdCallouts('club_goals', (int) ($before['goals'] ?? 0), (int) ($after['goals'] ?? 0), $date, $playerId, $match->id()->value()));
+            $facts = array_merge($facts, $this->thresholdCallouts('club_assists', (int) ($before['assists'] ?? 0), (int) ($after['assists'] ?? 0), $date, $playerId, $match->id()->value()));
+        }
+
+        return array_slice($facts, 0, 3);
+    }
+
+    /** @param array<string, mixed> $stats @param array<string, mixed> $international @param list<array<string, mixed>> $honours @param list<array<string, mixed>> $awards @param list<array<string, mixed>> $records @param list<array<string, mixed>> $milestones @return array<string, mixed> */
+    private function historicalMemory(DatabaseInterface $database, string $playerId, array $stats, array $international, array $honours, array $awards, array $records, array $milestones): array
+    {
+        $timeline = $this->firstMatchLandmarks($database, $playerId);
+        foreach ((new CareerEventRepository($database))->resolvedForPlayer(new PlayerId($playerId), 250) as $event) {
+            $milestone = match ($event->definition()) {
+                'first_call_up' => ['source_key' => $event->sourceKey(), 'date' => $event->date()->toIsoString(), 'title' => 'First senior international call-up', 'description' => $event->description(), 'kind' => 'international', 'importance' => 'major', 'season_id' => $event->seasonId()->value()],
+                'first_cap' => ['source_key' => $event->sourceKey(), 'date' => $event->date()->toIsoString(), 'title' => 'International debut', 'description' => $event->description(), 'kind' => 'international', 'importance' => 'major', 'season_id' => $event->seasonId()->value()],
+                'first_international_goal' => ['source_key' => $event->sourceKey(), 'date' => $event->date()->toIsoString(), 'title' => 'First international goal', 'description' => $event->description(), 'kind' => 'international', 'importance' => 'major', 'season_id' => $event->seasonId()->value()],
+                default => null,
+            };
+            if ($milestone !== null) { $timeline[] = $milestone; }
+        }
+        foreach ($milestones as $milestone) {
+            $timeline[] = [
+                'source_key' => (string) ($milestone['source_key'] ?? ''),
+                'date' => (string) ($milestone['occurred_date'] ?? ''),
+                'title' => (string) ($milestone['label'] ?? 'Career milestone'),
+                'description' => 'Reached through canonical football statistics.',
+                'kind' => 'milestone',
+                'importance' => $this->milestoneImportance((string) ($milestone['metric'] ?? ''), (int) ($milestone['threshold'] ?? 0)),
+                'season_id' => (string) ($milestone['season_id'] ?? ''),
+                'metric' => (string) ($milestone['metric'] ?? ''),
+                'threshold' => (int) ($milestone['threshold'] ?? 0),
+                'evidence' => $milestone['evidence'] ?? [],
+            ];
+        }
+        foreach ($honours as $honour) {
+            $timeline[] = ['source_key' => (string) ($honour['source_key'] ?? ''), 'date' => (string) ($honour['earned_date'] ?? ''), 'title' => (string) ($honour['label'] ?? 'Honour'), 'description' => 'Honour recorded from the canonical competition result and Player participation.', 'kind' => 'honour', 'importance' => 'landmark', 'season_id' => (string) ($honour['season_id'] ?? '')];
+        }
+        foreach ($awards as $award) {
+            $label = $this->awardLabel((string) ($award['award_type'] ?? 'award'));
+            $competition = (string) (($award['evidence']['competition_name'] ?? '') ?: 'the recorded competition');
+            $timeline[] = ['source_key' => (string) ($award['source_key'] ?? ''), 'date' => (string) ($award['award_date'] ?? ''), 'title' => $label . ' — ' . $competition, 'description' => 'Individual award recorded from the canonical completed-Season aggregate.', 'kind' => 'award', 'importance' => 'major', 'season_id' => (string) ($award['season_id'] ?? '')];
+        }
+        foreach ((new TransferRepository($database))->byPlayer($playerId) as $transfer) {
+            if ($transfer->status() !== TransferStatus::Completed) { continue; }
+            $from = $this->clubs->repository($database)->get($transfer->sourceClubId())->canonicalName();
+            $to = $this->clubs->repository($database)->get($transfer->destinationClubId())->canonicalName();
+            $seenDestination = false;
+            foreach ($timeline as $item) {
+                if (($item['kind'] ?? null) === 'transfer' && ($item['destination_club_id'] ?? null) === $transfer->destinationClubId()->value()) { $seenDestination = true; break; }
+            }
+            $timeline[] = ['source_key' => 'transfer|' . $transfer->id()->value(), 'date' => $transfer->effectiveDate()->toIsoString(), 'title' => $seenDestination ? 'Return to ' . $to : ($this->hasCompletedTransfer($database, $playerId, $transfer->id()->value()) ? 'Transfer to ' . $to : 'First transfer to ' . $to), 'description' => 'Completed Club movement recorded by the Career movement system.', 'kind' => 'transfer', 'importance' => $seenDestination ? 'major' : 'notable', 'season_id' => $transfer->seasonId()->value(), 'from_club_id' => $transfer->sourceClubId()->value(), 'destination_club_id' => $transfer->destinationClubId()->value(), 'clubs' => $from . ' -> ' . $to];
+        }
+
+        $personalBests = [];
+        $defining = [];
+        foreach ($records as $record) {
+            $metric = (string) ($record['metric'] ?? '');
+            if (!in_array($metric, ['best_season_goals', 'best_season_assists', 'most_season_appearances', 'best_season_rating'], true)) { continue; }
+            $personalBests[] = ['metric' => $metric, 'label' => $this->recordLabel($metric), 'value' => $record['value'] ?? null, 'season_id' => $record['season_id'] ?? null, 'club_id' => $record['club_id'] ?? null, 'updated_date' => $record['updated_date'] ?? null, 'evidence' => $record['evidence'] ?? []];
+            $seasonId = (string) ($record['season_id'] ?? '');
+            if ($seasonId !== '') { $defining[$seasonId][] = $this->recordLabel($metric); }
+            $timeline[] = ['source_key' => 'record|' . $playerId . '|' . $metric, 'date' => (string) ($record['updated_date'] ?? ''), 'title' => $this->recordLabel($metric) . ' — ' . $this->formatValue($record['value'] ?? null), 'description' => 'Personal best held from a canonical completed-Season aggregate.', 'kind' => 'record', 'importance' => 'major', 'season_id' => $seasonId];
+        }
+        foreach ($honours as $honour) { $seasonId = (string) ($honour['season_id'] ?? ''); if ($seasonId !== '') { $defining[$seasonId][] = (string) ($honour['label'] ?? 'Major honour'); } }
+        foreach ($awards as $award) { $seasonId = (string) ($award['season_id'] ?? ''); if ($seasonId !== '') { $defining[$seasonId][] = $this->awardLabel((string) ($award['award_type'] ?? 'award')); } }
+        $definingSeasons = [];
+        foreach ($defining as $seasonId => $reasons) { $definingSeasons[] = ['season_id' => $seasonId, 'reasons' => array_values(array_unique($reasons))]; }
+        usort($definingSeasons, static fn (array $left, array $right): int => strcmp((string) $left['season_id'], (string) $right['season_id']));
+
+        $unique = [];
+        foreach ($timeline as $item) {
+            $key = (string) ($item['source_key'] ?? '');
+            if ($key === '' || isset($unique[$key])) { continue; }
+            $unique[$key] = $item;
+        }
+        $timeline = array_values($unique);
+        $importance = ['routine' => 0, 'notable' => 1, 'major' => 2, 'landmark' => 3];
+        usort($timeline, static fn (array $left, array $right): int => strcmp((string) ($left['date'] ?? ''), (string) ($right['date'] ?? '')) ?: (($importance[(string) ($right['importance'] ?? 'routine')] ?? 0) <=> ($importance[(string) ($left['importance'] ?? 'routine')] ?? 0)) ?: strcmp((string) ($left['source_key'] ?? ''), (string) ($right['source_key'] ?? '')));
+        $timeline = array_slice($timeline, 0, 30);
+        $landmarks = array_values(array_filter($timeline, static fn (array $item): bool => (string) ($item['importance'] ?? 'routine') !== 'routine'));
+
+        return ['career_timeline' => $timeline, 'career_landmarks' => array_slice($landmarks, 0, 20), 'personal_bests' => $personalBests, 'defining_seasons' => array_slice($definingSeasons, 0, 8)];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function firstMatchLandmarks(DatabaseInterface $database, string $playerId): array
+    {
+        $statement = $database->connection()->prepare('SELECT stats.match_id, stats.club_id, stats.started, stats.goals, stats.assists, matches.season_id, matches.scheduled_date, matches.competition_id, competitions.name AS competition_name, competitions.type AS competition_type FROM match_player_stats stats JOIN match_records matches ON matches.id = stats.match_id JOIN competition_records competitions ON competitions.id = matches.competition_id WHERE stats.player_id = :player_id AND stats.appeared = 1 AND matches.status = :status ORDER BY matches.scheduled_date ASC, stats.match_id ASC');
+        $statement->execute(['player_id' => $playerId, 'status' => 'completed']);
+        $first = [];
+        foreach ($statement->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            if ((string) ($row['competition_type'] ?? '') === CompetitionType::International->value) { continue; }
+            $base = ['date' => (string) $row['scheduled_date'], 'season_id' => (string) $row['season_id'], 'competition' => (string) $row['competition_name'], 'match_id' => (string) $row['match_id'], 'club_id' => (string) $row['club_id']];
+            foreach ([
+                'first_senior_appearance' => true,
+                'first_senior_start' => (int) ($row['started'] ?? 0) === 1,
+                'first_senior_goal' => (int) ($row['goals'] ?? 0) > 0,
+                'first_senior_assist' => (int) ($row['assists'] ?? 0) > 0,
+                'first_european_appearance' => (string) ($row['competition_type'] ?? '') === CompetitionType::Continental->value,
+                'first_european_goal' => (string) ($row['competition_type'] ?? '') === CompetitionType::Continental->value && (int) ($row['goals'] ?? 0) > 0,
+            ] as $key => $qualifies) {
+                if ($qualifies && !isset($first[$key])) {
+                    $club = $this->clubs->repository($database)->get(new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $row['club_id']))->canonicalName();
+                    $first[$key] = $base + ['club' => $club, 'source_key' => 'match-first|' . $playerId . '|' . $key, 'kind' => 'first', 'importance' => in_array($key, ['first_senior_goal', 'first_european_goal'], true) ? 'major' : 'notable', 'title' => $this->firstLabel($key), 'description' => 'First established from a completed canonical Match record.'];
+                }
+            }
+        }
+
+        return array_values($first);
+    }
+
+    private function firstLabel(string $key): string
+    {
+        return match ($key) { 'first_senior_appearance' => 'Senior debut', 'first_senior_start' => 'First senior start', 'first_senior_goal' => 'First senior goal', 'first_senior_assist' => 'First senior assist', 'first_european_appearance' => 'First European appearance', 'first_european_goal' => 'First European goal', default => 'Career first' };
+    }
+
+    private function recordLabel(string $metric): string
+    {
+        return match ($metric) { 'best_season_goals' => 'Most goals in a Season', 'best_season_assists' => 'Most assists in a Season', 'most_season_appearances' => 'Most appearances in a Season', 'best_season_rating' => 'Best average-rated Season', default => $this->milestoneLabel($metric, 0) };
+    }
+
+    private function milestoneImportance(string $metric, int $threshold): string
+    {
+        return match ($metric) {
+            'club_appearances' => $threshold >= 200 ? 'landmark' : ($threshold >= 100 ? 'major' : 'notable'),
+            'club_goals' => $threshold >= 100 ? 'landmark' : ($threshold >= 50 ? 'major' : 'notable'),
+            'club_assists' => $threshold >= 100 ? 'landmark' : ($threshold >= 50 ? 'major' : 'notable'),
+            'international_caps' => $threshold >= 50 ? 'landmark' : ($threshold >= 25 ? 'major' : 'notable'),
+            'international_goals' => $threshold >= 25 ? 'landmark' : ($threshold >= 10 ? 'major' : 'notable'),
+            default => 'notable',
+        };
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function thresholdCallouts(string $metric, int $before, int $after, string $date, string $playerId, string $matchId): array
+    {
+        $thresholds = match ($metric) { 'club_appearances' => [50, 100, 200, 300, 500], 'club_goals' => [25, 50, 100, 200, 300], 'club_assists' => [25, 50, 100, 200], 'international_caps' => [10, 25, 50, 100], 'international_goals' => [1, 10, 25, 50], default => [] };
+        $facts = [];
+        foreach ($thresholds as $threshold) { if ($before < $threshold && $after >= $threshold) { $facts[] = $this->liveLandmark($metric . '|' . $threshold . '|' . $playerId . '|' . $matchId, $this->milestoneLabel($metric, $threshold), 'A meaningful Career threshold was reached in this completed Match.', $date, $this->milestoneImportance($metric, $threshold), ['metric' => $metric, 'threshold' => $threshold]); } }
+
+        return $facts;
+    }
+
+    /** @param array<string, mixed> $evidence @return array<string, mixed> */
+    private function liveLandmark(string $sourceKey, string $title, string $description, string $date, string $importance, array $evidence = []): array
+    {
+        return ['source_key' => 'live|' . $sourceKey, 'date' => $date, 'title' => $title, 'description' => $description, 'kind' => 'match_landmark', 'importance' => $importance, 'evidence' => $evidence];
+    }
+
+    private function hasCompletedTransfer(DatabaseInterface $database, string $playerId, string $currentTransferId): bool
+    {
+        $count = 0;
+        foreach ((new TransferRepository($database))->byPlayer($playerId) as $transfer) { if ($transfer->id()->value() === $currentTransferId) { break; } if ($transfer->status() === TransferStatus::Completed) { ++$count; } }
+
+        return $count > 0;
+    }
+
+    private function formatValue(mixed $value): string
+    {
+        return $value === null ? 'recorded' : (string) ((float) $value === (int) $value ? (int) $value : $value);
     }
 
     /** @return list<string> */
@@ -315,10 +551,10 @@ final class CareerLegacyService
                 $records[] = ['row' => $row, 'label' => $label];
             }
             foreach ([
-                'club_appearances' => [50, 100, 200],
-                'club_goals' => [25, 50, 100],
-                'club_assists' => [25, 50],
-                'international_caps' => [10, 25, 50],
+                'club_appearances' => [50, 100, 200, 300, 500],
+                'club_goals' => [25, 50, 100, 200, 300],
+                'club_assists' => [25, 50, 100, 200],
+                'international_caps' => [10, 25, 50, 100],
                 'international_goals' => [1, 10, 25, 50],
             ] as $metric => $thresholds) {
                 $value = (float) ($candidates[$metric][0] ?? 0);

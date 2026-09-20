@@ -292,4 +292,20 @@ goals, chances, passing, defensive work, and ratings. News, Echo, and Pulse do
 not announce role changes or unlocks. NPC role language is on-demand profile
 flavour only; the World does not simulate role preferences.
 
+## P2-025 Career Timeline and Landmark Moments
+
+Career History remembers a small set of moments that actually happened:
+senior firsts, meaningful appearance/goal/assist thresholds, completed Club
+moves and returns, promotion or relegation, honours, awards, international
+landmarks, personal best Seasons, and retirement context. The surface is a
+retrospective, not a checklist. It does not expose points, badges, rewards, a
+GOAT ranking, or routine monthly activity.
+
+Copy should prefer factual phrasing such as “First senior goal” or “Most
+goals in a Season.” A dated claim requires retained chronology. If a legacy
+save has only a compact aggregate, the UI may show the achievement as an
+undated Career fact or omit it; it never invents a date, opponent, competition,
+Club, role, or trait. Home shows at most one nearby factual threshold, and
+Post-Match shows only landmarks proven by that completed Match.
+
 END OF DOCUMENT

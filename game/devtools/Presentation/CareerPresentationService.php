@@ -22,7 +22,6 @@ use Goal\Legacy\Modules\Match\PlayerMatchRatingService;
 use Goal\Legacy\Modules\Nation\Persistence\NationRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
-use Goal\Legacy\Modules\Player\Persistence\CareerLegacyRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
@@ -58,6 +57,12 @@ final class CareerPresentationService
             $date,
             $world->currentSeasonId(),
         );
+        $summary['next_career_milestone'] = (new CareerLegacyService(
+            $this->services->clubModule()->service(),
+            $this->services->nationalTeams(),
+            $this->services->internationalCompetitions(),
+            $this->services->playerModule()->service()->socialService(),
+        ))->nextMilestone((array) ($summary['career_stats'] ?? []), (array) (($summary['international']['stats'] ?? [])));
         if ($includeLegacy) {
             $summary['legacy'] = $this->legacyService()->summary($database, $career->playerId()->value());
             $summary['legacy']['club_journey'] = $summary['career_context']['club_journey'] ?? [];
@@ -65,6 +70,7 @@ final class CareerPresentationService
             $summary['legacy']['longest_club_spell'] = $summary['career_context']['longest_club_spell'] ?? null;
             $summary['legacy']['returns'] = $summary['career_context']['returns'] ?? [];
             $summary['legacy']['one_club_career'] = $summary['career_context']['one_club_career'] ?? false;
+            $summary['legacy'] = $this->appendMovementLandmarks($summary['legacy'], (array) ($summary['movement_history'] ?? []));
         }
         $summary['market'] = $this->services->transferModule()->service()->careerMovement()->marketContext($database, $career->playerId(), $world->currentSeasonId(), $date);
         $pulse = $this->services->playerModule()->service()->pulseService();
@@ -142,13 +148,9 @@ final class CareerPresentationService
             ? $controlledSummary['career_context']
             : (is_array($publicSummary['career_context'] ?? null) ? $publicSummary['career_context'] : []);
         $social = $this->services->playerModule()->service()->socialService();
-        $legacyRepository = new CareerLegacyRepository($database, false);
-        $legacy = $controlled ? [
-            'honours' => $legacyRepository->honoursForPlayer($playerId),
-            'awards' => $legacyRepository->awardsForPlayer($playerId),
-            'records' => $legacyRepository->recordsForPlayer($playerId),
-            'milestones' => $legacyRepository->milestonesForPlayer($playerId),
-        ] : ['honours' => [], 'awards' => [], 'records' => [], 'milestones' => []];
+        $legacy = $controlled
+            ? $this->legacyService()->summary($database, $playerId)
+            : ['honours' => [], 'awards' => [], 'records' => [], 'milestones' => [], 'career_landmarks' => [], 'career_timeline' => [], 'personal_bests' => [], 'defining_seasons' => []];
         $market = $controlled ? $this->services->transferModule()->service()->careerMovement()->marketContext($database, $playerId, $seasonId, $date) : null;
         if ($club !== null) {
             $cups = new DomesticCupService($this->services->clubModule()->service());
@@ -500,6 +502,7 @@ final class CareerPresentationService
         $postContext = $competition->type() === CompetitionType::DomesticLeague
             ? $this->clubContext($database, $postSummary)
             : null;
+        $landmarkCallouts = $this->legacyService()->matchLandmarks($database, $match, $playerId);
 
         return [
             'competition' => $competition->name(),
@@ -526,6 +529,7 @@ final class CareerPresentationService
             'rating_explanation' => $story['rating_explanation'],
             'decisive_contribution' => $story['decisive_contribution'],
             'player_of_match' => $story['player_of_match'],
+            'landmark_callouts' => $landmarkCallouts,
             'post_match' => [
                 'recent_form' => $postSummary['recent_form'] ?? [],
                 'season_stats' => $postSummary['season_stats'] ?? [],
@@ -952,6 +956,27 @@ final class CareerPresentationService
             $this->services->internationalCompetitions(),
             $this->services->playerModule()->service()->socialService(),
         );
+    }
+
+    /** @param array<string, mixed> $legacy @param list<array<string, mixed>> $movement @return array<string, mixed> */
+    private function appendMovementLandmarks(array $legacy, array $movement): array
+    {
+        $timeline = array_values(array_filter((array) ($legacy['career_timeline'] ?? []), 'is_array'));
+        foreach ($movement as $event) {
+            if (!is_array($event) || !in_array((string) ($event['type'] ?? ''), ['club_promoted', 'club_relegated'], true)) { continue; }
+            $promoted = (string) $event['type'] === 'club_promoted';
+            $club = is_array($event['club'] ?? null) ? (string) ($event['club']['name'] ?? 'Club') : 'Club';
+            $timeline[] = ['source_key' => 'movement|' . (string) ($event['type'] ?? '') . '|' . (string) ($event['season_id'] ?? '') . '|' . $club, 'date' => (string) ($event['date'] ?? ''), 'title' => ($promoted ? 'Promotion with ' : 'Relegation with ') . $club, 'description' => 'Club trajectory recorded from canonical Season history.', 'kind' => 'club', 'importance' => 'major', 'season_id' => (string) ($event['season_id'] ?? '')];
+        }
+        $importance = ['routine' => 0, 'notable' => 1, 'major' => 2, 'landmark' => 3];
+        $unique = [];
+        foreach ($timeline as $item) { $key = (string) ($item['source_key'] ?? ''); if ($key !== '') { $unique[$key] = $item; } }
+        $timeline = array_values($unique);
+        usort($timeline, static fn (array $left, array $right): int => strcmp((string) ($left['date'] ?? ''), (string) ($right['date'] ?? '')) ?: (($importance[(string) ($right['importance'] ?? 'routine')] ?? 0) <=> ($importance[(string) ($left['importance'] ?? 'routine')] ?? 0)) ?: strcmp((string) ($left['source_key'] ?? ''), (string) ($right['source_key'] ?? '')));
+        $legacy['career_timeline'] = array_slice($timeline, 0, 30);
+        $legacy['career_landmarks'] = array_slice(array_values(array_filter($legacy['career_timeline'], static fn (array $item): bool => (string) ($item['importance'] ?? 'routine') !== 'routine')), 0, 20);
+
+        return $legacy;
     }
 
     /** @return array<string, mixed> */

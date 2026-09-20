@@ -147,6 +147,16 @@ substitute minutes remain Match-owned facts and are not copied to Player
 ✓ Completed-Season awards, participation honours, personal bests, and
 threshold milestones are durable Career facts owned by the Legacy boundary
 
+✓ Career Timeline, Career Landmarks, Personal Bests, and Defining Seasons are
+read-only projections over those durable facts and canonical Match/Event
+history; they do not create a second history table
+
+✓ Missing historical chronology on a legacy save is preserved as missing
+evidence rather than reconstructed with fabricated dates or entities
+
+✓ Career Memory reads are bounded to the controlled Player; NPCs receive no
+milestone rows, milestone ticks, or World-wide timeline scan
+
 ✓ Awards resolve after the completed Season has all required competition
 results and before replay-only Match detail is compacted
 

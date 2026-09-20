@@ -231,6 +231,23 @@ Player, Club, Match, and international statistics. It exposes Career span,
 Clubs, totals, honours, awards, personal bests, and milestones; no Legacy
 Points or default Legacy score is persisted.
 
+# P2-025 Career Memory
+
+Career Memory deepens this existing Legacy boundary without adding another
+ledger. \`CareerLegacyService\` classifies the durable milestone, honour, award,
+and record rows together with retained Match/Event history into a bounded
+Career Timeline, Career Landmarks, Personal Bests, and Defining Seasons.
+Exact firsts are shown only when completed Match or international Event
+evidence preserves their chronology. Compact Season aggregates can support a
+timeless fact, but never justify an invented date, Club, opponent, or role.
+
+Numeric landmark thresholds are intentionally sparse: Club appearances 50,
+100, 200, 300, 500; Club goals 25, 50, 100, 200, 300; Club assists 25, 50,
+100, 200; international caps 10, 25, 50, 100; and international goals 1,
+10, 25, 50. Existing source keys remain the idempotency boundary. Reading a
+Profile, Home, Legacy, or Matchday page does not insert milestone or timeline
+rows. NPCs do not receive milestone rows, ticks, or world-wide timeline builds.
+
 ---
 
 # Read Permissions

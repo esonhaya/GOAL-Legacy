@@ -167,10 +167,12 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('CURRENT SEASON', $controlled['body']);
             self::assertStringContainsString('Training focus', $controlled['body']);
             self::assertStringContainsString('Readiness', $controlled['body']);
+            self::assertStringContainsString('PLAYING STYLE', $controlled['body']);
             self::assertStringNotContainsString('Potential', $controlled['body']);
             $legacy = $this->application->handle('GET', '/', ['page' => 'legacy', 'save' => $save], [], $session);
             self::assertSame(200, $legacy['status']);
             self::assertStringContainsString('CAREER LEGACY', $legacy['body']);
+            self::assertStringContainsString('PLAYING IDENTITY', $legacy['body']);
             self::assertStringContainsString('No earned honours yet.', $legacy['body']);
 
             $finances = $this->application->handle('GET', '/', ['page' => 'finances', 'save' => $save], [], $session);
@@ -200,6 +202,7 @@ final class GraphicalShellTest extends TestCase
             $npcProfile = $this->application->handle('GET', '/', ['page' => 'profile', 'save' => $save, 'player' => $npc], [], $session);
             self::assertSame(200, $npcProfile['status']);
             self::assertStringContainsString('MATCH HISTORY', $npcProfile['body']);
+            self::assertStringContainsString('PLAYING STYLE', $npcProfile['body']);
             self::assertStringNotContainsString('Potential', $npcProfile['body']);
             self::assertStringNotContainsString('Balance', $npcProfile['body']);
 

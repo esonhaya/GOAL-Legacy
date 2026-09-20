@@ -399,4 +399,22 @@ the existing workload/development transaction and cannot run alongside
 positional focus. NPCs receive immutable compact identity only, not retraining
 decisions or history.
 
+## P2-022 Emergent Traits
+
+`PlayerTraitService` is a read-only presentation/query service. It combines
+position-appropriate attributes with canonical career and current-Season
+aggregates. It has no feedback loop: traits do not change simulation actions,
+ratings, development, manager trust, transfer compatibility, or national-team
+selection. Capability gates prevent attributes from becoming decorative labels,
+while minutes/actions/ratings thresholds prevent tiny samples from establishing
+a style. Stable enum priority and key tie-breaks keep ordering deterministic.
+
+The service is not a replacement for the creation `DevelopmentProfile`, the
+position owner, the squad role, manager trust, reputation, Career Outlook, or
+awards. It only explains the football those owners already recorded.
+
+Controlled and NPC Players share the derivation boundary. NPC Profile reads use
+the compact `player_season_statistics` evidence only; there is no lifecycle
+tick, trait training, trait history, or World scan.
+
 END OF DOCUMENT

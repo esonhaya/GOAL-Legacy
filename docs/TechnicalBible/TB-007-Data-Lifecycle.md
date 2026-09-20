@@ -406,4 +406,14 @@ while Match action-foot metadata remains selective controlled-Match evidence.
 No historical action is backfilled and no NPC foot-development rows are
 created. Reading Profile, Training, or Match history does not advance state.
 
+### P2-022 trait derivation lifecycle
+
+Playing-style identity is derived at the Profile, Career summary, and Legacy
+read boundaries. It is not a persisted state machine and page rendering does
+not write. Detailed controlled Match evidence and compact NPC Season
+aggregates are authoritative inputs; old saves safely show only what their
+available evidence supports. Trait ordering, maturity, and active limits are
+deterministic, and no trait derivation consumes gameplay RNG or participates in
+Season lifecycle processing.
+
 END OF DOCUMENT

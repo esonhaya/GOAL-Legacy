@@ -492,4 +492,21 @@ assigned a foot retroactively. Only controlled Players may have a
 `player_weak_foot_development` row. Training uses the existing cadence and
 specialized-focus boundary, with compact progress and no NPC training history.
 
+## P2-022 Derived Playing Style
+
+There is deliberately no `player_traits` table. `PlayerTraitService` derives
+the controlled or browsed Player's established and emerging identity from
+`player_records`, `player_match_stats`, and `player_season_statistics`, plus
+the canonical position-development and weak-foot state where applicable.
+The result is deterministic and read-only, with an established display limit
+of five and an emerging display limit of three. No weekly snapshots,
+historical unlock dates, or NPC trait rows are persisted. Older saves therefore
+need no fabricated trait migration; the same available evidence produces the
+same Profile and Legacy result after reload.
+
+The creation `development_profile` (`Prodigy`, `Regular`, or `Late Bloomer`)
+remains a development/archetype input and is not a playing-style trait. A
+derived style can therefore differ between Players with the same creation
+profile, and no style value is written back into Player identity or attributes.
+
 END OF DOCUMENT

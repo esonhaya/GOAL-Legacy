@@ -343,4 +343,26 @@ only for preferred foot; weak-foot capability is derived deterministically from
 the creation identity. Legacy saves and NPCs receive stable compact identity,
 with no fabricated historical action-foot data or NPC weak-foot training.
 
+## P2-022 Emergent Football Identity
+
+Playing style is derived from demonstrated football, not selected, purchased,
+or awarded as a bonus. The bounded catalog currently includes Finisher, Goal
+Threat, Creator, Playmaker, Ball Winner, Defensive Anchor, Workhorse,
+Consistent Performer, Versatile, and Two-Footed. A trait requires both
+appropriate underlying capability and a meaningful canonical Match/Season
+sample; one Match or one high attribute is insufficient.
+
+This is separate from the creation development profile (Prodigy, Regular, or
+Late Bloomer), position, squad role, manager trust, reputation, Career Outlook,
+and awards. Those systems keep their existing meanings and ownership; they do
+not become alternate names for playing identity.
+
+Traits are read-only descriptive evidence. They never modify Match outcomes,
+ratings, attributes, development, selection, transfer offers, or reputation.
+Established identity has a stable presentation order and a five-trait display
+limit; a smaller emerging list may appear while evidence is still building.
+The service derives controlled and NPC Profile traits on demand from detailed
+controlled evidence or compact World Season aggregates. No trait rows,
+training choices, unlock dates, or NPC progression history are stored.
+
 END OF DOCUMENT

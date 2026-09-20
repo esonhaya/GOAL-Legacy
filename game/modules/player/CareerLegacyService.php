@@ -102,6 +102,7 @@ final class CareerLegacyService
         $players = new PlayerRepository($database);
         $player = $players->get($playerId);
         $stats = (new PlayerCareerStatisticsService())->careerDetailed($database, $playerId);
+        $traits = (new PlayerTraitService())->derive($database, $player);
         $international = $this->internationalStatsReadOnly($database, $playerId);
         $clubs = [];
         $clubRows = $database->connection()->prepare('SELECT club_id FROM club_squad_memberships WHERE player_id = :player_id GROUP BY club_id ORDER BY MIN(season_id) ASC, club_id ASC');
@@ -142,6 +143,7 @@ final class CareerLegacyService
             'awards' => $awards,
             'records' => $legacy->recordsForPlayer($playerId),
             'milestones' => $legacy->milestonesForPlayer($playerId),
+            'traits' => $traits,
             'legacy_score' => null,
         ];
     }

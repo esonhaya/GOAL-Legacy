@@ -247,4 +247,14 @@ private development detail. Neither creates routine historical entries. Only
 an actual controlled-Match highlight may mention the foot used, and older
 Match history is never reconstructed with invented action-foot facts.
 
+## P2-022 Playing Style Boundary
+
+Pulse, News, and Career History do not announce routine trait emergence. The
+Profile is the primary surface for concise Established and Emerging identity;
+Career Legacy may show the final established identity as a summary of the
+Career. Labels such as Finisher or Creator describe sustained evidence and are
+not awards, perks, personality traits, or hidden powers. A Player may have no
+active trait when the available sample is too small or does not support a
+distinct style.
+
 END OF DOCUMENT

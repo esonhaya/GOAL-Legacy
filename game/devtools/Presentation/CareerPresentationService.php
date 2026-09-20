@@ -28,6 +28,7 @@ use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
 use Goal\Legacy\Modules\Player\CareerLegacyService;
 use Goal\Legacy\Modules\Player\PlayerCareerStatisticsService;
+use Goal\Legacy\Modules\Player\PlayerTraitService;
 use Goal\Legacy\Modules\Player\PlayerFormService;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
@@ -115,10 +116,19 @@ final class CareerPresentationService
         $europeHistory = [];
         $internationalStats = $this->services->nationalTeams()->playerStats($database, $playerId, $seasonId);
         $internationalHistory = $this->services->internationalCompetitions()->history($database, $playerId);
-        $internationalContext = (new PlayerCareerProgressionQuery($this->services->clubModule()->service()))->summary($database, $playerId, $date, $seasonId)['international'] ?? [];
+        $publicSummary = [];
+        if ($controlled && is_array($controlledSummary['international'] ?? null)) {
+            $internationalContext = $controlledSummary['international'];
+        } else {
+            $publicSummary = (new PlayerCareerProgressionQuery($this->services->clubModule()->service()))->summary($database, $playerId, $date, $seasonId);
+            $internationalContext = $publicSummary['international'] ?? [];
+        }
         $positionContext = $controlled
             ? (new PositionDevelopmentService())->context($database, $playerId, $date)
             : null;
+        $traits = $controlled && is_array($controlledSummary['traits'] ?? null)
+            ? $controlledSummary['traits']
+            : (is_array($publicSummary['traits'] ?? null) ? $publicSummary['traits'] : (new PlayerTraitService())->derive($database, $player, $seasonId));
         $social = $this->services->playerModule()->service()->socialService();
         $legacyRepository = new CareerLegacyRepository($database, false);
         $legacy = $controlled ? [
@@ -180,6 +190,7 @@ final class CareerPresentationService
             'club_season' => $controlled ? $controlledSummary['club_season'] ?? null : null,
             'position_competition' => $controlled ? $controlledSummary['position_competition'] ?? null : null,
             'position_development' => $positionContext,
+            'traits' => $traits,
             'position_history' => $controlled ? (new PositionDevelopmentService())->history($database, $playerId) : [],
             'priority' => $controlled ? $controlledSummary['priority'] ?? null : null,
             'contract' => $controlled ? $controlledSummary['current_contract'] ?? null : null,

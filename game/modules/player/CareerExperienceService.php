@@ -370,10 +370,19 @@ final class CareerExperienceService
         $form = (string) ($recentForm['classification'] ?? 'insufficient_evidence');
         $managerContext = is_array($summary['manager_context'] ?? null) ? $summary['manager_context'] : [];
         $playingTimeStatus = (string) ($managerContext['playing_time_status'] ?? 'insufficient_evidence');
-        $phase = $date->month() >= 2 ? 'run_in' : ($date->month() >= 10 ? 'midseason' : 'early_season');
+        $clubSeason = is_array($summary['club_season'] ?? null) ? $summary['club_season'] : null;
+        $phase = (string) (($clubSeason['season']['phase'] ?? null) ?: ($date->month() >= 2 ? 'run_in' : ($date->month() >= 10 ? 'midseason' : 'early_season')));
         $competitionPressure = null;
+        if ($clubSeason !== null) {
+            $tierContext = is_array($clubSeason['promotion_relegation'] ?? null) ? $clubSeason['promotion_relegation'] : [];
+            if (($tierContext['type'] ?? null) === 'promotion' && !in_array(($tierContext['status'] ?? null), ['promoted', 'not_promoted'], true)) {
+                $competitionPressure = 'promotion';
+            } elseif (($tierContext['type'] ?? null) === 'relegation' && !in_array(($tierContext['status'] ?? null), ['relegated', 'survived'], true)) {
+                $competitionPressure = 'relegation';
+            }
+        }
         $competitionId = (string) (($summary['current_competition']['id'] ?? ''));
-        if ($this->clubs !== null && $clubId !== '' && $competitionId !== '') {
+        if ($competitionPressure === null && $this->clubs !== null && $clubId !== '' && $competitionId !== '') {
             $table = (new StandingsService($this->clubs))->table($database, new CompetitionId($competitionId), $seasonId);
             foreach ($table as $index => $row) {
                 if ((string) ($row['club_id'] ?? '') !== $clubId) { continue; }
@@ -406,6 +415,8 @@ final class CareerExperienceService
             'transfer_request' => (string) (($summary['transfer_request']['status'] ?? 'none')),
             'recent_transfer' => $recentTransfer, 'contract_expiring' => $contractExpiring,
             'recent_team_result' => $recentTeamResult, 'season_phase' => $phase, 'competition_pressure' => $competitionPressure,
+            'club_objective' => $clubSeason === null ? null : (string) ($clubSeason['expectation'] ?? ''),
+            'club_progress' => $clubSeason === null ? null : (string) ($clubSeason['progress'] ?? ''),
             'next_competition_type' => $nextCompetitionType, 'recent_competition_type' => $recentCompetitionType, 'recent_competition_round' => $recentCompetitionRound,
             'public_profile' => (int) (($summary['social']['public_profile'] ?? 0)),
             'international_profile' => (int) (($summary['social']['international_profile'] ?? 0)),

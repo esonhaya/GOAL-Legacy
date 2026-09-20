@@ -308,4 +308,25 @@ primary-position changes cannot reinterpret historical ratings. Transfer,
 international, role, manager-trust, and selection systems consume the current
 primary/established capability through their existing owners.
 
+## P2-020 Club Season Stakes
+
+Each controlled Career's current Club receives one deterministic Season
+expectation from canonical Club reputation, domestic competition tier, and
+existing Cup/European membership. The expectation is stable during the
+Season; standings measure progress toward it rather than rewriting it.
+
+Player-facing context shows Season phase, league position, progress, bounded
+pressure, and up to three genuinely important upcoming fixtures. Promotion,
+relegation, Cup, and European rules remain owned by their existing
+competition services. Player contribution is factual context from appearances,
+minutes, role, goals, assists, ratings, and availability; it is not a hidden
+contribution score and never changes Match outcomes, attributes, or injury
+risk.
+
+At rollover, completed Season facts are resolved before compaction. Only a
+compact controlled Player/Club/Season outcome is retained so the original
+expectation and final assessment survive. NPC Clubs may use the cheap derived
+read model, but there are no NPC objective histories, pressure snapshots,
+player-contribution tracking, or manager objective conversations.
+
 END OF DOCUMENT

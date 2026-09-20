@@ -376,4 +376,20 @@ snapshot the Player's position at Match time. Rating/history consumers prefer
 that snapshot and fall back to the current primary position for old saves;
 World-fidelity Matches never create the table's detail rows.
 
+### P2-020 Club Season lifecycle
+
+The current Club Season objective is a derived read model. Its source facts
+are the current Season, Club/competition membership, canonical standings,
+fixture schedule, promotion/relegation rules, and optional controlled Player
+contribution. The original objective is derived from stable pre-Season Club
+context and is not rewritten by a good or bad opening run.
+
+At outgoing-Season completion, `SeasonRolloverService` resolves one compact
+controlled Player/Club outcome before compaction removes or changes detailed
+Season evidence. The outcome stores the objective, final evidence, and
+resolution date. A new Season derives a fresh expectation after promotion or
+relegation membership has been materialized. Existing saves without an
+objective row safely receive current derived context; no historical objective
+or pressure event is fabricated.
+
 END OF DOCUMENT

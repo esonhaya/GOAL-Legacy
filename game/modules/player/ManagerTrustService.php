@@ -40,6 +40,7 @@ final class ManagerTrustService
         $competitionStatus = $this->competitionStatus($role, $samePosition, $higher, $playing);
         $reasons = $this->reasons($summary, $playingStatus, $competitionStatus, $formClass, $playing);
         $feedback = $this->feedback($summary, $playingStatus, $competitionStatus, $formClass, $window);
+        $clubSeason = is_array($summary['club_season'] ?? null) ? $summary['club_season'] : null;
 
         return [
             'trust_label' => $trustLabel,
@@ -51,6 +52,11 @@ final class ManagerTrustService
             'reasons' => $reasons,
             'feedback' => $feedback,
             'selection_context' => $this->selectionContext($summary, $competitionStatus, $playingStatus, $formClass),
+            'club_stakes' => $clubSeason === null ? null : [
+                'expectation' => $clubSeason['expectation'] ?? null,
+                'progress' => $clubSeason['progress'] ?? null,
+                'pressure' => $clubSeason['pressure'] ?? null,
+            ],
             'conversation_eligible' => $window >= 3 && in_array($playingStatus, ['below_expectation', 'severely_below_expectation'], true)
                 && ($readiness['status'] ?? 'available') !== AvailabilityStatus::Unavailable->value,
         ];
@@ -214,6 +220,10 @@ final class ManagerTrustService
         if ((int) ($playing['red_cards'] ?? 0) > 0) {
             $reasons[] = 'Recent disciplinary issue';
         }
+        $clubSeason = is_array($summary['club_season'] ?? null) ? $summary['club_season'] : null;
+        if ($clubSeason !== null && in_array($clubSeason['pressure'] ?? null, ['building', 'high'], true)) {
+            $reasons[] = 'The Club is under Season pressure';
+        }
 
         return array_values(array_unique(array_slice($reasons, 0, 3)));
     }
@@ -226,6 +236,10 @@ final class ManagerTrustService
         $position = is_array($summary['position_development'] ?? null) ? $summary['position_development'] : [];
         if (($position['developing_position'] ?? null) !== null && (int) ($position['progress'] ?? 0) >= 50) {
             return "You're becoming another option in that position; keep learning the role.";
+        }
+        $clubSeason = is_array($summary['club_season'] ?? null) ? $summary['club_season'] : null;
+        if ($clubSeason !== null && ($clubSeason['pressure'] ?? null) === 'high' && ($clubSeason['season']['phase'] ?? null) === 'run_in') {
+            return 'We need consistency during the run-in; your contribution matters.';
         }
         if ($playingStatus === 'severely_below_expectation' && $window >= 3) {
             return 'You need more consistent performances and more football.';

@@ -25,6 +25,7 @@ final class CareerOutlookService
         $manager = is_array($summary['manager_context'] ?? null) ? $summary['manager_context'] : [];
         $playingTimeStatus = (string) ($manager['playing_time_status'] ?? '');
         $competitionStatus = (string) ($manager['competition_status'] ?? '');
+        $clubSeason = is_array($summary['club_season'] ?? null) ? $summary['club_season'] : null;
         $opportunity = $this->opportunityLevel($role, $minutesShare, $startsShare, $summary);
         $contractOutlook = $this->contractOutlook($contract, $pending, $date);
         $transferOutlook = $this->transferOutlook($summary, $pending);
@@ -38,6 +39,9 @@ final class CareerOutlookService
             'manager_trust' => $manager['trust_label'] ?? null,
             'competition_status' => $competitionStatus === '' ? null : $competitionStatus,
             'playing_time_status' => $playingTimeStatus === '' ? null : $playingTimeStatus,
+            'club_objective' => $clubSeason['expectation'] ?? null,
+            'club_progress' => $clubSeason['progress'] ?? null,
+            'club_pressure' => $clubSeason['pressure'] ?? null,
         ];
 
         if (($summary['career_state'] ?? 'active') === 'retired') {

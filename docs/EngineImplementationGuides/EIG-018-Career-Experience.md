@@ -91,4 +91,22 @@ reload/double-submit behavior.
 |---|---|---|
 | 1.0 | 2026-09-17 | Documented the enriched Phase 1 career-event boundary. |
 
+## P2-020 Club Season Objective Context
+
+`ClubSeasonObjectiveService` is the controlled-Career adapter for Club Season
+stakes. It consumes `ClubService`, `StandingsService`,
+`PromotionRelegationService`, existing Cup/European memberships, fixture
+dates, and compact Player contribution facts. It derives a stable expectation,
+Season phase, progress, pressure, important fixtures, and final outcome. It
+does not own standings, promotion/relegation, Cup draws, European stages,
+Player role, Career Outlook, News, or Pulse.
+
+`SeasonRolloverService::prepareNext()` resolves controlled Club Season
+outcomes after the outgoing Season is complete and before evidence is
+compacted. `ClubSeasonObjectiveRepository` persists one row per controlled
+Player/Season/Club only; the composite key and stored outcome prevent reload
+and rollover duplication. Current reads remain deterministic and do not
+create weekly snapshots. NPC lifecycle and world simulation do not calculate
+per-Player objectives or narrative pressure.
+
 END OF DOCUMENT

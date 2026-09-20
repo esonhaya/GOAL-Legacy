@@ -57,6 +57,27 @@ final class CareerFormatter
         $lines[] = 'Football Trust: ' . CareerLabels::value($manager['trust_label'] ?? null, 'Not available');
         $lines[] = 'Squad Competition: ' . CareerLabels::value($manager['competition_status'] ?? null, 'Not available');
         $lines[] = 'Playing Time: ' . CareerLabels::value($manager['playing_time_status'] ?? null, 'Not enough evidence');
+        $clubSeason = is_array($summary['club_season'] ?? null) ? $summary['club_season'] : null;
+        $lines[] = '';
+        $lines[] = 'CLUB SEASON';
+        if ($clubSeason === null) {
+            $lines[] = 'No Club Season objective available.';
+        } else {
+            $lines[] = 'Expectation: ' . CareerLabels::value($clubSeason['expectation'] ?? null);
+            $lines[] = 'Progress: ' . CareerLabels::value($clubSeason['progress'] ?? null) . ' | Pressure: ' . CareerLabels::value($clubSeason['pressure'] ?? null);
+            $lines[] = 'League: ' . $this->number($clubSeason['league']['position'] ?? null) . '/' . $this->number($clubSeason['league']['size'] ?? null) . ' · ' . CareerLabels::value($clubSeason['season']['phase'] ?? null);
+            foreach (array_slice((array) ($clubSeason['important_fixtures'] ?? []), 0, 1) as $fixture) {
+                if (is_array($fixture)) {
+                    $lines[] = 'Important fixture: ' . $this->text($fixture['date'] ?? null) . ' vs ' . $this->text($fixture['opponent'] ?? null) . ' — ' . CareerLabels::value($fixture['reason'] ?? null);
+                }
+            }
+            foreach ([['label' => 'Cup', 'key' => 'cup'], ['label' => 'Europe', 'key' => 'europe']] as $knockout) {
+                $context = is_array($clubSeason[$knockout['key']] ?? null) ? $clubSeason[$knockout['key']] : null;
+                if ($context !== null) {
+                    $lines[] = $knockout['label'] . ': ' . $this->text($context['competition'] ?? null, $knockout['label']) . ' — ' . CareerLabels::value($context['status'] ?? null, 'Not started');
+                }
+            }
+        }
 
         $lines[] = '';
         $latestSeason = $history === [] ? null : $history[array_key_last($history)];
@@ -226,11 +247,19 @@ final class CareerFormatter
         foreach ((array) ($summary['legacy_honours'] ?? []) as $honour) {
             if (is_array($honour)) { $lines[] = 'HONOUR: ' . $this->text($honour['label'] ?? null); }
         }
+        $clubSeason = is_array($summary['club_season'] ?? null) ? $summary['club_season'] : null;
+        if ($clubSeason !== null) {
+            $lines[] = 'CLUB OBJECTIVE: ' . CareerLabels::value($clubSeason['expectation'] ?? null) . ' — ' . CareerLabels::value($clubSeason['outcome'] ?? $clubSeason['progress'] ?? null);
+        }
         if (isset($summary['ovr_before'], $summary['ovr_after']) && $summary['ovr_before'] !== $summary['ovr_after']) {
             $lines[] = 'OVR: ' . $this->number($summary['ovr_before']) . ' -> ' . $this->number($summary['ovr_after']);
         }
         if (trim((string) ($summary['role_change'] ?? '')) !== '') { $lines[] = 'Role: ' . (string) $summary['role_change']; }
         if (trim((string) ($summary['tier_outcome'] ?? '')) !== '') { $lines[] = (string) $summary['tier_outcome']; }
+        $objectiveOutcome = is_array($summary['club_objective_outcome'] ?? null) ? $summary['club_objective_outcome'] : null;
+        if ($objectiveOutcome !== null) {
+            $lines[] = 'Club Objective: ' . CareerLabels::value($objectiveOutcome['objective'] ?? null) . ' — ' . CareerLabels::value($objectiveOutcome['outcome'] ?? null);
+        }
         $lines[] = '';
         $lines[] = '1. Back to Career Home';
 
@@ -247,6 +276,14 @@ final class CareerFormatter
         if (trim((string) ($summary['tier_outcome'] ?? '')) !== '') { $lines[] = (string) $summary['tier_outcome']; }
         if (trim((string) ($summary['role_change'] ?? '')) !== '') { $lines[] = 'Role: ' . (string) $summary['role_change']; }
         if (($summary['ovr'] ?? null) !== null) { $lines[] = 'OVR: ' . $this->number($summary['ovr']); }
+        $objectiveOutcome = is_array($summary['club_objective_outcome'] ?? null) ? $summary['club_objective_outcome'] : null;
+        if ($objectiveOutcome !== null) {
+            $lines[] = 'Previous Club Objective: ' . CareerLabels::value($objectiveOutcome['objective'] ?? null) . ' — ' . CareerLabels::value($objectiveOutcome['outcome'] ?? null);
+        }
+        $nextObjective = is_array($summary['next_club_season'] ?? null) ? $summary['next_club_season'] : null;
+        if ($nextObjective !== null) {
+            $lines[] = 'New Club Objective: ' . CareerLabels::value($nextObjective['expectation'] ?? null) . ' — ' . CareerLabels::value($nextObjective['progress'] ?? null);
+        }
         $lines[] = '';
         $lines[] = 'The new Season is ready. Your Season statistics start from zero.';
         $lines[] = '';

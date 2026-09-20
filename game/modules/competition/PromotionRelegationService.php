@@ -28,6 +28,11 @@ final class PromotionRelegationService
     {
     }
 
+    public function automaticExchangeCountForNation(string $nationId): int
+    {
+        return self::AUTOMATIC_EXCHANGE_COUNTS[$nationId] ?? 0;
+    }
+
     /**
      * @param list<CompetitionDefinition> $definitions
      * @return array{promoted:list<array{club_id:string,from_competition_id:string,to_competition_id:string,nation_id:string}>,relegated:list<array{club_id:string,from_competition_id:string,to_competition_id:string,nation_id:string}>}

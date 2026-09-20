@@ -32,6 +32,7 @@ use Goal\Legacy\Modules\Player\PlayerLifecycleService;
 use Goal\Legacy\Modules\Player\CareerLegacyService;
 use Goal\Legacy\Modules\Player\PlayerSeasonPerformanceService;
 use Goal\Legacy\Modules\Player\ClubExpectationService;
+use Goal\Legacy\Modules\Club\ClubSeasonObjectiveService;
 use Goal\Legacy\Modules\Player\Domain\SeasonPerformanceAssessment;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
@@ -121,6 +122,11 @@ final class SeasonRolloverService
         // Resolve durable football achievement before the next Season is
         // prepared and before compaction can remove replay-only evidence.
         $this->careerLegacy?->resolveCompletedSeason($database, $current, $current->endDate());
+        // Club Season stakes use the completed canonical standings while the
+        // outgoing Season's memberships still identify the Player's Club.
+        // Only controlled Careers receive durable objective outcomes; current
+        // objective context remains derived and read-safe.
+        (new ClubSeasonObjectiveService($this->clubService))->resolveControlledSeason($database, $current, $current->endDate());
         $seasonRepository = new SeasonRepository($database);
         $next = $this->nextSeason($current);
         if ($seasonRepository->exists($next->id())) {

@@ -6,6 +6,8 @@ namespace Goal\Legacy\Modules\Player;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\ClubService;
+use Goal\Legacy\Modules\Club\ClubSeasonObjectiveService;
+use Goal\Legacy\Modules\Club\Persistence\ClubSeasonObjectiveRepository;
 use Goal\Legacy\Modules\Club\Domain\Club;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
@@ -111,6 +113,7 @@ final class PlayerCareerProgressionQuery
             'role_history' => $squads->roleHistory($id),
             'contract_history' => array_map(fn (Contract $contract): array => $this->contractView($contract, $clubRepository), $contracts->byPlayer($id)),
             'movement_history' => $this->movementHistory($database, $id, $seasonHistory, $clubRepository),
+            'club_season_history' => (new ClubSeasonObjectiveRepository($database))->byPlayer($id->value()),
         ];
         $summary['transfer_request'] = $careerReference === null ? null : [
             'status' => $careerReference->transferRequestStatus()->value,
@@ -129,6 +132,28 @@ final class PlayerCareerProgressionQuery
         $completedHistory = array_values(array_filter($seasonHistory, static fn (array $row): bool => $row['season_status'] === 'completed'));
         $summary['latest_season_performance'] = $completedHistory === [] ? null : $completedHistory[array_key_last($completedHistory)]['performance'];
         $summary['recent_form'] = (new PlayerFormService())->recent($database, $id);
+        if ($seasonId !== null && $membership !== null && $currentClub !== null && $currentClub->id()->value() === $membership->clubId()->value()) {
+            $seasonStats = is_array($summary['season_stats'] ?? null) ? $summary['season_stats'] : [];
+            $summary['club_season'] = (new ClubSeasonObjectiveService($this->clubService))->context(
+                $database,
+                $membership->clubId(),
+                $seasonId,
+                $date,
+                [
+                    'player_id' => $id->value(),
+                    'role' => $membership->role()->value,
+                    'appearances' => $seasonStats['appearances'] ?? 0,
+                    'starts' => $seasonStats['starts'] ?? 0,
+                    'minutes' => $seasonStats['minutes'] ?? 0,
+                    'goals' => $seasonStats['goals'] ?? 0,
+                    'assists' => $seasonStats['assists'] ?? 0,
+                    'average_match_rating' => $seasonStats['average_match_rating'] ?? null,
+                    'availability' => $summary['availability'] ?? 'available',
+                ],
+            );
+        } else {
+            $summary['club_season'] = null;
+        }
         $selectionRepository = new MatchSelectionRepository($database);
         $matchRepository = new MatchRepository($database);
         $selectionHistory = [];

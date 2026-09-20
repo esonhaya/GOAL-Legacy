@@ -362,4 +362,20 @@ squad-membership, and Competition registration ownership; Clubs do not own
 canonical Player records. Reserve, youth, and academy populations remain
 deferred.
 
+## DOMAIN-020 Controlled Club Season Objective Outcome
+
+`career_club_season_objectives` stores only durable Season-end context for a
+controlled Player's Club chapter: Player, Season, Club, domestic league,
+original objective, optional Cup/European objective, final outcome, resolved
+date, and compact evidence. The current Season objective is derived from
+canonical Club reputation, competition tier, membership, fixtures, and
+standings by `ClubSeasonObjectiveService`; it is not a second standings or
+competition table.
+
+The composite Player/Season/Club key makes rollover resolution idempotent.
+NPC Clubs never create rows, weekly pressure snapshots are not stored, and
+legacy saves derive current context without fabricating historical objective
+events. Unknown final standings remain explicitly unknown rather than being
+classified as a missed objective.
+
 END OF DOCUMENT

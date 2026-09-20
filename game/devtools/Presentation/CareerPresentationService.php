@@ -32,6 +32,7 @@ use Goal\Legacy\Modules\Player\PlayerFormService;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
 use Goal\Legacy\Modules\Club\Persistence\ClubSquadRepository;
+use Goal\Legacy\Modules\Club\ClubSeasonObjectiveService;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 
@@ -176,6 +177,7 @@ final class CareerPresentationService
             'training_intensity' => $controlled ? $controlledSummary['training_intensity'] ?? null : null,
             'readiness' => $controlled ? $controlledSummary['readiness'] ?? null : null,
             'manager_context' => $controlled ? $controlledSummary['manager_context'] ?? null : null,
+            'club_season' => $controlled ? $controlledSummary['club_season'] ?? null : null,
             'position_competition' => $controlled ? $controlledSummary['position_competition'] ?? null : null,
             'position_development' => $positionContext,
             'position_history' => $controlled ? (new PositionDevelopmentService())->history($database, $playerId) : [],
@@ -255,11 +257,13 @@ final class CareerPresentationService
             if ($match->status() === MatchStatus::Completed && !$match->scheduledDate()->isAfter($date)) { $recent[] = $this->fixtureText($database, $match, $controlledClubId ?? ''); }
             if ($match->status() === MatchStatus::Scheduled && !$match->scheduledDate()->isBefore($date)) { $upcoming[] = $this->fixtureText($database, $match, $controlledClubId ?? ''); }
         }
+        $objective = (new ClubSeasonObjectiveService($this->services->clubModule()->service()))->context($database, $club->id(), $seasonId, $date);
 
         return [
             'club' => $club,
             'competition' => $competition,
             'position' => $position,
+            'club_season' => $objective,
             'recent_results' => array_slice(array_reverse($recent), 0, 5),
             'upcoming_fixtures' => array_slice($upcoming, 0, 5),
         ];
@@ -380,6 +384,7 @@ final class CareerPresentationService
                     'position' => $index + 1,
                     'played' => (int) ($row['played'] ?? 0),
                     'points' => (int) ($row['points'] ?? 0),
+                    'club_season' => $summary['club_season'] ?? null,
                 ];
             }
         }
@@ -799,6 +804,7 @@ final class CareerPresentationService
             'international_stats' => $internationalStats,
             'legacy_awards' => $legacyAwards,
             'legacy_honours' => $legacyHonours,
+            'club_season' => $summary['club_season'] ?? null,
         ];
     }
 
@@ -876,6 +882,13 @@ final class CareerPresentationService
         if (is_array($previous) && is_array($current) && ($previous['role'] ?? null) !== ($current['role'] ?? null)) {
             $roleChange = CareerLabels::value($previous['role'] ?? null) . ' -> ' . CareerLabels::value($current['role'] ?? null);
         }
+        $objectiveOutcome = null;
+        foreach ((array) ($summary['club_season_history'] ?? []) as $objectiveRow) {
+            if (is_array($objectiveRow) && ($objectiveRow['season_id'] ?? null) === $previousSeasonId) {
+                $objectiveOutcome = $objectiveRow;
+                break;
+            }
+        }
 
         return [
             'season' => is_array($current) ? ($current['season'] ?? $currentSeasonId) : $currentSeasonId,
@@ -886,6 +899,8 @@ final class CareerPresentationService
             'ovr' => $summary['current_ovr'] ?? null,
             'awards' => array_values(array_filter((array) (($summary['legacy'] ?? [])['awards'] ?? []), static fn (array $row): bool => ($row['season_id'] ?? null) === $previousSeasonId)),
             'honours' => array_values(array_filter((array) (($summary['legacy'] ?? [])['honours'] ?? []), static fn (array $row): bool => ($row['season_id'] ?? null) === $previousSeasonId)),
+            'club_objective_outcome' => $objectiveOutcome,
+            'next_club_season' => $summary['club_season'] ?? null,
         ];
     }
 

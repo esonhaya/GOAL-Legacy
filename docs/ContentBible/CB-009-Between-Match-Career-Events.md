@@ -143,4 +143,20 @@ single durable Career landmark, but it does not change historical Match copy,
 attributes, or grant manager trust directly. Player-facing language should
 describe learning an option rather than promising future selection.
 
+## P2-020 Club Season Pressure
+
+Club Season copy should explain the football situation, not simulate a
+boardroom. Use the stable Club expectation, current standings, actual Season
+phase, promotion/relegation context, Cup/European progress, and meaningful
+upcoming fixtures. Prefer factual tones such as `on track`, `under pressure`,
+`at risk`, or `exceeding expectations`.
+
+The controlled Player's role and contribution provide context: a Prospect is
+not narrated as the cause of Club failure, while a Key Player may be described
+as important during a run-in when appearances, minutes, or performance support
+that reading. Routine pressure changes stay private. Promotion, relegation,
+title, and major Cup/European outcomes may use the existing News, Echo, Pulse,
+and Career History routes; no duplicate narrative system or NPC objective
+conversation is created.
+
 END OF DOCUMENT

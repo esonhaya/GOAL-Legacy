@@ -156,9 +156,14 @@ Fields include:
 - Weak Foot Rating
 - Skill Move Rating
 
-DOMAIN-004 implements only a stable primary position. Secondary positions,
-preferred foot, and deeper role taxonomies remain deferred until their
-canonical rules are defined.
+The primary position remains the one canonical value in `player_records`.
+P2-019 adds controlled-Career-only positional development in compact
+`player_position_development` state: established secondary positions,
+one developing target, and bounded progress. It reuses the existing coarse
+position enum and adjacent attribute-fit rules; it does not add a second
+position taxonomy or NPC retraining rows. A completed target may become the
+explicit primary position, while the previous primary is retained as a
+secondary capability.
 
 ---
 

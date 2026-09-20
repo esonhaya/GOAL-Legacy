@@ -16,12 +16,13 @@ use Goal\Legacy\Modules\Match\Domain\TeamStrength;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
+use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
 use Goal\Legacy\Modules\Match\Domain\SimulationFidelity;
 
 final class MatchSimulationService
 {
-    public function __construct(private readonly ClubService $clubService, private readonly MatchSelectionService $selectionService) {}
+    public function __construct(private readonly ClubService $clubService, private readonly MatchSelectionService $selectionService, private readonly ?PositionDevelopmentService $positions = null) {}
 
     public function simulate(DatabaseInterface $database, GameMatch $match, SimulationFidelity $fidelity = SimulationFidelity::Player): MatchSimulation
     {

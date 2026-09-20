@@ -287,4 +287,25 @@ Career priority/development owners; they cannot change attributes, OVR,
 potential, Match outcomes, or guarantee selection. No weekly trust snapshots,
 NPC trust rows, manager personalities, or social-manager simulation exist.
 
+## P2-019 Positional Career Evolution
+
+The Player keeps one canonical primary position. A controlled Player may
+develop one adjacent, attribute-compatible position at a time through the
+existing deterministic TrainingService cadence. Progress is compact current
+state, not a daily history or achievement currency. Natural secondary
+positions are usable context with a bounded suitability advantage; an
+unfinished target remains a developing option and is not treated as a new
+role or guaranteed selection.
+
+Goalkeeper-to-outfield retraining is blocked. Supported transitions follow
+the coarse existing taxonomy (for example DM/CM, CM/AM, full-back/defensive
+or wide adjacent roles, and adjacent attacking roles). When a target reaches
+completion the controlled Player explicitly chooses whether to make it the
+primary position. Attributes and historical Matches are not rewritten; OVR is
+still the existing position-independent derived value. The Match module
+stores a position snapshot only for controlled detailed Matches so later
+primary-position changes cannot reinterpret historical ratings. Transfer,
+international, role, manager-trust, and selection systems consume the current
+primary/established capability through their existing owners.
+
 END OF DOCUMENT

@@ -46,6 +46,7 @@ final class PlayerCareerProgressionQuery
         $player = (new PlayerServiceProxy($database))->get($id);
         $retirement = (new PlayerRetirementRepository($database, false))->get($id);
         $development = new PlayerDevelopmentService();
+        $positions = new PositionDevelopmentService();
         $statistics = new PlayerCareerStatisticsService();
         $availability = (new PlayerAvailabilityService())->assess($database, $id, $date);
         $squads = $this->clubService->squadRepository($database);
@@ -62,7 +63,8 @@ final class PlayerCareerProgressionQuery
         $currentClub = $activeContract === null ? null : $clubRepository->get($activeContract->clubId());
         $currentCompetition = $this->competitionForMembership($database, $currentMembership, $competitionRepository);
         $seasonHistory = $this->seasonHistory($database, $id, $allMemberships, $clubRepository, $competitionRepository);
-        $positionCompetition = $this->positionCompetition($database, $currentMembership, $player);
+        $positionContext = $positions->context($database, $id, $date);
+        $positionCompetition = $this->positionCompetition($database, $currentMembership, $player, $positionContext['secondary_positions'] ?? [], $positionContext['developing_position'] ?? null);
         $careerReference = (new CareerPlayerRepository($database))->byPlayer($id);
         $openOpportunities = $player->isRetired() ? [] : array_values(array_filter(
             (new CareerOpportunityRepository($database))->openForPlayer($id, $date),
@@ -71,6 +73,8 @@ final class PlayerCareerProgressionQuery
         $developmentHistory = $development->history($database, $id);
         $summary = [
             'player' => $player->toArray(),
+            'position_development' => $positionContext,
+            'position_history' => $positions->history($database, $id),
             'age' => $player->ageAt($date),
             'current_ovr' => $player->overallRating(),
             'current_season_id' => $seasonId?->value(),
@@ -200,7 +204,7 @@ final class PlayerCareerProgressionQuery
     }
 
     /** @return array<string, mixed>|null */
-    private function positionCompetition(DatabaseInterface $database, ?ClubSquadMembership $membership, Player $player): ?array
+    private function positionCompetition(DatabaseInterface $database, ?ClubSquadMembership $membership, Player $player, array $secondaryPositions = [], ?string $developingPosition = null): ?array
     {
         if ($membership === null) {
             return null;
@@ -214,7 +218,12 @@ final class PlayerCareerProgressionQuery
                 continue;
             }
             $candidate = $players->get($candidateMembership->playerId());
-            if ($candidate->primaryPosition() !== $player->primaryPosition()) {
+            $candidatePosition = $candidate->primaryPosition()->value;
+            $capablePositions = array_merge([$player->primaryPosition()->value], array_values(array_filter(array_map('strval', $secondaryPositions))));
+            if ($developingPosition !== null && in_array($developingPosition, array_map(static fn ($position): string => $position->value, PositionDevelopmentRules::compatibleWith($player->primaryPosition())), true)) {
+                $capablePositions[] = $developingPosition;
+            }
+            if (!in_array($candidatePosition, array_values(array_unique($capablePositions)), true)) {
                 continue;
             }
             $samePosition[] = [

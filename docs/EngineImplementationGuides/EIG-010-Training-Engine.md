@@ -319,4 +319,16 @@ Player receives no normal development stimulus or training load. Readiness is
 read-only projection from fatigue and active Injury state, and ordinary NPCs
 do not receive individual training plans or detailed fitness history.
 
+## P2-019 Positional Focus
+
+Positional development is a medium-term controlled-Career focus layered onto
+the existing training block, not a second training or XP engine. A target
+must be adjacent to the current primary and pass the bounded attribute-fit
+rule. Light, normal, and intense canonical blocks advance familiarity at
+different bounded rates after `PlayerDevelopmentService` accepts the block;
+double-submitted blocks do not advance it twice. Completion establishes a
+secondary capability, and a separate explicit action changes the primary
+position. Position focus does not restore readiness, create routine injury,
+or guarantee selection.
+
 END OF DOCUMENT

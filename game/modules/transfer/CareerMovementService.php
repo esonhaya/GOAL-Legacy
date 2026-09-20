@@ -23,6 +23,7 @@ use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
 use Goal\Legacy\Modules\Player\PlayerFormService;
 use Goal\Legacy\Modules\Player\PlayerSeasonPerformanceService;
 use Goal\Legacy\Modules\Player\PlayerPopulationService;
+use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunity;
 use Goal\Legacy\Modules\Player\Domain\CareerPlayerReference;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunityStatus;
@@ -89,6 +90,7 @@ final class CareerMovementService
         $honours = $legacy->honoursForPlayer($playerId->value());
         $international = $this->internationalMarketStats($database, $playerId->value());
         $market = $this->marketAssessment($player, $metrics, $membership?->role(), $awards, $honours, $international, $date);
+        $positionContext = (new PositionDevelopmentService())->context($database, $playerId, $date);
         $profiles = $this->clubMarketProfiles($database, $seasonId);
         $clubProfile = $club === null ? null : ($profiles[$club->id()->value()] ?? null);
 
@@ -101,6 +103,11 @@ final class CareerMovementService
             'overall' => $player->overallRating(),
             'potential' => $player->potential(),
             'role' => $membership?->role()->value,
+            'position_context' => [
+                'primary' => $positionContext['primary_position'],
+                'secondary' => $positionContext['secondary_positions'],
+                'developing' => $positionContext['developing_position'],
+            ],
             'appearances' => (int) $metrics['appearances'],
             'minutes' => (int) $metrics['minutes'],
             'recent_form' => (int) $metrics['form'],
@@ -980,7 +987,8 @@ final class CareerMovementService
     {
         $profiles ??= $this->clubMarketProfiles($database, $seasonId);
         $profile = $profiles[$clubId->value()] ?? ['players' => [], 'squad_count' => 0, 'capacity' => PlayerPopulationService::TARGET_SQUAD_SIZE, 'level' => 'Lower Level', 'level_score' => 0, 'competition_id' => null, 'competition_name' => null, 'has_europe' => false];
-        $players = array_values(array_filter((array) ($profile['players'] ?? []), fn (array $candidate): bool => ($candidate['group'] ?? '') === $this->positionGroup($player)));
+        $groups = $this->positionGroups($database, $player);
+        $players = array_values(array_filter((array) ($profile['players'] ?? []), static fn (array $candidate): bool => in_array(($candidate['group'] ?? ''), $groups, true)));
         usort($players, static fn (array $left, array $right): int => ($right['score'] <=> $left['score']) ?: strcmp((string) $left['player_id'], (string) $right['player_id']));
         $rank = 1;
         foreach ($players as $entry) {
@@ -1005,6 +1013,7 @@ final class CareerMovementService
             'competition_name' => $profile['competition_name'] ?? null,
             'has_europe' => (bool) ($profile['has_europe'] ?? false),
             'projected_role' => $projected->value,
+            'position_groups' => $groups,
         ];
     }
 
@@ -1256,5 +1265,26 @@ final class CareerMovementService
             'LW', 'RW', 'ST' => 'attacking',
             default => 'midfield',
         };
+    }
+
+    /** @return list<string> */
+    private function positionGroups(DatabaseInterface $database, Player $player): array
+    {
+        $positions = (new PositionDevelopmentService())->capabilityValues($database, $player);
+        $groups = [];
+        foreach ($positions as $value) {
+            $group = match ($value) {
+                'GK' => 'goalkeeper',
+                'CB', 'LB', 'RB' => 'defensive',
+                'DM', 'CM', 'AM' => 'midfield',
+                'LW', 'RW', 'ST' => 'attacking',
+                default => null,
+            };
+            if ($group !== null && !in_array($group, $groups, true)) {
+                $groups[] = $group;
+            }
+        }
+
+        return $groups === [] ? [$this->positionGroup($player)] : $groups;
     }
 }

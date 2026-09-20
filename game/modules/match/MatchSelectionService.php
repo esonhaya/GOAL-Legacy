@@ -16,11 +16,12 @@ use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\AvailabilityStatus;
 use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
 use Goal\Legacy\Modules\Player\ManagerTrustService;
+use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 
 final class MatchSelectionService
 {
-    public function __construct(private readonly ClubService $clubService, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?ManagerTrustService $managerTrust = null)
+    public function __construct(private readonly ClubService $clubService, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?ManagerTrustService $managerTrust = null, private readonly ?PositionDevelopmentService $positions = null)
     {
     }
 
@@ -46,7 +47,11 @@ final class MatchSelectionService
                 $role = $roles[$player->id()->value()] ?? SquadRole::Prospect;
                 $fatiguePenalty = $assessment->fatigue() * 4;
                 $trustInfluence = $this->managerTrust?->selectionInfluence($database, $player, $clubId, $role, $assessment->fatigue(), isset($controlledPlayers[$player->id()->value()])) ?? 0;
-                $ranked[] = ['player' => $player, 'score' => $role->weight() + ($player->overallRating() * 10) + $this->formBonus($database, $player->id()->value(), $match) - $fatiguePenalty + $trustInfluence, 'tie' => hash('sha256', $match->id()->value() . '|' . $player->id()->value()), 'group' => $this->positionGroup($player)];
+                $positionInfluence = isset($controlledPlayers[$player->id()->value()]) ? ($this->positions ?? new PositionDevelopmentService())->selectionInfluence($database, $player) : 0;
+                $groups = isset($controlledPlayers[$player->id()->value()])
+                    ? $this->positionGroups($database, $player)
+                    : [$this->positionGroup($player)];
+                $ranked[] = ['player' => $player, 'score' => $role->weight() + ($player->overallRating() * 10) + $this->formBonus($database, $player->id()->value(), $match) - $fatiguePenalty + $trustInfluence + $positionInfluence, 'tie' => hash('sha256', $match->id()->value() . '|' . $player->id()->value()), 'group' => $this->positionGroup($player), 'groups' => $groups];
             }
             usort($ranked, static fn (array $a, array $b): int => ($b['score'] <=> $a['score']) ?: strcmp($a['tie'], $b['tie']));
             $starters = $this->positionAwareStarters($ranked);
@@ -66,7 +71,7 @@ final class MatchSelectionService
         return $selections;
     }
 
-    /** @param list<array{player:Player,score:int,tie:string,group:string}> $ranked @return list<array{player:Player,score:int,tie:string,group:string}> */
+    /** @param list<array{player:Player,score:int,tie:string,group:string,groups:list<string>}> $ranked @return list<array{player:Player,score:int,tie:string,group:string,groups:list<string>}> */
     private function positionAwareStarters(array $ranked): array
     {
         $quotas = ['goalkeeper' => 1, 'defensive' => 4, 'midfield' => 3, 'attacking' => 3];
@@ -76,7 +81,7 @@ final class MatchSelectionService
             $groupCount = 0;
             foreach ($ranked as $entry) {
                 $playerId = $entry['player']->id()->value();
-                if ($entry['group'] !== $group || isset($selectedIds[$playerId])) {
+                if (!in_array($group, $entry['groups'], true) || isset($selectedIds[$playerId])) {
                     continue;
                 }
                 $selected[] = $entry;
@@ -100,7 +105,7 @@ final class MatchSelectionService
         return $selected;
     }
 
-    /** @param list<array{player:Player,score:int,tie:string,group:string}> $remaining @return list<array{player:Player,score:int,tie:string,group:string}> */
+    /** @param list<array{player:Player,score:int,tie:string,group:string,groups:list<string>}> $remaining @return list<array{player:Player,score:int,tie:string,group:string,groups:list<string>}> */
     private function positionAwareBench(array $remaining): array
     {
         $selected = [];
@@ -108,7 +113,7 @@ final class MatchSelectionService
         foreach (['goalkeeper', 'defensive', 'midfield', 'attacking'] as $group) {
             foreach ($remaining as $entry) {
                 $playerId = $entry['player']->id()->value();
-                if ($entry['group'] === $group && !isset($selectedIds[$playerId])) {
+                if (in_array($group, $entry['groups'], true) && !isset($selectedIds[$playerId])) {
                     $selected[] = $entry;
                     $selectedIds[$playerId] = true;
                     break;
@@ -137,6 +142,26 @@ final class MatchSelectionService
             'LW', 'RW', 'ST' => 'attacking',
             default => 'midfield',
         };
+    }
+
+    /** @return list<string> */
+    private function positionGroups(DatabaseInterface $database, Player $player): array
+    {
+        $groups = [];
+        foreach (($this->positions ?? new PositionDevelopmentService())->capabilityValues($database, $player) as $value) {
+            $group = match ($value) {
+                'GK' => 'goalkeeper',
+                'CB', 'LB', 'RB' => 'defensive',
+                'DM', 'CM', 'AM' => 'midfield',
+                'LW', 'RW', 'ST' => 'attacking',
+                default => null,
+            };
+            if ($group !== null && !in_array($group, $groups, true)) {
+                $groups[] = $group;
+            }
+        }
+
+        return $groups === [] ? [$this->positionGroup($player)] : $groups;
     }
 
     /** @return list<Player> */

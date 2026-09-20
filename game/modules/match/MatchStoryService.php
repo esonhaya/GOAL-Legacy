@@ -14,6 +14,7 @@ use Goal\Legacy\Modules\Match\Persistence\MatchHighlightRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSubstitutionRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
+use Goal\Legacy\Modules\Match\Persistence\ControlledMatchPositionRepository;
 use Goal\Legacy\Modules\Player\Domain\AvailabilityStatus;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
@@ -63,7 +64,7 @@ final class MatchStoryService
         }
         $status = $selection?->status() ?? SelectionStatus::NotSelected;
         $state = $this->participationState($status, $stat, $availabilityStatus);
-        $position = $player->primaryPosition();
+        $position = (new ControlledMatchPositionRepository($database, false))->position($match->id(), $id) ?? $player->primaryPosition();
         $ratingExplanation = $stat === null ? $this->ratings->explain(new PlayerMatchStat($match->id(), $id, $selection?->clubId() ?? $match->homeClubId(), false, false, 0, 0), $position) : $this->ratings->explain($stat, $position);
         $facts = $this->playerFacts($id, $stat, $timeline);
         $teamId = $stat?->clubId()->value() ?? $selection?->clubId()->value();
@@ -267,7 +268,8 @@ final class MatchStoryService
         $candidates = [];
         foreach ($stats as $stat) {
             if (!$stat->appeared() || !isset($byId[$stat->playerId()->value()])) { continue; }
-            $rating = $this->ratings->rate($stat, $byId[$stat->playerId()->value()]->primaryPosition());
+            $position = (new ControlledMatchPositionRepository($database, false))->position($match->id(), $stat->playerId()) ?? $byId[$stat->playerId()->value()]->primaryPosition();
+            $rating = $this->ratings->rate($stat, $position);
             if ($rating === null) { continue; }
             $candidates[] = ['player_id' => $stat->playerId()->value(), 'rating' => $rating, 'minutes' => $stat->minutes(), 'goals' => $stat->goals(), 'assists' => $stat->assists()];
         }

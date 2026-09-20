@@ -207,6 +207,10 @@ final class ManagerTrustService
         if (($summary['availability'] ?? 'available') === AvailabilityStatus::Unavailable->value) {
             $reasons[] = 'Returning from injury or unavailable';
         }
+        $position = is_array($summary['position_development'] ?? null) ? $summary['position_development'] : [];
+        if (($position['developing_position'] ?? null) !== null) {
+            $reasons[] = 'Learning an additional position';
+        }
         if ((int) ($playing['red_cards'] ?? 0) > 0) {
             $reasons[] = 'Recent disciplinary issue';
         }
@@ -218,6 +222,10 @@ final class ManagerTrustService
     {
         if (($summary['availability'] ?? 'available') === AvailabilityStatus::Unavailable->value) {
             return 'We will manage your minutes while you recover.';
+        }
+        $position = is_array($summary['position_development'] ?? null) ? $summary['position_development'] : [];
+        if (($position['developing_position'] ?? null) !== null && (int) ($position['progress'] ?? 0) >= 50) {
+            return "You're becoming another option in that position; keep learning the role.";
         }
         if ($playingStatus === 'severely_below_expectation' && $window >= 3) {
             return 'You need more consistent performances and more football.';

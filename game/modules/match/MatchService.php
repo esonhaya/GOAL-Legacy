@@ -21,8 +21,10 @@ use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSubstitutionRepository;
+use Goal\Legacy\Modules\Match\Persistence\ControlledMatchPositionRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
+use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\PlayerDevelopmentService;
 use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
 use Goal\Legacy\Modules\Player\Persistence\CareerEvaluationRepository;
@@ -38,6 +40,7 @@ use Goal\Legacy\Modules\Competition\EuropeanCompetitionService;
 use Goal\Legacy\Modules\International\InternationalCompetitionService;
 use Goal\Legacy\Modules\Player\FootballSocialService;
 use Goal\Legacy\Modules\Player\ManagerTrustService;
+use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 
 final class MatchService
 {
@@ -45,10 +48,10 @@ final class MatchService
     private readonly MatchSimulationService $simulator;
     private readonly StandingsService $standings;
 
-    public function __construct(private readonly ClubService $clubService, private readonly EventDispatcherInterface $events, private readonly ?PlayerDevelopmentService $development = null, private readonly ?ClubExpectationService $expectations = null, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?DomesticCupService $domesticCups = null, private readonly ?EuropeanCompetitionService $europeanCompetitions = null, private readonly ?InternationalCompetitionService $internationalCompetitions = null, private readonly ?FootballSocialService $footballSocial = null, private readonly ?ManagerTrustService $managerTrust = null)
+    public function __construct(private readonly ClubService $clubService, private readonly EventDispatcherInterface $events, private readonly ?PlayerDevelopmentService $development = null, private readonly ?ClubExpectationService $expectations = null, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?DomesticCupService $domesticCups = null, private readonly ?EuropeanCompetitionService $europeanCompetitions = null, private readonly ?InternationalCompetitionService $internationalCompetitions = null, private readonly ?FootballSocialService $footballSocial = null, private readonly ?ManagerTrustService $managerTrust = null, private readonly ?PositionDevelopmentService $positions = null)
     {
         $this->fixtureGenerator = new FixtureGenerationService($clubService);
-        $this->simulator = new MatchSimulationService($clubService, new MatchSelectionService($clubService, $availability, $managerTrust));
+        $this->simulator = new MatchSimulationService($clubService, new MatchSelectionService($clubService, $availability, $managerTrust, $positions), $positions);
         $this->standings = new StandingsService($clubService);
     }
     public function repository(DatabaseInterface $database): MatchRepository { return new MatchRepository($database); }
@@ -94,21 +97,37 @@ final class MatchService
             $players = new PlayerRepository($database);
             foreach ($stats as $stat) { $positions[$stat->playerId()->value()] = $players->get($stat->playerId())->primaryPosition(); }
         }
+        $controlledPositions = [];
+        if ($fidelity === SimulationFidelity::Player) {
+            $controlled = array_fill_keys((new CareerPlayerRepository($database))->playerIds(), true);
+            $players = new PlayerRepository($database);
+            foreach ($stats as $stat) {
+                if (isset($controlled[$stat->playerId()->value()])) {
+                    $controlledPositions[$stat->playerId()->value()] = $players->get($stat->playerId())->primaryPosition();
+                }
+            }
+        }
         // Match persistence repositories are constructed again inside the
         // atomic write. Warm their schemas before the transaction so guarded
         // DDL can never become part of a rollback-prone Match transaction.
         new MatchSelectionRepository($database); new MatchSubstitutionRepository($database); new PlayerMatchStatRepository($database); new MatchHighlightRepository($database); new PlayerAvailabilityRepository($database); new PlayerDevelopmentRepository($database); new CareerEvaluationRepository($database);
+        if ($controlledPositions !== []) {
+            new ControlledMatchPositionRepository($database);
+        }
         if ($fidelity === SimulationFidelity::World && !$international) {
             new PlayerSeasonStatisticsRepository($database);
             new PlayerCompetitionStatisticsRepository($database);
         }
-        $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database, $fidelity, $positions, $international): array {
+        $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database, $fidelity, $positions, $international, $controlledPositions): array {
             $completed = $match->complete($simulation->result());
             $repository->saveInTransaction($completed);
             if ($fidelity === SimulationFidelity::Player) {
                 (new MatchSelectionRepository($database))->replaceForMatchInTransaction($selections);
                 (new MatchSubstitutionRepository($database))->replaceForMatchInTransaction($substitutions);
                 (new PlayerMatchStatRepository($database))->replaceForMatchInTransaction($stats);
+                foreach ($controlledPositions as $playerId => $position) {
+                    (new ControlledMatchPositionRepository($database, false))->saveInTransaction($completed->id(), new PlayerId($playerId), $position);
+                }
             } elseif (!$international) {
                 (new PlayerSeasonStatisticsRepository($database))->addMatchInTransaction($completed, $stats, $positions);
                 (new PlayerCompetitionStatisticsRepository($database))->addMatchInTransaction($completed, $stats, $positions);
@@ -173,7 +192,7 @@ final class MatchService
     /** @return array<string, mixed>|null */
     public function playerSummary(DatabaseInterface $database, string|MatchId $matchId, string|PlayerId $playerId): ?array
     {
-        $match = $this->repository($database)->get($matchId); $player = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId); $stat = array_values(array_filter($this->statRepository($database)->byMatch($match->id()), static fn (PlayerMatchStat $value): bool => $value->playerId()->value() === $player->value()))[0] ?? null; if ($stat === null) { return null; } $opponent = $stat->clubId()->value() === $match->homeClubId()->value() ? $match->awayClubId()->value() : $match->homeClubId()->value(); $position = (new PlayerRepository($database))->get($player)->primaryPosition(); return ['match_id' => $match->id()->value(), 'player_id' => $player->value(), 'club_id' => $stat->clubId()->value(), 'opponent_club_id' => $opponent, 'home_club_id' => $match->homeClubId()->value(), 'away_club_id' => $match->awayClubId()->value(), 'appeared' => $stat->appeared(), 'started' => $stat->started(), 'minutes' => $stat->minutes(), 'goals' => $stat->goals(), 'assists' => $stat->assists(), 'shots' => $stat->shots(), 'shots_on_target' => $stat->shotsOnTarget(), 'saves' => $stat->saves(), 'clean_sheets' => $stat->cleanSheets(), 'tackles' => $stat->tackles(), 'interceptions' => $stat->interceptions(), 'blocks' => $stat->blocks(), 'passes_attempted' => $stat->passesAttempted(), 'passes_completed' => $stat->passesCompleted(), 'fouls_committed' => $stat->foulsCommitted(), 'yellow_cards' => $stat->yellowCards(), 'red_cards' => $stat->redCards(), 'rating' => (new PlayerMatchRatingService())->rate($stat, $position), 'highlights' => array_values(array_map(static fn ($highlight): array => $highlight->toArray(), array_filter($this->highlightRepository($database)->byMatch($match->id()), static fn ($highlight): bool => $highlight->playerId()?->value() === $player->value() || (($highlight->data()['assist_player_id'] ?? null) === $player->value()))))];
+        $match = $this->repository($database)->get($matchId); $player = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId); $stat = array_values(array_filter($this->statRepository($database)->byMatch($match->id()), static fn (PlayerMatchStat $value): bool => $value->playerId()->value() === $player->value()))[0] ?? null; if ($stat === null) { return null; } $opponent = $stat->clubId()->value() === $match->homeClubId()->value() ? $match->awayClubId()->value() : $match->homeClubId()->value(); $position = (new ControlledMatchPositionRepository($database, false))->position($match->id(), $player) ?? (new PlayerRepository($database))->get($player)->primaryPosition(); return ['match_id' => $match->id()->value(), 'player_id' => $player->value(), 'club_id' => $stat->clubId()->value(), 'opponent_club_id' => $opponent, 'home_club_id' => $match->homeClubId()->value(), 'away_club_id' => $match->awayClubId()->value(), 'appeared' => $stat->appeared(), 'started' => $stat->started(), 'minutes' => $stat->minutes(), 'goals' => $stat->goals(), 'assists' => $stat->assists(), 'shots' => $stat->shots(), 'shots_on_target' => $stat->shotsOnTarget(), 'saves' => $stat->saves(), 'clean_sheets' => $stat->cleanSheets(), 'tackles' => $stat->tackles(), 'interceptions' => $stat->interceptions(), 'blocks' => $stat->blocks(), 'passes_attempted' => $stat->passesAttempted(), 'passes_completed' => $stat->passesCompleted(), 'fouls_committed' => $stat->foulsCommitted(), 'yellow_cards' => $stat->yellowCards(), 'red_cards' => $stat->redCards(), 'rating' => (new PlayerMatchRatingService())->rate($stat, $position), 'position' => $position->value, 'highlights' => array_values(array_map(static fn ($highlight): array => $highlight->toArray(), array_filter($this->highlightRepository($database)->byMatch($match->id()), static fn ($highlight): bool => $highlight->playerId()?->value() === $player->value() || (($highlight->data()['assist_player_id'] ?? null) === $player->value()))))];
     }
 
     /** @return array<string, mixed> */

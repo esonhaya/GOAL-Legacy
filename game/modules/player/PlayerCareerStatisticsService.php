@@ -7,6 +7,7 @@ namespace Goal\Legacy\Modules\Player;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
+use Goal\Legacy\Modules\Match\Persistence\ControlledMatchPositionRepository;
 use Goal\Legacy\Modules\Match\PlayerMatchRatingService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
@@ -80,6 +81,7 @@ final class PlayerCareerStatisticsService
         $matches = new MatchRepository($database);
         $stats = new PlayerMatchStatRepository($database);
         $players = new PlayerRepository($database);
+        $positionSnapshots = new ControlledMatchPositionRepository($database, false);
         $ratings = new PlayerMatchRatingService();
         $result = $this->emptyDetailed();
         $ratingTotal = 0.0;
@@ -93,7 +95,7 @@ final class PlayerCareerStatisticsService
             $result['starts'] += $stat->started() ? 1 : 0;
             $result['minutes'] += $stat->minutes();
             $this->addStatEvidence($result, $stat);
-            $rating = $ratings->rate($stat, $position);
+            $rating = $ratings->rate($stat, $positionSnapshots->position($stat->matchId(), $id) ?? $position);
             if ($rating !== null) {
                 $ratingTotal += $rating;
                 ++$result['rated_appearances'];
@@ -114,6 +116,7 @@ final class PlayerCareerStatisticsService
         $id = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
         $stats = new PlayerMatchStatRepository($database);
         $players = new PlayerRepository($database);
+        $positionSnapshots = new ControlledMatchPositionRepository($database, false);
         $ratings = new PlayerMatchRatingService();
         $matches = new MatchRepository($database);
         $result = $this->emptyDetailed();
@@ -130,7 +133,7 @@ final class PlayerCareerStatisticsService
             $result['minutes'] += $stat->minutes();
             $this->addStatEvidence($result, $stat);
             $detailedKeys[$match->seasonId()->value() . ':' . $stat->clubId()->value()] = true;
-            $rating = $ratings->rate($stat, $players->get($id)->primaryPosition());
+            $rating = $ratings->rate($stat, $positionSnapshots->position($stat->matchId(), $id) ?? $players->get($id)->primaryPosition());
             if ($rating !== null) {
                 $ratingTotal += $rating;
                 ++$result['rated_appearances'];
@@ -153,6 +156,7 @@ final class PlayerCareerStatisticsService
         $matches = new MatchRepository($database);
         $stats = new PlayerMatchStatRepository($database);
         $players = new PlayerRepository($database);
+        $positionSnapshots = new ControlledMatchPositionRepository($database, false);
         $ratings = new PlayerMatchRatingService();
         $result = $this->emptyDetailed();
         $ratingTotal = 0.0;
@@ -169,7 +173,7 @@ final class PlayerCareerStatisticsService
             $result['minutes'] += $stat->minutes();
             $this->addStatEvidence($result, $stat);
             $detailedKeys[$match->seasonId()->value() . ':' . $stat->clubId()->value()] = true;
-            $rating = $ratings->rate($stat, $position);
+            $rating = $ratings->rate($stat, $positionSnapshots->position($stat->matchId(), $playerId) ?? $position);
             if ($rating !== null) {
                 $ratingTotal += $rating;
                 ++$result['rated_appearances'];

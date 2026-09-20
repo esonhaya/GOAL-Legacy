@@ -361,4 +361,19 @@ resolved conversation; a new Season only permits a new conversation if a new
 sustained mismatch exists. No manager-context data is added to NPC lifecycle
 passes or copied during compaction.
 
+### P2-019 controlled positional state
+
+`player_records.primary_position` remains the canonical primary-position
+field. `player_position_development` stores only the controlled Player's
+current established secondary positions, active target, bounded progress,
+revision, and last simulation date. `career_position_changes` stores one
+idempotent landmark per completed primary-position transition. Legacy saves
+without these tables safely read as primary-only and do not receive
+fabricated secondary history. NPCs create no positional-development rows.
+
+Controlled detailed Matches additionally use `controlled_match_positions` to
+snapshot the Player's position at Match time. Rating/history consumers prefer
+that snapshot and fall back to the current primary position for old saves;
+World-fidelity Matches never create the table's detail rows.
+
 END OF DOCUMENT

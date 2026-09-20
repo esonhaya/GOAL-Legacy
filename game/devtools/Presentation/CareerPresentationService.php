@@ -29,6 +29,7 @@ use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
 use Goal\Legacy\Modules\Player\CareerLegacyService;
 use Goal\Legacy\Modules\Player\PlayerCareerStatisticsService;
 use Goal\Legacy\Modules\Player\PlayerFormService;
+use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
 use Goal\Legacy\Modules\Club\Persistence\ClubSquadRepository;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -114,6 +115,9 @@ final class CareerPresentationService
         $internationalStats = $this->services->nationalTeams()->playerStats($database, $playerId, $seasonId);
         $internationalHistory = $this->services->internationalCompetitions()->history($database, $playerId);
         $internationalContext = (new PlayerCareerProgressionQuery($this->services->clubModule()->service()))->summary($database, $playerId, $date, $seasonId)['international'] ?? [];
+        $positionContext = $controlled
+            ? (new PositionDevelopmentService())->context($database, $playerId, $date)
+            : null;
         $social = $this->services->playerModule()->service()->socialService();
         $legacyRepository = new CareerLegacyRepository($database, false);
         $legacy = $controlled ? [
@@ -173,6 +177,8 @@ final class CareerPresentationService
             'readiness' => $controlled ? $controlledSummary['readiness'] ?? null : null,
             'manager_context' => $controlled ? $controlledSummary['manager_context'] ?? null : null,
             'position_competition' => $controlled ? $controlledSummary['position_competition'] ?? null : null,
+            'position_development' => $positionContext,
+            'position_history' => $controlled ? (new PositionDevelopmentService())->history($database, $playerId) : [],
             'priority' => $controlled ? $controlledSummary['priority'] ?? null : null,
             'contract' => $controlled ? $controlledSummary['current_contract'] ?? null : null,
             'market' => $market,

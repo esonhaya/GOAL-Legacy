@@ -10,7 +10,7 @@ use Goal\Legacy\Modules\Player\Domain\TrainingRequest;
 
 final class TrainingService
 {
-    public function __construct(private readonly PlayerDevelopmentService $development, private readonly ?PlayerAvailabilityService $availability = null)
+    public function __construct(private readonly PlayerDevelopmentService $development, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?PositionDevelopmentService $positions = null)
     {
     }
 
@@ -40,6 +40,9 @@ final class TrainingService
                 : $this->development->applyTrainingInTransaction($database, $request);
             $weeks = max(1, intdiv($request->startDate()->daysUntil($request->endDate()), 7));
             $changes = $this->availability->applyTrainingInTransaction($database, $request->playerId(), $request->blockId(), $request->endDate(), $weeks, $request->intensity());
+            if ($result->applied()) {
+                $this->positions?->applyTrainingInTransaction($database, $request->playerId(), $request->endDate(), $weeks, $request->intensity());
+            }
 
             return $result;
         });

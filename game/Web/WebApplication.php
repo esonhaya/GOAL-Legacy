@@ -117,6 +117,9 @@ final class WebApplication
                 'new_youth_view' => $this->redirect(WebView::url('new', ['step' => 'youth'])),
                 'select_club' => $this->selectClub($post, $session),
                 'set_training' => $this->setTraining($post, $session),
+                'set_position_focus' => $this->setPositionFocus($post, $session),
+                'cancel_position_focus' => $this->cancelPositionFocus($post, $session),
+                'change_primary_position' => $this->changePrimaryPosition($post, $session),
                 'set_priority' => $this->setPriority($post, $session),
                 'purchase_lifestyle' => $this->purchaseLifestyle($post, $session),
                 'activate_lifestyle' => $this->activateLifestyle($post, $session),
@@ -260,6 +263,44 @@ final class WebApplication
         $session['web_flash'] = 'Training focus updated.';
 
         return $this->redirect(WebView::url('training', ['save' => $saveId]));
+    }
+
+    /** @param array<string,mixed> $post @param array<string,mixed> $session */
+    private function setPositionFocus(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        $database = $this->database($saveId);
+        $snapshot = $this->snapshot($saveId, $database);
+        $position = (string) ($post['position'] ?? '');
+        $this->services->playerModule()->service()->positionDevelopmentService()->setFocus($database, (string) $snapshot['summary']['player']['id'], $position, $snapshot['date']);
+        $session['web_flash'] = 'Position development focus updated.';
+
+        return $this->redirect(WebView::url('training', ['save' => $saveId]));
+    }
+
+    /** @param array<string,mixed> $post @param array<string,mixed> $session */
+    private function cancelPositionFocus(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        $database = $this->database($saveId);
+        $snapshot = $this->snapshot($saveId, $database);
+        $this->services->playerModule()->service()->positionDevelopmentService()->cancelFocus($database, (string) $snapshot['summary']['player']['id'], $snapshot['date']);
+        $session['web_flash'] = 'Position development focus cancelled.';
+
+        return $this->redirect(WebView::url('training', ['save' => $saveId]));
+    }
+
+    /** @param array<string,mixed> $post @param array<string,mixed> $session */
+    private function changePrimaryPosition(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        $database = $this->database($saveId);
+        $snapshot = $this->snapshot($saveId, $database);
+        $position = (string) ($post['position'] ?? '');
+        $this->services->playerModule()->service()->positionDevelopmentService()->changePrimary($database, (string) $snapshot['summary']['player']['id'], $position, $snapshot['date']);
+        $session['web_flash'] = 'Primary position changed. Future selection and career context now use the new position.';
+
+        return $this->redirect(WebView::url('profile', ['save' => $saveId]));
     }
 
     /** @param array<string,mixed> $post @param array<string,mixed> $session */
@@ -642,7 +683,12 @@ final class WebApplication
         $readinessLabel = CareerLabels::value($readiness['label'] ?? null, 'Ready');
         $readinessPanel = '<div class="stat-grid compact">' . WebView::stat('Status', $readinessLabel) . WebView::stat('Workload', ((int) ($readiness['fatigue'] ?? 0)) . '/100') . WebView::stat('Approach', CareerLabels::value($summary['training_intensity'] ?? 'normal')) . '</div><p class="muted">' . WebView::e((string) ($readiness['description'] ?? 'Available for the next football block.')) . '</p>';
         $managerContext = (array) ($summary['manager_context'] ?? []);
+        $positionContext = (array) ($summary['position_development'] ?? []);
+        $positionFocus = ($positionContext['developing_position'] ?? null) === null ? '' : ' · Learning ' . CareerLabels::position($positionContext['developing_position']) . ' (' . (int) ($positionContext['progress'] ?? 0) . '%)';
         $situation = '<div class="split-list"><p><span>Availability</span><strong>' . WebView::e($availabilityText) . '</strong></p><p><span>Readiness</span><strong>' . WebView::e($readinessLabel) . '</strong></p><p><span>Training focus</span><strong>' . WebView::e(CareerLabels::value($summary['training_focus'] ?? 'balanced')) . '</strong></p><p><span>Career priority</span><strong>' . WebView::e(CareerLabels::value($summary['priority'] ?? 'balanced')) . '</strong></p><p><span>Contract</span><strong>' . WebView::e($this->contractText($summary['current_contract'] ?? null)) . '</strong></p><p><span>Career outlook</span><strong>' . WebView::e(CareerLabels::value(((array) ($summary['career_outlook'] ?? []))['category'] ?? null, 'Not available')) . '</strong></p><p><span>Balance</span><strong>' . WebView::e($this->money((int) ($finance['balance'] ?? 0))) . '</strong></p><p><span>Lifestyle</span><strong>' . WebView::e($financialContext['label'] ?? 'Starting out') . '</strong></p></div><p class="muted">' . WebView::e($financialContext['description'] ?? '') . '</p>';
+        if ($positionFocus !== '') {
+            $situation = str_replace('</div><p class="muted">', '<p><span>Position development</span><strong>' . WebView::e(CareerLabels::position($positionContext['developing_position'])) . ' (' . (int) ($positionContext['progress'] ?? 0) . '%)</strong></p></div><p class="muted">', $situation);
+        }
         $competitors = [];
         foreach ((array) (($summary['position_competition']['competitors'] ?? [])) as $competitor) {
             if (is_array($competitor)) { $competitors[] = (string) ($competitor['name'] ?? 'Teammate') . ' (' . CareerLabels::value($competitor['role'] ?? null, 'Squad') . ', OVR ' . (int) ($competitor['overall'] ?? 0) . ')'; }
@@ -698,6 +744,12 @@ final class WebApplication
         $movement = '';
         foreach ((array) ($summary['movement_history'] ?? []) as $row) { if (is_array($row)) { $movement .= '<li><strong>' . WebView::e($row['date'] ?? '') . '</strong> ' . WebView::e($row['type'] ?? 'Career movement') . ' · ' . WebView::e($row['club']['name'] ?? $row['to_club'] ?? '') . '</li>'; } }
         $movement = $movement === '' ? WebView::emptyState('No movement recorded yet.') : '<ul class="timeline">' . $movement . '</ul>';
+        $positionHistory = '';
+        foreach ((array) ($summary['position_history'] ?? []) as $row) {
+            if (!is_array($row)) { continue; }
+            $positionHistory .= '<li><strong>' . WebView::e($row['occurred_date'] ?? '') . '</strong> ' . WebView::e(CareerLabels::position($row['from_position'] ?? null)) . ' → ' . WebView::e(CareerLabels::position($row['to_position'] ?? null)) . '</li>';
+        }
+        $positionHistory = $positionHistory === '' ? WebView::emptyState('No permanent position changes yet.') : '<ul class="timeline">' . $positionHistory . '</ul>';
         $life = '';
         foreach ((array) ($summary['career_life_history'] ?? []) as $row) { if (is_array($row)) { $life .= '<li><strong>' . WebView::e($row['date'] ?? '') . '</strong> ' . WebView::e(((array) ($row['consequence'] ?? []))['history'] ?? $row['title'] ?? 'Career moment') . '</li>'; } }
         $life = $life === '' ? WebView::emptyState('No off-pitch milestones yet.') : '<ul class="timeline">' . $life . '</ul>';
@@ -705,7 +757,7 @@ final class WebApplication
         foreach ((array) ($summary['social_history'] ?? []) as $row) { if (is_array($row)) { $socialHistory .= '<li><strong>' . WebView::e($row['event_date'] ?? '') . '</strong> ' . WebView::e($row['headline'] ?? 'Football social milestone') . '</li>'; } }
         $socialHistory = $socialHistory === '' ? WebView::emptyState('No public or relationship milestones yet.') : '<ul class="timeline">' . $socialHistory . '</ul>';
         $body = '<div class="page-heading"><div><div class="eyebrow">CAREER</div><h1>' . WebView::e($player['preferred_name'] ?? 'Player') . '</h1><p>' . WebView::e(CareerLabels::position($player['primary_position'] ?? null)) . ' · OVR ' . WebView::e($summary['current_ovr'] ?? '—') . '</p></div>' . WebView::portrait($this->portraitUrl($saveId, (string) ($player['id'] ?? ''), 'career', 128), 'Player portrait', 'portrait portrait-medium') . '</div>';
-        $body .= '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $this->seasonFacts($summary)) . WebView::section('SEASON HISTORY', 'Record', $history) . WebView::section('DOMESTIC CUP HISTORY', 'Knockout record', $cupHistory) . WebView::section('EUROPEAN HISTORY', 'Continental record', $europeHistory) . '</div><aside class="dashboard-side">' . WebView::section('MOVEMENT HISTORY', 'Clubs', $movement) . WebView::section('OFF-PITCH LIFE', 'Milestones', $life) . WebView::section('FOOTBALL SOCIAL HISTORY', 'Public milestones', $socialHistory) . WebView::section('PROFILE', 'Appearance', WebView::link('appearance', ['save' => $saveId], 'Customize appearance', 'button button-secondary')) . '</aside></div>';
+        $body .= '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $this->seasonFacts($summary)) . WebView::section('SEASON HISTORY', 'Record', $history) . WebView::section('DOMESTIC CUP HISTORY', 'Knockout record', $cupHistory) . WebView::section('EUROPEAN HISTORY', 'Continental record', $europeHistory) . '</div><aside class="dashboard-side">' . WebView::section('MOVEMENT HISTORY', 'Clubs', $movement) . WebView::section('POSITION HISTORY', 'Permanent football evolution', $positionHistory) . WebView::section('OFF-PITCH LIFE', 'Milestones', $life) . WebView::section('FOOTBALL SOCIAL HISTORY', 'Public milestones', $socialHistory) . WebView::section('PROFILE', 'Appearance', WebView::link('appearance', ['save' => $saveId], 'Customize appearance', 'button button-secondary')) . '</aside></div>';
 
         return $this->html('Career', $body, $saveId, 'career', 200, $session);
     }
@@ -857,7 +909,9 @@ final class WebApplication
         $market = is_array($data['market'] ?? null) ? $data['market'] : [];
         $finance = ($data['controlled'] ?? false) === true ? $this->services->playerFinanceService()->summary($database, $playerId, $this->snapshot($saveId, $database)['date']) : null;
         $clubLink = $club === null ? 'Free Agent' : WebView::link('club', ['save' => $saveId, 'club' => $club->id()->value()], $club->canonicalName(), 'text-link');
-        $facts = '<div class="stat-grid compact">' . WebView::stat('OVR', $player->overallRating()) . WebView::stat('Age', $data['age']) . WebView::stat('Position', CareerLabels::position($player->primaryPosition()->value)) . WebView::stat('Nationality', $data['nationality']) . WebView::stat('Role', CareerLabels::value($data['role'] ?? null, 'Not assigned')) . WebView::stat('Career phase', CareerLabels::value($data['career_phase'] ?? null, 'Active')) . WebView::stat('Status', CareerLabels::value($data['career_state'] ?? 'active')) . WebView::stat('Market stature', $market['label'] ?? 'Unknown') . WebView::stat('Season', $data['season_id']) . '</div>';
+        $positionDevelopment = (array) ($data['position_development'] ?? []);
+        $secondaryLabel = ($positionDevelopment['secondary_positions'] ?? []) === [] ? 'None' : implode(', ', array_map(static fn (mixed $value): string => CareerLabels::position(is_string($value) ? $value : null), (array) $positionDevelopment['secondary_positions']));
+        $facts = '<div class="stat-grid compact">' . WebView::stat('OVR', $player->overallRating()) . WebView::stat('Age', $data['age']) . WebView::stat('Position', CareerLabels::position($player->primaryPosition()->value)) . WebView::stat('Secondary', $secondaryLabel) . WebView::stat('Nationality', $data['nationality']) . WebView::stat('Role', CareerLabels::value($data['role'] ?? null, 'Not assigned')) . WebView::stat('Career phase', CareerLabels::value($data['career_phase'] ?? null, 'Active')) . WebView::stat('Status', CareerLabels::value($data['career_state'] ?? 'active')) . WebView::stat('Market stature', $market['label'] ?? 'Unknown') . WebView::stat('Season', $data['season_id']) . '</div>';
         $seasonLine = '<div class="stat-grid compact">' . WebView::stat('Appearances', $stats['appearances'] ?? 0) . WebView::stat('Starts', $stats['starts'] ?? 0) . WebView::stat('Minutes', $stats['minutes'] ?? 0) . WebView::stat('Goals', $stats['goals'] ?? 0) . WebView::stat('Assists', $stats['assists'] ?? 0) . WebView::stat('Rating', $this->rating($stats['average_match_rating'] ?? null)) . '</div>';
         $extras = '<p><strong>Recent form:</strong> ' . WebView::e($this->formLabel($form)) . '</p>';
         $cupPanel = '';
@@ -872,7 +926,8 @@ final class WebApplication
         $internationalPanel = WebView::section('INTERNATIONAL', (string) ($internationalContext['country'] ?? $data['nationality'] ?? 'National Team'), '<p><strong>Selection:</strong> ' . WebView::e(CareerLabels::value($internationalContext['selection_status'] ?? 'not_selected')) . '</p><div class="stat-grid compact">' . WebView::stat('Caps', $internationalStats['caps'] ?? 0) . WebView::stat('Starts', $internationalStats['starts'] ?? 0) . WebView::stat('Minutes', $internationalStats['minutes'] ?? 0) . WebView::stat('Goals', $internationalStats['goals'] ?? 0) . WebView::stat('Assists', $internationalStats['assists'] ?? 0) . WebView::stat('Rating', $this->rating($internationalStats['average_rating'] ?? null)) . '</div>');
         $social = (array) ($data['social'] ?? []);
         $managerContext = (array) ($data['manager_context'] ?? []);
-        $socialPanel = WebView::section('PUBLIC PROFILE', 'Football context', '<div class="stat-grid compact">' . WebView::stat('Public profile', $social['public_profile_label'] ?? 'Unknown') . WebView::stat('Club standing', $social['club_standing_label'] ?? 'New Arrival') . WebView::stat('Supporters', $social['supporter_sentiment'] ?? 'Neutral') . WebView::stat('Manager', $social['manager_relationship'] ?? 'Professional') . '</div>' . (($data['controlled'] ?? false) === true ? '<p><strong>Football trust:</strong> ' . WebView::e(CareerLabels::value($managerContext['trust_label'] ?? null, 'Not available')) . ' · <strong>Competition:</strong> ' . WebView::e(CareerLabels::value($managerContext['competition_status'] ?? null, 'Not available')) . '</p><p class="muted">' . WebView::e((string) ($managerContext['feedback'] ?? '')) . '</p>' : '') . WebView::link('relationships', ['save' => $saveId], 'Open relationships', 'button button-secondary'));
+        $positionPanel = ($data['controlled'] ?? false) !== true ? '' : '<p><strong>Position development:</strong> ' . WebView::e($secondaryLabel) . (($positionDevelopment['developing_position'] ?? null) === null ? '' : ' · learning ' . WebView::e(CareerLabels::position($positionDevelopment['developing_position'])) . ' (' . (int) ($positionDevelopment['progress'] ?? 0) . '%)') . '</p><p>' . WebView::link('training', ['save' => $saveId], 'Manage position development', 'button button-secondary') . '</p>';
+        $socialPanel = WebView::section('PUBLIC PROFILE', 'Football context', '<div class="stat-grid compact">' . WebView::stat('Public profile', $social['public_profile_label'] ?? 'Unknown') . WebView::stat('Club standing', $social['club_standing_label'] ?? 'New Arrival') . WebView::stat('Supporters', $social['supporter_sentiment'] ?? 'Neutral') . WebView::stat('Manager', $social['manager_relationship'] ?? 'Professional') . '</div>' . (($data['controlled'] ?? false) === true ? '<p><strong>Football trust:</strong> ' . WebView::e(CareerLabels::value($managerContext['trust_label'] ?? null, 'Not available')) . ' · <strong>Competition:</strong> ' . WebView::e(CareerLabels::value($managerContext['competition_status'] ?? null, 'Not available')) . '</p><p class="muted">' . WebView::e((string) ($managerContext['feedback'] ?? '')) . '</p>' : '') . $positionPanel . WebView::link('relationships', ['save' => $saveId], 'Open relationships', 'button button-secondary'));
         $pulseContext = (array) ($data['pulse'] ?? []);
         $pulsePanel = ($data['controlled'] ?? false) === true ? WebView::section('PULSE', 'Public presence', '<div class="stat-grid compact">' . WebView::stat('Audience', $pulseContext['audience_band'] ?? 'Local Following') . WebView::stat('Following', $pulseContext['followers_label'] ?? '120') . '</div>' . WebView::link('pulse', ['save' => $saveId], 'Open Pulse', 'button button-secondary')) : '';
         if (($data['controlled'] ?? false) === true) {
@@ -1213,7 +1268,22 @@ final class WebApplication
         $priorityOptions = ''; foreach (CareerPriority::cases() as $item) { $priorityOptions .= '<option value="' . $item->value . '"' . ($priority === $item->value ? ' selected' : '') . '>' . WebView::e(CareerLabels::value($item->value)) . '</option>'; }
         $readiness = (array) ($summary['readiness'] ?? []);
         $readinessPanel = '<div class="stat-grid compact">' . WebView::stat('Readiness', CareerLabels::value($readiness['label'] ?? null, 'Ready')) . WebView::stat('Workload', ((int) ($readiness['fatigue'] ?? 0)) . '/100') . WebView::stat('Intensity', CareerLabels::value($summary['training_intensity'] ?? 'normal')) . '</div><p class="muted">' . WebView::e((string) ($readiness['description'] ?? 'Recovery is calculated from simulation time, not page views.')) . '</p>';
-        $body = '<div class="page-heading"><div><div class="eyebrow">TRAINING & PRIORITIES</div><h1>Shape the next block</h1><p>These choices feed the canonical development and readiness systems.</p></div></div>' . WebView::section('READINESS', 'Current football state', $readinessPanel) . '<div class="two-column"><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_training"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Training focus<select name="focus">' . $focusOptions . '</select></label><p class="muted">Focus influences where existing development progress is directed.</p><button class="button button-primary" type="submit">Save training focus</button></form><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_priority"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Career priority<select name="priority">' . $priorityOptions . '</select></label><p class="muted">Recovery and lifestyle priorities use a light training load; Development uses an intense block; other priorities remain normal.</p><button class="button button-primary" type="submit">Save priority</button></form></div>';
+        $position = (array) ($summary['position_development'] ?? []);
+        $positionActions = '';
+        foreach ((array) ($position['eligible_next_positions'] ?? []) as $candidate) {
+            if (!is_array($candidate)) { continue; }
+            $value = (string) ($candidate['position'] ?? '');
+            $positionActions .= '<p><strong>' . WebView::e(CareerLabels::position($value)) . '</strong> · eligible development path ' . WebView::form('set_position_focus', 'Develop this position', ['save' => $saveId, 'position' => $value], 'button button-secondary') . '</p>';
+        }
+        if (($position['developing_position'] ?? null) !== null) {
+            $positionActions .= '<p><strong>Current focus:</strong> ' . WebView::e(CareerLabels::position($position['developing_position'])) . ' · ' . (int) ($position['progress'] ?? 0) . '% complete ' . WebView::form('cancel_position_focus', 'Cancel focus', ['save' => $saveId], 'button button-secondary') . '</p>';
+        } elseif (($position['secondary_positions'] ?? []) !== []) {
+            foreach ((array) $position['secondary_positions'] as $secondary) {
+                $positionActions .= WebView::form('change_primary_position', 'Make ' . CareerLabels::position(is_string($secondary) ? $secondary : null) . ' primary', ['save' => $saveId, 'position' => (string) $secondary], 'button button-secondary');
+            }
+        }
+        $positionPanel = '<div class="stat-grid compact">' . WebView::stat('Primary', CareerLabels::position($position['primary_position'] ?? null)) . WebView::stat('Secondary', ($position['secondary_positions'] ?? []) === [] ? 'None' : implode(', ', array_map(static fn (mixed $value): string => CareerLabels::position(is_string($value) ? $value : null), (array) $position['secondary_positions']))) . WebView::stat('Progress', ($position['developing_position'] ?? null) === null ? 'No active focus' : ((int) ($position['progress'] ?? 0)) . '%') . '</div><p class="muted">Position development is a medium-term training choice. It uses canonical training blocks and does not change attributes or guarantee selection. Making a completed secondary position primary preserves the Player and attributes while changing future football context.</p>' . ($positionActions === '' ? WebView::emptyState('No adjacent position currently fits this Player profile.') : $positionActions);
+        $body = '<div class="page-heading"><div><div class="eyebrow">TRAINING & PRIORITIES</div><h1>Shape the next block</h1><p>These choices feed the canonical development and readiness systems.</p></div></div>' . WebView::section('READINESS', 'Current football state', $readinessPanel) . WebView::section('POSITION DEVELOPMENT', 'Build another football option', $positionPanel) . '<div class="two-column"><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_training"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Training focus<select name="focus">' . $focusOptions . '</select></label><p class="muted">Focus influences where existing development progress is directed.</p><button class="button button-primary" type="submit">Save training focus</button></form><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_priority"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Career priority<select name="priority">' . $priorityOptions . '</select></label><p class="muted">Recovery and lifestyle priorities use a light training load; Development uses an intense block; other priorities remain normal.</p><button class="button button-primary" type="submit">Save priority</button></form></div>';
 
         return $this->html('Training', $body, $saveId, 'training', 200, $session);
     }

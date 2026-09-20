@@ -133,4 +133,14 @@ current role while developing. The existing manager relationship receives a
 small bounded consequence; no new personality or morale system is created.
 Silence remains represented by no conversation when evidence is insufficient.
 
+## P2-019 Positional Development Presentation
+
+Position training is private football context. Present the current primary,
+established secondary capability, active target, and bounded progress on the
+Training/Profile surfaces. Do not turn routine focus changes into News,
+Pulse, or Career History. A completed primary-position transition may be a
+single durable Career landmark, but it does not change historical Match copy,
+attributes, or grant manager trust directly. Player-facing language should
+describe learning an option rather than promising future selection.
+
 END OF DOCUMENT

@@ -33,6 +33,10 @@ final class CareerFormatter
         $lines[] = 'Career Status: ' . CareerLabels::value($summary['career_state'] ?? 'active');
         $lines[] = 'Nationality: ' . CareerLabels::nationality($player['primary_nation_id'] ?? null);
         $lines[] = 'Position: ' . CareerLabels::position($player['primary_position'] ?? null);
+        $positionDevelopment = is_array($summary['position_development'] ?? null) ? $summary['position_development'] : [];
+        if (($positionDevelopment['secondary_positions'] ?? []) !== [] || ($positionDevelopment['developing_position'] ?? null) !== null) {
+            $lines[] = 'Positional Development: ' . (($positionDevelopment['secondary_positions'] ?? []) === [] ? 'None established' : implode(', ', array_map(static fn (mixed $value): string => CareerLabels::position(is_string($value) ? $value : null), (array) $positionDevelopment['secondary_positions']))) . (($positionDevelopment['developing_position'] ?? null) === null ? '' : ' | Learning ' . CareerLabels::position($positionDevelopment['developing_position']) . ' (' . (int) ($positionDevelopment['progress'] ?? 0) . '%)');
+        }
         $lines[] = 'Club: ' . ($club['name'] ?? 'Free Agent');
         $lines[] = 'Competition: ' . ($competition === null ? 'No competition' : ($competition['name'] ?? 'No competition') . ' (Tier ' . $this->number($competition['tier'] ?? null) . ')');
         $lines[] = 'OVR: ' . $this->number($summary['current_ovr'] ?? null);
@@ -331,6 +335,23 @@ final class CareerFormatter
         }
 
         $lines[] = '';
+        $lines[] = 'POSITION HISTORY';
+        $positionHistory = is_array($summary['position_history'] ?? null) ? $summary['position_history'] : [];
+        if ($positionHistory === []) {
+            $lines[] = 'No permanent position changes yet.';
+        } else {
+            foreach ($positionHistory as $change) {
+                if (!is_array($change)) { continue; }
+                $lines[] = sprintf(
+                    '%s: %s -> %s',
+                    $this->text($change['occurred_date'] ?? null),
+                    CareerLabels::position($change['from_position'] ?? null),
+                    CareerLabels::position($change['to_position'] ?? null),
+                );
+            }
+        }
+
+        $lines[] = '';
         $lines[] = 'OFF-PITCH LIFE HISTORY';
         $life = is_array($summary['career_life_history'] ?? null) ? $summary['career_life_history'] : [];
         if ($life === []) {
@@ -434,6 +455,12 @@ final class CareerFormatter
         $lines = $this->title('TRAINING & PRIORITIES');
         $lines[] = 'Training Focus: ' . CareerLabels::value($summary['training_focus'] ?? 'balanced');
         $lines[] = 'Priority: ' . CareerLabels::value($summary['priority'] ?? 'balanced');
+        $position = is_array($summary['position_development'] ?? null) ? $summary['position_development'] : [];
+        $lines[] = 'Primary Position: ' . CareerLabels::position($position['primary_position'] ?? null);
+        $lines[] = 'Secondary Positions: ' . (($position['secondary_positions'] ?? []) === [] ? 'None established' : implode(', ', array_map(static fn (mixed $value): string => CareerLabels::position(is_string($value) ? $value : null), (array) $position['secondary_positions'])));
+        if (($position['developing_position'] ?? null) !== null) {
+            $lines[] = 'Position Focus: ' . CareerLabels::position($position['developing_position']) . ' (' . (int) ($position['progress'] ?? 0) . '%)';
+        }
         $lines[] = '';
         $lines[] = '1. Change Training Focus';
         $lines[] = '2. Change Priority';

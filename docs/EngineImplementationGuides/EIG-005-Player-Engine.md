@@ -371,4 +371,21 @@ Pulse return events use existing availability dispatch. NPCs keep compact
 availability only and receive no detailed readiness history or training
 choice simulation.
 
+## P2-019 Positional Development Boundary
+
+`PositionDevelopmentService` owns the controlled Player's compact secondary
+position and retraining state. `PositionDevelopmentRules` is the single
+compatibility/attribute-fit policy over the existing `PlayerPosition` enum.
+`TrainingService` remains the only cadence source: after a canonical training
+block is applied, bounded progress is added to the active positional target
+with the same idempotent training source boundary. No daily progress rows,
+position-specific attribute tree, or hidden OVR score is created.
+
+The service can expose eligible adjacent targets, set/cancel a focus, and
+complete an explicit primary-position change. It preserves Player identity,
+attributes, contracts, and history. The Player repository remains the owner
+of `primary_position`; `career_position_changes` is a compact landmark log.
+Only controlled Players receive these rows. NPCs retain their primary
+positions and use existing broad position grouping.
+
 END OF DOCUMENT

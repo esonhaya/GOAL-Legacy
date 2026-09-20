@@ -9,6 +9,7 @@ use Goal\Legacy\Core\Persistence\SchemaInitializationGuard;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Match\Domain\MatchId;
 use Goal\Legacy\Modules\Match\Domain\PlayerMatchStat;
+use Goal\Legacy\Modules\Match\Persistence\ControlledMatchPositionRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use PDO;
@@ -39,12 +40,15 @@ final class PlayerMatchStatRepository
         $statement = $this->database->connection()->prepare($sql);
         $statement->execute($parameters);
 
+        $positions = new ControlledMatchPositionRepository($this->database, false);
+        $positionMap = $positions->all();
         $evidence = [];
         foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $position = $positionMap[(string) $row['match_id'] . '|' . (string) $row['player_id']] ?? null;
             $evidence[] = [
                 'player_id' => (string) $row['player_id'],
                 'club_id' => (string) $row['club_id'],
-                'position' => (string) $row['primary_position'],
+                'position' => $position?->value ?? (string) $row['primary_position'],
                 'stat' => $this->hydrateRows([$row])[0],
             ];
         }
@@ -69,11 +73,14 @@ final class PlayerMatchStatRepository
             . 'ORDER BY stats.player_id ASC, stats.match_id ASC'
         );
         $statement->execute(['season_id' => $seasonId->value(), 'status' => 'completed']);
+        $positions = new ControlledMatchPositionRepository($this->database, false);
+        $positionMap = $positions->all();
         while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $position = $positionMap[(string) $row['match_id'] . '|' . (string) $row['player_id']] ?? null;
             $consumer([
                 'player_id' => (string) $row['player_id'],
                 'club_id' => (string) $row['club_id'],
-                'position' => (string) $row['primary_position'],
+                'position' => $position?->value ?? (string) $row['primary_position'],
                 'stat' => $this->hydrateRows([$row])[0],
             ]);
         }
@@ -93,9 +100,11 @@ final class PlayerMatchStatRepository
         $statement->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
         $statement->execute();
 
+        $positions = new ControlledMatchPositionRepository($this->database, false);
         $evidence = [];
         foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $evidence[] = ['player_id' => (string) $row['player_id'], 'club_id' => (string) $row['club_id'], 'position' => (string) $row['primary_position'], 'stat' => $this->hydrateRows([$row])[0]];
+            $position = $positions->position((string) $row['match_id'], (string) $row['player_id']);
+            $evidence[] = ['player_id' => (string) $row['player_id'], 'club_id' => (string) $row['club_id'], 'position' => $position?->value ?? (string) $row['primary_position'], 'stat' => $this->hydrateRows([$row])[0]];
         }
 
         return $evidence;

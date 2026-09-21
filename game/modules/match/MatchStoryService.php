@@ -6,6 +6,7 @@ namespace Goal\Legacy\Modules\Match;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\Persistence\ClubSquadRepository;
+use Goal\Legacy\Modules\Club\ClubFixtureContextService;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
 use Goal\Legacy\Modules\Match\Domain\PlayerMatchStat;
 use Goal\Legacy\Modules\Match\Domain\PlayerSelection;
@@ -109,6 +110,7 @@ final class MatchStoryService
             'player_of_match' => $playerOfMatch !== null && $playerOfMatch['player_id'] === $id->value(),
             'player_of_match_result' => $playerOfMatch,
             'decisive_contribution' => $this->decisiveContribution($match, $id, $stat, $timeline, $position),
+            'fixture_context' => (new ClubFixtureContextService())->context($database, $match),
             'career_impact' => $this->careerImpact($database, $match, $id, $teamId),
         ];
     }

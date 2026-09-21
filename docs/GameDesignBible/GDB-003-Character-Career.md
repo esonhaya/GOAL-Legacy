@@ -536,4 +536,26 @@ history. The compact Club/Season row is the only new responsibility state;
 Match evidence remains the authority for goals, shots, highlights, ratings,
 and history.
 
+## P2-031 Club Rivalries and Fixture Context
+
+Club rivalry context is a small, explicit world fact. The canonical catalog
+contains symmetric Derby, Rivalry, and overlapping Derby/Rivalry pairs; it
+does not infer relationships from standings, a single final, a transfer, or a
+shared nation. Fixture context composes that relationship with competition,
+round, existing P2-020 Season stakes, and reliable former-Club history.
+
+Context changes what the Player understands about a Match, not what happens
+on the pitch. Rivalry and Derby Matches receive no goal, shot, pass, card,
+injury, fatigue, home-advantage, or rating modifier. P2-014 Match story,
+Career Home, Matchday, Club/Competition fixture lists, News, and the existing
+Echo/Pulse route may describe a genuine result, while P2-010 Player-social
+rivalries, P2-020 Season stakes, P2-023 Club context, and P2-025 history keep
+their separate ownership.
+
+Relationships are static canonical content with no per-save rows, dynamic
+sentiment, rivalry points, NPC ticks, World scan, or international extension.
+Read paths never write state; stable Match source keys and deterministic
+classification make reloads idempotent. Missing old history shows less rather
+than fabricating a former-Club meeting or historical rivalry moment.
+
 END OF DOCUMENT

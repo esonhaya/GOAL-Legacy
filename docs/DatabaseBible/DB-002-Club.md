@@ -415,4 +415,20 @@ the event minute; injury, suspension, dismissal, and substitution therefore
 affect eligibility without changing appointment history. World-fidelity
 Matches do not scan or process NPC responsibilities.
 
+## DOMAIN-031 Canonical Club Rivalry Content
+
+Club rivalries are static repository content in `ClubRivalryCatalog`, not a
+save-table relationship or Player sentiment state. Each reviewed pair has a
+stable symmetric key, a bounded category (`derby`, `rivalry`, or
+`derby_rivalry`), a human-readable name, and maintenance reason. No duplicate
+rows are written to Career saves and no relationship is generated from a
+fixture result.
+
+`ClubFixtureContextService` is the read owner for a Match's relationship,
+competition/round, optional existing Club-Season stake, and reliable
+former-Club perspective. It exposes no universal importance or rivalry score.
+Profile/Home/Club/Competition/Matchday reads do not create context rows or
+history. Match evidence, objective results, Player-social relationships,
+milestones, and public narrative remain owned by their existing services.
+
 END OF DOCUMENT

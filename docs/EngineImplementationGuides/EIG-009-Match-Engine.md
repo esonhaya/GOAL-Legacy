@@ -402,4 +402,20 @@ not performed as a World scan. Substitution and dismissal state is evaluated
 at the event minute. Appointment assignment is deterministic and separate from
 the Match RNG namespaces used by open-play actions.
 
+## P2-031 Fixture Context Boundary
+
+`ClubFixtureContextService` may classify a scheduled or completed Club Match
+as an ordinary fixture, Derby, Rivalry, Derby/Rivalry, former-Club meeting, or
+existing Season-stakes fixture. It is called by presentation and the existing
+MatchStory/Echo/Pulse boundary only. `MatchSimulationService` receives no
+rivalry input and therefore keeps goal, shot, pass, card, injury, fatigue,
+home-advantage, and rating behavior unchanged.
+
+The static pair catalog is symmetric and deterministic. Cup, Europe, and
+League facts coexist with relationship context; international rivalry is not
+inferred. A rivalry result can make an existing public reaction more
+noteworthy, but it does not create an event, score, modifier, or separate
+Match-history ledger. World-fidelity Matches retain their cheap simulation
+path and perform no rivalry scan.
+
 END OF DOCUMENT

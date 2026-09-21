@@ -34,6 +34,7 @@ use Goal\Legacy\Modules\Player\PlayerFormService;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Player\OnPitchRoleService;
 use Goal\Legacy\Modules\Club\ClubCaptaincyService;
+use Goal\Legacy\Modules\Club\ClubFixtureContextService;
 use Goal\Legacy\Modules\Club\SetPieceResponsibilityService;
 use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
 use Goal\Legacy\Modules\Club\Persistence\ClubSquadRepository;
@@ -75,6 +76,7 @@ final class CareerPresentationService
             $this->services->internationalCompetitions(),
             $this->services->playerModule()->service()->socialService(),
         ))->nextMilestone((array) ($summary['career_stats'] ?? []), (array) (($summary['international']['stats'] ?? [])));
+        $summary['next_fixture_context'] = ($next = $this->nextMatch($database, $summary)) === null ? null : ($next['fixture_context'] ?? null);
         if ($includeLegacy) {
             $summary['legacy'] = $this->legacyService()->summary($database, $career->playerId()->value());
             $summary['legacy']['club_journey'] = $summary['career_context']['club_journey'] ?? [];
@@ -190,6 +192,7 @@ final class CareerPresentationService
             $seasonId,
             $date,
         );
+        $nextFixture = $controlled ? $this->nextMatch($database, $controlledSummary) : null;
         $social = $this->services->playerModule()->service()->socialService();
         $legacy = $controlled
             ? $this->legacyService()->summary($database, $playerId)
@@ -254,6 +257,7 @@ final class CareerPresentationService
             'career_context' => $careerContext,
             'captaincy' => $captaincy,
             'set_piece_responsibility' => $setPieceResponsibility,
+            'next_fixture_context' => $nextFixture['fixture_context'] ?? null,
             'club_journey' => $careerContext['club_journey'] ?? [],
             'club_attachment' => $careerContext['attachment'] ?? null,
             'career_direction' => $careerContext['direction'] ?? null,
@@ -441,6 +445,16 @@ final class CareerPresentationService
         $match = $this->services->matchModule()->service()->repository($database)->get((string) $next['match_id']);
         $competition = (new CompetitionRepository($database))->get($match->competitionId());
 
+        $formerClubIds = is_array($summary['career_context']['former_club_ids'] ?? null) ? $summary['career_context']['former_club_ids'] : [];
+        $perspectiveClubId = (string) ($next['controlled_team_id'] ?? '');
+        $fixtureContext = (new ClubFixtureContextService())->forMatch(
+            $match,
+            $competition,
+            $this->seasonStakeForMatch($summary, $match->id()->value()),
+            $formerClubIds,
+            $perspectiveClubId,
+        );
+
         return [
             'match_id' => $match->id()->value(),
             'date' => $match->scheduledDate()->toIsoString(),
@@ -457,6 +471,7 @@ final class CareerPresentationService
                         ? (new EuropeanCompetitionService($this->services->clubModule()->service(), new DomesticCupService($this->services->clubModule()->service())))->matchResolution($database, $match->id()->value())
                         : $this->services->internationalCompetitions()->matchResolution($database, $match->id()->value())))['stage'] ?? null)
                 : null,
+            'fixture_context' => $fixtureContext,
         ];
     }
 
@@ -570,6 +585,14 @@ final class CareerPresentationService
             : null;
         $landmarkCallouts = $this->legacyService()->matchLandmarks($database, $match, $playerId);
         $comeback = $this->recoveryService()->returnForMatch($database, $match, $playerId);
+        $formerClubIds = is_array($postSummary['career_context']['former_club_ids'] ?? null) ? $postSummary['career_context']['former_club_ids'] : [];
+        $fixtureContext = (new ClubFixtureContextService())->forMatch(
+            $match,
+            $competition,
+            $this->seasonStakeForMatch($postSummary, $match->id()->value()),
+            $formerClubIds,
+            $controlledClubId,
+        );
 
         return [
             'competition' => $competition->name(),
@@ -587,6 +610,7 @@ final class CareerPresentationService
             'europe_progression' => $europeProgression,
             'international_resolution' => $internationalResolution,
             'international_progression' => $internationalProgression,
+            'fixture_context' => $fixtureContext,
             'rival_context' => $this->services->playerModule()->service()->socialService()->matchContext($database, $match, $playerId),
             'performance' => $performance,
             'captain' => (bool) ($story['captain'] ?? false),
@@ -798,7 +822,9 @@ final class CareerPresentationService
                 if ($result === null) { continue; }
                 $competition = (new CompetitionRepository($database))->get($match->competitionId());
                 $prefix = $competition->type() === CompetitionType::DomesticCup ? 'DOMESTIC CUP — ' : ($competition->type() === CompetitionType::Continental ? 'EUROPE — ' : ($competition->type() === CompetitionType::International ? 'INTERNATIONAL — ' : 'RESULT — '));
-                $items[] = ['date' => $match->scheduledDate()->toIsoString(), 'headline' => $prefix . $this->teamName($database, $match->homeClubId()->value()) . ' ' . $result->homeGoals() . '-' . $result->awayGoals() . ' ' . $this->teamName($database, $match->awayClubId()->value()) . ' (' . $competition->name() . ')'];
+                $fixtureContext = (new ClubFixtureContextService())->forMatch($match, $competition);
+                $contextPrefix = ($fixtureContext['display_label'] ?? null) === null ? '' : strtoupper((string) $fixtureContext['display_label']) . ' — ';
+                $items[] = ['date' => $match->scheduledDate()->toIsoString(), 'headline' => $contextPrefix . $prefix . $this->teamName($database, $match->homeClubId()->value()) . ' ' . $result->homeGoals() . '-' . $result->awayGoals() . ' ' . $this->teamName($database, $match->awayClubId()->value()) . ' (' . $competition->name() . ')'];
                 if (count($items) >= 8) { break; }
             }
         }
@@ -1239,6 +1265,10 @@ final class CareerPresentationService
             $resolution = $this->services->internationalCompetitions()->matchResolution($database, $match->id()->value());
             $round = is_array($resolution) ? ' · ' . (string) ($resolution['stage'] ?? 'International round') : '';
         }
+        $fixtureContext = (new ClubFixtureContextService())->forMatch($match, $competition);
+        if (($fixtureContext['display_label'] ?? null) !== null) {
+            $round .= ' · ' . (string) $fixtureContext['display_label'];
+        }
 
         return $mark . $match->scheduledDate()->toIsoString() . ': ' . $fixture . ' (' . $competition->name() . $round . ')';
     }
@@ -1256,7 +1286,22 @@ final class CareerPresentationService
     private function fixtureTextFromView(array $view): string
     {
         $round = ($view['round'] ?? null) === null ? '' : ' · ' . (string) $view['round'];
+        if (is_array($view['fixture_context'] ?? null) && ($view['fixture_context']['display_label'] ?? null) !== null) {
+            $round .= ' · ' . (string) $view['fixture_context']['display_label'];
+        }
         return (string) ($view['date'] ?? 'Date unavailable') . ': ' . (string) ($view['home_club'] ?? 'Home') . ' vs ' . (string) ($view['away_club'] ?? 'Away') . ' (' . (string) ($view['competition'] ?? 'Competition') . $round . ')';
+    }
+
+    /** @return array<string,mixed>|null */
+    private function seasonStakeForMatch(array $summary, string $matchId): ?array
+    {
+        foreach ((array) (($summary['club_season']['important_fixtures'] ?? [])) as $fixture) {
+            if (is_array($fixture) && (string) ($fixture['match_id'] ?? '') === $matchId) {
+                return $fixture;
+            }
+        }
+
+        return null;
     }
 
     private function seasonId(array $summary): ?\Goal\Legacy\Modules\World\Domain\SeasonId

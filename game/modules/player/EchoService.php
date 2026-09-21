@@ -28,6 +28,9 @@ final class EchoService
         if (($facts['player_of_match'] ?? false) === true || ($facts['decisive'] ?? false)) {
             return ['kind' => 'match_major_contribution', 'importance' => 'major', 'response' => (($facts['result'] ?? '') === 'loss' ? 'defeat' : 'victory')];
         }
+        if (($facts['rivalry'] ?? false) === true && ($facts['result'] ?? '') !== 'draw') {
+            return ['kind' => 'match_result', 'importance' => 'notable', 'response' => (($facts['result'] ?? '') === 'loss' ? 'defeat' : 'victory')];
+        }
         if ((float) ($facts['rating'] ?? 0) >= 8.0 || (int) ($facts['saves'] ?? 0) >= 5 || (int) ($facts['tackles'] ?? 0) + (int) ($facts['interceptions'] ?? 0) + (int) ($facts['blocks'] ?? 0) >= 6) {
             return ['kind' => 'match_strong_performance', 'importance' => 'notable', 'response' => (($facts['result'] ?? '') === 'loss' ? 'defeat' : 'victory')];
         }

@@ -575,4 +575,21 @@ corners, and international set-piece responsibility remain deferred. Player
 fidelity can consume the supported penalty path, while World fidelity skips
 detailed set-piece processing and performs no World scan.
 
+### P2-031 Club rivalry and fixture-context lifecycle
+
+`ClubRivalryCatalog` is static canonical content; it creates no migration,
+per-save rivalry rows, relationship snapshots, sentiment state, or NPC
+history. `ClubFixtureContextService` is a read-only projection that combines
+the symmetric Club pair, competition/round, existing P2-020 Season-stakes
+evidence, and P2-023 former-Club evidence supplied by the current Career
+read-model.
+
+The projection is consumed by fixture lists, Career Home, MatchStory,
+Matchday/Post-Match, and the existing factual Echo/Pulse path. It never runs
+in Match simulation, never changes RNG, and never writes during GET/Profile/
+History rendering. Club-pair lookup is O(1)-bounded over reviewed static
+content; there is no World rivalry scan or dynamic relationship generation.
+International rivalry is deferred. Legacy saves safely receive future
+fixture context but no fabricated historical rivalry events.
+
 END OF DOCUMENT

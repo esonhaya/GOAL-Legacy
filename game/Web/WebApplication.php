@@ -750,6 +750,8 @@ final class WebApplication
         $managerPanel = '<div class="stat-grid compact">' . WebView::stat('Football trust', CareerLabels::value($managerContext['trust_label'] ?? null, 'Not available')) . WebView::stat('Competition', CareerLabels::value($managerContext['competition_status'] ?? null, 'Not available')) . WebView::stat('Minutes', CareerLabels::value($managerContext['playing_time_status'] ?? null, 'Not enough evidence')) . '</div><p><strong>Expected usage:</strong> ' . WebView::e((string) ($managerContext['expected_usage'] ?? 'No established expectation')) . '</p><p>' . WebView::e($competitionDetail) . '</p><p class="muted">' . WebView::e((string) ($managerContext['feedback'] ?? 'Selection context follows role, form, readiness and competition.')) . '</p>';
         $nextLabel = (string) ($next['competition'] ?? 'Fixture');
         if (($next['round'] ?? null) !== null) { $nextLabel .= ' · ' . (string) $next['round']; }
+        $nextContext = is_array($next['fixture_context'] ?? null) ? $next['fixture_context'] : [];
+        if (($nextContext['display_label'] ?? null) !== null) { $nextLabel .= ' · ' . (string) $nextContext['display_label']; }
         $nextBody = $next === null ? WebView::emptyState('No upcoming fixture currently scheduled.') : '<div class="fixture-card"><span class="eyebrow">' . WebView::e($nextLabel) . '</span><strong>' . WebView::e($next['home_club'] ?? '') . ' <span>vs</span> ' . WebView::e($next['away_club'] ?? '') . '</strong><small>' . WebView::e($next['date'] ?? '') . '</small></div>';
         $international = (array) ($summary['international'] ?? []);
         $social = (array) ($summary['social'] ?? []);
@@ -1640,6 +1642,13 @@ final class WebApplication
         }
         if (is_array($view['rival_context'] ?? null)) {
             $cupContext .= '<p class="metric-note">Facing rival: ' . WebView::e((string) ($view['rival_context']['name'] ?? 'Opponent')) . '</p>';
+        }
+        $fixtureContext = is_array($view['fixture_context'] ?? null) ? $view['fixture_context'] : [];
+        if (($fixtureContext['display_label'] ?? null) !== null) {
+            $cupContext .= '<p class="result-badge">' . WebView::e((string) $fixtureContext['display_label']) . '</p>';
+            if (($fixtureContext['relationship_name'] ?? null) !== null) {
+                $cupContext .= '<p class="metric-note">' . WebView::e((string) $fixtureContext['relationship_name']) . '</p>';
+            }
         }
         $stats = ''; foreach (['goals' => 'Goals', 'assists' => 'Assists', 'shots' => 'Shots', 'shots_on_target' => 'Shots on target', 'passes_completed' => 'Passes completed', 'passes_attempted' => 'Passes attempted', 'tackles' => 'Tackles', 'interceptions' => 'Interceptions', 'blocks' => 'Blocks', 'saves' => 'Saves', 'yellow_cards' => 'Yellow cards', 'red_cards' => 'Red cards'] as $key => $label) { if (array_key_exists($key, $performance) && $performance[$key] !== null) { $stats .= WebView::stat($label, $performance[$key]); } }
         $highlights = ''; foreach ((array) ($view['highlights'] ?? []) as $line) { $highlights .= '<li>' . WebView::e($line) . '</li>'; }

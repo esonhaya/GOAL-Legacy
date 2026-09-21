@@ -363,4 +363,22 @@ Legacy saves may show current responsibility when it can be derived from the
 present squad, but never receive fabricated historical set-piece roles or
 dates. Any future historical first must reuse the existing milestone owner.
 
+## P2-031 Rivalry and Derby Memory
+
+Rivalry language is reserved for explicit Club-world relationships. A Derby
+is local context; a Rivalry is an established competitive relationship; some
+fixtures are both. A title-race or relegation fixture can carry Season stakes
+without becoming a rivalry. Presentation may say `DERBY`, `RIVALRY`,
+`SEASON STAKES`, `FORMER CLUB`, or a competition stage only when canonical
+data supports it.
+
+The durable Career surfaces remember only selected factual moments already
+eligible under the milestone/history policy: for example a decisive Player
+contribution in a meaningful Derby. Routine meetings do not become timeline
+rows, rivalry points, betrayal stories, or emotional simulation. News is
+factual, Echo selects noteworthy moments, Pulse presents existing reactions,
+and Club/Player history does not duplicate those surfaces. Old saves may use
+current static relationships for future fixtures but never receive fabricated
+past rivalry chronology.
+
 END OF DOCUMENT

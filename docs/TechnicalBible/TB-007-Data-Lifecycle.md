@@ -626,4 +626,34 @@ competition identity explicit. Stable tie ordering and distinct-value rank make
 reloads deterministic. No World scan, detailed NPC Match generation,
 historical Top-10 reconstruction, prediction, or speculative index is added.
 
+### P2-034 read-path performance consolidation
+
+The Competition page and Trophy Room remain projections over their existing
+canonical services. `ClubRepository` and `CompetitionRepository` retain
+ownership of their schemas, but their idempotent setup is guarded once per
+live PDO connection; this removes repeated schema DDL/metadata work when one
+page composes several short-lived repository instances. It is not a save
+cache, materialized view, or schema migration.
+
+`CareerPresentationService` uses request-local, connection-scoped memoization
+for repeated immutable Club and Competition labels. Competition now asks only
+for the progression context needed to identify the current Season, Club, and
+Player before rendering; its fixture context is still supplied by
+`ClubFixtureContextService`, and only the displayed recent/upcoming slices are
+formatted. Trophy Room calls a narrow read projection containing progression,
+`CareerLegacyService`, and captaincy facts instead of the broader Career Home
+snapshot. No canonical statistic,
+leaderboard, rivalry, achievement, standings, or fixture fact is recalculated
+or persisted by these optimizations.
+
+On the same retained save and production Web route, the committed P2-033 tree
+measured 3,960 Competition SQL calls and 527 Trophy Room calls. The optimized
+routes measured 376 and 379 respectively, with identical Competition/Trophy
+rendered output and zero DML. No index or schema change was added; the
+existing indexes remain sufficient. Structural tests guard one schema setup
+per connection and the graphical shell continues to guard read safety,
+leaderboard output, fixture context, and Trophy Room output. World scans,
+global caches, persisted derived summaries, and NPC achievement work remain
+out of scope.
+
 END OF DOCUMENT

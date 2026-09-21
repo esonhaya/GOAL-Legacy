@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Goal\Legacy\Modules\Competition\Persistence;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Core\Persistence\SchemaInitializationGuard;
 use Goal\Legacy\Modules\Competition\Domain\Competition;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionDefinition;
 use Goal\Legacy\Modules\Competition\Domain\CompetitionId;
@@ -21,29 +22,31 @@ final class CompetitionRepository
 
     public function __construct(private readonly DatabaseInterface $database)
     {
-        $this->database->connection()->exec(
-            'CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' ('
-            . 'id TEXT PRIMARY KEY, '
-            . 'name TEXT NOT NULL, '
-            . 'short_name TEXT NOT NULL, '
-            . 'type TEXT NOT NULL, '
-            . 'nation_id TEXT NOT NULL, '
-            . 'season_id TEXT NULL, '
-            . 'status TEXT NOT NULL, '
-            . 'source_package_id TEXT NOT NULL, '
-            . 'source_package_version TEXT NOT NULL, '
-            . 'source_schema_version INTEGER NOT NULL, '
-            . 'maximum_substitutions INTEGER NOT NULL DEFAULT 5, '
-            . 'tier INTEGER NOT NULL DEFAULT 1'
-            . ')'
-        );
-        $columns = $this->database->connection()->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(PDO::FETCH_ASSOC);
-        if (!in_array('maximum_substitutions', array_column($columns, 'name'), true)) {
-            $this->database->connection()->exec('ALTER TABLE ' . self::TABLE . ' ADD COLUMN maximum_substitutions INTEGER NOT NULL DEFAULT 5');
-        }
-        if (!in_array('tier', array_column($columns, 'name'), true)) {
-            $this->database->connection()->exec('ALTER TABLE ' . self::TABLE . ' ADD COLUMN tier INTEGER NOT NULL DEFAULT 1');
-        }
+        SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
+            $this->database->connection()->exec(
+                'CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' ('
+                . 'id TEXT PRIMARY KEY, '
+                . 'name TEXT NOT NULL, '
+                . 'short_name TEXT NOT NULL, '
+                . 'type TEXT NOT NULL, '
+                . 'nation_id TEXT NOT NULL, '
+                . 'season_id TEXT NULL, '
+                . 'status TEXT NOT NULL, '
+                . 'source_package_id TEXT NOT NULL, '
+                . 'source_package_version TEXT NOT NULL, '
+                . 'source_schema_version INTEGER NOT NULL, '
+                . 'maximum_substitutions INTEGER NOT NULL DEFAULT 5, '
+                . 'tier INTEGER NOT NULL DEFAULT 1'
+                . ')'
+            );
+            $columns = $this->database->connection()->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(PDO::FETCH_ASSOC);
+            if (!in_array('maximum_substitutions', array_column($columns, 'name'), true)) {
+                $this->database->connection()->exec('ALTER TABLE ' . self::TABLE . ' ADD COLUMN maximum_substitutions INTEGER NOT NULL DEFAULT 5');
+            }
+            if (!in_array('tier', array_column($columns, 'name'), true)) {
+                $this->database->connection()->exec('ALTER TABLE ' . self::TABLE . ' ADD COLUMN tier INTEGER NOT NULL DEFAULT 1');
+            }
+        });
     }
 
     public function save(Competition $competition): void

@@ -944,8 +944,7 @@ final class WebApplication
     {
         $database = $this->database($saveId);
         $presentation = new CareerPresentationService($this->services);
-        $snapshot = $presentation->snapshot($database, $saveId, true);
-        $summary = $snapshot['summary'];
+        $summary = $presentation->trophyRoomSummary($database, $saveId);
         $player = (array) ($summary['player'] ?? []);
         $achievements = $presentation->achievementSummary($summary);
         $counts = (array) ($achievements['counts'] ?? []);
@@ -1244,13 +1243,14 @@ final class WebApplication
     private function competition(string $saveId, string $competitionId, array &$session): array
     {
         $database = $this->database($saveId);
-        $snapshot = $this->snapshot($saveId, $database);
+        $presentation = new CareerPresentationService($this->services);
+        $snapshot = $presentation->competitionContext($database, $saveId);
         $competitionId = $competitionId !== '' ? $competitionId : (string) (((array) ($snapshot['summary']['current_competition'] ?? []))['id'] ?? '');
         if ($competitionId === '') { return $this->redirect(WebView::url('world', ['save' => $saveId])); }
         $controlledClubId = (string) (((array) ($snapshot['summary']['current_club'] ?? []))['id'] ?? '');
         if ($controlledClubId === '' && (($snapshot['summary']['international']['selected'] ?? false) === true)) { $controlledClubId = (string) ($snapshot['summary']['international']['team_id'] ?? ''); }
         $controlledPlayerId = (string) (($snapshot['summary']['player']['id'] ?? ''));
-        $view = (new CareerPresentationService($this->services))->competitionView($database, $competitionId, new SeasonId((string) $snapshot['summary']['current_season_id']), $snapshot['date'], $controlledClubId, $controlledPlayerId === '' ? null : $controlledPlayerId);
+        $view = $presentation->competitionView($database, $competitionId, new SeasonId((string) $snapshot['summary']['current_season_id']), $snapshot['date'], $controlledClubId, $controlledPlayerId === '' ? null : $controlledPlayerId);
         $competition = $view['competition'];
         $leaderboardSection = $this->competitionLeaderboardSection((array) ($view['leaderboards'] ?? []));
         if ($competition->type() === CompetitionType::Continental) {

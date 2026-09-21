@@ -9,6 +9,7 @@ use Goal\Legacy\Modules\Club\Domain\Club;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubNotFoundException;
 use Goal\Legacy\Modules\Nation\Domain\NationId;
+use Goal\Legacy\Core\Persistence\SchemaInitializationGuard;
 use PDO;
 
 final class ClubRepository
@@ -17,28 +18,30 @@ final class ClubRepository
 
     public function __construct(private readonly DatabaseInterface $database)
     {
-        $this->database->connection()->exec(
-            'CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' ('
-            . 'id TEXT PRIMARY KEY, '
-            . 'canonical_name TEXT NOT NULL, '
-            . 'short_name TEXT NOT NULL, '
-            . 'nickname TEXT NULL, '
-            . 'nation_id TEXT NOT NULL, '
-            . 'city TEXT NOT NULL, '
-            . 'founded_year INTEGER NOT NULL, '
-            . 'stadium_name TEXT NOT NULL, '
-            . 'club_colors TEXT NOT NULL, '
-            . 'core_philosophy TEXT NOT NULL, '
-            . 'football_identity TEXT NOT NULL, '
-            . 'current_style TEXT NOT NULL, '
-            . 'reputation INTEGER NOT NULL, '
-            . 'facilities_level INTEGER NOT NULL, '
-            . 'source_package_id TEXT NOT NULL, '
-            . 'source_package_version TEXT NOT NULL, '
-            . 'source_schema_version INTEGER NOT NULL'
-            . ')'
-        );
-        $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_club_records_nation_id ON ' . self::TABLE . ' (nation_id, id)');
+        SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
+            $this->database->connection()->exec(
+                'CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' ('
+                . 'id TEXT PRIMARY KEY, '
+                . 'canonical_name TEXT NOT NULL, '
+                . 'short_name TEXT NOT NULL, '
+                . 'nickname TEXT NULL, '
+                . 'nation_id TEXT NOT NULL, '
+                . 'city TEXT NOT NULL, '
+                . 'founded_year INTEGER NOT NULL, '
+                . 'stadium_name TEXT NOT NULL, '
+                . 'club_colors TEXT NOT NULL, '
+                . 'core_philosophy TEXT NOT NULL, '
+                . 'football_identity TEXT NOT NULL, '
+                . 'current_style TEXT NOT NULL, '
+                . 'reputation INTEGER NOT NULL, '
+                . 'facilities_level INTEGER NOT NULL, '
+                . 'source_package_id TEXT NOT NULL, '
+                . 'source_package_version TEXT NOT NULL, '
+                . 'source_schema_version INTEGER NOT NULL'
+                . ')'
+            );
+            $this->database->connection()->exec('CREATE INDEX IF NOT EXISTS idx_club_records_nation_id ON ' . self::TABLE . ' (nation_id, id)');
+        });
     }
 
     public function save(Club $club): void

@@ -147,4 +147,23 @@ readable Season labels, Club context, deterministic ties, and a factual gap to
 the leader remain visible. Empty or early Seasons say that no ranked total is
 available rather than using race or prediction language.
 
+## P2-034 Read-path performance consolidation
+
+Competition and Trophy Room rendering retain their existing ownership and
+canonical output. The production read path now avoids repeated Club and
+Competition schema initialization per PDO connection, memoizes repeated
+immutable entity labels only for the active request/connection, and gives the
+Competition page only its progression context before formatting fixture data
+for the bounded displayed rows. The Trophy Room uses the existing progression,
+legacy, and captaincy facts directly rather than loading the broader Career
+Home snapshot.
+
+These are data-access changes only: there is no global cache, persisted
+achievement summary, new index, schema migration, gameplay change, RNG use,
+or write-on-read behavior. The P2-031 fixture-context service, P2-032
+achievement projection, and P2-033 competition leaderboard query remain the
+owners of their facts. Regression tests retain output equality, zero-DML
+reads, deterministic ordering, legacy/compacted save compatibility, and a
+bounded schema-initialization sentinel.
+
 END OF DOCUMENT

@@ -576,4 +576,22 @@ Young and legacy Careers show only what can be proven. No numeric legacy/GOAT
 score, fabricated achievement, global record book, NPC Trophy Room, or page
 render write is introduced.
 
+## P2-033 Season Leaderboards and Player Standing
+
+Current competition leaderboards are descriptive read models over canonical
+completed Match statistics and existing World-fidelity competition aggregates.
+Goals and assists are supported for separate current Seasons and competitions
+(League, Domestic Cup, and Europe). International, clean-sheet, and
+average-rating leaderboards remain deferred where the existing evidence does
+not provide a fair bounded comparison. No ranking rows, counters, predictions,
+odds, hidden score, or historical Top-10 reconstruction is created.
+
+The controlled Player receives a deterministic position, value, and gap to the
+leader. Tied values remain tied even when Player-ID ordering keeps the Top 10
+stable. P2-012 completed Top Scorer and Top Assist awards read the same merged
+controlled/World evidence, while P2-030 penalties, P2-031 rivalry context,
+captaincy, traits, role, trust, attachment, development, and reputation do
+not change leaderboard mathematics. Competition pages are the full surface;
+Career Home and Profile show only relevant current-race context.
+
 END OF DOCUMENT

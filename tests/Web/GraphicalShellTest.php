@@ -229,6 +229,14 @@ final class GraphicalShellTest extends TestCase
 
             $world = $this->application->handle('GET', '/', ['page' => 'world', 'save' => $save], [], $session);
             self::assertStringContainsString('page=competition', $world['body']);
+            preg_match('/page=competition&amp;save=' . preg_quote($save, '/') . '&amp;competition=([^"&]+)/', $world['body'], $competitionMatch);
+            self::assertNotEmpty($competitionMatch[1] ?? null);
+            $leaderboardDmlBefore = (int) $database->connection()->query('SELECT total_changes()')->fetchColumn();
+            $competitionPage = $this->application->handle('GET', '/', ['page' => 'competition', 'save' => $save, 'competition' => html_entity_decode($competitionMatch[1])], [], $session);
+            self::assertSame($leaderboardDmlBefore, (int) $database->connection()->query('SELECT total_changes()')->fetchColumn());
+            self::assertSame(200, $competitionPage['status']);
+            self::assertStringContainsString('STATISTICAL LEADERS', $competitionPage['body']);
+            self::assertStringContainsString('No completed Player statistics are available yet.', $competitionPage['body']);
             $international = $this->application->handle('GET', '/', ['page' => 'international', 'save' => $save], [], $session);
             self::assertSame(200, $international['status']);
             self::assertStringContainsString('National Teams', $international['body']);

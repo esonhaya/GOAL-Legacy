@@ -15,7 +15,6 @@ use Goal\Legacy\Modules\International\InternationalCompetitionService;
 use Goal\Legacy\Modules\International\NationalTeamService;
 use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
-use Goal\Legacy\Modules\Match\PlayerMatchRatingService;
 use Goal\Legacy\Modules\Match\StandingsService;
 use Goal\Legacy\Modules\Player\Domain\CareerEvent;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
@@ -596,49 +595,7 @@ final class CareerLegacyService
     /** @return list<array<string, mixed>> */
     private function competitionAggregates(DatabaseInterface $database, SeasonId $seasonId, string $competitionId): array
     {
-        $result = [];
-        $detailKeys = [];
-        $matches = new MatchRepository($database);
-        $players = new PlayerRepository($database);
-        $ratings = new PlayerMatchRatingService();
-        foreach ((new PlayerMatchStatRepository($database))->completedSeasonRatingEvidence($seasonId) as $evidence) {
-            $stat = $evidence['stat'];
-            $match = $matches->get($stat->matchId());
-            if ($match->competitionId()->value() !== $competitionId) { continue; }
-            $key = $stat->playerId()->value() . '|' . $stat->clubId()->value();
-            $result[$key] ??= $this->emptyAggregate($stat->playerId()->value(), $stat->clubId()->value(), $players->get($stat->playerId())->primaryPosition()->value);
-            $this->addStat($result[$key], $stat);
-            $rating = $ratings->rate($stat, $players->get($stat->playerId())->primaryPosition());
-            if ($rating !== null) { ++$result[$key]['rated_appearances']; $result[$key]['rating_total'] += $rating; }
-            $detailKeys[$key] = true;
-        }
-        foreach ((new PlayerCompetitionStatisticsRepository($database, false))->byCompetitionSeason($competitionId, $seasonId) as $row) {
-            $key = (string) $row['player_id'] . '|' . (string) $row['club_id'];
-            if (isset($detailKeys[$key])) { continue; }
-            $row['position'] = $players->get((string) $row['player_id'])->primaryPosition()->value;
-            $result[$key] = $row;
-        }
-        foreach ($result as &$row) {
-            $row['average_match_rating'] = (int) $row['rated_appearances'] > 0 ? round((float) $row['rating_total'] / (int) $row['rated_appearances'], 2) : null;
-        }
-        unset($row);
-
-        return array_values($result);
-    }
-
-    /** @return array<string, int|float|string|null> */
-    private function emptyAggregate(string $playerId, string $clubId, string $position): array
-    {
-        return ['player_id' => $playerId, 'club_id' => $clubId, 'position' => $position, 'appearances' => 0, 'starts' => 0, 'minutes' => 0, 'goals' => 0, 'assists' => 0, 'shots' => 0, 'shots_on_target' => 0, 'saves' => 0, 'clean_sheets' => 0, 'tackles' => 0, 'interceptions' => 0, 'blocks' => 0, 'passes_attempted' => 0, 'passes_completed' => 0, 'fouls_committed' => 0, 'yellow_cards' => 0, 'red_cards' => 0, 'rated_appearances' => 0, 'rating_total' => 0.0, 'average_match_rating' => null];
-    }
-
-    /** @param array<string, int|float|string|null> $aggregate */
-    private function addStat(array &$aggregate, \Goal\Legacy\Modules\Match\Domain\PlayerMatchStat $stat): void
-    {
-        ++$aggregate['appearances'];
-        $aggregate['starts'] += $stat->started() ? 1 : 0;
-        $aggregate['minutes'] += $stat->minutes();
-        foreach (['goals' => 'goals', 'assists' => 'assists', 'shots' => 'shots', 'shots_on_target' => 'shotsOnTarget', 'saves' => 'saves', 'clean_sheets' => 'cleanSheets', 'tackles' => 'tackles', 'interceptions' => 'interceptions', 'blocks' => 'blocks', 'passes_attempted' => 'passesAttempted', 'passes_completed' => 'passesCompleted', 'fouls_committed' => 'foulsCommitted', 'yellow_cards' => 'yellowCards', 'red_cards' => 'redCards'] as $key => $method) { $aggregate[$key] += $stat->{$method}(); }
+        return (new CompetitionStatisticsQuery())->forCompetitionSeason($database, $competitionId, $seasonId);
     }
 
     /** @param list<array<string, int|float|string|null>> $rows @return array<string, int|float|string|null> */

@@ -137,4 +137,14 @@ responsibility, free agents have none, and reads on legacy saves use a stable
 fallback without fabricating historical appointments. No milestone, News,
 Echo, or Pulse entry is produced for routine responsibility changes.
 
+## P2-033 Season Leaders in Career Surfaces
+
+Competition pages expose current Goals and Assists leaders from the canonical
+competition/Season read model. Career Home and controlled Player Profile may
+show a compact standing only when the Player is currently in a meaningful
+top-ten context; neither surface persists rank history. Competition labels,
+readable Season labels, Club context, deterministic ties, and a factual gap to
+the leader remain visible. Empty or early Seasons say that no ranked total is
+available rather than using race or prediction language.
+
 END OF DOCUMENT

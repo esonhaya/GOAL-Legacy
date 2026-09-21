@@ -17,8 +17,13 @@ use PDO;
 final class PlayerMatchStatRepository
 {
     private const TABLE = 'match_player_stats';
-    public function __construct(private readonly DatabaseInterface $database)
-    { SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void { $connection = $this->database->connection(); $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, player_id TEXT NOT NULL, club_id TEXT NOT NULL, appeared INTEGER NOT NULL, started INTEGER NOT NULL, minutes INTEGER NOT NULL, goals INTEGER NOT NULL, assists INTEGER NOT NULL DEFAULT 0, shots INTEGER NOT NULL DEFAULT 0, shots_on_target INTEGER NOT NULL DEFAULT 0, saves INTEGER NOT NULL DEFAULT 0, clean_sheets INTEGER NOT NULL DEFAULT 0, tackles INTEGER NOT NULL DEFAULT 0, interceptions INTEGER NOT NULL DEFAULT 0, blocks INTEGER NOT NULL DEFAULT 0, passes_attempted INTEGER NOT NULL DEFAULT 0, passes_completed INTEGER NOT NULL DEFAULT 0, fouls_committed INTEGER NOT NULL DEFAULT 0, yellow_cards INTEGER NOT NULL DEFAULT 0, red_cards INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (match_id, player_id))'); $columns = $connection->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(PDO::FETCH_ASSOC); $names = array_fill_keys(array_map(static fn (array $column): string => (string) $column['name'], $columns), true); $legacyAttemptShape = !isset($names['shots']) || !isset($names['shots_on_target']); foreach (['assists' => 'INTEGER NOT NULL DEFAULT 0', 'shots' => 'INTEGER NOT NULL DEFAULT 0', 'shots_on_target' => 'INTEGER NOT NULL DEFAULT 0', 'saves' => 'INTEGER NOT NULL DEFAULT 0', 'clean_sheets' => 'INTEGER NOT NULL DEFAULT 0', 'tackles' => 'INTEGER NOT NULL DEFAULT 0', 'interceptions' => 'INTEGER NOT NULL DEFAULT 0', 'blocks' => 'INTEGER NOT NULL DEFAULT 0', 'passes_attempted' => 'INTEGER NOT NULL DEFAULT 0', 'passes_completed' => 'INTEGER NOT NULL DEFAULT 0', 'fouls_committed' => 'INTEGER NOT NULL DEFAULT 0', 'yellow_cards' => 'INTEGER NOT NULL DEFAULT 0', 'red_cards' => 'INTEGER NOT NULL DEFAULT 0'] as $name => $definition) { if (!isset($names[$name])) { $connection->exec('ALTER TABLE ' . self::TABLE . ' ADD COLUMN ' . $name . ' ' . $definition); } } if ($legacyAttemptShape) { $connection->exec('UPDATE ' . self::TABLE . ' SET shots = CASE WHEN shots < goals THEN goals ELSE shots END, shots_on_target = CASE WHEN shots_on_target < goals THEN goals ELSE shots_on_target END'); } $connection->exec('CREATE INDEX IF NOT EXISTS idx_match_stats_player ON ' . self::TABLE . ' (player_id, match_id)'); }); }
+    public function __construct(private readonly DatabaseInterface $database, bool $initialize = true)
+    {
+        if (!$initialize) {
+            return;
+        }
+        SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void { $connection = $this->database->connection(); $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, player_id TEXT NOT NULL, club_id TEXT NOT NULL, appeared INTEGER NOT NULL, started INTEGER NOT NULL, minutes INTEGER NOT NULL, goals INTEGER NOT NULL, assists INTEGER NOT NULL DEFAULT 0, shots INTEGER NOT NULL DEFAULT 0, shots_on_target INTEGER NOT NULL DEFAULT 0, saves INTEGER NOT NULL DEFAULT 0, clean_sheets INTEGER NOT NULL DEFAULT 0, tackles INTEGER NOT NULL DEFAULT 0, interceptions INTEGER NOT NULL DEFAULT 0, blocks INTEGER NOT NULL DEFAULT 0, passes_attempted INTEGER NOT NULL DEFAULT 0, passes_completed INTEGER NOT NULL DEFAULT 0, fouls_committed INTEGER NOT NULL DEFAULT 0, yellow_cards INTEGER NOT NULL DEFAULT 0, red_cards INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (match_id, player_id))'); $columns = $connection->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(PDO::FETCH_ASSOC); $names = array_fill_keys(array_map(static fn (array $column): string => (string) $column['name'], $columns), true); $legacyAttemptShape = !isset($names['shots']) || !isset($names['shots_on_target']); foreach (['assists' => 'INTEGER NOT NULL DEFAULT 0', 'shots' => 'INTEGER NOT NULL DEFAULT 0', 'shots_on_target' => 'INTEGER NOT NULL DEFAULT 0', 'saves' => 'INTEGER NOT NULL DEFAULT 0', 'clean_sheets' => 'INTEGER NOT NULL DEFAULT 0', 'tackles' => 'INTEGER NOT NULL DEFAULT 0', 'interceptions' => 'INTEGER NOT NULL DEFAULT 0', 'blocks' => 'INTEGER NOT NULL DEFAULT 0', 'passes_attempted' => 'INTEGER NOT NULL DEFAULT 0', 'passes_completed' => 'INTEGER NOT NULL DEFAULT 0', 'fouls_committed' => 'INTEGER NOT NULL DEFAULT 0', 'yellow_cards' => 'INTEGER NOT NULL DEFAULT 0', 'red_cards' => 'INTEGER NOT NULL DEFAULT 0'] as $name => $definition) { if (!isset($names[$name])) { $connection->exec('ALTER TABLE ' . self::TABLE . ' ADD COLUMN ' . $name . ' ' . $definition); } } if ($legacyAttemptShape) { $connection->exec('UPDATE ' . self::TABLE . ' SET shots = CASE WHEN shots < goals THEN goals ELSE shots END, shots_on_target = CASE WHEN shots_on_target < goals THEN goals ELSE shots_on_target END'); } $connection->exec('CREATE INDEX IF NOT EXISTS idx_match_stats_player ON ' . self::TABLE . ' (player_id, match_id)'); });
+    }
     /** @param list<PlayerMatchStat> $stats */
     public function replaceForMatch(array $stats): void { $this->database->transaction(function () use ($stats): void { $this->replaceForMatchInTransaction($stats); }); }
     /** @param list<PlayerMatchStat> $stats */
@@ -40,6 +45,37 @@ final class PlayerMatchStatRepository
         $statement = $this->database->connection()->prepare($sql);
         $statement->execute($parameters);
 
+        $positions = new ControlledMatchPositionRepository($this->database, false);
+        $positionMap = $positions->all();
+        $evidence = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $position = $positionMap[(string) $row['match_id'] . '|' . (string) $row['player_id']] ?? null;
+            $evidence[] = [
+                'player_id' => (string) $row['player_id'],
+                'club_id' => (string) $row['club_id'],
+                'position' => $position?->value ?? (string) $row['primary_position'],
+                'stat' => $this->hydrateRows([$row])[0],
+            ];
+        }
+
+        return $evidence;
+    }
+
+    /** @return list<array{player_id:string,club_id:string,position:string,stat:PlayerMatchStat}> */
+    public function completedCompetitionRatingEvidence(SeasonId $seasonId, string $competitionId): array
+    {
+        if (!$this->tableExists()) {
+            return [];
+        }
+        $statement = $this->database->connection()->prepare(
+            'SELECT stats.*, players.primary_position FROM ' . self::TABLE . ' stats '
+            . 'JOIN match_records matches ON matches.id = stats.match_id '
+            . 'JOIN player_records players ON players.id = stats.player_id '
+            . 'WHERE matches.season_id = :season_id AND matches.competition_id = :competition_id '
+            . 'AND matches.status = :status AND stats.appeared = 1 '
+            . 'ORDER BY stats.player_id ASC, stats.match_id ASC'
+        );
+        $statement->execute(['season_id' => $seasonId->value(), 'competition_id' => $competitionId, 'status' => 'completed']);
         $positions = new ControlledMatchPositionRepository($this->database, false);
         $positionMap = $positions->all();
         $evidence = [];
@@ -186,4 +222,11 @@ final class PlayerMatchStatRepository
     }
     /** @param list<array<string, mixed>> $rows @return list<PlayerMatchStat> */
     private function hydrateRows(array $rows): array { return array_map(static fn (array $row): PlayerMatchStat => new PlayerMatchStat(new MatchId((string) $row['match_id']), new PlayerId((string) $row['player_id']), new ClubId((string) $row['club_id']), (bool) $row['appeared'], (bool) $row['started'], (int) $row['minutes'], (int) ($row['goals']), (int) ($row['assists'] ?? 0), (int) ($row['shots'] ?? 0), (int) ($row['shots_on_target'] ?? 0), (int) ($row['saves'] ?? 0), (int) ($row['clean_sheets'] ?? 0), (int) ($row['tackles'] ?? 0), (int) ($row['interceptions'] ?? 0), (int) ($row['blocks'] ?? 0), (int) ($row['passes_attempted'] ?? 0), (int) ($row['passes_completed'] ?? 0), (int) ($row['fouls_committed'] ?? 0), (int) ($row['yellow_cards'] ?? 0), (int) ($row['red_cards'] ?? 0)), $rows); }
+    private function tableExists(): bool
+    {
+        $statement = $this->database->connection()->prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = :table");
+        $statement->execute(['table' => self::TABLE]);
+
+        return $statement->fetchColumn() !== false;
+    }
 }

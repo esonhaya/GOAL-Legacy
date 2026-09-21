@@ -31,6 +31,7 @@ use Goal\Legacy\Modules\Player\CareerLegacyService;
 use Goal\Legacy\Modules\Player\PlayerCareerStatisticsService;
 use Goal\Legacy\Modules\Player\PlayerTraitService;
 use Goal\Legacy\Modules\Player\PlayerFormService;
+use Goal\Legacy\Modules\Player\CompetitionStatisticsQuery;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Player\OnPitchRoleService;
 use Goal\Legacy\Modules\Club\ClubCaptaincyService;
@@ -41,6 +42,7 @@ use Goal\Legacy\Modules\Club\Persistence\ClubSquadRepository;
 use Goal\Legacy\Modules\Club\ClubSeasonObjectiveService;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
+use Goal\Legacy\Modules\World\Persistence\SeasonRepository;
 
 /** Assembles presentation input from canonical services and persisted facts. */
 final class CareerPresentationService
@@ -122,6 +124,36 @@ final class CareerPresentationService
     public function achievementSummary(array $summary): array
     {
         return (new CareerAchievementSummary())->project($summary);
+    }
+
+    /** @return array<string, mixed> */
+    public function competitionLeaderboards(DatabaseInterface $database, string $competitionId, SeasonId $seasonId, ?string $controlledPlayerId = null): array
+    {
+        $competition = (new CompetitionRepository($database))->get($competitionId);
+        $rows = (new CompetitionStatisticsQuery())->forCompetitionSeason($database, $competitionId, $seasonId);
+        $playerIds = array_values(array_unique(array_map(static fn (array $row): string => (string) ($row['player_id'] ?? ''), $rows)));
+        $playerNames = [];
+        if ($playerIds !== []) {
+            foreach ((new PlayerRepository($database))->byIds($playerIds) as $player) {
+                $playerNames[$player->id()->value()] = $player->preferredName();
+            }
+        }
+        $clubNames = [];
+        foreach ($this->services->clubModule()->service()->repository($database)->all() as $club) {
+            $clubNames[$club->id()->value()] = $club->canonicalName();
+        }
+        $season = (new SeasonRepository($database))->get($seasonId);
+
+        return (new CompetitionLeaderboardProjection())->project(
+            $rows,
+            $playerNames,
+            $clubNames,
+            $competition->id()->value(),
+            $competition->name(),
+            $season->id()->value(),
+            $season->label(),
+            $controlledPlayerId,
+        );
     }
 
     /**
@@ -227,6 +259,9 @@ final class CareerPresentationService
                 }
             }
         }
+        $leaderboardContext = $controlled && $competition !== null
+            ? $this->competitionLeaderboards($database, $competition->id()->value(), $seasonId, $playerId)
+            : null;
 
         return [
             'player' => $player,
@@ -234,6 +269,7 @@ final class CareerPresentationService
             'nationality' => $nation?->displayName() ?? $player->primaryNationId()->value(),
             'club' => $club,
             'competition' => $competition,
+            'leaderboard_context' => $leaderboardContext,
             'role' => $membership?->role()->value,
             'season_id' => $seasonId->value(),
             'season_stats' => $stats,
@@ -283,7 +319,7 @@ final class CareerPresentationService
     }
 
     /** @return array<string, mixed> */
-    public function competitionView(DatabaseInterface $database, string $competitionId, SeasonId $seasonId, SimulationDate $date, ?string $controlledClubId = null): array
+    public function competitionView(DatabaseInterface $database, string $competitionId, SeasonId $seasonId, SimulationDate $date, ?string $controlledClubId = null, ?string $controlledPlayerId = null): array
     {
         $competition = (new CompetitionRepository($database))->get($competitionId);
         $clubs = $this->services->clubModule()->service()->repository($database);
@@ -311,6 +347,9 @@ final class CareerPresentationService
         $view = [
             'competition' => $competition,
             'standings' => $standings,
+            'leaderboards' => in_array($competition->type(), [CompetitionType::DomesticLeague, CompetitionType::DomesticCup, CompetitionType::Continental], true)
+                ? $this->competitionLeaderboards($database, $competitionId, $seasonId, $controlledPlayerId)
+                : null,
             'recent_results' => array_slice(array_reverse($recent), 0, 8),
             'upcoming_fixtures' => array_slice($upcoming, 0, 8),
         ];

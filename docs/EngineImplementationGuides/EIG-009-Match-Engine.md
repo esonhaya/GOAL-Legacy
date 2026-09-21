@@ -433,4 +433,19 @@ scan, or page-render write is added. A decisive contribution may be described
 through the existing MatchStory evidence when a canonical meaningful fixture
 context already exists; no second performance algorithm is introduced.
 
+## P2-033 Competition Leaderboard Boundary
+
+The Match engine writes its existing detailed controlled-Player evidence or
+compact World-fidelity aggregate. `CompetitionStatisticsQuery` reads both
+representations for a single Season/competition and prevents a detailed
+Player/Club key from being counted again from its compact counterpart. The
+leaderboard projection does not run during simulation and does not alter goals,
+assists, penalties, ratings, Match RNG, or World-fidelity behavior.
+
+Goals and assists are the supported categories for League, Domestic Cup, and
+Europe. Clean sheets and average ratings remain deferred in the presentation
+boundary. Ties use canonical values plus stable factual tie-breakers; the full
+page is Top 10 plus controlled-Player context, with no rank history,
+prediction, global table, or leaderboard persistence.
+
 END OF DOCUMENT

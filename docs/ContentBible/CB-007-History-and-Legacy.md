@@ -397,4 +397,20 @@ or global football record is created. Active, retired, compacted, and legacy
 Careers render an honest empty or partial state rather than reconstructing
 achievements.
 
+## P2-033 Current Statistical Standing
+
+Competition leaders are factual current-Season context, not honours, awards,
+records, predictions, or media rankings. Use `Goals` and `Assists` only when
+canonical competition/Season evidence exists, with separate League, Cup, and
+European scope. A controlled Player may be described as leading, in the top
+three, in the top ten, or outside the top ten; do not call a Player elite,
+best, or likely to win from rank alone. Equal totals remain visibly equal.
+
+Do not merge Club and international totals, convert a penalty into a special
+category, infer assists from highlights, or report a historical Top 10 that the
+save does not retain. A completed Top Scorer or Top Assist award is an existing
+P2-012 fact and must agree with the same canonical aggregate used by the
+leaderboard. Rivalry, captaincy, role, traits, trust, and reputation are
+independent context.
+
 END OF DOCUMENT

@@ -580,4 +580,21 @@ active ban. Serving is written only by completed applicable detailed Match
 processing, never by page rendering, calendar passage, friendly fixtures,
 injury recovery, or free agency.
 
+## DOMAIN-033 Season Leaderboard Read Model
+
+`PlayerMatchStatRepository` remains the detailed controlled-Player evidence
+owner and `PlayerCompetitionStatisticsRepository` remains the compact
+World-fidelity competition/Season aggregate owner. `CompetitionStatisticsQuery`
+merges those existing sources by Player/Club key, preferring detailed evidence
+where both representations exist; it writes no rows. The leaderboard
+projection then combines a Player's Club rows for the requested competition
+and Season without creating a duplicate statistics ledger.
+
+Only canonical Goals and Assists are currently exposed. Rankings are scoped to
+one Season and competition, use stable value/tie/Player-ID ordering, and keep
+the controlled Player's position and gap transient. Clean sheets and average
+ratings remain deferred until their participation/fairness boundary is
+explicitly supported. Save/reload and compaction therefore require no new
+achievement or ranking persistence, and GET reads perform no DML.
+
 END OF DOCUMENT

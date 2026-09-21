@@ -610,4 +610,20 @@ Legacy saves show only available evidence, and international output is limited
 to supported canonical honours. Rivalry and captaincy remain contextual
 boundaries rather than achievement categories.
 
+### P2-033 Season leaderboard lifecycle
+
+`CompetitionStatisticsQuery` is a read-only adapter over detailed controlled
+Match rows and compact World-fidelity competition aggregates. It is reused by
+the existing P2-012 award calculation so final Top Scorer and Top Assist facts
+cannot drift from current competition leaderboard evidence. The graphical
+projection persists no ranking rows or counters and does not initialize missing
+statistics on GET.
+
+The supported boundary is current Season Goals and Assists for one League,
+Domestic Cup, or European competition. It uses bounded aggregate reads,
+combines a mid-Season transfer's rows for the same Player, and keeps Season and
+competition identity explicit. Stable tie ordering and distinct-value rank make
+reloads deterministic. No World scan, detailed NPC Match generation,
+historical Top-10 reconstruction, prediction, or speculative index is added.
+
 END OF DOCUMENT

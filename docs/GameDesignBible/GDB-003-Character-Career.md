@@ -169,6 +169,19 @@ Transfers, renewals, expiry, free agency, and new signings continue to be
 owned by the Contract and Transfer modules; finance consumes their canonical
 date-bounded state.
 
+## P2-035 Contract Offers and Career Terms
+
+At a controlled Contract boundary, the Player receives one durable,
+deterministic decision through the existing Career opportunity path. A Club
+offer presents its bounded Season term, weekly GC wage, expected squad role,
+Club context, and expiry. The Player may accept, decline into the existing
+free-agency path, or make one modest wage counter; no agent, personality,
+salary-cap, or Club-budget simulation is introduced. Expected role describes
+the Club/Season membership context and never guarantees selection. An
+accepted term is applied through the existing Contract/Transfer owners and
+feeds the existing weekly finance cadence. Viewing a decision is read-only,
+and offer views/counters are not Career History achievements.
+
 P2-005 adds a bounded generic lifestyle catalog and persistent controlled-
 Player ownership. Purchases are optional, atomic, server-priced, and recorded
 as ledger transactions. Their declarative effects provide small contextual

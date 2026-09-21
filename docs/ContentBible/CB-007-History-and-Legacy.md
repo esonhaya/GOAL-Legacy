@@ -107,6 +107,13 @@ and durable numeric milestones. Copy should name the football achievement
 itself — for example, “League Champion” or “Top Scorer” — rather than expose a
 synthetic points balance.
 
+Contract terms are Career context, not Legacy achievements. A signed Contract
+or Club change may remain in the canonical movement history, while viewing an
+offer, making a counter, or declining a minor offer does not create narrative
+spam or a fabricated milestone. The final Career record reports only the
+accepted Club, Contract, honours, awards, and milestones that the save can
+prove.
+
 Annual recognition is intentionally small: Player of the Season, Young Player
 of the Season, Top Scorer, and Top Assist Provider are domestic-League facts
 when the completed Season contains sufficient evidence. World-fidelity NPCs

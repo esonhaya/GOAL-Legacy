@@ -480,7 +480,7 @@ final class PlayerCareerProgressionQuery
         if ($contract === null) {
             return null;
         }
-        return ['club' => $this->clubView($clubs->get($contract->clubId())), 'start_date' => $contract->startDate()->toIsoString(), 'end_date' => $contract->endDate()->toIsoString(), 'status' => $contract->status()->value];
+        return ['club' => $this->clubView($clubs->get($contract->clubId())), 'start_date' => $contract->startDate()->toIsoString(), 'end_date' => $contract->endDate()->toIsoString(), 'wage' => $contract->wage(), 'status' => $contract->status()->value];
     }
 
     /** @param list<\Goal\Legacy\Modules\Player\Domain\CareerOpportunity> $opportunities @return list<array<string, mixed>> */

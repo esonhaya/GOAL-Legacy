@@ -353,4 +353,23 @@ modify OVR, attributes, Match results/ratings, development, injury/readiness,
 selection, finances, reputation, or football traits. NPC transfer processing
 does not receive attachment/ambition ticks or a new relationship history.
 
+## P2-035 Contract offer terms
+
+The same `CareerOpportunity` path exposes concrete controlled-player Contract
+terms for renewal and free-agent decisions: Club, bounded Season term, weekly
+GC wage, expected `SquadRole`, and decision expiry. Term calibration is a
+small deterministic age rule (one to four Seasons); wage calibration reuses
+existing OVR, Club stature, role, recognition, and age evidence with the
+existing cap. No universal market-value score is introduced.
+
+One wage counter is supported per concrete Contract option. It requests a
+modest bounded increase and receives a deterministic accepted/rejected answer
+from the offering Club's existing reputation/stature signal. A successful
+counter changes only the stored option; the Player must still explicitly
+accept, and `TransferService` applies the accepted wage/end date/role to the
+canonical Contract and Season squad membership. The expected role is not a
+selection promise. Transfer-interest offers retain their existing atomic
+transfer path and show their stored terms without creating a second
+negotiation system.
+
 END OF DOCUMENT

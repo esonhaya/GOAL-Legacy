@@ -220,6 +220,8 @@ final class CareerFormatter
                 if (trim((string) ($option['role'] ?? '')) !== '') { $line .= ' | Role: ' . (string) $option['role']; }
                 if (trim((string) ($option['club_level'] ?? '')) !== '') { $line .= ' | Level: ' . (string) $option['club_level']; }
                 if (trim((string) ($option['wage'] ?? '')) !== '') { $line .= ' | Wage: ' . $this->number($option['wage']); }
+                if (($option['current_wage'] ?? null) !== null) { $line .= ' | Current wage: ' . $this->number($option['current_wage']); }
+                if (($option['term_seasons'] ?? null) !== null) { $line .= ' | Term: ' . $this->number($option['term_seasons']) . ' Season' . ((int) $option['term_seasons'] === 1 ? '' : 's'); }
                 if (trim((string) ($option['contract_end_date'] ?? '')) !== '') { $line .= ' | Through: ' . (string) $option['contract_end_date']; }
                 if (($option['european_qualification'] ?? false) === true) { $line .= ' | Europe'; }
                 if (trim((string) ($option['journey_context'] ?? '')) !== '') { $line .= ' | ' . (string) $option['journey_context']; }
@@ -741,7 +743,10 @@ final class CareerFormatter
         if ($contract === null) { return 'No active contract'; }
         $status = CareerLabels::value($contract['status'] ?? null);
         $end = trim((string) ($contract['end_date'] ?? ''));
-        return $end === '' ? $status : $status . ' through ' . $end;
+        $text = $end === '' ? $status : $status . ' through ' . $end;
+        if (array_key_exists('wage', $contract) && $contract['wage'] !== null) { $text .= ' · GC ' . $this->number($contract['wage']) . '/week'; }
+
+        return $text;
     }
 
     /** @param array<string, mixed> $event */

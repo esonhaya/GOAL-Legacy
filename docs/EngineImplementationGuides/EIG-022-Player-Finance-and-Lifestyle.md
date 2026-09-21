@@ -33,6 +33,13 @@ the installed catalog price, balance, and ownership inside one transaction;
 the debit and ownership row either both commit or neither does. V1 is
 purchase-only and has no resale market.
 
+P2-035 Contract decisions do not add a finance owner. An accepted offer or
+accepted wage counter creates the canonical Contract through TransferService;
+the existing weekly payroll then consumes that Contract wage. Contract
+decision pages are read-only, counter submission is an explicit POST action,
+and there is no signing bonus or duplicate signing payment. Club wage budgets,
+tax, bonuses, and salary-cap simulation remain out of scope.
+
 ## Lifestyle effects
 
 The catalog is small and data-driven. Effects use a bounded vocabulary such as

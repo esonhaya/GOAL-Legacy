@@ -247,6 +247,12 @@ DOMAIN-012's bounded CareerMovementService is a Player-career decision layer
 over this module: it evaluates checkpointed interest and stores offer metadata
 through CareerOpportunity, while this module remains the only execution path.
 
+P2-035 extends that existing decision context with bounded controlled-Player
+Contract terms (Club, Season term, wage, expected squad role, and expiry) and
+one deterministic wage counter. CareerMovementService owns the decision and
+counter state; ContractService remains the owner of persisted Contract terms,
+and TransferService remains the atomic Contract/squad/registration executor.
+
 Never Owns
 
 - Player or Club records

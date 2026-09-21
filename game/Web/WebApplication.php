@@ -132,6 +132,7 @@ final class WebApplication
                 'save_exit' => $this->saveExit($session),
                 'resolve_event' => $this->resolveEvent($post, $session),
                 'resolve_decision' => $this->resolveDecision($post, $session),
+                'counter_contract' => $this->counterContract($post, $session),
                 'request_transfer' => $this->transferRequest($post, $session, false),
                 'withdraw_transfer' => $this->transferRequest($post, $session, true),
                 'accept_transfer_offer' => $this->acceptTransferOffer($post, $session),
@@ -473,6 +474,28 @@ final class WebApplication
         $session['web_flash'] = 'Career decision resolved.';
 
         return $this->redirect(WebView::url('home', ['save' => $saveId]));
+    }
+
+    /** @param array<string,mixed> $post @param array<string,mixed> $session */
+    private function counterContract(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        $opportunityId = trim((string) ($post['opportunity_id'] ?? ''));
+        $optionId = trim((string) ($post['option_id'] ?? ''));
+        $tokenKey = 'counter_decision_' . $saveId . '_' . $opportunityId . '_' . $optionId;
+        if ($opportunityId === '' || $optionId === '' || !$this->consumeToken($session, $tokenKey, (string) ($post['token'] ?? ''))) {
+            throw new RuntimeException('That counterproposal has already been submitted.');
+        }
+        $database = $this->database($saveId);
+        $worldService = $this->services->worldModule()->service();
+        $world = $worldService->load($database, $saveId);
+        $updated = $this->services->transferModule()->service()->careerMovement()->counterContractDecision($database, $opportunityId, $optionId, $world->currentDate($worldService->calendar()));
+        $response = (string) ($updated->context()['counter_response'] ?? 'rejected');
+        $session['web_flash'] = $response === 'accepted'
+            ? 'The Club accepted your modest wage counter. Review the revised terms before signing.'
+            : 'The Club declined your counter. The original offer remains available.';
+
+        return $this->redirect(WebView::url('decision', ['save' => $saveId]));
     }
 
     /** @param array<string,mixed> $post @param array<string,mixed> $session */
@@ -999,13 +1022,17 @@ final class WebApplication
                 foreach ((array) ($context['options'] ?? []) as $option) {
                     if (($option['kind'] ?? '') !== 'accept_transfer') { continue; }
                     $reasons = implode(', ', array_map(static fn (mixed $reason): string => ucwords(str_replace('_', ' ', (string) $reason)), (array) ($option['reasons'] ?? [])));
-                    $options .= '<li><strong>' . WebView::e($option['club_id'] ?? 'Club') . '</strong> · ' . WebView::e(CareerLabels::value($option['role'] ?? null)) . ' · ' . WebView::e($this->money((int) ($option['wage'] ?? 0))) . '/week' . ($reasons === '' ? '' : ' · ' . WebView::e($reasons)) . '</li>';
+                    $term = isset($option['term_seasons']) ? ' · ' . (int) $option['term_seasons'] . ' Season' . ((int) $option['term_seasons'] === 1 ? '' : 's') : '';
+                    $end = isset($option['contract_end_date']) ? ' · Through ' . (string) $option['contract_end_date'] : '';
+                    $options .= '<li><strong>' . WebView::e($option['target_club_name'] ?? $option['club_id'] ?? 'Club') . '</strong> · ' . WebView::e(CareerLabels::value($option['role'] ?? null)) . ' · ' . WebView::e($this->money((int) ($option['wage'] ?? 0))) . '/week' . $term . $end . ($reasons === '' ? '' : ' · ' . WebView::e($reasons)) . '</li>';
                 }
                 $cards .= WebView::section('TRANSFER INTEREST', 'A Club has opened a Career choice', ($options === '' ? WebView::emptyState('No valid offer remains in this decision.') : '<ul class="fixture-list">' . $options . '</ul>') . WebView::link('decision', ['save' => $saveId], 'Review Career decision', 'button button-primary'));
                 continue;
             }
             $target = $opportunity->targetClubId()?->value() ?? 'Club';
-            $cards .= WebView::section('TRANSFER OFFER', $target, '<p>' . WebView::e($context['target_club_level'] ?? 'A Club opportunity') . ' · ' . WebView::e(CareerLabels::value($context['proposed_role'] ?? null)) . ' · ' . WebView::e($this->money((int) ($context['wage'] ?? 0))) . '/week</p>' . WebView::form('accept_transfer_offer', 'Accept offer', ['save' => $saveId, 'offer_id' => $opportunity->id(), 'token' => $this->issueToken($session, 'offer_' . $saveId . '_' . $opportunity->id())], 'button button-primary', 'data-busy'));
+            $term = isset($context['term_seasons']) ? ' · ' . (int) $context['term_seasons'] . ' Season' . ((int) $context['term_seasons'] === 1 ? '' : 's') : '';
+            $end = isset($context['contract_end_date']) ? ' · Through ' . (string) $context['contract_end_date'] : '';
+            $cards .= WebView::section('TRANSFER OFFER', $target, '<p>' . WebView::e($context['target_club_level'] ?? 'A Club opportunity') . ' · ' . WebView::e(CareerLabels::value($context['proposed_role'] ?? null)) . ' · ' . WebView::e($this->money((int) ($context['wage'] ?? 0))) . '/week' . $term . $end . '</p>' . WebView::form('accept_transfer_offer', 'Accept offer', ['save' => $saveId, 'offer_id' => $opportunity->id(), 'token' => $this->issueToken($session, 'offer_' . $saveId . '_' . $opportunity->id())], 'button button-primary', 'data-busy'));
         }
         if ($cards === '') { $cards = WebView::emptyState('No actionable transfer offers are currently available. Requesting a transfer increases search intent during the valid window, but does not create guaranteed offers.'); }
         $request = (array) ($summary['transfer_request'] ?? []);
@@ -1624,6 +1651,7 @@ final class WebApplication
         $database = $this->database($saveId); $snapshot = $this->snapshot($saveId, $database); $decision = (new CareerPresentationService($this->services))->decision($snapshot['summary'], $database);
         if ($decision === null) { return $this->redirect(WebView::url('home', ['save' => $saveId])); }
         $options = '';
+        $counterForms = '';
         foreach ((array) ($decision['options'] ?? []) as $index => $option) {
             if (!is_array($option)) { continue; }
             $club = is_array($option['club'] ?? null) ? ' · ' . ($option['club']['name'] ?? '') . (isset($option['club']['competition']) ? ' · ' . $option['club']['competition'] : '') : '';
@@ -1632,13 +1660,21 @@ final class WebApplication
             if (($option['market_path'] ?? null) !== null) { $details .= ' · ' . (string) $option['market_path']; }
             if (($option['projected_role'] ?? null) !== null) { $details .= ' · Role: ' . (string) $option['projected_role']; }
             if (($option['wage'] ?? null) !== null) { $details .= ' · GC ' . number_format((int) $option['wage']) . '/week'; }
+            if (($option['current_wage'] ?? null) !== null && ($option['wage'] ?? null) !== null) { $details .= ' · Current: GC ' . number_format((int) $option['current_wage']) . '/week'; }
+            if (($option['term_seasons'] ?? null) !== null) { $details .= ' · Term: ' . (int) $option['term_seasons'] . ' Season' . ((int) $option['term_seasons'] === 1 ? '' : 's'); }
             if (($option['contract_end_date'] ?? null) !== null) { $details .= ' · Through ' . (string) $option['contract_end_date']; }
             if (($option['european_qualification'] ?? false) === true) { $details .= ' · Europe'; }
             if (($option['journey_context'] ?? null) !== null) { $details .= ' · ' . (string) $option['journey_context']; }
             if (($option['attachment_label'] ?? null) !== null) { $details .= ' · Current connection: ' . (string) $option['attachment_label']; }
             if (($option['reasons'] ?? []) !== []) { $details .= ' · ' . implode(', ', (array) $option['reasons']); }
             if (($option['trade_offs'] ?? []) !== []) { $details .= ' · ' . implode(' · ', array_slice((array) $option['trade_offs'], 0, 2)); }
-            $options .= '<label class="choice-card"><input type="radio" name="choice" value="' . ($index + 1) . '" required><span><strong>' . ($index + 1) . '.</strong> ' . WebView::e($option['label'] ?? 'Available choice') . WebView::e($club . $details) . '</span></label>';
+            $counter = '';
+            if (($option['counter_available'] ?? false) === true) {
+                $counterFormId = 'counter-contract-' . $index;
+                $counter = '<button class="button button-secondary" type="submit" form="' . WebView::e($counterFormId) . '">Request modest wage increase</button>';
+                $counterForms .= '<form id="' . WebView::e($counterFormId) . '" method="post" action="' . WebView::e(WebView::url('action')) . '" class="inline-form" data-busy><input type="hidden" name="action" value="counter_contract"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="opportunity_id" value="' . WebView::e((string) ($decision['id'] ?? '')) . '"><input type="hidden" name="option_id" value="' . WebView::e((string) ($option['id'] ?? '')) . '"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'counter_decision_' . $saveId . '_' . (string) ($decision['id'] ?? '') . '_' . (string) ($option['id'] ?? ''))) . '"></form>';
+            }
+            $options .= '<div class="choice-card"><label><input type="radio" name="choice" value="' . ($index + 1) . '" required><span><strong>' . ($index + 1) . '.</strong> ' . WebView::e($option['label'] ?? 'Available choice') . WebView::e($club . $details) . '</span></label>' . $counter . '</div>';
         }
         $currentContext = is_array($decision['current_club_context'] ?? null) ? $decision['current_club_context'] : [];
         $attachmentContext = is_array($currentContext['attachment'] ?? null) ? $currentContext['attachment'] : [];
@@ -1651,7 +1687,12 @@ final class WebApplication
             ? '<div class="panel"><p><strong>Current connection:</strong> ' . WebView::e($attachmentContext['label'] ?? 'No current Club') . ' · <strong>Career direction:</strong> ' . WebView::e($directionContext['label'] ?? 'Developing') . WebView::e($currentContextFacts) . '</p><p class="muted">The facts below describe the trade-offs; the Player decides.</p></div>'
             : '';
         $retirementDetails = ($decision['decision_kind'] ?? null) === 'retirement' ? '<div class="panel"><p><strong>Age:</strong> ' . WebView::e($decision['age'] ?? '—') . ' · <strong>Phase:</strong> ' . WebView::e(CareerLabels::value($decision['career_phase'] ?? null)) . ' · <strong>Role:</strong> ' . WebView::e(CareerLabels::value($decision['role'] ?? null, 'Not assigned')) . '</p><p><strong>Recent performance:</strong> ' . WebView::e(CareerLabels::value($decision['performance'] ?? null, 'Not enough evidence')) . ' · <strong>Career record:</strong> ' . WebView::e(((array) ($decision['career_stats'] ?? []))['appearances'] ?? 0) . ' appearances, ' . WebView::e(((array) ($decision['career_stats'] ?? []))['goals'] ?? 0) . ' goals, ' . WebView::e(((array) ($decision['career_stats'] ?? []))['assists'] ?? 0) . ' assists</p><p><strong>Honours:</strong> ' . WebView::e($decision['honours'] ?? 0) . ' · <strong>Awards:</strong> ' . WebView::e($decision['awards'] ?? 0) . '</p></div>' : '';
-        $body = '<div class="decision-shell"><div class="eyebrow">CAREER DECISION · ' . WebView::e(CareerLabels::value($decision['decision_kind'] ?? null)) . '</div><h1>' . (($decision['decision_kind'] ?? null) === 'retirement' ? 'Your playing Career is at a boundary' : 'A decision is waiting') . '</h1><p class="lead">Current Club: ' . WebView::e($decision['current_club'] ?? 'Free Agent') . ' · ' . WebView::e(((array) ($decision['current_competition'] ?? []))['name'] ?? 'No competition') . '</p>' . $decisionContext . $retirementDetails . '<form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel choice-panel" data-busy><input type="hidden" name="action" value="resolve_decision"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'decision_' . $saveId)) . '"><div class="choice-list">' . $options . '</div><button class="button button-primary button-large" type="submit">Confirm decision</button></form></div>';
+        $counterNotice = match ($decision['counter_response'] ?? null) {
+            'accepted' => '<div class="panel"><p><strong>Counter accepted.</strong> The revised wage is now shown in the offer. Confirm the decision when ready.</p></div>',
+            'rejected' => '<div class="panel"><p><strong>Counter declined.</strong> The original offer remains available and no Contract has changed.</p></div>',
+            default => '',
+        };
+        $body = '<div class="decision-shell"><div class="eyebrow">CAREER DECISION · ' . WebView::e(CareerLabels::value($decision['decision_kind'] ?? null)) . '</div><h1>' . (($decision['decision_kind'] ?? null) === 'retirement' ? 'Your playing Career is at a boundary' : 'A decision is waiting') . '</h1><p class="lead">Current Club: ' . WebView::e($decision['current_club'] ?? 'Free Agent') . ' · ' . WebView::e(((array) ($decision['current_competition'] ?? []))['name'] ?? 'No competition') . '</p>' . (($decision['contract'] ?? '') === '' ? '' : '<p class="metric-note"><strong>Current terms:</strong> ' . WebView::e($decision['contract']) . '</p>') . $decisionContext . $counterNotice . $retirementDetails . '<form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel choice-panel" data-busy><input type="hidden" name="action" value="resolve_decision"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'decision_' . $saveId)) . '"><div class="choice-list">' . $options . '</div><button class="button button-primary button-large" type="submit">Confirm decision</button></form>' . $counterForms . '</div>';
 
         return $this->html('Career Decision', $body, $saveId, 'home', 200, $session);
     }

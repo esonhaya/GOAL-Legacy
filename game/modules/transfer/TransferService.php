@@ -45,7 +45,7 @@ final class TransferService
      * activation will register the Player once its Competition membership is
      * active.
      */
-    public function signFreeAgent(DatabaseInterface $database, Player $player, ClubId $clubId, Season $season, SimulationDate $asOfDate, SquadRole $role, ContractId $contractId, int $wage, ?string $socialPreviousClubId = null): Contract
+    public function signFreeAgent(DatabaseInterface $database, Player $player, ClubId $clubId, Season $season, SimulationDate $asOfDate, SquadRole $role, ContractId $contractId, int $wage, ?string $socialPreviousClubId = null, ?SimulationDate $contractEndDate = null): Contract
     {
         if ($player->isRetired()) {
             throw new TransferException('Retired Players cannot sign a Contract.');
@@ -69,7 +69,7 @@ final class TransferService
         if (count($existingSquad) >= PlayerPopulationService::TARGET_SQUAD_SIZE && !$squads->exists(new ClubSquadMembership($clubId, $player->id(), $season->id(), $role))) {
             throw new TransferException('Free-agent destination Club has no safe squad capacity.');
         }
-        $contract = Contract::forDate($contractId, $player->id(), $clubId, $season->startDate(), $season->endDate()->addDays(365), $wage, $asOfDate);
+        $contract = Contract::forDate($contractId, $player->id(), $clubId, $season->startDate(), $contractEndDate ?? $season->endDate()->addDays(365), $wage, $asOfDate);
         $squad = new ClubSquadMembership($clubId, $player->id(), $season->id(), $role);
         $registrations = $this->competitionService->registrationRepository($database);
         $clubMemberships = $this->clubService->membershipRepository($database)->byClub($clubId);

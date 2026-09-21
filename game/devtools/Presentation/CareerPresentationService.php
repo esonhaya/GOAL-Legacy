@@ -843,7 +843,9 @@ final class CareerPresentationService
                 'career_stats' => $summary['career_stats'] ?? [],
                 'honours' => count((array) ($legacy['honours'] ?? [])),
                 'awards' => count((array) ($legacy['awards'] ?? [])),
-                'options' => array_values(array_map(static fn (array $option): array => ['id' => $option['id'] ?? null, 'label' => CareerLabels::value($option['id'] ?? null, 'Available choice'), 'club' => null, 'role' => null, 'wage' => null, 'contract_end_date' => null, 'reasons' => [], 'club_level' => null, 'projected_role' => null, 'european_qualification' => false, 'market_path' => null], array_filter($options, 'is_array'))),
+                'counter_used' => false,
+                'counter_response' => null,
+                'options' => array_values(array_map(static fn (array $option): array => ['id' => $option['id'] ?? null, 'label' => CareerLabels::value($option['id'] ?? null, 'Available choice'), 'club' => null, 'role' => null, 'wage' => null, 'current_wage' => null, 'term_seasons' => null, 'contract_end_date' => null, 'reasons' => [], 'club_level' => null, 'projected_role' => null, 'european_qualification' => false, 'market_path' => null, 'counter_available' => false], array_filter($options, 'is_array'))),
             ];
         }
         $seasonId = isset($context['season_id']) && is_string($context['season_id']) ? new SeasonId($context['season_id']) : null;
@@ -883,6 +885,7 @@ final class CareerPresentationService
                 'role' => isset($option['role']) ? CareerLabels::value($option['role']) : null,
                 'wage' => $option['wage'] ?? null,
                 'current_wage' => $option['current_wage'] ?? null,
+                'term_seasons' => $option['term_seasons'] ?? null,
                 'contract_end_date' => $option['contract_end_date'] ?? null,
                 'reasons' => array_values(array_map(static fn (mixed $reason): string => CareerLabels::value($reason), (array) ($option['reasons'] ?? []))),
                 'club_level' => $option['target_club_level'] ?? null,
@@ -897,6 +900,7 @@ final class CareerPresentationService
                 'return_to_former_club' => $option['return_to_former_club'] ?? false,
                 'attachment_label' => $option['attachment_label'] ?? null,
                 'trade_offs' => array_values((array) ($option['trade_offs'] ?? [])),
+                'counter_available' => in_array($kind, ['renew_current_club', 'sign_with_club'], true) && ($context['counter_used'] ?? false) !== true && (int) ($option['wage'] ?? 0) < 5000,
             ];
         }
         $currentClub = is_array($summary['current_club'] ?? null) ? ($summary['current_club']['name'] ?? null) : null;
@@ -922,6 +926,8 @@ final class CareerPresentationService
             'contract' => $this->contractText($summary['current_contract'] ?? null),
             'current_club_context' => is_array($context['current_club_context'] ?? null) ? $context['current_club_context'] : [],
             'career_context' => is_array($summary['career_context'] ?? null) ? $summary['career_context'] : [],
+            'counter_used' => ($context['counter_used'] ?? false) === true,
+            'counter_response' => $context['counter_response'] ?? null,
             'options' => $formatted,
         ];
     }
@@ -1255,7 +1261,12 @@ final class CareerPresentationService
         $status = CareerLabels::value($contract['status'] ?? null);
         $end = trim((string) ($contract['end_date'] ?? ''));
 
-        return $end === '' ? $status : $status . ' through ' . $end;
+        $text = $end === '' ? $status : $status . ' through ' . $end;
+        if (array_key_exists('wage', $contract) && $contract['wage'] !== null) {
+            $text .= ' · GC ' . number_format((int) $contract['wage']) . '/week';
+        }
+
+        return $text;
     }
 
     /** @return object|null */

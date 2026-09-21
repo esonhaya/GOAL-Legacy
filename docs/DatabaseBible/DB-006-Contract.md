@@ -326,6 +326,24 @@ cannot create duplicate active Contracts. The existing one-active-permanent-
 Contract invariant remains authoritative. Expiration is processed at the
 boundary rather than by a daily global Contract tick.
 
+## P2-035 Controlled Career Terms
+
+The controlled Player's existing `CareerOpportunity` Contract-boundary row is
+the sole durable offer state. A concrete option may retain a Club ID, bounded
+Season term, expiry date, weekly wage, and expected Club/Season `SquadRole`.
+These fields are stored decision context and do not duplicate a Contract
+record or create a market valuation ledger.
+
+The Player may submit at most one deterministic, bounded wage counter for one
+concrete option. A successful counter updates that option in the same
+opportunity; acceptance still goes through `TransferService::signFreeAgent()`
+and creates the one canonical Contract. The Contract end date and wage used by
+the execution path are the accepted stored terms. A declined counter leaves
+the original offer open, while a second counter, stale action, expired offer,
+or retired Player is rejected. Current Contract wage continues to feed the
+existing weekly controlled-Player finance ledger; there is no signing bonus,
+Club wage-budget table, agent, clause, or negotiation score.
+
 ## DOMAIN-010 Generated Contracts
 
 Generated Players receive ordinary durable Contracts through the Contract

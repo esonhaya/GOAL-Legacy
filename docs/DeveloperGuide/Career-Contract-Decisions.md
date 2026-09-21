@@ -14,14 +14,25 @@ the decision before registration, recruitment, and fixture activation while
 leaving the current Season historical.
 
 Options are limited to a current-Club renewal, a small deterministic list of
-external free-signing offers, and entering free agency. There are no wages
-negotiation, agents, fees, clauses, or counteroffers. The current Club and
-external options reuse the existing Contract and `TransferService` owners.
+external free-signing offers, and entering free agency. Each concrete Club
+offer stores the Club, bounded Season term, weekly GC wage, expected
+`SquadRole`, and expiry date in the existing opportunity context. Those are
+decision terms, not a second Contract ledger; `ContractService` and the
+canonical `TransferService` execution path remain authoritative.
+
+The controlled Player may submit one bounded wage counter for one concrete
+offer. The request is deterministic, limited to a modest increase, and uses
+Club reputation only as an existing stature/fit boundary; it is not a Club
+wage-budget model. An accepted counter revises the stored offer and remains
+open for explicit acceptance. A rejected counter leaves the original offer
+available. Reloading cannot reroll terms, and a second counter is rejected.
+There are no agents, fees, clauses, bonuses, or negotiation personalities.
 
 ## Resolution and free agency
 
 Resolution is idempotent: a resolved opportunity returns its stored result,
-and a stale or unknown option is rejected. Renewal and external signing use
+and a stale or unknown option is rejected. Acceptance uses the stored term,
+wage, and expected role exactly once; renewal and external signing use
 the canonical free-agent Contract/squad/registration path; no transfer-fee
 record is created for an out-of-contract Player. Historical Contracts and
 registrations remain durable.
@@ -37,5 +48,9 @@ decision context uses the Club membership and Competition state from the
 outgoing Season; the next Season's normal membership, registration, and
 fixture lifecycle remains authoritative.
 
-Early renewals, mid-contract requests, loans, negotiation, finance, agents,
-release clauses, bonuses, morale, and retirement choices remain deferred.
+The active Contract remains the owner of current Club, dates, and wage. The
+weekly controlled-Player payroll consumes the accepted Contract wage through
+the existing finance ledger and creates no signing payment. Squad role remains
+the Club/Season membership owner; an expected Contract role does not guarantee
+selection. Early renewals, mid-contract requests, loans, agents, release
+clauses, bonuses, morale, and Club wage-budget simulation remain deferred.

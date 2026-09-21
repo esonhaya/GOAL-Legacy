@@ -563,4 +563,16 @@ determinism, bounded NPC/world fidelity, storage, and representative read and
 Continue performance. Termux screenshot inspection remains an environment
 limitation; automated graphical shell checks remain the release evidence.
 
+### P2-030 Set-piece lifecycle
+
+Set-piece responsibility is a compact Club/Season projection with explicit
+write points at controlled-career initialization/review and transfer arrival.
+Its read model is legacy-safe and read-only. It has no weekly rankings, XP,
+Match-history snapshots, NPC appointment history, or page-render writes.
+Penalty appointment ordering and Match taker fallback are deterministic;
+penalty opportunity and outcome use isolated Match keys. Direct free kicks,
+corners, and international set-piece responsibility remain deferred. Player
+fidelity can consume the supported penalty path, while World fidelity skips
+detailed set-piece processing and performs no World scan.
+
 END OF DOCUMENT

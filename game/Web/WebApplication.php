@@ -691,6 +691,7 @@ final class WebApplication
         $clubSeason = is_array($summary['club_season'] ?? null) ? $summary['club_season'] : null;
         $careerContext = is_array($summary['career_context'] ?? null) ? $summary['career_context'] : [];
         $captaincy = is_array($summary['captaincy'] ?? null) ? $summary['captaincy'] : [];
+        $setPiece = is_array($summary['set_piece_responsibility'] ?? null) ? $summary['set_piece_responsibility'] : [];
         $attachment = is_array($careerContext['attachment'] ?? null) ? $careerContext['attachment'] : [];
         $direction = is_array($careerContext['direction'] ?? null) ? $careerContext['direction'] : [];
         $onPitchRole = is_array($summary['on_pitch_role'] ?? null) ? $summary['on_pitch_role'] : [];
@@ -729,6 +730,9 @@ final class WebApplication
         }
         $captaincyPanel = in_array(($captaincy['status'] ?? 'none'), ['captain', 'vice_captain'], true)
             ? WebView::section('CLUB STATUS', 'Established standing', '<p class="result-badge">' . WebView::e($captaincy['label'] ?? 'Club appointment') . '</p><p class="muted">A Club-scoped status based on football standing. It does not change attributes, selection, ratings or Match outcomes.</p>')
+            : '';
+        $setPiecePanel = ($setPiece['status'] ?? 'none') !== 'none'
+            ? WebView::section('SET PIECES', 'Current Club responsibility', '<p class="result-badge">' . WebView::e($setPiece['label'] ?? 'Penalty responsibility') . '</p><p class="muted">Penalty execution uses Shooting and actual Match eligibility. Direct free kicks and corners are not simulated until their event architecture is supported.</p>')
             : '';
         $managerContext = (array) ($summary['manager_context'] ?? []);
         $positionContext = (array) ($summary['position_development'] ?? []);
@@ -789,7 +793,7 @@ final class WebApplication
         }
         $actions = '<div class="action-grid">' . $this->primaryCareerAction($saveId, $summary, $session, $next) . WebView::link('career', ['save' => $saveId], 'Career') . WebView::link('squad', ['save' => $saveId], 'Squad') . WebView::link('world', ['save' => $saveId], 'World') . WebView::link('news', ['save' => $saveId], 'News') . WebView::link('pulse', ['save' => $saveId], 'Pulse') . WebView::link('relationships', ['save' => $saveId], 'Relationships') . WebView::link('training', ['save' => $saveId], 'Training') . WebView::link('finances', ['save' => $saveId], 'Finances') . WebView::link('lifestyle', ['save' => $saveId], 'Lifestyle') . '</div>';
         $actions .= $this->contextActions($saveId, $summary) . WebView::form('save_exit', 'Save & Exit', ['save' => $saveId], 'button button-secondary', 'data-busy');
-        $body = $profile . '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $seasonBody) . $careerMemoryPanel . $captaincyPanel . $recoveryPanel . $disciplinePanel . WebView::section('CLUB SEASON', 'What the Club is trying to achieve', $clubSeasonBody) . WebView::section('READINESS', 'Between Matches', $readinessPanel) . WebView::section('MANAGER / SQUAD STATUS', 'Your place in the team', $managerPanel) . WebView::section('NEXT MATCH', 'What is coming next', $nextBody) . WebView::section('CLUB', $club['name'] ?? 'Free Agent', $clubBody) . WebView::section('INTERNATIONAL DUTY', 'National-team context', $internationalBody) . WebView::section('PUBLIC CONTEXT', 'Football reputation', $socialBody) . WebView::section('PULSE', 'Trending on Pulse', $pulseBody) . '</div><aside class="dashboard-side">' . WebView::section('CAREER SITUATION', 'Your direction', $situation) . $careerDirectionPanel . WebView::section('ACTIONS', 'Play', $actions) . '</aside></div>';
+        $body = $profile . '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $seasonBody) . $careerMemoryPanel . $captaincyPanel . $setPiecePanel . $recoveryPanel . $disciplinePanel . WebView::section('CLUB SEASON', 'What the Club is trying to achieve', $clubSeasonBody) . WebView::section('READINESS', 'Between Matches', $readinessPanel) . WebView::section('MANAGER / SQUAD STATUS', 'Your place in the team', $managerPanel) . WebView::section('NEXT MATCH', 'What is coming next', $nextBody) . WebView::section('CLUB', $club['name'] ?? 'Free Agent', $clubBody) . WebView::section('INTERNATIONAL DUTY', 'National-team context', $internationalBody) . WebView::section('PUBLIC CONTEXT', 'Football reputation', $socialBody) . WebView::section('PULSE', 'Trending on Pulse', $pulseBody) . '</div><aside class="dashboard-side">' . WebView::section('CAREER SITUATION', 'Your direction', $situation) . $careerDirectionPanel . WebView::section('ACTIONS', 'Play', $actions) . '</aside></div>';
 
         return $this->html('Career Home', $body, $saveId, 'home', 200, $session);
     }
@@ -1036,6 +1040,7 @@ final class WebApplication
         $recovery = is_array($data['injury_recovery'] ?? null) ? $data['injury_recovery'] : [];
         $discipline = is_array($data['discipline'] ?? null) ? $data['discipline'] : [];
         $captaincy = is_array($data['captaincy'] ?? null) ? $data['captaincy'] : [];
+        $setPiece = is_array($data['set_piece_responsibility'] ?? null) ? $data['set_piece_responsibility'] : [];
         $finance = ($data['controlled'] ?? false) === true ? $this->services->playerFinanceService()->summary($database, $playerId, $this->snapshot($saveId, $database)['date']) : null;
         $clubLink = $club === null ? 'Free Agent' : WebView::link('club', ['save' => $saveId, 'club' => $club->id()->value()], $club->canonicalName(), 'text-link');
         $positionDevelopment = (array) ($data['position_development'] ?? []);
@@ -1061,7 +1066,7 @@ final class WebApplication
             }
         }
         $careerContextPanel = '<div class="stat-grid compact">' . WebView::stat('Club connection', $attachment['label'] ?? 'No current Club') . WebView::stat('Career direction', $direction['label'] ?? 'Developing') . '</div><p>' . WebView::e($attachment['description'] ?? '') . '</p><p>' . WebView::e($direction['description'] ?? '') . '</p>' . ($journeyLines === '' ? '' : '<p><strong>Club journey</strong></p><ul class="fixture-list">' . $journeyLines . '</ul>');
-        $facts = '<div class="stat-grid compact">' . WebView::stat('OVR', $player->overallRating()) . WebView::stat('Age', $data['age']) . WebView::stat('Position', CareerLabels::position($player->primaryPosition()->value)) . WebView::stat('Secondary', $secondaryLabel) . WebView::stat('Preferred foot', $player->preferredFoot()->label()) . WebView::stat('Weak foot', $player->weakFoot()->label()) . WebView::stat('Nationality', $data['nationality']) . WebView::stat('Squad role', CareerLabels::value($data['role'] ?? null, 'Not assigned')) . WebView::stat('On-pitch role', $onPitchRole['role_label'] ?? 'Safe default') . WebView::stat('Captaincy', $captaincy['label'] ?? 'No current appointment') . WebView::stat('Career phase', CareerLabels::value($data['career_phase'] ?? null, 'Active')) . WebView::stat('Status', CareerLabels::value($data['career_state'] ?? 'active')) . WebView::stat('Market stature', $market['label'] ?? 'Unknown') . WebView::stat('Season', $data['season_id']) . '</div>';
+        $facts = '<div class="stat-grid compact">' . WebView::stat('OVR', $player->overallRating()) . WebView::stat('Age', $data['age']) . WebView::stat('Position', CareerLabels::position($player->primaryPosition()->value)) . WebView::stat('Secondary', $secondaryLabel) . WebView::stat('Preferred foot', $player->preferredFoot()->label()) . WebView::stat('Weak foot', $player->weakFoot()->label()) . WebView::stat('Nationality', $data['nationality']) . WebView::stat('Squad role', CareerLabels::value($data['role'] ?? null, 'Not assigned')) . WebView::stat('On-pitch role', $onPitchRole['role_label'] ?? 'Safe default') . WebView::stat('Captaincy', $captaincy['label'] ?? 'No current appointment') . WebView::stat('Penalty role', $setPiece['label'] ?? 'No current responsibility') . WebView::stat('Career phase', CareerLabels::value($data['career_phase'] ?? null, 'Active')) . WebView::stat('Status', CareerLabels::value($data['career_state'] ?? 'active')) . WebView::stat('Market stature', $market['label'] ?? 'Unknown') . WebView::stat('Season', $data['season_id']) . '</div>';
         $seasonLine = '<div class="stat-grid compact">' . WebView::stat('Appearances', $stats['appearances'] ?? 0) . WebView::stat('Starts', $stats['starts'] ?? 0) . WebView::stat('Minutes', $stats['minutes'] ?? 0) . WebView::stat('Goals', $stats['goals'] ?? 0) . WebView::stat('Assists', $stats['assists'] ?? 0) . WebView::stat('Rating', $this->rating($stats['average_match_rating'] ?? null)) . '</div>';
         $extras = '<p><strong>Recent form:</strong> ' . WebView::e($this->formLabel($form)) . '</p>';
         $recoveryPanel = '';
@@ -1083,6 +1088,9 @@ final class WebApplication
         }
         $captaincyPanel = in_array(($captaincy['status'] ?? 'none'), ['captain', 'vice_captain'], true)
             ? WebView::section('CLUB CAPTAINCY', 'Current Club appointment', '<p><strong>' . WebView::e($captaincy['label'] ?? 'Club status') . '</strong></p><p class="muted">Separate from squad role, manager trust, on-pitch role and playing style.</p>')
+            : '';
+        $setPiecePanel = ($setPiece['status'] ?? 'none') !== 'none'
+            ? WebView::section('SET PIECES', 'Current Club responsibility', '<p><strong>' . WebView::e($setPiece['label'] ?? 'Penalty responsibility') . '</strong></p><p class="muted">Only supported penalty events use this responsibility. Direct free kicks and corners remain deferred.</p>')
             : '';
         $cupPanel = '';
         if ($cupStats !== null && ((int) ($cupStats['appearances'] ?? 0) > 0 || (int) ($cupStats['minutes'] ?? 0) > 0)) {
@@ -1142,7 +1150,7 @@ final class WebApplication
         }
         $historyBody = $history === '' ? WebView::emptyState('No completed Match history in this Season.') : '<ul class="timeline compact-timeline">' . $history . '</ul>';
         $marketPanel = ($data['controlled'] ?? false) === true && ($data['career_state'] ?? 'active') !== 'retired' ? WebView::section('TRANSFER MARKET', 'Current context', '<p>' . WebView::e($market['label'] ?? 'Unknown') . ' · ' . WebView::e($market['current_club_level'] ?? 'Free Agent') . '</p>' . WebView::link('market', ['save' => $saveId], 'Open Transfer Market', 'button button-secondary')) : '';
-        $body = '<div class="profile-hero profile-hero-profile">' . WebView::portrait($this->portraitUrl($saveId, $playerId, 'club', 256), $player->preferredName(), 'portrait portrait-large') . '<div><div class="eyebrow">PLAYER PROFILE</div><h1>' . WebView::e($player->preferredName()) . '</h1><p>' . WebView::e($data['age'] . ' years · ' . $data['nationality'] . ' · ') . $clubLink . '</p>' . $facts . '</div></div>' . WebView::section('CURRENT SEASON', 'All competitions', $seasonLine . $extras) . $recoveryPanel . $disciplinePanel . $captaincyPanel . $rolePanel . WebView::section('PLAYING STYLE', 'Evidence-based football identity', $playingStyle) . WebView::section('CAREER CONTEXT', 'Club journey and current direction', $careerContextPanel) . $marketPanel . $cupPanel . $europePanel . $internationalPanel . $socialPanel . $pulsePanel . WebView::section('CAREER TOTALS', 'Recorded career evidence', $careerLine) . $legacyPanel . WebView::section('MATCH HISTORY', 'Recent canonical results', $historyBody) . '<div class="form-actions">' . WebView::link('squad', ['save' => $saveId, 'club' => $club?->id()->value()], 'Back to Squad') . '</div>';
+        $body = '<div class="profile-hero profile-hero-profile">' . WebView::portrait($this->portraitUrl($saveId, $playerId, 'club', 256), $player->preferredName(), 'portrait portrait-large') . '<div><div class="eyebrow">PLAYER PROFILE</div><h1>' . WebView::e($player->preferredName()) . '</h1><p>' . WebView::e($data['age'] . ' years · ' . $data['nationality'] . ' · ') . $clubLink . '</p>' . $facts . '</div></div>' . WebView::section('CURRENT SEASON', 'All competitions', $seasonLine . $extras) . $recoveryPanel . $disciplinePanel . $captaincyPanel . $setPiecePanel . $rolePanel . WebView::section('PLAYING STYLE', 'Evidence-based football identity', $playingStyle) . WebView::section('CAREER CONTEXT', 'Club journey and current direction', $careerContextPanel) . $marketPanel . $cupPanel . $europePanel . $internationalPanel . $socialPanel . $pulsePanel . WebView::section('CAREER TOTALS', 'Recorded career evidence', $careerLine) . $legacyPanel . WebView::section('MATCH HISTORY', 'Recent canonical results', $historyBody) . '<div class="form-actions">' . WebView::link('squad', ['save' => $saveId, 'club' => $club?->id()->value()], 'Back to Squad') . '</div>';
 
         return $this->html('Player Profile', $body, $saveId, 'squad', 200, $session);
     }
@@ -1697,6 +1705,8 @@ final class WebApplication
             $kind = (string) ($fact['kind'] ?? '');
             $lines[] = match ($kind) {
                 'goal' => 'Scored at ' . (int) ($fact['minute'] ?? 0) . "'" . (($fact['action_foot'] ?? null) !== null ? ' (' . ucfirst((string) $fact['action_foot']) . '-footed finish)' : ''),
+                'penalty_goal' => 'Scored a penalty at ' . (int) ($fact['minute'] ?? 0) . "'",
+                'penalty_missed' => 'Missed a penalty at ' . (int) ($fact['minute'] ?? 0) . "'",
                 'assist' => 'Provided an assist at ' . (int) ($fact['minute'] ?? 0) . "'" . (($fact['action_foot'] ?? null) !== null ? ' (' . ucfirst((string) $fact['action_foot']) . '-footed delivery)' : ''),
                 'yellow_card' => 'Booked at ' . (int) ($fact['minute'] ?? 0) . "'",
                 'red_card' => 'Sent off at ' . (int) ($fact['minute'] ?? 0) . "'",

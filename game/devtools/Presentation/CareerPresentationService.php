@@ -34,6 +34,7 @@ use Goal\Legacy\Modules\Player\PlayerFormService;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Player\OnPitchRoleService;
 use Goal\Legacy\Modules\Club\ClubCaptaincyService;
+use Goal\Legacy\Modules\Club\SetPieceResponsibilityService;
 use Goal\Legacy\Modules\Club\Persistence\ClubMembershipRepository;
 use Goal\Legacy\Modules\Club\Persistence\ClubSquadRepository;
 use Goal\Legacy\Modules\Club\ClubSeasonObjectiveService;
@@ -91,6 +92,13 @@ final class CareerPresentationService
         $summary['pulse_response'] = $pulse->pendingResponse($database, $career->playerId());
         $currentClubId = is_array($summary['current_club'] ?? null) ? (string) ($summary['current_club']['id'] ?? '') : '';
         $summary['captaincy'] = (new ClubCaptaincyService($this->services->clubModule()->service()))->contextForPlayer(
+            $database,
+            $career->playerId()->value(),
+            $currentClubId === '' ? null : $currentClubId,
+            $world->currentSeasonId(),
+            $date,
+        );
+        $summary['set_piece_responsibility'] = (new SetPieceResponsibilityService($this->services->clubModule()->service()))->contextForPlayer(
             $database,
             $career->playerId()->value(),
             $currentClubId === '' ? null : $currentClubId,
@@ -175,6 +183,13 @@ final class CareerPresentationService
             $seasonId,
             $date,
         );
+        $setPieceResponsibility = (new SetPieceResponsibilityService($this->services->clubModule()->service()))->contextForPlayer(
+            $database,
+            $playerId,
+            $club?->id()->value(),
+            $seasonId,
+            $date,
+        );
         $social = $this->services->playerModule()->service()->socialService();
         $legacy = $controlled
             ? $this->legacyService()->summary($database, $playerId)
@@ -238,6 +253,7 @@ final class CareerPresentationService
             'traits' => $traits,
             'career_context' => $careerContext,
             'captaincy' => $captaincy,
+            'set_piece_responsibility' => $setPieceResponsibility,
             'club_journey' => $careerContext['club_journey'] ?? [],
             'club_attachment' => $careerContext['attachment'] ?? null,
             'career_direction' => $careerContext['direction'] ?? null,
@@ -575,6 +591,7 @@ final class CareerPresentationService
             'performance' => $performance,
             'captain' => (bool) ($story['captain'] ?? false),
             'captain_label' => $story['captain_label'] ?? null,
+            'set_piece_facts' => array_values(array_filter((array) ($story['player_highlight_facts'] ?? []), static fn (array $fact): bool => in_array($fact['kind'] ?? null, ['penalty_goal', 'penalty_missed'], true))),
             'timeline' => $story['timeline'],
             'highlights' => $this->storyLines($database, $match, $story, $playerId),
             'player_highlights' => $story['player_highlight_facts'],
@@ -1094,6 +1111,7 @@ final class CareerPresentationService
         foreach ($this->services->matchModule()->service()->highlightRepository($database)->byMatch($match->id()) as $highlight) {
             $type = match ($highlight->type()) {
                 'goal' => 'GOAL',
+                'penalty_missed' => 'PENALTY MISSED',
                 'yellow_card' => 'YELLOW CARD',
                 'red_card' => 'RED CARD',
                 'substitution' => 'SUBSTITUTION',
@@ -1118,7 +1136,7 @@ final class CareerPresentationService
             $assist = is_string($assistId) && $assistId !== '' ? $players->get($assistId)->preferredName() : null;
             $assistText = $assistId === $playerId ? 'YOU' : $assist;
             $suffix = $assistText === null ? '' : ' — assist: ' . $assistText;
-            $lines[] = $highlight->minute() . "' " . $type . ' — ' . $actor . $suffix;
+            $lines[] = $highlight->minute() . "' " . (($highlight->type() === 'goal' && ($data['set_piece'] ?? null) === 'penalty') ? 'PENALTY GOAL' : $type) . ' — ' . $actor . $suffix;
         }
 
         return $lines;
@@ -1159,9 +1177,10 @@ final class CareerPresentationService
                 $score = (array) ($event['score_after'] ?? []);
                 $scoreText = (int) ($score['home'] ?? 0) . '-' . (int) ($score['away'] ?? 0);
                 $lead = ((string) ($event['importance'] ?? '') === 'decisive') ? ' decisively' : '';
+                $setPiece = ($event['data']['set_piece'] ?? null) === 'penalty' ? ' PENALTY' : '';
                 $variants = [
-                    $minute . "' " . ($playerName ?? $clubName) . ' scores for ' . $clubName . $lead . ' — ' . $scoreText,
-                    $minute . "' GOAL — " . ($playerName ?? $clubName) . ' (' . $clubName . ')' . ($assist === null ? '' : ' assisted by ' . $assist) . ' — ' . $scoreText,
+                    $minute . "' " . ($playerName ?? $clubName) . ' scores' . $setPiece . ' for ' . $clubName . $lead . ' — ' . $scoreText,
+                    $minute . "'" . $setPiece . ' GOAL — ' . ($playerName ?? $clubName) . ' (' . $clubName . ')' . ($assist === null ? '' : ' assisted by ' . $assist) . ' — ' . $scoreText,
                 ];
                 $line = $variants[hexdec(substr(hash('sha256', 'match-commentary:v1|' . $match->id()->value() . '|' . (string) ($event['sequence'] ?? 0)), 0, 2)) % count($variants)];
                 if ($assist !== null && !str_contains($line, 'assisted by')) { $line .= ' — assisted by ' . $assist; }
@@ -1176,6 +1195,8 @@ final class CareerPresentationService
             } elseif ($type === 'yellow_card' || $type === 'red_card') {
                 $label = $type === 'red_card' ? 'RED CARD — SENT OFF' : 'YELLOW CARD';
                 $lines[] = $minute . "' " . $label . ' — ' . ($playerName ?? $clubName) . ' (' . $clubName . ')';
+            } elseif ($type === 'penalty_missed') {
+                $lines[] = $minute . "' PENALTY MISSED — " . ($playerName ?? $clubName) . ' (' . $clubName . ')';
             }
         }
         foreach ((array) ($story['player_highlight_facts'] ?? []) as $fact) {

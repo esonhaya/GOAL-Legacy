@@ -45,6 +45,7 @@ use Goal\Legacy\Modules\Player\ManagerTrustService;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Player\OnPitchRoleService;
 use Goal\Legacy\Modules\Club\ClubCaptaincyService;
+use Goal\Legacy\Modules\Club\SetPieceResponsibilityService;
 
 final class MatchService
 {
@@ -52,10 +53,10 @@ final class MatchService
     private readonly MatchSimulationService $simulator;
     private readonly StandingsService $standings;
 
-    public function __construct(private readonly ClubService $clubService, private readonly EventDispatcherInterface $events, private readonly ?PlayerDevelopmentService $development = null, private readonly ?ClubExpectationService $expectations = null, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?DomesticCupService $domesticCups = null, private readonly ?EuropeanCompetitionService $europeanCompetitions = null, private readonly ?InternationalCompetitionService $internationalCompetitions = null, private readonly ?FootballSocialService $footballSocial = null, private readonly ?ManagerTrustService $managerTrust = null, private readonly ?PositionDevelopmentService $positions = null, private readonly ?ClubCaptaincyService $captaincy = null)
+    public function __construct(private readonly ClubService $clubService, private readonly EventDispatcherInterface $events, private readonly ?PlayerDevelopmentService $development = null, private readonly ?ClubExpectationService $expectations = null, private readonly ?PlayerAvailabilityService $availability = null, private readonly ?DomesticCupService $domesticCups = null, private readonly ?EuropeanCompetitionService $europeanCompetitions = null, private readonly ?InternationalCompetitionService $internationalCompetitions = null, private readonly ?FootballSocialService $footballSocial = null, private readonly ?ManagerTrustService $managerTrust = null, private readonly ?PositionDevelopmentService $positions = null, private readonly ?ClubCaptaincyService $captaincy = null, private readonly ?SetPieceResponsibilityService $setPieces = null)
     {
         $this->fixtureGenerator = new FixtureGenerationService($clubService);
-        $this->simulator = new MatchSimulationService($clubService, new MatchSelectionService($clubService, $availability, $managerTrust, $positions), $positions, $captaincy);
+        $this->simulator = new MatchSimulationService($clubService, new MatchSelectionService($clubService, $availability, $managerTrust, $positions), $positions, $captaincy, $setPieces);
         $this->standings = new StandingsService($clubService);
     }
     public function repository(DatabaseInterface $database): MatchRepository { return new MatchRepository($database); }

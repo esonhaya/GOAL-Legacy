@@ -385,4 +385,21 @@ alongside the existing position snapshot; Matchday and Post-Match read that
 fact only for a Player who appeared. Role reads use existing deterministic
 action keys and introduce no RNG stream or role-performance persistence.
 
+## P2-030 Supported Set-Piece Execution
+
+The Match engine currently supports ordinary penalties only. A penalty
+opportunity is generated independently of responsibility in its own stable
+namespace; the Club/Season responsibility selects the primary, fallback, or
+eligible on-pitch fallback taker. Canonical Shooting determines the bounded
+conversion outcome. A goal enters the existing goal/shot/stat/highlight path;
+a miss enters shot evidence and a `penalty_missed` highlight. No penalty
+frequency, rating, attribute, assist, team, or role bonus is applied.
+
+Direct free kicks and corners are deferred because no existing event sequence
+can represent their attribution without inventing Match facts. World-fidelity
+simulation bypasses detailed set-piece execution, and appointment lookup is
+not performed as a World scan. Substitution and dismissal state is evaluated
+at the event minute. Appointment assignment is deterministic and separate from
+the Match RNG namespaces used by open-play actions.
+
 END OF DOCUMENT

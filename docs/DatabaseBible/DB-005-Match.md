@@ -472,6 +472,24 @@ These additions should extend the architecture without breaking compatibility.
 
 ✓ Historical Preservation
 
+## P2-030 Ordinary Set-Piece Boundary
+
+`MatchSimulationService` remains the owner of Match action execution, goal
+attribution, and assist attribution. Player-fidelity simulation supports a
+bounded penalty opportunity using an isolated deterministic namespace. The
+Club/Season responsibility projection selects an eligible on-pitch primary or
+fallback taker; it does not alter opportunity frequency, team strength,
+open-play outcomes, or execution success. A scored penalty is a normal goal
+and shot; a miss is a normal shot attempt. Existing rating/stat/highlight
+owners consume those facts without penalty-specific duplicate ledgers.
+
+The current engine has no clean ordinary direct-free-kick or corner event
+sequence, so both categories are explicitly deferred. Detailed penalty
+execution is skipped for World-fidelity Matches, preserving cheap NPC/world
+simulation. Dismissal and substitution state is evaluated at the event
+minute, and a Player who is not on the pitch cannot take the event. No page
+render writes responsibility or Match facts.
+
 ---
 
 ## Revision History

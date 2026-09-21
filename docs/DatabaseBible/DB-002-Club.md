@@ -397,4 +397,22 @@ legacy saves derive current context without fabricating historical objective
 events. Unknown final standings remain explicitly unknown rather than being
 classified as a missed objective.
 
+## DOMAIN-030 Club Set-Piece Responsibility
+
+`club_set_piece_responsibilities` stores at most one compact primary and
+fallback penalty responsibility per Club and Season. It is not a Player
+specialist score, a tactics editor, a training record, or a historical row for
+each Match. Candidate ordering consumes canonical Shooting and bounded Club
+standing evidence with stable Player-ID tie-breaking. Direct free kicks and
+corners remain deferred until the Match engine has defensible event and
+attribution consumers.
+
+Rows are written only by explicit controlled-career initialization, review, or
+transfer arrival paths. Read-only projections use a deterministic fallback
+without creating a row, so Profile/Home browsing has no domain DML. Match
+execution resolves the primary, fallback, or eligible on-pitch fallback at
+the event minute; injury, suspension, dismissal, and substitution therefore
+affect eligibility without changing appointment history. World-fidelity
+Matches do not scan or process NPC responsibilities.
+
 END OF DOCUMENT

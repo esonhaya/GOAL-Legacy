@@ -136,7 +136,7 @@ final class MatchStoryService
                 'sequence' => $highlight->sequence(),
                 'minute' => $highlight->minute(),
                 'type' => $type,
-                'importance' => $decisive ? 'decisive' : ($type === 'red_card' || $type === 'goal' ? 'major' : ($type === 'yellow_card' || $type === 'substitution' ? 'notable' : 'routine')),
+                'importance' => $decisive ? 'decisive' : ($type === 'red_card' || $type === 'goal' || $type === 'penalty_missed' ? 'major' : ($type === 'yellow_card' || $type === 'substitution' ? 'notable' : 'routine')),
                 'club_id' => $clubId,
                 'player_id' => $highlight->playerId()?->value(),
                 'assist_player_id' => ($highlight->data()['assist_player_id'] ?? null) === null ? null : (string) $highlight->data()['assist_player_id'],
@@ -248,7 +248,11 @@ final class MatchStoryService
                 $data = (array) ($event['data'] ?? []);
                 if (($data['incoming_player_id'] ?? $event['player_id']) === $playerId->value()) { $facts[] = ['kind' => 'substitution', 'minute' => $event['minute'], 'direction' => 'in']; }
                 if (($data['outgoing_player_id'] ?? null) === $playerId->value()) { $facts[] = ['kind' => 'substitution', 'minute' => $event['minute'], 'direction' => 'out']; }
-            } elseif ($event['player_id'] === $playerId->value()) { $facts[] = ['kind' => $event['type'], 'minute' => $event['minute'], 'assist_player_id' => $event['assist_player_id'], 'scorer_player_id' => $event['player_id'], 'action_foot' => (($event['data']['action_foot'] ?? null) !== null ? (string) $event['data']['action_foot'] : null)]; }
+            } elseif ($event['player_id'] === $playerId->value()) {
+                $kind = (string) $event['type'];
+                if (($event['data']['set_piece'] ?? null) === 'penalty' && $kind === 'goal') { $kind = 'penalty_goal'; }
+                $facts[] = ['kind' => $kind, 'minute' => $event['minute'], 'assist_player_id' => $event['assist_player_id'], 'scorer_player_id' => $event['player_id'], 'action_foot' => (($event['data']['action_foot'] ?? null) !== null ? (string) $event['data']['action_foot'] : null)];
+            }
             elseif ($event['assist_player_id'] === $playerId->value()) { $facts[] = ['kind' => 'assist', 'minute' => $event['minute'], 'scorer_player_id' => $event['player_id'], 'action_foot' => (($event['data']['assist_foot'] ?? null) !== null ? (string) $event['data']['assist_foot'] : null)]; }
         }
         if ($stat !== null) {

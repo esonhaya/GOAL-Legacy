@@ -126,4 +126,15 @@ and rollover duplication. Current reads remain deterministic and do not
 create weekly snapshots. NPC lifecycle and world simulation do not calculate
 per-Player objectives or narrative pressure.
 
+## P2-030 Set-Piece Responsibility Experience
+
+Career Home and Profile expose only the current Club's supported penalty
+responsibility. Matchday/Post-Match expose actual penalty facts from canonical
+Match highlights and stats; assignment alone is never presented as a goal,
+assist, or specialist achievement. Direct free kicks, corners, and
+international set pieces are deferred. Transfers reevaluate Club-scoped
+responsibility, free agents have none, and reads on legacy saves use a stable
+fallback without fabricating historical appointments. No milestone, News,
+Echo, or Pulse entry is produced for routine responsibility changes.
+
 END OF DOCUMENT

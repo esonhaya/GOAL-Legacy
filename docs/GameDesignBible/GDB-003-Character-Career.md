@@ -507,4 +507,33 @@ history, narrative sanction ledger, page-render writes, or fabricated legacy
 ban is created. World-fidelity Matches remain cheap; detailed eligibility is
 consumed only where a detailed selection/Match path exists.
 
+## P2-030 Set-Piece Responsibility
+
+`SetPieceResponsibilityService` owns the single Club-scoped responsibility
+projection for the only supported ordinary set-piece category: penalties.
+Each explicit controlled-Career Club/Season review may retain one primary and
+one fallback taker. Ordering uses canonical Shooting, Squad Role, retained
+Club tenure, appearances/minutes, overall evidence, and stable Player-ID
+tie-breaking; no specialist score is exposed or persisted. Responsibility is
+not captaincy, on-pitch role, playing-style trait, position capability,
+footedness, or a Match buff.
+
+Penalty opportunities use an isolated deterministic Match namespace. The
+responsibility chooses only the eligible Player who attempts an opportunity;
+it does not create more opportunities or improve execution. Shooting remains
+the execution evidence, successful attempts become ordinary goals and shots,
+and misses become ordinary shot evidence with a factual penalty highlight.
+Direct free kicks and corners are deferred because the current Match engine
+does not retain clean event/attribution paths for them. International set
+pieces are likewise deferred. World-fidelity Matches skip detailed set-piece
+execution and do not create NPC appointment rows or scans.
+
+Career Home, Profile, Matchday, and Post-Match show only current or retained
+penalty facts. Transfers reevaluate responsibility at the destination Club;
+free agents and retirees have no active appointment. Read paths use an
+in-memory legacy fallback and never assign responsibilities or fabricate
+history. The compact Club/Season row is the only new responsibility state;
+Match evidence remains the authority for goals, shots, highlights, ratings,
+and history.
+
 END OF DOCUMENT

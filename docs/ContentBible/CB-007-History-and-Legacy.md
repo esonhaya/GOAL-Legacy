@@ -352,4 +352,15 @@ major suspension fact, but do not create card-by-card spam. Routine yellows,
 first suspensions, and eligibility changes are not Career milestones. Missing
 legacy evidence does not create an old ban or historical disciplinary claim.
 
+## P2-030 Set-Piece Identity
+
+Set-piece responsibility is current Club context, not a badge or trait. A
+penalty goal or miss may appear in the ordinary Match story when canonical
+evidence records it; routine appointment changes do not become News, Pulse,
+Echo, or Career-history spam. Direct free kicks and corners are not described
+until the Match engine can retain their events and attribution accurately.
+Legacy saves may show current responsibility when it can be derived from the
+present squad, but never receive fabricated historical set-piece roles or
+dates. Any future historical first must reuse the existing milestone owner.
+
 END OF DOCUMENT

@@ -7,6 +7,7 @@ namespace Goal\Legacy\Modules\Match;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\ClubService;
 use Goal\Legacy\Modules\Club\ClubCaptaincyService;
+use Goal\Legacy\Modules\Club\SetPieceResponsibilityService;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
 use Goal\Legacy\Modules\Match\Domain\MatchHighlight;
 use Goal\Legacy\Modules\Match\Domain\MatchResult;
@@ -28,7 +29,7 @@ final class MatchSimulationService
 {
     private ?OnPitchRoleService $roles = null;
 
-    public function __construct(private readonly ClubService $clubService, private readonly MatchSelectionService $selectionService, private readonly ?PositionDevelopmentService $positions = null, private readonly ?ClubCaptaincyService $captaincy = null)
+    public function __construct(private readonly ClubService $clubService, private readonly MatchSelectionService $selectionService, private readonly ?PositionDevelopmentService $positions = null, private readonly ?ClubCaptaincyService $captaincy = null, private readonly ?SetPieceResponsibilityService $setPieces = null)
     {
         $this->roles = new OnPitchRoleService();
     }
@@ -64,7 +65,6 @@ final class MatchSimulationService
         $awayLambda = max(0.2, min(3.2, 1.00 + (($awayStrength->value() - $homeStrength->value()) / 100 * 0.75)));
         $homeGoals = $this->poisson($homeLambda, $match->id()->value() . '|home');
         $awayGoals = $this->poisson($awayLambda, $match->id()->value() . '|away');
-        $result = new MatchResult($homeGoals, $awayGoals);
         $foulCounts = []; $yellowCounts = []; $redCounts = []; $dismissals = [];
         $disciplineEvents = array_merge(
             $this->disciplineActions($match->id()->value(), $match->homeClubId()->value(), $homeStarters, $homeSubstitutions, $playersById, $foulCounts, $yellowCounts, $redCounts, $dismissals),
@@ -74,9 +74,15 @@ final class MatchSimulationService
         $awaySubstitutions = $this->effectiveSubstitutions($awaySubstitutions, $dismissals);
         $substitutions = array_merge($homeSubstitutions, $awaySubstitutions);
         usort($substitutions, static fn (MatchSubstitution $left, MatchSubstitution $right): int => ($left->minute() <=> $right->minute()) ?: (($left->clubId()->value() <=> $right->clubId()->value()) ?: ($left->sequence() <=> $right->sequence())));
-        $goalEvents = [];
+        $penaltyResolution = $this->penaltyEvents($database, $match, $homeStarters, $homeSubstitutions, $awayStarters, $awaySubstitutions, $playersById, $dismissals, $controlledPlayers, $fidelity);
+        $openPlayHomeGoals = $homeGoals;
+        $openPlayAwayGoals = $awayGoals;
+        $homeGoals += $penaltyResolution['home_goals'];
+        $awayGoals += $penaltyResolution['away_goals'];
+        $result = new MatchResult($homeGoals, $awayGoals);
+        $goalEvents = $penaltyResolution['events'];
         $footService = new PlayerFootService();
-        for ($i = 0; $i < $homeGoals; $i++) {
+        for ($i = 0; $i < $openPlayHomeGoals; $i++) {
             $minute = 1 + (int) floor($this->unit($match->id()->value() . '|home-goal|' . $i) * 89);
             $active = $this->activePlayersAtMinute($homeStarters, $homeSubstitutions, $minute, $playersById, $dismissals);
             $actionKey = 'goal|home|' . $minute . '|' . $i;
@@ -84,7 +90,7 @@ final class MatchSimulationService
             $assist = $this->assistAtMinute($match->id()->value(), $active, $scorer, $minute, $i, $controlledPlayers, $controlledRoles, $actionKey);
             $goalEvents[] = ['club' => $match->homeClubId()->value(), 'player' => $scorer, 'assist' => $assist, 'action_foot' => $scorer !== null && isset($controlledPlayers[$scorer]) ? $footService->actionFoot($playersById[$scorer], $actionKey)->value : null, 'assist_foot' => $assist !== null && isset($controlledPlayers[$assist]) ? $footService->actionFoot($playersById[$assist], $actionKey . '|assist')->value : null, 'minute' => $minute, 'side' => 'home', 'type' => 'goal'];
         }
-        for ($i = 0; $i < $awayGoals; $i++) {
+        for ($i = 0; $i < $openPlayAwayGoals; $i++) {
             $minute = 1 + (int) floor($this->unit($match->id()->value() . '|away-goal|' . $i) * 89);
             $active = $this->activePlayersAtMinute($awayStarters, $awaySubstitutions, $minute, $playersById, $dismissals);
             $actionKey = 'goal|away|' . $minute . '|' . $i;
@@ -126,6 +132,10 @@ final class MatchSimulationService
                 if ($event['assist'] !== null) {
                     $assistCounts[$event['assist']] = ($assistCounts[$event['assist']] ?? 0) + 1;
                 }
+            } elseif ($event['type'] === 'penalty_missed' && $event['player'] !== null) {
+                // A missed/saved penalty is still a canonical shot attempt;
+                // it simply contributes no goal or assist.
+                $shotCounts[$event['player']] = ($shotCounts[$event['player']] ?? 0) + 1;
             }
             if ($event['type'] === 'substitution') {
                 /** @var MatchSubstitution $substitution */
@@ -133,14 +143,92 @@ final class MatchSimulationService
                 $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], 'substitution', new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['outgoing_player_id' => $substitution->outgoingPlayerId()->value(), 'incoming_player_id' => $substitution->incomingPlayerId()->value(), 'sequence' => $substitution->sequence()]);
             } elseif ($event['type'] === 'yellow_card' || $event['type'] === 'red_card') {
                 $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], $event['type'], new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['dismissal' => (int) $event['dismissal']]);
+            } elseif ($event['type'] === 'penalty_missed') {
+                $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], 'penalty_missed', new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['set_piece' => 'penalty', 'penalty_awarded' => 1, 'penalty_outcome' => 'missed']);
             } else {
-                $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], 'goal', new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), $event['player'] === null ? null : new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['side' => $event['side'], 'home_goals' => $homeGoals, 'away_goals' => $awayGoals, 'assist_player_id' => $event['assist'], 'action_foot' => $event['action_foot'] ?? null, 'assist_foot' => $event['assist_foot'] ?? null]);
+                $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], 'goal', new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), $event['player'] === null ? null : new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['side' => $event['side'], 'home_goals' => $homeGoals, 'away_goals' => $awayGoals, 'assist_player_id' => $event['assist'], 'action_foot' => $event['action_foot'] ?? null, 'assist_foot' => $event['assist_foot'] ?? null, 'set_piece' => $event['set_piece'] ?? null, 'penalty_awarded' => $event['penalty_awarded'] ?? null, 'penalty_outcome' => $event['penalty_outcome'] ?? null]);
             }
         }
         $stats = [];
         foreach ($this->participantStats($match, $match->homeClubId(), $homeStarters, $homeSubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $foulCounts, $yellowCounts, $redCounts, $dismissals, $playersById, $controlledRoles, $fullDetail) as $stat) { $stats[] = $stat; }
         foreach ($this->participantStats($match, $match->awayClubId(), $awayStarters, $awaySubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $foulCounts, $yellowCounts, $redCounts, $dismissals, $playersById, $controlledRoles, $fullDetail) as $stat) { $stats[] = $stat; }
         return new MatchSimulation($result, $stats, $highlights, $selections, $substitutions);
+    }
+
+    /**
+     * Penalty opportunities are a separate deterministic namespace from open
+     * play. Responsibility selects the taker; it never controls occurrence.
+     * @return array{events:list<array<string,mixed>>,home_goals:int,away_goals:int}
+     */
+    private function penaltyEvents(DatabaseInterface $database, GameMatch $match, array $homeStarters, array $homeSubstitutions, array $awayStarters, array $awaySubstitutions, array $playersById, array $dismissals, array $controlledPlayers, SimulationFidelity $fidelity): array
+    {
+        if ($this->setPieces === null || $fidelity !== SimulationFidelity::Player || !$this->hasControlledParticipant($controlledPlayers, $homeStarters, $homeSubstitutions, $awayStarters, $awaySubstitutions)) {
+            return ['events' => [], 'home_goals' => 0, 'away_goals' => 0];
+        }
+        $events = [];
+        $goals = ['home' => 0, 'away' => 0];
+        foreach ([
+            ['side' => 'home', 'club_id' => $match->homeClubId()->value(), 'starters' => $homeStarters, 'substitutions' => $homeSubstitutions],
+            ['side' => 'away', 'club_id' => $match->awayClubId()->value(), 'starters' => $awayStarters, 'substitutions' => $awaySubstitutions],
+        ] as $team) {
+            $clubId = (string) $team['club_id'];
+            $side = (string) $team['side'];
+            // A foul can create a penalty opportunity, but this occurrence
+            // key is independent from all assignment and execution keys.
+            if ($this->unit($match->id()->value() . '|' . $clubId . '|penalty-opportunity') >= 0.12) {
+                continue;
+            }
+            $minute = 1 + (int) floor($this->unit($match->id()->value() . '|' . $clubId . '|penalty-minute') * 89);
+            $active = $this->activePlayersAtMinute($team['starters'], $team['substitutions'], $minute, $playersById, $dismissals);
+            $taker = $this->setPieces->matchTaker($database, $clubId, $match->seasonId(), array_map(static fn (Player $player): string => $player->id()->value(), $active));
+            if ($taker === null) {
+                continue;
+            }
+            $player = $playersById[$taker] ?? null;
+            if ($player === null) {
+                continue;
+            }
+            $conversion = min(0.82, max(0.35, 0.45 + ($player->attributes()->shooting() / 250)));
+            $scored = $this->unit($match->id()->value() . '|' . $clubId . '|penalty-outcome') < $conversion;
+            $event = [
+                'club' => $clubId,
+                'player' => $taker,
+                'assist' => null,
+                'action_foot' => null,
+                'assist_foot' => null,
+                'minute' => $minute,
+                'side' => $side,
+                'type' => $scored ? 'goal' : 'penalty_missed',
+                'set_piece' => 'penalty',
+                'penalty_awarded' => 1,
+                'penalty_outcome' => $scored ? 'goal' : 'missed',
+            ];
+            $events[] = $event;
+            if ($scored) {
+                ++$goals[$side];
+            }
+        }
+
+        return ['events' => $events, 'home_goals' => $goals['home'], 'away_goals' => $goals['away']];
+    }
+
+    private function hasControlledParticipant(array $controlledPlayers, array ...$groups): bool
+    {
+        foreach ($groups as $players) {
+            foreach ($players as $value) {
+                $playerId = $value instanceof Player
+                    ? $value->id()->value()
+                    : ($value instanceof MatchSubstitution ? $value->incomingPlayerId()->value() : null);
+                if ($playerId !== null && isset($controlledPlayers[$playerId])) {
+                    return true;
+                }
+                if ($value instanceof MatchSubstitution && isset($controlledPlayers[$value->outgoingPlayerId()->value()])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /** @param list<\Goal\Legacy\Modules\Match\Domain\PlayerSelection> $selections @return list<\Goal\Legacy\Modules\Match\Domain\PlayerSelection> */

@@ -7,6 +7,7 @@ namespace Goal\Legacy\Modules\Player;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Club\ClubService;
 use Goal\Legacy\Modules\Club\ClubCaptaincyService;
+use Goal\Legacy\Modules\Club\SetPieceResponsibilityService;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
@@ -149,6 +150,7 @@ final class YouthCareerStartService
         // Home coherent before a first Match or event lazily touches it.
         $this->players->socialService()->initializeCareer($database, $player, $club->value(), $role->value, $startDate);
         (new ClubCaptaincyService($this->clubs))->ensureClub($database, $club->value(), $season->id(), $startDate);
+        (new SetPieceResponsibilityService($this->clubs))->ensureClub($database, $club->value(), $season->id(), $startDate);
     }
 
     private function firstTierEligible(Player $player, int $reputation): bool

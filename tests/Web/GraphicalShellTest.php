@@ -147,6 +147,7 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('On-pitch role', $home['body']);
             self::assertStringContainsString('READINESS', $home['body']);
             self::assertStringContainsString('Workload', $home['body']);
+            self::assertStringContainsString('Trophy Room', $home['body']);
             self::assertStringNotContainsString('No active Club manager', $home['body']);
             $training = $this->application->handle('GET', '/', ['page' => 'training', 'save' => $save], [], $session);
             self::assertSame(200, $training['status']);
@@ -171,6 +172,7 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('ON-PITCH ROLE', $controlled['body']);
             self::assertStringContainsString('Set preferred role', $controlled['body']);
             self::assertStringContainsString('PLAYING STYLE', $controlled['body']);
+            self::assertStringContainsString('Open Trophy Room', $controlled['body']);
             self::assertStringNotContainsString('Potential', $controlled['body']);
             $roleUpdate = $this->application->handle('POST', '/', [], [
                 'action' => 'set_on_pitch_role', 'save' => $save, 'role' => 'box_to_box_midfielder',
@@ -185,6 +187,14 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('CAREER TIMELINE', $legacy['body']);
             self::assertStringContainsString('DEFINING SEASONS', $legacy['body']);
             self::assertStringContainsString('No earned honours yet.', $legacy['body']);
+            $schemaBeforeTrophyRoom = (int) $database->connection()->query('SELECT COUNT(*) FROM sqlite_master')->fetchColumn();
+            $trophyRoom = $this->application->handle('GET', '/', ['page' => 'trophies', 'save' => $save], [], $session);
+            self::assertSame(200, $trophyRoom['status']);
+            self::assertStringContainsString('TROPHY ROOM', $trophyRoom['body']);
+            self::assertStringContainsString('CAREER RECORDS', $trophyRoom['body']);
+            self::assertStringContainsString('PERSONAL BESTS', $trophyRoom['body']);
+            self::assertStringContainsString('No Club honours yet.', $trophyRoom['body']);
+            self::assertSame($schemaBeforeTrophyRoom, (int) $database->connection()->query('SELECT COUNT(*) FROM sqlite_master')->fetchColumn());
 
             $finances = $this->application->handle('GET', '/', ['page' => 'finances', 'save' => $save], [], $session);
             self::assertSame(200, $finances['status']);

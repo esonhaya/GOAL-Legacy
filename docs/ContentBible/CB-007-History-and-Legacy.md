@@ -381,4 +381,20 @@ and Club/Player history does not duplicate those surfaces. Old saves may use
 current static relationships for future fixtures but never receive fabricated
 past rivalry chronology.
 
+## P2-032 Trophy Room and Career Records
+
+Trophy Room is the collection view; Career Timeline remains chronological and
+Club journey remains the Club-chapter view. The collection distinguishes
+HONOUR, AWARD, CAREER TOTAL, PERSONAL BEST, and MILESTONE. Club honours show
+competition, readable Season, and the canonically evidenced Club. Supported
+international honours, individual awards, records, personal bests, and
+meaningful milestones appear only when their existing owners provide evidence.
+
+Best Seasons are factual category callouts such as highest goals, highest
+assists, highest average rating, or most appearances. No universal Season
+score, numeric legacy score, rivalry trophy, captaincy inference, trait badge,
+or global football record is created. Active, retired, compacted, and legacy
+Careers render an honest empty or partial state rather than reconstructing
+achievements.
+
 END OF DOCUMENT

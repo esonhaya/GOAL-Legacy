@@ -431,4 +431,20 @@ Profile/Home/Club/Competition/Matchday reads do not create context rows or
 history. Match evidence, objective results, Player-social relationships,
 milestones, and public narrative remain owned by their existing services.
 
+## DOMAIN-032 Career Achievement Projection
+
+The Trophy Room persists no new achievement rows. It reads the existing
+`career_honours`, `career_awards`, `career_legacy_records`, and
+`career_legacy_milestones` facts, alongside canonical Season statistics,
+international history, retirement state, and Club journey context. Derived
+counts and Best Season categories are transient presentation values, not
+redundant counters or a second ledger.
+
+Club context is taken from the honour/award evidence and canonical Club
+repository context, so a trophy remains attached to the Club with which it was
+earned after a transfer. International honours are limited to competitions
+the international module actually records. Missing rows in older saves remain
+unknown; compaction and reload preserve the existing source facts without
+reconstruction or fabrication. Trophy Room GET paths perform no domain DML.
+
 END OF DOCUMENT

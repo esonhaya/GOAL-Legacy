@@ -592,4 +592,22 @@ content; there is no World rivalry scan or dynamic relationship generation.
 International rivalry is deferred. Legacy saves safely receive future
 fixture context but no fabricated historical rivalry events.
 
+### P2-032 Trophy Room and Career Records lifecycle
+
+`CareerAchievementSummary` is a pure read projection consumed by the graphical
+Trophy Room. `CareerLegacyService`/`CareerLegacyRepository` remain owners of
+honours, awards, personal records, and milestones; Player statistics,
+international services, CareerClubContextService, captaincy, and retirement
+remain authoritative for their own facts. The projection adds no tables, rows,
+counters, achievement events, or numeric legacy score.
+
+Projection ordering is deterministic by canonical Season/category/source
+evidence. Club, competition, and readable Season labels are retained without
+per-achievement write or NPC/world scans. Trophy Room, Profile, Career Home,
+Career History, and retired Career views are read-only; save/reload and
+compaction therefore preserve source facts and do not regenerate achievements.
+Legacy saves show only available evidence, and international output is limited
+to supported canonical honours. Rivalry and captaincy remain contextual
+boundaries rather than achievement categories.
+
 END OF DOCUMENT

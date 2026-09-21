@@ -114,6 +114,17 @@ final class CareerPresentationService
     }
 
     /**
+     * Compose the read-only Trophy Room projection from the existing
+     * presentation summary. The projection owns no achievement facts.
+     * @param array<string, mixed> $summary
+     * @return array<string, mixed>
+     */
+    public function achievementSummary(array $summary): array
+    {
+        return (new CareerAchievementSummary())->project($summary);
+    }
+
+    /**
      * Public player read model for profile and squad screens.
      * Compact world-fidelity aggregates are the fallback for NPCs; no hidden
      * development fields are exposed by this boundary.

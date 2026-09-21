@@ -418,4 +418,19 @@ noteworthy, but it does not create an event, score, modifier, or separate
 Match-history ledger. World-fidelity Matches retain their cheap simulation
 path and perform no rivalry scan.
 
+## P2-032 Achievement Presentation Boundary
+
+The Trophy Room is outside Match simulation. It consumes completed canonical
+honours, awards, Season aggregates, personal records, milestones, Club
+journey, international facts, and retirement state after the Match engine has
+already written them. It cannot change goals, shots, passing, cards, injuries,
+ratings, fatigue, home advantage, penalties, set pieces, captaincy, or Match
+RNG. A Derby or Rivalry contributes no achievement unless an existing
+competition honour or factual milestone independently exists.
+
+No Match-side achievement rows, NPC Trophy Room processing, global record
+scan, or page-render write is added. A decisive contribution may be described
+through the existing MatchStory evidence when a canonical meaningful fixture
+context already exists; no second performance algorithm is introduced.
+
 END OF DOCUMENT

@@ -558,4 +558,22 @@ Read paths never write state; stable Match source keys and deterministic
 classification make reloads idempotent. Missing old history shows less rather
 than fabricating a former-Club meeting or historical rivalry moment.
 
+## P2-032 Trophy Room and Career Records
+
+The Trophy Room is a read-oriented view of the controlled Player's canonical
+Career facts. It groups Club honours, supported international honours,
+individual awards, Career totals, personal bests, explicit Best Season
+categories, and meaningful milestones. It does not award, score, rank, or
+recalculate achievements and it does not replace Career Timeline or Club
+journey views.
+
+Honour participation, award resolution, records, personal bests, milestones,
+international competition history, captaincy, and retirement remain owned by
+their existing systems. Season labels, competition names, and Club context are
+preserved from canonical evidence. Rivalry is fixture context, not a trophy;
+captaincy is shown separately and is never inferred as “trophy as captain.”
+Young and legacy Careers show only what can be proven. No numeric legacy/GOAT
+score, fabricated achievement, global record book, NPC Trophy Room, or page
+render write is introduced.
+
 END OF DOCUMENT

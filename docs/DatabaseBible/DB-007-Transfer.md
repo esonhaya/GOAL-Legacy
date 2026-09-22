@@ -387,6 +387,26 @@ recall state, buy option, loan progress row, or fabricated historical loan is
 stored. Legacy saves have no loan rows until an explicit controlled loan is
 accepted; read paths use no DML.
 
+## P2-038 Lifecycle integrity boundary
+
+The `player_loans` row is the sole persisted temporary-movement state. It does
+not duplicate Contract, payroll, Match statistics, workload, injury, or
+history facts. The parent Contract remains the only contractual/wage row while
+the squad and competition registration point at the loan Club. On return, the
+loan row changes to `COMPLETED`, the parent membership/registrations are
+restored once, and the original loan Club remains available through canonical
+statistics and movement context. Replaying return or Season preparation is a
+no-op for already completed loans.
+
+The integration boundary is intentionally orthogonal: Contract, loan,
+availability/injury, discipline, development, statistics, finance, and
+history keep their existing owners. Season rollover returns due loans before
+continuity and next-Season role processing. A loan cannot outlive its parent
+Contract, cannot be accepted for a retired Player, and does not permit a
+permanent transfer until the active loan has returned. Save/reload preserves
+the compact loan state without restoring detailed Match history; legacy saves
+without loan rows remain unchanged.
+
 ## P2-013 Market Context Boundary
 
 Market stature is derived at evaluation/read time and is not persisted as a

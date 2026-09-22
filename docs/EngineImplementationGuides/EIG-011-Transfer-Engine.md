@@ -396,4 +396,26 @@ development continue through their existing actual-Club/actual-minutes paths;
 the loan layer changes registration context, not Match mathematics. Read
 presentation and legacy-load paths construct no loan rows.
 
+## P2-038 Career lifecycle integration gate
+
+The lifecycle keeps four Club meanings separate: the Contract Club remains the
+parent and wage owner; the active squad membership and Match/statistics Club is
+the loan destination during an active loan; historical Clubs come from the
+canonical movement/loan record; and an opportunity destination is only a
+proposal until accepted. A Player therefore has at most one active playing
+membership and one active loan, while a valid parent Contract remains
+singular.
+
+The bounded integration path is: accept a Contract-backed loan, move the one
+active registration, consume actual destination-Club Match minutes and
+player-scoped availability/injury/discipline, return at the scheduled Season
+boundary, then allow normal post-return movement. Return restores the parent
+membership without rewriting loan statistics or physical state and is
+idempotent. Season preparation returns due loans before Contract continuity and
+next-Season role derivation; replay creates no additional movement, membership,
+history, or financial event. Permanent transfer remains deferred while a loan
+is active and resumes after return. Presentation and availability reads remain
+observational; no loan, recovery, or offer state is repaired or generated on
+page render.
+
 END OF DOCUMENT

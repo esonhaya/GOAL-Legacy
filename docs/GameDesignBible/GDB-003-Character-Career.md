@@ -647,4 +647,22 @@ the same player state rather than resetting it. Career Home, Profile, Training,
 Matchday, and Post-Match expose compact factual labels and recent minutes
 through read-only deterministic projections.
 
+## P2-038 Career lifecycle integration
+
+Contract, temporary movement, playing evidence, physical state, and Season
+transition are one bounded Career flow while remaining separate facts. During a
+loan the parent Club still owns the Contract and wage; the loan Club is the
+Player's active playing Club. Actual loan-Club minutes, goals, assists,
+workload, injury, and discipline remain attached to the Player and actual
+competition context. A scheduled return restores the parent playing context
+without erasing the loan spell's statistics or physical state.
+
+Return is exactly-once and occurs before Season continuity/role processing.
+The Player can then use the normal post-return renewal or transfer path. An
+active loan cannot be converted into a permanent transfer, and no contract,
+payroll, membership, statistic, or Career-history duplicate is created. These
+boundaries are factual integration guarantees, not a new universal Career
+state machine; page reads remain read-only and legacy saves do not gain
+fabricated loan history.
+
 END OF DOCUMENT

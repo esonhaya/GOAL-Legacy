@@ -32,6 +32,7 @@ use Goal\Legacy\Modules\Player\PlayerDisciplineService;
 use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
 use Goal\Legacy\Modules\Player\CareerLegacyService;
 use Goal\Legacy\Modules\Player\PlayerCareerStatisticsService;
+use Goal\Legacy\Modules\Player\PlayerSeasonPerformanceService;
 use Goal\Legacy\Modules\Player\PlayerTraitService;
 use Goal\Legacy\Modules\Player\PlayerFormService;
 use Goal\Legacy\Modules\Player\CompetitionStatisticsQuery;
@@ -1021,66 +1022,338 @@ final class CareerPresentationService
     /** @param array<string, mixed> $summary @return array<string, mixed> */
     public function seasonSummary(DatabaseInterface $database, array $summary, ?string $seasonId = null): array
     {
-        $seasonId ??= is_string($summary['current_season_id'] ?? null) ? $summary['current_season_id'] : null;
-        $history = is_array($summary['season_history'] ?? null) ? $summary['season_history'] : [];
-        $row = null;
-        foreach ($history as $candidate) {
-            if (is_array($candidate) && ($seasonId === null || ($candidate['season_id'] ?? null) === $seasonId)) {
-                $row = $candidate;
-                break;
+        $review = $this->seasonReview($database, $summary, $seasonId);
+        $season = is_array($review['season'] ?? null) ? $review['season'] : [];
+        $overview = is_array($review['statistics'] ?? null) ? ($review['statistics']['totals'] ?? []) : [];
+        $competitions = is_array($review['statistics'] ?? null) ? ($review['statistics']['competitions'] ?? []) : [];
+        $journey = is_array($review['club_journey'] ?? null) ? $review['club_journey'] : [];
+        $firstClub = is_array($journey[0] ?? null) ? ($journey[0]['club_name'] ?? null) : null;
+        $firstCompetition = is_array($competitions[0] ?? null) ? ($competitions[0]['competition'] ?? null) : null;
+        $performance = is_array($review['performance'] ?? null) ? $review['performance'] : [];
+        $progression = is_array($review['progression'] ?? null) ? $review['progression'] : [];
+        $roleHistory = (array) ($progression['role_history'] ?? []);
+        $roleChange = null;
+        if (count($roleHistory) > 1) {
+            $roleChange = CareerLabels::value($roleHistory[0]['role'] ?? null) . ' -> ' . CareerLabels::value($roleHistory[array_key_last($roleHistory)]['role'] ?? null);
+        }
+        $legacy = is_array($review['achievements'] ?? null) ? $review['achievements'] : [];
+
+        return array_replace($review, [
+            // These aliases keep the existing CLI season-boundary surface
+            // compatible while the graphical route consumes the richer read model.
+            'season' => $season['label'] ?? null,
+            'club' => $firstClub,
+            'competition' => $firstCompetition,
+            'position' => null,
+            'stats' => $overview,
+            'performance' => $performance['classification'] ?? null,
+            'ovr_before' => $progression['ovr_before'] ?? null,
+            'ovr_after' => $progression['ovr_after'] ?? null,
+            'role_change' => $roleChange,
+            'competition_stats' => $competitions,
+            'cup_results' => $this->seasonCompetitionOutcomes((array) ($summary['cup_history'] ?? []), (string) ($season['id'] ?? '')),
+            'europe_results' => $this->seasonCompetitionOutcomes((array) ($summary['europe_history'] ?? []), (string) ($season['id'] ?? '')),
+            'international_stats' => $review['statistics']['international'] ?? [],
+            'legacy_awards' => $legacy['awards'] ?? [],
+            'legacy_honours' => $legacy['honours'] ?? [],
+            'club_season' => $review['events']['objectives'][0] ?? null,
+        ]);
+    }
+
+    /**
+     * Read-only, Season-scoped Career review. The returned structure is a
+     * projection over existing statistics, history, legacy and movement
+     * owners; it deliberately contains no Season score or persisted summary.
+     * @return array<string, mixed>
+     */
+    public function seasonReview(DatabaseInterface $database, array $summary, ?string $seasonId = null): array
+    {
+        $player = is_array($summary['player'] ?? null) ? $summary['player'] : [];
+        $playerId = (string) ($player['id'] ?? '');
+        $seasons = (new SeasonRepository($database))->all();
+        $seasonMap = [];
+        foreach ($seasons as $season) { $seasonMap[$season->id()->value()] = $season; }
+        $currentSeasonId = (string) ($summary['current_season_id'] ?? '');
+        $seasonId ??= $this->latestReviewSeasonId($seasons, $summary);
+        $availableSeasons = [];
+        foreach ($seasons as $season) {
+            $hasEvidence = in_array($season->id()->value(), $this->reviewSeasonIds($summary), true);
+            if ($hasEvidence || $season->id()->value() === $currentSeasonId) {
+                $availableSeasons[] = ['id' => $season->id()->value(), 'label' => $season->label(), 'status' => $season->status()->value];
             }
         }
-        $stats = $seasonId !== null && is_array($summary['season_stats'] ?? null) ? $summary['season_stats'] : [];
-        $ovrBefore = null;
-        $development = is_array($summary['development_history'] ?? null) ? $summary['development_history'] : [];
-        $seasonStart = is_array($row) ? (string) ($row['season_start_date'] ?? '') : '';
-        foreach ($development as $entry) {
-            if (!is_array($entry) || ($seasonStart !== '' && strcmp((string) ($entry['date'] ?? $entry['occurred_date'] ?? ''), $seasonStart) < 0)) { continue; }
-            $ovrBefore = (int) ($entry['before_ovr'] ?? 0);
-            break;
+        usort($availableSeasons, static fn (array $left, array $right): int => strcmp((string) $left['id'], (string) $right['id']));
+        $seasonRecord = $seasonId === null ? null : ($seasonMap[$seasonId] ?? null);
+        if ($seasonRecord === null || $playerId === '') {
+            return ['available' => false, 'season' => null, 'available_seasons' => $availableSeasons, 'persistence' => false];
         }
-        $roleChange = null;
-        $roles = [];
-        foreach ((array) ($summary['role_history'] ?? []) as $entry) {
-            if (!is_array($entry) || ($seasonId !== null && ($entry['season_id'] ?? null) !== $seasonId)) { continue; }
-            $role = (string) ($entry['role'] ?? '');
-            if ($role !== '' && ($roles === [] || $roles[array_key_last($roles)] !== $role)) { $roles[] = $role; }
+
+        $competitionStats = $this->reviewCompetitionStats($database, $playerId, $seasonRecord->id());
+        $totals = $this->reviewTotals($competitionStats);
+        $canonicalTotals = (new PlayerCareerStatisticsService())->seasonDetailed($database, $playerId, $seasonRecord->id());
+        $reconciles = $competitionStats !== [];
+        foreach (['appearances', 'starts', 'minutes', 'goals', 'assists'] as $field) {
+            if ((int) ($totals[$field] ?? 0) !== (int) ($canonicalTotals[$field] ?? 0)) { $reconciles = false; }
         }
-        if (count($roles) > 1) {
-            $roleChange = CareerLabels::value($roles[0]) . ' -> ' . CareerLabels::value($roles[array_key_last($roles)]);
-        }
-        $clubContext = $this->clubContext($database, $summary);
-        $playerId = is_array($summary['player'] ?? null) ? (string) ($summary['player']['id'] ?? '') : '';
-        $competitionStats = $playerId !== '' && $seasonId !== null
-            ? $this->seasonCompetitionStats($database, $playerId, new SeasonId($seasonId))
-            : [];
-        $internationalStats = $playerId !== '' && $seasonId !== null
-            ? $this->services->nationalTeams()->playerStats($database, $playerId, new SeasonId($seasonId))
-            : [];
+        $international = $this->services->nationalTeams()->playerStats($database, $playerId, $seasonRecord->id());
+        $movement = $this->reviewSeasonRows((array) ($summary['movement_history'] ?? []), $seasonRecord);
+        $contracts = $this->reviewContracts((array) ($summary['contract_history'] ?? []), $seasonRecord);
+        $roles = $this->reviewSeasonRows((array) ($summary['role_history'] ?? []), $seasonRecord);
+        $objectives = array_values(array_filter((array) ($summary['club_season_history'] ?? []), static fn (array $row): bool => (string) ($row['season_id'] ?? '') === $seasonRecord->id()->value()));
+        $development = $this->reviewDateRows((array) ($summary['development_history'] ?? []), $seasonRecord);
         $legacy = is_array($summary['legacy'] ?? null) ? $summary['legacy'] : [];
-        $legacyAwards = array_values(array_filter((array) ($legacy['awards'] ?? []), static fn (array $row): bool => ($row['season_id'] ?? null) === $seasonId));
-        $legacyHonours = array_values(array_filter((array) ($legacy['honours'] ?? []), static fn (array $row): bool => ($row['season_id'] ?? null) === $seasonId));
-        $cupResults = $this->seasonCompetitionOutcomes((array) ($summary['cup_history'] ?? []), $seasonId);
-        $europeResults = $this->seasonCompetitionOutcomes((array) ($summary['europe_history'] ?? []), $seasonId);
+        $awards = $this->reviewSeasonRows((array) ($legacy['awards'] ?? []), $seasonRecord);
+        $honours = $this->reviewSeasonRows((array) ($legacy['honours'] ?? []), $seasonRecord);
+        $records = $this->reviewSeasonRows((array) ($legacy['records'] ?? []), $seasonRecord);
+        $milestones = $this->reviewSeasonRows((array) ($legacy['milestones'] ?? []), $seasonRecord);
+        $injuries = $this->reviewDateRows((array) ($legacy['injury_comebacks'] ?? []), $seasonRecord, ['injury.start_date', 'medical_end_date', 'first_match_back.date']);
+        $captaincy = $this->reviewSeasonRows((array) (($summary['captaincy']['history'] ?? [])), $seasonRecord);
+        $performance = (new PlayerSeasonPerformanceService())->assess($database, $playerId, $seasonRecord->id())->toArray();
+        unset($performance['score']);
+        $positionHistory = $this->reviewDateRows((array) ($summary['position_history'] ?? []), $seasonRecord, ['occurred_date']);
+        $leaderboards = $this->reviewLeaderboards($database, $competitionStats, $playerId, $seasonRecord);
+        $clubJourney = $this->reviewClubJourney($database, $playerId, $seasonRecord, $competitionStats, $movement);
+        $ovrBefore = $development[0]['before_ovr'] ?? null;
+        $ovrAfter = $development === [] ? null : ($development[array_key_last($development)]['after_ovr'] ?? null);
+        $current = $seasonRecord->id()->value() === $currentSeasonId;
+        $highlights = $this->reviewHighlights($honours, $awards, $records, $milestones, $movement, $leaderboards, $injuries);
+        $discipline = [
+            'yellow_cards' => (int) ($totals['yellow_cards'] ?? 0),
+            'red_cards' => (int) ($totals['red_cards'] ?? 0),
+            'suspensions' => [],
+        ];
+        $roleValues = [];
+        foreach ($roles as $role) {
+            $value = (string) ($role['role'] ?? '');
+            if ($value !== '' && !in_array($value, $roleValues, true)) { $roleValues[] = $value; }
+        }
 
         return [
-            'season' => is_array($row) ? ($row['season'] ?? $seasonId) : $seasonId,
-            'club' => is_array($row) ? ($row['club']['name'] ?? null) : (is_array($summary['current_club'] ?? null) ? ($summary['current_club']['name'] ?? null) : null),
-            'competition' => is_array($row) ? ($row['competition']['name'] ?? null) : (is_array($summary['current_competition'] ?? null) ? ($summary['current_competition']['name'] ?? null) : null),
-            'position' => $clubContext['position'] ?? null,
-            'stats' => $stats,
-            'performance' => is_array($summary['season_performance'] ?? null) ? ($summary['season_performance']['classification'] ?? null) : null,
-            'ovr_before' => $ovrBefore,
-            'ovr_after' => $ovrBefore === null ? null : ($summary['current_ovr'] ?? null),
-            'role_change' => $roleChange,
-            'competition_stats' => $competitionStats,
-            'cup_results' => $cupResults,
-            'europe_results' => $europeResults,
-            'international_stats' => $internationalStats,
-            'legacy_awards' => $legacyAwards,
-            'legacy_honours' => $legacyHonours,
-            'club_season' => $summary['club_season'] ?? null,
+            'available' => true,
+            'persistence' => false,
+            'season' => ['id' => $seasonRecord->id()->value(), 'label' => $seasonRecord->label(), 'status' => $seasonRecord->status()->value, 'completed' => $seasonRecord->status()->value === 'completed', 'current' => $current],
+            'current_season_id' => $currentSeasonId,
+            'available_seasons' => $availableSeasons,
+            'player' => ['id' => $playerId, 'name' => (string) ($player['preferred_name'] ?? $player['name'] ?? 'Player')],
+            'club_journey' => $clubJourney,
+            'contract_context' => ['parent_club' => $summary['parent_club'] ?? null, 'contracts' => $contracts],
+            'statistics' => ['competitions' => $competitionStats, 'totals' => $totals, 'international' => $international, 'reconciles' => $reconciles],
+            'performance' => ['classification' => $performance['classification'] ?? 'insufficient_evidence', 'reason' => $performance['reason'] ?? null, 'statistics' => $performance['statistics'] ?? []],
+            'progression' => ['development' => $development, 'ovr_before' => $ovrBefore, 'ovr_after' => $ovrAfter, 'role_history' => $roles, 'roles' => $roleValues, 'position_history' => $positionHistory, 'position_summary' => null],
+            'events' => ['movements' => $movement, 'loans' => array_values(array_filter($movement, static fn (array $row): bool => ($row['type'] ?? '') === 'loan')), 'injuries' => $injuries, 'discipline' => $discipline, 'captaincy' => $captaincy, 'objectives' => $objectives, 'set_pieces' => [], 'set_piece_review' => 'omitted'],
+            'achievements' => ['honours' => $honours, 'awards' => $awards, 'records' => $records, 'personal_bests' => $records, 'milestones' => $milestones, 'leaderboards' => $leaderboards],
+            'highlights' => $highlights,
+            'outlook' => $current ? ($summary['career_outlook'] ?? null) : null,
+            'source' => 'canonical Season aggregates, Career history, movement, legacy and competition leaderboards',
         ];
+    }
+
+    /** @param list<object> $seasons @param array<string,mixed> $summary */
+    private function latestReviewSeasonId(array $seasons, array $summary): ?string
+    {
+        $historyIds = array_fill_keys($this->reviewSeasonIds($summary), true);
+        $completed = array_values(array_filter($seasons, static fn ($season): bool => $season->status()->value === 'completed' && isset($historyIds[$season->id()->value()])));
+        usort($completed, static fn ($left, $right): int => strcmp($right->endDate()->toIsoString() . $right->id()->value(), $left->endDate()->toIsoString() . $left->id()->value()));
+        if ($completed !== []) { return $completed[0]->id()->value(); }
+        return null;
+    }
+
+    /** @param array<string,mixed> $summary @return list<string> */
+    private function reviewSeasonIds(array $summary): array
+    {
+        $ids = [];
+        foreach ((array) ($summary['season_history'] ?? []) as $row) {
+            if (is_array($row) && (string) ($row['season_id'] ?? '') !== '') { $ids[(string) $row['season_id']] = true; }
+        }
+        foreach ((array) ($summary['movement_history'] ?? []) as $row) {
+            if (is_array($row) && (string) ($row['season_id'] ?? '') !== '') { $ids[(string) $row['season_id']] = true; }
+        }
+        foreach ((array) (($summary['legacy'] ?? [])['awards'] ?? []) as $row) {
+            if (is_array($row) && (string) ($row['season_id'] ?? '') !== '') { $ids[(string) $row['season_id']] = true; }
+        }
+
+        return array_keys($ids);
+    }
+
+    /** @param array<string,mixed> $row */
+    private function reviewRowDate(array $row, string $path = 'date'): string
+    {
+        $value = $row;
+        foreach (explode('.', $path) as $part) {
+            if (!is_array($value)) { return ''; }
+            $value = $value[$part] ?? null;
+        }
+
+        return is_string($value) ? $value : '';
+    }
+
+    /** @param list<mixed> $rows @param object $season @return list<array<string,mixed>> */
+    private function reviewDateRows(array $rows, object $season, array $paths = ['date']): array
+    {
+        $result = [];
+        $start = $season->startDate()->toIsoString();
+        $end = $season->endDate()->toIsoString();
+        foreach ($rows as $row) {
+            if (!is_array($row)) { continue; }
+            $matches = false;
+            foreach ($paths as $path) {
+                $date = $this->reviewRowDate($row, $path);
+                if ($date !== '' && strcmp($date, $start) >= 0 && strcmp($date, $end) <= 0) { $matches = true; break; }
+            }
+            if ($matches) { $result[] = $row; }
+        }
+        usort($result, fn (array $left, array $right): int => strcmp($this->reviewRowDate($left, 'date') . $this->reviewRowDate($left, 'occurred_date'), $this->reviewRowDate($right, 'date') . $this->reviewRowDate($right, 'occurred_date')) ?: strcmp((string) ($left['source_key'] ?? ''), (string) ($right['source_key'] ?? '')));
+
+        return $result;
+    }
+
+    /** @param list<mixed> $rows @param object $season @return list<array<string,mixed>> */
+    private function reviewSeasonRows(array $rows, object $season): array
+    {
+        $result = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) { continue; }
+            $rowSeason = (string) ($row['season_id'] ?? '');
+            if ($rowSeason !== '') {
+                if ($rowSeason === $season->id()->value()) { $result[] = $row; }
+                continue;
+            }
+            $result = array_merge($result, $this->reviewDateRows([$row], $season));
+        }
+        usort($result, static fn (array $left, array $right): int => strcmp((string) ($left['date'] ?? $left['occurred_date'] ?? $left['award_date'] ?? ''), (string) ($right['date'] ?? $right['occurred_date'] ?? $right['award_date'] ?? '')) ?: strcmp((string) ($left['source_key'] ?? ''), (string) ($right['source_key'] ?? '')));
+
+        return $result;
+    }
+
+    /** @param list<array<string,mixed>> $rows @param object $season @return list<array<string,mixed>> */
+    private function reviewContracts(array $rows, object $season): array
+    {
+        $result = [];
+        $start = $season->startDate()->toIsoString();
+        $end = $season->endDate()->toIsoString();
+        foreach ($rows as $row) {
+            $contractStart = (string) ($row['start_date'] ?? '');
+            $contractEnd = (string) ($row['end_date'] ?? '');
+            if ($contractStart !== '' && $contractEnd !== '' && $contractStart <= $end && $contractEnd >= $start) { $result[] = $row; }
+        }
+        usort($result, static fn (array $left, array $right): int => strcmp((string) ($left['start_date'] ?? ''), (string) ($right['start_date'] ?? '')));
+
+        return $result;
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function reviewCompetitionStats(DatabaseInterface $database, string $playerId, SeasonId $seasonId): array
+    {
+        $result = [];
+        $query = new CompetitionStatisticsQuery();
+        foreach ((new CompetitionRepository($database))->bySeason($seasonId) as $competition) {
+            if ($competition->type() === CompetitionType::International) { continue; }
+            $rows = array_values(array_filter($query->forCompetitionSeason($database, $competition->id()->value(), $seasonId), static fn (array $row): bool => (string) ($row['player_id'] ?? '') === $playerId));
+            if ($rows === []) { continue; }
+            $clubs = [];
+            $stats = $this->reviewTotals($rows);
+            foreach ($rows as $row) {
+                $clubId = (string) ($row['club_id'] ?? '');
+                if ($clubId === '') { continue; }
+                $clubs[$clubId] = ['club_id' => $clubId, 'club_name' => $this->reviewClubName($database, $clubId), 'stats' => $this->reviewTotals([$row])];
+            }
+            ksort($clubs, SORT_STRING);
+            $result[] = ['competition_id' => $competition->id()->value(), 'competition' => $competition->name(), 'type' => $competition->type()->value, 'clubs' => array_values($clubs), 'stats' => $stats];
+        }
+        usort($result, static fn (array $left, array $right): int => (($left['type'] <=> $right['type']) ?: strcmp((string) $left['competition_id'], (string) $right['competition_id'])));
+
+        return $result;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<string,int|float|null> */
+    private function reviewTotals(array $rows): array
+    {
+        $fields = ['appearances', 'starts', 'minutes', 'goals', 'assists', 'shots', 'shots_on_target', 'saves', 'clean_sheets', 'tackles', 'interceptions', 'blocks', 'passes_attempted', 'passes_completed', 'fouls_committed', 'yellow_cards', 'red_cards', 'rated_appearances'];
+        $result = array_fill_keys($fields, 0);
+        $ratingTotal = 0.0;
+        foreach ($rows as $row) {
+            $source = is_array($row['stats'] ?? null) ? $row['stats'] : $row;
+            foreach ($fields as $field) { $result[$field] += (int) ($source[$field] ?? 0); }
+            $ratingTotal += (float) ($source['rating_total'] ?? 0);
+        }
+        $result['average_match_rating'] = (int) $result['rated_appearances'] === 0 ? null : round($ratingTotal / (int) $result['rated_appearances'], 2);
+
+        return $result;
+    }
+
+    private function reviewClubName(DatabaseInterface $database, string $clubId): string
+    {
+        $repository = $this->services->clubModule()->service()->repository($database);
+
+        return $repository->exists($clubId) ? $repository->get($clubId)->canonicalName() : $clubId;
+    }
+
+    /** @param list<array<string,mixed>> $competitionStats @return list<array<string,mixed>> */
+    private function reviewLeaderboards(DatabaseInterface $database, array $competitionStats, string $playerId, object $season): array
+    {
+        $result = [];
+        foreach ($competitionStats as $competition) {
+            $projection = $this->competitionLeaderboards($database, (string) $competition['competition_id'], new SeasonId($season->id()->value()), $playerId);
+            foreach ((array) ($projection['categories'] ?? []) as $category) {
+                if (!is_array($category) || !is_array($category['controlled'] ?? null)) { continue; }
+                $controlled = $category['controlled'];
+                $result[] = ['competition_id' => $competition['competition_id'], 'competition' => $competition['competition'], 'category' => $category['key'] ?? null, 'position' => $controlled['position'] ?? null, 'value' => $controlled['value'] ?? 0, 'leader_value' => $controlled['leader_value'] ?? null, 'gap_to_leader' => $controlled['gap_to_leader'] ?? null, 'final' => $season->status()->value === 'completed'];
+            }
+        }
+        usort($result, static fn (array $left, array $right): int => strcmp((string) $left['competition_id'] . ':' . (string) $left['category'], (string) $right['competition_id'] . ':' . (string) $right['category']));
+
+        return $result;
+    }
+
+    /** @param list<array<string,mixed>> $competitionStats @param list<array<string,mixed>> $movement @return list<array<string,mixed>> */
+    private function reviewClubJourney(DatabaseInterface $database, string $playerId, object $season, array $competitionStats, array $movement): array
+    {
+        $clubs = [];
+        $add = static function (array &$clubs, string $id, string $name, string $kind): void {
+            if ($id === '') { return; }
+            $clubs[$id] ??= ['club_id' => $id, 'club_name' => $name, 'kind' => $kind];
+            if (($clubs[$id]['kind'] ?? 'club') === 'club' && $kind !== 'club') { $clubs[$id]['kind'] = $kind; }
+        };
+        usort($movement, static fn (array $left, array $right): int => strcmp((string) ($left['date'] ?? ''), (string) ($right['date'] ?? '')) ?: strcmp((string) ($left['type'] ?? ''), (string) ($right['type'] ?? '')));
+        foreach ($movement as $event) {
+            $type = (string) ($event['type'] ?? '');
+            $from = (string) ($event['from_club_id'] ?? '');
+            $to = (string) ($event['to_club_id'] ?? '');
+            if ($from !== '') { $add($clubs, $from, (string) ($event['from_club'] ?? $from), $type === 'loan' ? 'parent' : 'club'); }
+            if ($to !== '') { $add($clubs, $to, (string) ($event['to_club'] ?? $to), $type === 'loan' ? 'loan' : 'club'); }
+        }
+        foreach ((new ClubSquadRepository($database, false))->byPlayer($playerId, new SeasonId($season->id()->value())) as $membership) {
+            $id = $membership->clubId()->value();
+            $add($clubs, $id, $this->reviewClubName($database, $id), 'club');
+        }
+        foreach ($competitionStats as $competition) {
+            foreach ((array) ($competition['clubs'] ?? []) as $club) {
+                if (is_array($club) && (string) ($club['club_id'] ?? '') !== '') { $add($clubs, (string) $club['club_id'], (string) ($club['club_name'] ?? $club['club_id']), 'club'); }
+            }
+        }
+
+        return array_values($clubs);
+    }
+
+    /** @param list<array<string,mixed>> ...$groups @return list<array<string,mixed>> */
+    private function reviewHighlights(array ...$groups): array
+    {
+        $highlights = [];
+        foreach ($groups as $group) {
+            foreach ($group as $row) {
+                if (!is_array($row)) { continue; }
+                $label = (string) ($row['label'] ?? '');
+                if ($label === '' && ($row['type'] ?? '') === 'loan') { $label = 'Loan spell: ' . (string) ($row['from_club'] ?? 'Club') . ' to ' . (string) ($row['to_club'] ?? 'Club'); }
+                if ($label === '' && ($row['type'] ?? '') === 'transfer') { $label = 'Transfer: ' . (string) ($row['from_club'] ?? 'Club') . ' to ' . (string) ($row['to_club'] ?? 'Club'); }
+                if ($label === '' && isset($row['category'], $row['position'])) { $label = (string) $row['category'] . ' position ' . (string) $row['position'] . ' in ' . (string) ($row['competition'] ?? 'competition'); }
+                if ($label === '') { continue; }
+                $key = (string) ($row['source_key'] ?? $row['loan_id'] ?? $row['category'] ?? $label);
+                $highlights[$key] = ['source_key' => $key, 'label' => $label, 'date' => (string) ($row['date'] ?? $row['occurred_date'] ?? $row['award_date'] ?? '')];
+                if (count($highlights) >= 8) { break 2; }
+            }
+        }
+
+        return array_values($highlights);
     }
 
     /** @return list<array{competition_id:string,competition:string,type:string,stats:array<string,int|float|null>}> */

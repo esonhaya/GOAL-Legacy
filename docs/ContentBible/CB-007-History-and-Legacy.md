@@ -448,4 +448,19 @@ Loan, transfer, international, injury, and suspension context follows the
 Player. Page reads remain presentation-only; no NPC fatigue narrative, daily
 workload feed, or fabricated legacy history is created.
 
+## P2-041 Season Reflection Language
+
+Season Review uses concise factual reflection assembled from canonical evidence:
+“Season 2031/32 — 24 appearances, 1,820 minutes, 8 goals, 6 assists” and
+“Loan: Parent Club → Destination Club → return” are valid forms. Highlights
+may name an earned honour, award, record, milestone, movement, comeback, or
+supported final leaderboard placement. Do not add invented quotes, emotional
+manager/fan reactions, retrospective causal claims, or a universal verdict on
+the Season.
+
+Historical reviews remain historical. The current Career direction may appear
+only as an explicitly labelled outlook for the active Season. If compaction or
+legacy saves lack detailed evidence, omit the detail rather than reconstructing
+substitutions, Match positions, workload, negotiations, or achievements.
+
 END OF DOCUMENT

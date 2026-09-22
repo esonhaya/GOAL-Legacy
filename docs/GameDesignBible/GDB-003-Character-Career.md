@@ -665,4 +665,19 @@ boundaries are factual integration guarantees, not a new universal Career
 state machine; page reads remain read-only and legacy saves do not gain
 fabricated loan history.
 
+## P2-041 Season Review
+
+At the end of a completed Season, the controlled Player can review what
+actually happened: Clubs and competitions, appearances/minutes/goals/assists,
+qualitative canonical performance context, development and role progression,
+movement, meaningful availability/discipline facts, and earned honours,
+awards, records, milestones, and supported final standings. A loan is shown
+as a temporary Club chapter and does not make the loan Club the Contract owner.
+
+This is factual reflection, not a Season score, letter grade, legacy value, or
+manager report card. Quiet Seasons have a useful empty/partial presentation;
+retired and legacy Careers remain readable without invented history. Current
+Season outlook is kept separate from historical Season facts, and Trophy Room,
+Career History, and leaderboards remain distinct views.
+
 END OF DOCUMENT

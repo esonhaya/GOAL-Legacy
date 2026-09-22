@@ -187,6 +187,9 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('CAREER TIMELINE', $legacy['body']);
             self::assertStringContainsString('DEFINING SEASONS', $legacy['body']);
             self::assertStringContainsString('No earned honours yet.', $legacy['body']);
+            $seasonReview = $this->application->handle('GET', '/', ['page' => 'season-review', 'save' => $save], [], $session);
+            self::assertSame(200, $seasonReview['status']);
+            self::assertStringContainsString('No completed Season review', $seasonReview['body']);
             $schemaBeforeTrophyRoom = (int) $database->connection()->query('SELECT COUNT(*) FROM sqlite_master')->fetchColumn();
             $trophyRoom = $this->application->handle('GET', '/', ['page' => 'trophies', 'save' => $save], [], $session);
             self::assertSame(200, $trophyRoom['status']);

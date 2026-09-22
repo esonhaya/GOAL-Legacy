@@ -166,4 +166,24 @@ owners of their facts. Regression tests retain output equality, zero-DML
 reads, deterministic ordering, legacy/compacted save compatibility, and a
 bounded schema-initialization sentinel.
 
+## P2-041 Season Review
+
+`CareerPresentationService::seasonReview()` is the read-only Season Review
+projection. It composes Season-scoped competition aggregates, Club/loan
+movement, role and development history, injury/comeback evidence, discipline,
+captaincy, objectives, and the existing legacy and leaderboard projections.
+It owns no statistics, awards, honours, milestones, movement facts, or new
+Season summary rows. `seasonSummary()` retains compatibility aliases for the
+CLI boundary while the graphical `season-review` route consumes the richer
+projection.
+
+Completed Seasons are the primary review surface; an active Season is clearly
+labelled as in progress when selected. Competition totals are derived from
+canonical competition rows, international evidence remains separate, and loan
+Clubs remain distinct from the parent Contract Club. Position/substitution
+history is not reconstructed after compaction. Missing legacy evidence is
+omitted rather than fabricated. The projection has no Season score, no random
+prose, and no write-on-read path; ordering is stable by Season, competition,
+movement, and canonical source key.
+
 END OF DOCUMENT

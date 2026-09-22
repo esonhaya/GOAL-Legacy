@@ -304,6 +304,21 @@ Future versions may include:
 
 These additions extend the architecture without breaking compatibility.
 
+## P2-041 Season Review Read Boundary
+
+Season Review persists zero new rows. It reads existing Season aggregates,
+Career events, Club/Season role and objective facts, movement/loan records,
+development history, and the canonical legacy tables. Awards, honours, records,
+and milestones remain owned by their existing ledgers; the review is only a
+Season-scoped presentation lens.
+
+Compacted and legacy saves render only retained evidence. The review never
+reconstructs historical Match positions, substitution chronology, workload,
+negotiation attempts, or achievements from ambiguous standings. Page reads do
+not materialize a summary or alter history. Multi-Club Seasons retain the
+actual Club/competition context, including the distinction between a loan
+Club and the parent Contract Club.
+
 ---
 
 # Locked Decisions

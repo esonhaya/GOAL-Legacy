@@ -506,6 +506,22 @@ facts only for Player-fidelity Matches; World-fidelity Matches do not gain
 routine substitution rows. Read paths do not create or repair participation
 facts.
 
+## P2-040 Actual Match Position Snapshot
+
+The existing `controlled_match_positions` table is the sole persistence owner
+for actual position and resolved on-pitch role in a detailed controlled
+appearance. Its `position` value uses the canonical `PlayerPosition` vocabulary
+and records where the Player actually participated, not the Player's mutable
+primary position or Squad Role. No `player_match_positions` table or duplicate
+position ledger is introduced.
+
+Only an appearing controlled Player receives a position snapshot. A bench
+Player who remains unused has no Match position, while legacy Match rows with
+no snapshot remain readable with position unavailable. The snapshot is written
+by Match simulation in the existing transaction; Matchday, Profile, and
+Post-Match reads never infer or repair it. World-fidelity Matches retain their
+compact persistence boundary.
+
 ---
 
 ## Revision History

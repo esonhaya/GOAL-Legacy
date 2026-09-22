@@ -328,8 +328,9 @@ selection, substitution chronology, event windows, and canonical minutes.
 Starters begin at minute 0; a starter leaving is represented by its persisted
 substitution minute, while a bench Player receives an appearance only after a
 persisted entry. Unused substitutes have no stat row, no appearance, and zero
-workload minutes. Bench candidates reuse `MatchSelectionService` position
-capabilities before the bounded fallback.
+workload minutes. Bench candidates first reuse `MatchSelectionService` position
+capabilities; the existing bounded fallback remains part of the established
+substitution-count contract for sparse squads.
 
 Substitution context is deliberately small and factual: `WORKLOAD`,
 `READINESS`, or the bounded `TACTICAL` fallback. Workload/readiness can move a
@@ -344,6 +345,27 @@ assigned before entry or after exit. Dismissal removes the conflicting normal
 substitution path. World-fidelity Matches do not run detailed substitution
 simulation. Legacy substitution rows remain readable with a null context and
 page rendering never creates missing Match facts.
+
+## P2-040 Actual Deployment Ownership
+
+`MatchSelectionService` remains the owner of positional compatibility and
+resolves a transient deployment from the existing
+`PositionDevelopmentService::capabilityValues()` result. The Match simulator
+assigns starters their canonical primary/developed deployment and gives a
+compatible incoming substitute the outgoing position where recognised. The
+existing sparse-squad substitution fallback remains unchanged; when it is
+used, deployment stays in the Player's canonical capability view and no new
+compatibility or emergency-goalkeeper rule is inferred.
+
+For controlled Player-fidelity simulation, transient Player views carry the
+resolved deployment into the existing scorer, assist, shot, passing, defensive,
+discipline, clean-sheet, and rating evidence paths. The original Player
+primary position and saved on-pitch preference are never mutated. The
+existing `controlled_match_positions` snapshot is written only for appearing
+controlled Players, with the role resolved against the actual position. This
+keeps position, role, Squad Role, and participation chronology distinct.
+Unused substitutes have no position; legacy rows do not receive fabricated
+deployment data; NPC/world Matches receive no individual position persistence.
 
 ---
 

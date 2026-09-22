@@ -137,6 +137,17 @@ do not create News, Echo, Pulse, or Career History entries; chronological
 Match facts remain the source of truth and no emotion or manager motive is
 invented.
 
+## P2-040 Actual Match Position Language
+
+When a detailed controlled Match contains the canonical snapshot, Matchday and
+Post-Match may state factual deployment such as `Started at CM`, `Entered at
+64' at DM`, or `Played 72 minutes at RB`. Position is kept distinct from the
+Player's primary position, on-pitch role, and Squad Role. An unused substitute
+is not described as having played a position, and a legacy Match without a
+snapshot omits the position rather than reconstructing it. Position wording
+does not imply a tactical instruction, manager motive, permanent position
+change, injury penalty, or performance bonus.
+
 ---
 
 # Future Expansion

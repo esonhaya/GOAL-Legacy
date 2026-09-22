@@ -80,6 +80,7 @@ final class P2014MatchdayStoryTest extends TestCase
         self::assertSame('Unused substitute', $unusedStory['participation_label']);
         self::assertNull($unusedStory['rating']);
         self::assertSame(0, $unusedStory['minutes']);
+        self::assertNull($unusedStory['match_position']);
 
         $worldMatch = $matches[1];
         $matchService->simulate($database, $worldMatch->id(), SimulationFidelity::World);

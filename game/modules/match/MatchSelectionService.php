@@ -13,6 +13,7 @@ use Goal\Legacy\Modules\Match\Domain\GameMatch;
 use Goal\Legacy\Modules\Match\Domain\PlayerSelection;
 use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
 use Goal\Legacy\Modules\Player\Domain\Player;
+use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
 use Goal\Legacy\Modules\Player\Domain\AvailabilityStatus;
 use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
 use Goal\Legacy\Modules\Player\PlayerDisciplineService;
@@ -150,7 +151,12 @@ final class MatchSelectionService
 
     private function positionGroup(Player $player): string
     {
-        return match ($player->primaryPosition()->value) {
+        return $this->positionGroupValue($player->primaryPosition());
+    }
+
+    private function positionGroupValue(PlayerPosition $position): string
+    {
+        return match ($position->value) {
             'GK' => 'goalkeeper',
             'CB', 'LB', 'RB' => 'defensive',
             'DM', 'CM', 'AM' => 'midfield',
@@ -182,6 +188,33 @@ final class MatchSelectionService
     public function isPositionCompatible(DatabaseInterface $database, Player $incoming, Player $outgoing): bool
     {
         return array_intersect($this->positionGroups($database, $incoming), $this->positionGroups($database, $outgoing)) !== [];
+    }
+
+    /** Resolve a transient, canonical Match deployment without changing Player data. */
+    public function deploymentPosition(DatabaseInterface $database, Player $player, ?PlayerPosition $replacementPosition = null): PlayerPosition
+    {
+        $capabilities = array_values(array_filter(array_map(
+            static fn (string $value): ?PlayerPosition => PlayerPosition::tryFrom($value),
+            ($this->positions ?? new PositionDevelopmentService())->capabilityValues($database, $player),
+        )));
+        if ($capabilities === []) {
+            return $player->primaryPosition();
+        }
+        if ($replacementPosition !== null) {
+            foreach ($capabilities as $candidate) {
+                if ($candidate === $replacementPosition) {
+                    return $candidate;
+                }
+            }
+            $replacementGroup = $this->positionGroupValue($replacementPosition);
+            foreach ($capabilities as $candidate) {
+                if ($this->positionGroupValue($candidate) === $replacementGroup) {
+                    return $candidate;
+                }
+            }
+        }
+
+        return $capabilities[0];
     }
 
     /** @return list<Player> */

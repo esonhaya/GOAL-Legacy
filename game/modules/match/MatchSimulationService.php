@@ -18,6 +18,7 @@ use Goal\Legacy\Modules\Match\Domain\TeamStrength;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\OnPitchRole;
 use Goal\Legacy\Modules\Player\Domain\AvailabilityStatus;
+use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
 use Goal\Legacy\Modules\Player\CareerRecoveryService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
@@ -62,6 +63,9 @@ final class MatchSimulationService
         $awaySubstitutions = $this->substitutions($database, $match, $match->awayClubId(), $awayStarters, $awayBench, $controlledPlayers, $fidelity);
         $substitutions = array_merge($homeSubstitutions, $awaySubstitutions);
         usort($substitutions, static fn (MatchSubstitution $left, MatchSubstitution $right): int => ($left->minute() <=> $right->minute()) ?: (($left->clubId()->value() <=> $right->clubId()->value()) ?: ($left->sequence() <=> $right->sequence())));
+        $deploymentPositions = $this->deploymentPositions($database, $homeStarters, $awayStarters, $homeSubstitutions, $awaySubstitutions, $playersById, $controlledPlayers);
+        $playersById = $this->playersAtDeployment($playersById, $deploymentPositions);
+        $controlledRoles = $this->rolesAtDeployment($controlledRoles, $deploymentPositions);
         $homeStrength = $this->strength($database, $match->homeClubId()->value(), $homeStarters);
         $awayStrength = $this->strength($database, $match->awayClubId()->value(), $awayStarters);
         $homeLambda = max(0.2, min(3.2, 1.10 + (($homeStrength->value() - $awayStrength->value()) / 100 * 0.75) + 0.18));
@@ -155,7 +159,65 @@ final class MatchSimulationService
         $stats = [];
         foreach ($this->participantStats($match, $match->homeClubId(), $homeStarters, $homeSubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $foulCounts, $yellowCounts, $redCounts, $dismissals, $playersById, $controlledRoles, $fullDetail) as $stat) { $stats[] = $stat; }
         foreach ($this->participantStats($match, $match->awayClubId(), $awayStarters, $awaySubstitutions, $goalCounts, $assistCounts, $shotCounts, $shotsOnTargetCounts, $saveCounts, $cleanSheetCounts, $tackleCounts, $interceptionCounts, $blockCounts, $foulCounts, $yellowCounts, $redCounts, $dismissals, $playersById, $controlledRoles, $fullDetail) as $stat) { $stats[] = $stat; }
-        return new MatchSimulation($result, $stats, $highlights, $selections, $substitutions);
+        $persistedPositions = [];
+        $persistedRoles = [];
+        foreach ($stats as $stat) {
+            $id = $stat->playerId()->value();
+            if (!$stat->appeared() || !isset($controlledPlayers[$id], $deploymentPositions[$id])) {
+                continue;
+            }
+            $persistedPositions[$id] = $deploymentPositions[$id];
+            if (isset($controlledRoles[$id])) {
+                $persistedRoles[$id] = $controlledRoles[$id];
+            }
+        }
+
+        return new MatchSimulation($result, $stats, $highlights, $selections, $substitutions, $persistedPositions, $persistedRoles);
+    }
+
+    /** @return array<string, PlayerPosition> */
+    private function deploymentPositions(DatabaseInterface $database, array $homeStarters, array $awayStarters, array $homeSubstitutions, array $awaySubstitutions, array $playersById, array $controlledPlayers): array
+    {
+        $positions = [];
+        foreach (array_merge($homeStarters, $awayStarters) as $player) {
+            if (isset($controlledPlayers[$player->id()->value()])) {
+                $positions[$player->id()->value()] = $this->selectionService->deploymentPosition($database, $player);
+            }
+        }
+        foreach (array_merge($homeSubstitutions, $awaySubstitutions) as $substitution) {
+            $incomingId = $substitution->incomingPlayerId()->value();
+            if (!isset($controlledPlayers[$incomingId], $playersById[$incomingId])) {
+                continue;
+            }
+            $outgoingId = $substitution->outgoingPlayerId()->value();
+            $outgoingPosition = $positions[$outgoingId] ?? ($playersById[$outgoingId]?->primaryPosition() ?? null);
+            $positions[$incomingId] = $this->selectionService->deploymentPosition($database, $playersById[$incomingId], $outgoingPosition);
+        }
+
+        return $positions;
+    }
+
+    /** @param array<string, Player> $playersById @param array<string, PlayerPosition> $positions @return array<string, Player> */
+    private function playersAtDeployment(array $playersById, array $positions): array
+    {
+        foreach ($positions as $playerId => $position) {
+            if (isset($playersById[$playerId])) {
+                $playersById[$playerId] = $playersById[$playerId]->withPrimaryPosition($position);
+            }
+        }
+
+        return $playersById;
+    }
+
+    /** @param array<string, OnPitchRole> $preferred @param array<string, PlayerPosition> $positions @return array<string, OnPitchRole> */
+    private function rolesAtDeployment(array $preferred, array $positions): array
+    {
+        foreach ($positions as $playerId => $position) {
+            $resolved = $this->roleService()->matchRole($preferred[$playerId] ?? null, $position);
+            $preferred[$playerId] = OnPitchRole::from((string) $resolved['key']);
+        }
+
+        return $preferred;
     }
 
     /**

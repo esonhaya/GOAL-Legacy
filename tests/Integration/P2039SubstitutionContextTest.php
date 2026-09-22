@@ -71,6 +71,9 @@ final class P2039SubstitutionContextTest extends TestCase
         $substitutions = (new MatchSubstitutionRepository($database))->byMatch($completed->id());
 
         self::assertSame('starter', $story['participation_state']);
+        self::assertSame('CM', $story['match_position']);
+        self::assertSame('CM', $story['position']);
+        self::assertSame('CM', $services->playerModule()->service()->repository($database)->get($player->id())->primaryPosition()->value);
         self::assertNotEmpty($substitutions);
         self::assertNotNull($story['substitution_off_minute']);
         self::assertSame(MatchSubstitution::REASON_WORKLOAD, $story['substitution_reason']);

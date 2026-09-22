@@ -672,4 +672,21 @@ remains the position-compatibility owner; `PlayerAvailabilityService` and
 facts without writes. There is no substitution career ledger, no World-wide
 substitution simulation, and no new Match-statistics or injury engine.
 
+## P2-040 Match Deployment Ownership
+
+The Match Module owns the actual position of an appearing controlled Player
+for a detailed Match. `MatchSelectionService` consumes the Player Module's
+canonical primary/secondary capability state and exposes a bounded deployment
+resolver; it does not own positional development or permanently mutate the
+Player. `MatchSimulationService` applies the transient deployment to existing
+position-aware action and rating consumers, while `MatchService` persists the
+result through the existing `ControlledMatchPositionRepository`.
+
+The persisted snapshot is represented by the existing row: appearing
+controlled Players have one position/role row, unused substitutes have no row,
+and legacy Matches remain position-unknown. Substitution entry, event-window,
+dismissal, workload-minute, loan, international, captaincy, set-piece, and
+discipline owners remain unchanged. Reads are observational; there is no
+repair-on-read, World scan, NPC deployment history, or second position system.
+
 END OF DOCUMENT

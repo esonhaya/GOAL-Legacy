@@ -130,3 +130,20 @@ reasons, or make fatigue a deterministic punishment. Match actions remain
 inside the Player's actual participation window, and the existing readiness,
 injury, workload, discipline, set-piece, and development rules remain
 authoritative.
+
+## P2-040 Actual Match Deployment
+
+Detailed controlled appearances distinguish the Player's primary position,
+recognised secondary/developed positions, actual Match position, on-pitch role,
+and Squad Role. `MatchSelectionService` resolves one deterministic actual
+position for each appearance from the existing positional capability state.
+An incoming substitute may take the outgoing position when the existing
+compatibility policy supports it; the established sparse-squad fallback is
+preserved without adding a new compatibility system.
+
+The actual position is a Match fact, not a permanent Player-position change.
+It is used by the existing position-aware action, passing, defensive, and
+rating paths and is presented in Matchday/Post-Match. An unused substitute has
+no Match position. Mid-Match position changes and emergency goalkeeper
+deployment remain deferred. World-fidelity Matches do not persist individual
+deployment snapshots.

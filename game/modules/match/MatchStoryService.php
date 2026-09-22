@@ -68,9 +68,10 @@ final class MatchStoryService
         $status = $selection?->status() ?? SelectionStatus::NotSelected;
         $state = $this->participationState($status, $stat, $availabilityStatus);
         $positionSnapshot = new ControlledMatchPositionRepository($database, false);
-        $position = $positionSnapshot->position($match->id(), $id) ?? $player->primaryPosition();
-        $onPitchRole = $stat?->appeared() ? (new OnPitchRoleService())->matchRole($positionSnapshot->role($match->id(), $id), $position) : null;
-        $ratingExplanation = $stat === null ? $this->ratings->explain(new PlayerMatchStat($match->id(), $id, $selection?->clubId() ?? $match->homeClubId(), false, false, 0, 0), $position) : $this->ratings->explain($stat, $position);
+        $matchPosition = $stat?->appeared() ? $positionSnapshot->position($match->id(), $id) : null;
+        $ratingPosition = $matchPosition ?? $player->primaryPosition();
+        $onPitchRole = $matchPosition === null ? null : (new OnPitchRoleService())->matchRole($positionSnapshot->role($match->id(), $id), $matchPosition);
+        $ratingExplanation = $stat === null ? $this->ratings->explain(new PlayerMatchStat($match->id(), $id, $selection?->clubId() ?? $match->homeClubId(), false, false, 0, 0), $ratingPosition) : $this->ratings->explain($stat, $ratingPosition);
         $facts = $this->playerFacts($id, $stat, $timeline);
         $teamId = $stat?->clubId()->value() ?? $selection?->clubId()->value();
         $teamResult = $teamId === null ? null : $this->teamResult($match, $teamId);
@@ -86,8 +87,11 @@ final class MatchStoryService
             'participation_state' => $state['state'],
             'participation_label' => $state['label'],
             'availability_reason' => $state['reason'],
-            'position' => $position->value,
-            'position_label' => $this->positionLabel($position),
+            'position' => $matchPosition?->value,
+            'position_label' => $matchPosition === null ? null : $this->positionLabel($matchPosition),
+            'match_position' => $matchPosition?->value,
+            'match_position_label' => $matchPosition === null ? null : $this->positionLabel($matchPosition),
+            'primary_position' => $player->primaryPosition()->value,
             'on_pitch_role' => $onPitchRole['key'] ?? null,
             'on_pitch_role_label' => $onPitchRole['label'] ?? null,
             'on_pitch_role_description' => $onPitchRole['description'] ?? null,
@@ -112,7 +116,7 @@ final class MatchStoryService
             'player_highlight_facts' => $facts,
             'player_of_match' => $playerOfMatch !== null && $playerOfMatch['player_id'] === $id->value(),
             'player_of_match_result' => $playerOfMatch,
-            'decisive_contribution' => $this->decisiveContribution($match, $id, $stat, $timeline, $position),
+            'decisive_contribution' => $this->decisiveContribution($match, $id, $stat, $timeline, $ratingPosition),
             'fixture_context' => (new ClubFixtureContextService())->context($database, $match),
             'career_impact' => $this->careerImpact($database, $match, $id, $teamId),
         ];

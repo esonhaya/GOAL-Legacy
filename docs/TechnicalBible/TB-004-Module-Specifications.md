@@ -662,4 +662,14 @@ repository-wide scan, and no page-render DML. Existing selection and injury
 owners consume their existing inputs; loan/transfer movement carries state
 without a reset.
 
+## P2-039 Match Participation Ownership
+
+The Match Module owns controlled-Match selection, substitution event facts,
+entry/exit chronology, and canonical minute derivation. `MatchSelectionService`
+remains the position-compatibility owner; `PlayerAvailabilityService` and
+`CareerRecoveryService` supply existing workload/readiness context only.
+`MatchStoryService` and the graphical Matchday/Post-Match path present these
+facts without writes. There is no substitution career ledger, no World-wide
+substitution simulation, and no new Match-statistics or injury engine.
+
 END OF DOCUMENT

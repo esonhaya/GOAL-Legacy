@@ -19,7 +19,13 @@ final class MatchSubstitutionRepository
     public function __construct(private readonly DatabaseInterface $database)
     {
         SchemaInitializationGuard::run($this->database->connection(), self::class, function (): void {
-            $this->database->connection()->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, club_id TEXT NOT NULL, sequence_number INTEGER NOT NULL, outgoing_player_id TEXT NOT NULL, incoming_player_id TEXT NOT NULL, minute INTEGER NOT NULL, PRIMARY KEY (match_id, club_id, sequence_number))');
+            $connection = $this->database->connection();
+            $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (match_id TEXT NOT NULL, club_id TEXT NOT NULL, sequence_number INTEGER NOT NULL, outgoing_player_id TEXT NOT NULL, incoming_player_id TEXT NOT NULL, minute INTEGER NOT NULL, reason TEXT NULL, PRIMARY KEY (match_id, club_id, sequence_number))');
+            $columns = $connection->query('PRAGMA table_info(' . self::TABLE . ')')->fetchAll(PDO::FETCH_ASSOC);
+            $names = array_fill_keys(array_map(static fn (array $column): string => (string) $column['name'], $columns), true);
+            if (!isset($names['reason'])) {
+                $connection->exec('ALTER TABLE ' . self::TABLE . ' ADD COLUMN reason TEXT NULL');
+            }
         });
     }
 
@@ -31,7 +37,7 @@ final class MatchSubstitutionRepository
         }
         $matchId = $substitutions[0]->matchId()->value();
         $this->database->connection()->prepare('DELETE FROM ' . self::TABLE . ' WHERE match_id = :match_id')->execute(['match_id' => $matchId]);
-        $statement = $this->database->connection()->prepare('INSERT INTO ' . self::TABLE . ' (match_id, club_id, sequence_number, outgoing_player_id, incoming_player_id, minute) VALUES (:match_id, :club_id, :sequence_number, :outgoing_player_id, :incoming_player_id, :minute)');
+        $statement = $this->database->connection()->prepare('INSERT INTO ' . self::TABLE . ' (match_id, club_id, sequence_number, outgoing_player_id, incoming_player_id, minute, reason) VALUES (:match_id, :club_id, :sequence_number, :outgoing_player_id, :incoming_player_id, :minute, :reason)');
         foreach ($substitutions as $substitution) {
             $statement->execute($substitution->toArray());
         }
@@ -51,6 +57,7 @@ final class MatchSubstitutionRepository
             new PlayerId((string) $row['outgoing_player_id']),
             new PlayerId((string) $row['incoming_player_id']),
             (int) $row['minute'],
+            isset($row['reason']) && $row['reason'] !== null && (string) $row['reason'] !== '' ? (string) $row['reason'] : null,
         ), $statement->fetchAll(PDO::FETCH_ASSOC));
     }
 }

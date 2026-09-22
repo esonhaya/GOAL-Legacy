@@ -490,6 +490,22 @@ simulation. Dismissal and substitution state is evaluated at the event
 minute, and a Player who is not on the pitch cannot take the event. No page
 render writes responsibility or Match facts.
 
+## P2-039 Detailed Participation Context
+
+The existing `match_substitutions` table may carry one nullable `reason`
+column for detailed controlled-Match facts. Supported values are `WORKLOAD`,
+`READINESS`, and `TACTICAL`. It is a compact event-context field, not a
+substitution history ledger, tactical snapshot, manager preference, or career
+achievement. Older saves without the column receive a compatible nullable
+migration and read as context-unknown; no historical substitution reason is
+fabricated.
+
+Canonical appearance and minutes remain owned by `match_player_stats` and the
+entry/exit facts. The Match engine persists bounded substitution/highlight
+facts only for Player-fidelity Matches; World-fidelity Matches do not gain
+routine substitution rows. Read paths do not create or repair participation
+facts.
+
 ---
 
 ## Revision History

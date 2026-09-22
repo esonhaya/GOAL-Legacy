@@ -48,9 +48,10 @@ final class MatchStoryService
         $timeline = $this->timeline($database, $match);
         $substitutionOn = null;
         $substitutionOff = null;
+        $substitutionReason = null;
         foreach ((new MatchSubstitutionRepository($database))->byMatch($match->id()) as $substitution) {
-            if ($substitution->incomingPlayerId()->value() === $id->value()) { $substitutionOn = $substitution->minute(); }
-            if ($substitution->outgoingPlayerId()->value() === $id->value()) { $substitutionOff = $substitution->minute(); }
+            if ($substitution->incomingPlayerId()->value() === $id->value()) { $substitutionOn = $substitution->minute(); $substitutionReason = $substitution->reason(); }
+            if ($substitution->outgoingPlayerId()->value() === $id->value()) { $substitutionOff = $substitution->minute(); $substitutionReason = $substitution->reason(); }
         }
         $dismissalMinute = null;
         foreach ($timeline as $event) {
@@ -98,6 +99,8 @@ final class MatchStoryService
             'substitution_on_minute' => $substitutionOn,
             'substitution_off_minute' => $substitutionOff,
             'substitution_minute' => $substitutionOn,
+            'substitution_reason' => $substitutionReason,
+            'substitution_reason_label' => $this->substitutionReasonLabel($substitutionReason),
             'dismissal_minute' => $dismissalMinute,
             'score_at_entry' => $scoreAtEntry,
             'stats' => $this->statArray($stat),
@@ -183,13 +186,45 @@ final class MatchStoryService
             }
 
             $substitutions = (new MatchSubstitutionRepository($database))->byMatch($match->id());
+            $seenOutgoing = [];
+            $seenIncoming = [];
             foreach ($substitutions as $substitution) {
+                if (isset($seenOutgoing[$substitution->outgoingPlayerId()->value()]) || isset($seenIncoming[$substitution->incomingPlayerId()->value()])) { $errors[] = 'duplicate_substitution_participant'; }
+                $seenOutgoing[$substitution->outgoingPlayerId()->value()] = true;
+                $seenIncoming[$substitution->incomingPlayerId()->value()] = true;
                 $incoming = array_values(array_filter($stats, static fn (PlayerMatchStat $value): bool => $value->playerId()->value() === $substitution->incomingPlayerId()->value()))[0] ?? null;
                 $outgoing = array_values(array_filter($stats, static fn (PlayerMatchStat $value): bool => $value->playerId()->value() === $substitution->outgoingPlayerId()->value()))[0] ?? null;
                 if ($incoming === null || !$incoming->appeared() || $incoming->started()) { $errors[] = 'substitution_incoming_mismatch'; }
                 if ($outgoing === null || !$outgoing->started() || $outgoing->minutes() > $substitution->minute()) { $errors[] = 'substitution_outgoing_mismatch'; }
                 $dismissal = array_values(array_filter($timeline, static fn (array $event): bool => $event['type'] === 'red_card' && $event['player_id'] === $substitution->incomingPlayerId()->value()))[0]['minute'] ?? 90;
                 if ($incoming !== null && $incoming->minutes() !== max(0, min(90, (int) $dismissal) - $substitution->minute())) { $errors[] = 'substitution_minutes_mismatch'; }
+            }
+
+            $participation = [];
+            foreach ($stats as $stat) {
+                $participation[$stat->playerId()->value()] = ['entry' => 1, 'exit' => 90, 'dismissal' => null];
+            }
+            foreach ($substitutions as $substitution) {
+                $participation[$substitution->incomingPlayerId()->value()] ??= ['entry' => $substitution->minute(), 'exit' => 90, 'dismissal' => null];
+                $participation[$substitution->outgoingPlayerId()->value()] ??= ['entry' => 1, 'exit' => $substitution->minute(), 'dismissal' => null];
+                $participation[$substitution->incomingPlayerId()->value()]['entry'] = $substitution->minute();
+                $participation[$substitution->outgoingPlayerId()->value()]['exit'] = $substitution->minute();
+            }
+            foreach ($timeline as $event) {
+                if ($event['type'] === 'red_card' && $event['player_id'] !== null && isset($participation[$event['player_id']])) {
+                    $participation[$event['player_id']]['dismissal'] = $event['minute'];
+                    $participation[$event['player_id']]['exit'] = min($participation[$event['player_id']]['exit'], $event['minute']);
+                }
+            }
+            foreach ($timeline as $event) {
+                if ($event['type'] === 'substitution') { continue; }
+                foreach (array_filter([(string) ($event['player_id'] ?? ''), (string) ($event['assist_player_id'] ?? '')]) as $playerId) {
+                    if (!isset($participation[$playerId])) { continue; }
+                    $window = $participation[$playerId];
+                    $minute = (int) $event['minute'];
+                    $dismissalAtEvent = $window['dismissal'] !== null && $minute === $window['dismissal'];
+                    if ($minute < $window['entry'] || ($minute >= $window['exit'] && !$dismissalAtEvent)) { $errors[] = 'event_outside_participation_window'; }
+                }
             }
         }
 
@@ -202,11 +237,11 @@ final class MatchStoryService
         if ($status === SelectionStatus::Suspended) {
             return ['state' => 'suspended', 'label' => 'Suspended — disciplinary eligibility', 'reason' => 'Disciplinary suspension'];
         }
+        if ($stat?->appeared() && $stat->started()) { return ['state' => 'starter', 'label' => 'Starting XI', 'reason' => null]; }
+        if ($stat?->appeared()) { return ['state' => 'substitute', 'label' => 'Substitute appearance', 'reason' => null]; }
         if ($status === SelectionStatus::Unavailable || $availability === AvailabilityStatus::Unavailable) {
             return ['state' => 'unavailable', 'label' => 'Unavailable — injury or fitness', 'reason' => 'Unavailable'];
         }
-        if ($stat?->appeared() && $stat->started()) { return ['state' => 'starter', 'label' => 'Starting XI', 'reason' => null]; }
-        if ($stat?->appeared()) { return ['state' => 'substitute', 'label' => 'Substitute appearance', 'reason' => null]; }
         if ($status === SelectionStatus::Bench) { return ['state' => 'unused_substitute', 'label' => 'Unused substitute', 'reason' => null]; }
         return ['state' => 'not_selected', 'label' => 'Not selected', 'reason' => null];
     }
@@ -248,8 +283,9 @@ final class MatchStoryService
         foreach ($timeline as $event) {
             if ($event['type'] === 'substitution') {
                 $data = (array) ($event['data'] ?? []);
-                if (($data['incoming_player_id'] ?? $event['player_id']) === $playerId->value()) { $facts[] = ['kind' => 'substitution', 'minute' => $event['minute'], 'direction' => 'in']; }
-                if (($data['outgoing_player_id'] ?? null) === $playerId->value()) { $facts[] = ['kind' => 'substitution', 'minute' => $event['minute'], 'direction' => 'out']; }
+                $reason = ($data['reason'] ?? null) === null ? null : (string) $data['reason'];
+                if (($data['incoming_player_id'] ?? $event['player_id']) === $playerId->value()) { $facts[] = ['kind' => 'substitution', 'minute' => $event['minute'], 'direction' => 'in', 'reason' => $reason, 'reason_label' => $this->substitutionReasonLabel($reason)]; }
+                if (($data['outgoing_player_id'] ?? null) === $playerId->value()) { $facts[] = ['kind' => 'substitution', 'minute' => $event['minute'], 'direction' => 'out', 'reason' => $reason, 'reason_label' => $this->substitutionReasonLabel($reason)]; }
             } elseif ($event['player_id'] === $playerId->value()) {
                 $kind = (string) $event['type'];
                 if (($event['data']['set_piece'] ?? null) === 'penalty' && $kind === 'goal') { $kind = 'penalty_goal'; }
@@ -274,6 +310,16 @@ final class MatchStoryService
         }
 
         return array_map(static fn (string $key): array => json_decode($key, true, 512, JSON_THROW_ON_ERROR), array_keys($unique));
+    }
+
+    private function substitutionReasonLabel(?string $reason): ?string
+    {
+        return match ($reason) {
+            'WORKLOAD' => 'Managed workload',
+            'READINESS' => 'Managed return to Match fitness',
+            'TACTICAL' => 'Tactical change',
+            default => null,
+        };
     }
 
     /** @return array<string, mixed>|null */

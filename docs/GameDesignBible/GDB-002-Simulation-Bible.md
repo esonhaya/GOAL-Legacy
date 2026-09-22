@@ -118,3 +118,15 @@ the persisted Match facts. Quiet Matches remain quiet. Deterministic template
 commentary adds context but never invents actions or consumes Match-outcome
 randomness. This presentation layer adds no detailed timeline or commentary
 rows for ordinary NPC Matches.
+
+## P2-039 Participation Context
+
+Detailed controlled Matches distinguish a full starter, a starter who leaves,
+a substitute who enters, and an unused substitute through canonical entry,
+exit, appearance, and minute facts. A bounded substitution context may state
+managed workload, managed readiness, or a tactical change when the engine has
+that evidence. It does not expose manager psychology, invent performance
+reasons, or make fatigue a deterministic punishment. Match actions remain
+inside the Player's actual participation window, and the existing readiness,
+injury, workload, discipline, set-piece, and development rules remain
+authoritative.

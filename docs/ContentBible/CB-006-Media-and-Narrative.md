@@ -127,6 +127,16 @@ It should:
 
 Media should never overwhelm the player with unnecessary information.
 
+## P2-039 Match Participation Language
+
+Matchday and Post-Match may state factual participation such as `Started`,
+`Entered at 64'`, `Left at 72'`, or `Unused substitute`. If a canonical
+substitution context exists, `Managed workload`, `Managed return to Match
+fitness`, or `Tactical change` may accompany the event. Routine substitutions
+do not create News, Echo, Pulse, or Career History entries; chronological
+Match facts remain the source of truth and no emotion or manager motive is
+invented.
+
 ---
 
 # Future Expansion

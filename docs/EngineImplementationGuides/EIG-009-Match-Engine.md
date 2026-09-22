@@ -321,6 +321,30 @@ no timeline, commentary, rating explanation, or new detail rows. Matchday and
 the existing stable `matchday?match=` route are read-only after simulation and
 there is no re-simulation on browsing or reload.
 
+## P2-039 Substitution and Participation Boundary
+
+`MatchSimulationService` remains the owner of detailed controlled-Match
+selection, substitution chronology, event windows, and canonical minutes.
+Starters begin at minute 0; a starter leaving is represented by its persisted
+substitution minute, while a bench Player receives an appearance only after a
+persisted entry. Unused substitutes have no stat row, no appearance, and zero
+workload minutes. Bench candidates reuse `MatchSelectionService` position
+capabilities before the bounded fallback.
+
+Substitution context is deliberately small and factual: `WORKLOAD`,
+`READINESS`, or the bounded `TACTICAL` fallback. Workload/readiness can move a
+controlled substitution earlier through isolated deterministic keys; it never
+creates a performance bonus, future-information decision, second injury roll,
+or tactical-management engine. The existing availability/injury, discipline,
+set-piece, captaincy, statistics, and development services remain owners.
+
+All action evidence is selected from the active-player window, so goals,
+assists, shots, passing, defensive actions, cards, and penalties cannot be
+assigned before entry or after exit. Dismissal removes the conflicting normal
+substitution path. World-fidelity Matches do not run detailed substitution
+simulation. Legacy substitution rows remain readable with a null context and
+page rendering never creates missing Match facts.
+
 ---
 
 # Locked Decisions

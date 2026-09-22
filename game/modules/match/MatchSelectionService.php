@@ -179,6 +179,11 @@ final class MatchSelectionService
         return $groups === [] ? [$this->positionGroup($player)] : $groups;
     }
 
+    public function isPositionCompatible(DatabaseInterface $database, Player $incoming, Player $outgoing): bool
+    {
+        return array_intersect($this->positionGroups($database, $incoming), $this->positionGroups($database, $outgoing)) !== [];
+    }
+
     /** @return list<Player> */
     /** @param list<\Goal\Legacy\Modules\Club\Domain\ClubSquadMembership>|null $squadMemberships */
     public function eligiblePlayers(DatabaseInterface $database, GameMatch $match, string $clubId, PlayerRepository $players, ?array $squadMemberships = null): array

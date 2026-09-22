@@ -17,11 +17,14 @@ use Goal\Legacy\Modules\Match\Domain\PlayerMatchStat;
 use Goal\Legacy\Modules\Match\Domain\TeamStrength;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\OnPitchRole;
+use Goal\Legacy\Modules\Player\Domain\AvailabilityStatus;
+use Goal\Legacy\Modules\Player\CareerRecoveryService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\OnPitchRoleService;
 use Goal\Legacy\Modules\Player\PositionDevelopmentService;
 use Goal\Legacy\Modules\Player\PlayerFootService;
+use Goal\Legacy\Modules\Player\PlayerAvailabilityService;
 use Goal\Legacy\Modules\Match\Domain\SelectionStatus;
 use Goal\Legacy\Modules\Match\Domain\SimulationFidelity;
 
@@ -55,8 +58,8 @@ final class MatchSimulationService
         $awayStarters = $this->selectedPlayers($selections, $match->awayClubId()->value(), SelectionStatus::Starter, $playersById);
         $homeBench = $this->selectedPlayers($selections, $match->homeClubId()->value(), SelectionStatus::Bench, $playersById);
         $awayBench = $this->selectedPlayers($selections, $match->awayClubId()->value(), SelectionStatus::Bench, $playersById);
-        $homeSubstitutions = $this->substitutions($match, $match->homeClubId(), $homeStarters, $homeBench);
-        $awaySubstitutions = $this->substitutions($match, $match->awayClubId(), $awayStarters, $awayBench);
+        $homeSubstitutions = $this->substitutions($database, $match, $match->homeClubId(), $homeStarters, $homeBench, $controlledPlayers, $fidelity);
+        $awaySubstitutions = $this->substitutions($database, $match, $match->awayClubId(), $awayStarters, $awayBench, $controlledPlayers, $fidelity);
         $substitutions = array_merge($homeSubstitutions, $awaySubstitutions);
         usort($substitutions, static fn (MatchSubstitution $left, MatchSubstitution $right): int => ($left->minute() <=> $right->minute()) ?: (($left->clubId()->value() <=> $right->clubId()->value()) ?: ($left->sequence() <=> $right->sequence())));
         $homeStrength = $this->strength($database, $match->homeClubId()->value(), $homeStarters);
@@ -140,7 +143,7 @@ final class MatchSimulationService
             if ($event['type'] === 'substitution') {
                 /** @var MatchSubstitution $substitution */
                 $substitution = $event['substitution'];
-                $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], 'substitution', new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['outgoing_player_id' => $substitution->outgoingPlayerId()->value(), 'incoming_player_id' => $substitution->incomingPlayerId()->value(), 'sequence' => $substitution->sequence()]);
+                $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], 'substitution', new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['outgoing_player_id' => $substitution->outgoingPlayerId()->value(), 'incoming_player_id' => $substitution->incomingPlayerId()->value(), 'sequence' => $substitution->sequence(), 'reason' => $substitution->reason()]);
             } elseif ($event['type'] === 'yellow_card' || $event['type'] === 'red_card') {
                 $highlights[] = new MatchHighlight($match->id(), $index + 1, (int) $event['minute'], $event['type'], new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $event['club']), new \Goal\Legacy\Modules\Player\Domain\PlayerId((string) $event['player']), ['dismissal' => (int) $event['dismissal']]);
             } elseif ($event['type'] === 'penalty_missed') {
@@ -268,8 +271,8 @@ final class MatchSimulationService
         return $result;
     }
 
-    /** @param list<Player> $starters @param list<Player> $bench @return list<MatchSubstitution> */
-    private function substitutions(GameMatch $match, \Goal\Legacy\Modules\Club\Domain\ClubId $clubId, array $starters, array $bench): array
+    /** @param list<Player> $starters @param list<Player> $bench @param array<string, bool> $controlledPlayers @return list<MatchSubstitution> */
+    private function substitutions(DatabaseInterface $database, GameMatch $match, \Goal\Legacy\Modules\Club\Domain\ClubId $clubId, array $starters, array $bench, array $controlledPlayers, SimulationFidelity $fidelity): array
     {
         $count = min(count($starters), count($bench), 1 + (int) floor($this->unit($match->id()->value() . '|' . $clubId->value() . '|substitution-count') * 3));
         if ($count === 0) {
@@ -277,15 +280,82 @@ final class MatchSimulationService
         }
         usort($starters, fn (Player $left, Player $right): int => strcmp($this->unitKey($match->id()->value() . '|out|' . $left->id()->value()), $this->unitKey($match->id()->value() . '|out|' . $right->id()->value())));
         usort($bench, fn (Player $left, Player $right): int => strcmp($this->unitKey($match->id()->value() . '|in|' . $left->id()->value()), $this->unitKey($match->id()->value() . '|in|' . $right->id()->value())));
+
+        // Only the detailed controlled-Player path consumes readiness/workload
+        // context. World-fidelity Matches retain their compact substitution
+        // shape and do not perform an NPC workload scan.
+        if ($fidelity === SimulationFidelity::Player) {
+            $managed = [];
+            foreach ($starters as $starter) {
+                $reason = $this->substitutionReason($database, $match, $starter, $controlledPlayers);
+                if ($reason !== null) {
+                    $managed[] = ['player' => $starter, 'reason' => $reason];
+                }
+            }
+            if ($managed !== [] && $this->unit($match->id()->value() . '|' . $clubId->value() . '|substitution-context-selection') < 0.70) {
+                $selected = $managed[0]['player'];
+                $starters = array_values(array_filter($starters, static fn (Player $starter): bool => $starter->id()->value() !== $selected->id()->value()));
+                array_unshift($starters, $selected);
+            }
+        }
+
         $result = [];
+        $usedIncoming = [];
         for ($index = 0; $index < $count; ++$index) {
+            $outgoing = $starters[$index];
+            $incoming = null;
+            foreach ($bench as $candidate) {
+                if (isset($usedIncoming[$candidate->id()->value()])) {
+                    continue;
+                }
+                if ($this->selectionService->isPositionCompatible($database, $candidate, $outgoing)) {
+                    $incoming = $candidate;
+                    break;
+                }
+            }
+            if ($incoming === null) {
+                foreach ($bench as $candidate) {
+                    if (!isset($usedIncoming[$candidate->id()->value()])) {
+                        $incoming = $candidate;
+                        break;
+                    }
+                }
+            }
+            if ($incoming === null) {
+                continue;
+            }
+            $usedIncoming[$incoming->id()->value()] = true;
             $minute = 55 + (int) floor($this->unit($match->id()->value() . '|' . $clubId->value() . '|substitution-minute|' . $index) * 28) + $index;
-            $result[] = new MatchSubstitution($match->id(), $clubId, $index + 1, $starters[$index]->id(), $bench[$index]->id(), min(89, $minute));
+            $reason = $this->substitutionReason($database, $match, $outgoing, $controlledPlayers) ?? MatchSubstitution::REASON_TACTICAL;
+            if (in_array($reason, [MatchSubstitution::REASON_WORKLOAD, MatchSubstitution::REASON_READINESS], true) && $this->unit($match->id()->value() . '|' . $clubId->value() . '|substitution-managed-minute|' . $outgoing->id()->value()) < 0.85) {
+                $minute -= 6 + (int) floor($this->unit($match->id()->value() . '|' . $clubId->value() . '|substitution-managed-offset|' . $outgoing->id()->value()) * 6);
+            }
+            $result[] = new MatchSubstitution($match->id(), $clubId, $index + 1, $outgoing->id(), $incoming->id(), max(45, min(89, $minute)), $reason);
         }
 
         usort($result, static fn (MatchSubstitution $left, MatchSubstitution $right): int => ($left->minute() <=> $right->minute()) ?: ($left->sequence() <=> $right->sequence()));
 
         return $result;
+    }
+
+    private function substitutionReason(DatabaseInterface $database, GameMatch $match, Player $player, array $controlledPlayers): ?string
+    {
+        if (!isset($controlledPlayers[$player->id()->value()])) {
+            return null;
+        }
+        $assessment = (new PlayerAvailabilityService())->assess($database, $player->id(), $match->scheduledDate());
+        if ($assessment->status() === AvailabilityStatus::Limited) {
+            return MatchSubstitution::REASON_WORKLOAD;
+        }
+        if ($assessment->status() !== AvailabilityStatus::Available) {
+            return null;
+        }
+        $recovery = (new CareerRecoveryService())->context($database, $player->id(), $match->scheduledDate());
+        if (in_array((string) ($recovery['phase'] ?? ''), ['RETURNING_TO_TRAINING', 'AVAILABLE_NOT_READY'], true)) {
+            return MatchSubstitution::REASON_READINESS;
+        }
+
+        return null;
     }
 
     private function unitKey(string $key): string

@@ -66,6 +66,8 @@ final class CareerActionCommand implements CommandInterface
         if (!is_array($selected) || !isset($selected['id'])) { throw new RuntimeException('That Career decision option is unavailable.'); }
         if (($opportunity->context()['decision_kind'] ?? null) === 'controlled_transfer') {
             $resolved = $movement->resolveTransferDecision($database, $opportunity->id(), (string) $selected['id'], $date);
+        } elseif (($opportunity->context()['decision_kind'] ?? null) === 'controlled_loan') {
+            $resolved = $movement->resolveLoanDecision($database, $opportunity->id(), (string) $selected['id'], $date);
         } elseif (($opportunity->context()['decision_kind'] ?? null) === 'contract_boundary' || $opportunity->type()->value === 'contract_renewal') {
             $resolved = $movement->resolveContractDecision($database, $opportunity->id(), (string) $selected['id'], $date);
         } elseif (($opportunity->context()['decision_kind'] ?? null) === 'retirement' || $opportunity->type()->value === 'retirement') {

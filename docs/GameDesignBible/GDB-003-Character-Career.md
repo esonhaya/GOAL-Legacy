@@ -101,11 +101,12 @@ Players in the same Club squad and uses the same selection, availability,
 development, and Match paths. Generated Players are mutable save state, not
 static licensed content, and the controlled Player receives no population
 or selection bonus. The initial population phase does not include reserves,
-youth academies, retirement, or autonomous NPC market behavior. Phase-1
-career movement does not implement scouting, negotiation, Club budgets, loans,
-or NPC-to-NPC market simulation; transfer fees and proposed wages are
-structured offer metadata while Contract and Transfer records remain owned by
-their existing modules.
+youth academies, retirement, or autonomous NPC market behavior. Career
+movement does not implement scouting, negotiation, Club budgets, or NPC-to-NPC
+market simulation; transfer fees and proposed wages are structured offer
+metadata while Contract and Transfer records remain owned by their existing
+modules. P2-036 adds only a bounded controlled-Player loan path; it does not
+add an NPC loan market.
 
 ## DOMAIN-013 Multi-Season Career Boundary
 
@@ -188,6 +189,27 @@ as ledger transactions. Their declarative effects provide small contextual
 signals for career presentation and events; they never directly change
 attributes, OVR, potential, or Match outcomes. NPC Players have no personal
 finance rows, payroll, transactions, or lifestyle ownership.
+
+## P2-036 Temporary Club Loans
+
+A controlled Player may accept one deterministic, Season-bounded loan through
+the existing CareerOpportunity and TransferService owners. The loan Club is
+the active playing Club for squad membership, registration, selection,
+statistics, role, captaincy eligibility, set pieces, and presentation; the
+parent Club remains the Contract Club and the source of the unchanged wage.
+There is exactly one active squad membership. A loan does not terminate or
+duplicate the parent Contract, create a loan fee or wage split, guarantee
+minutes, or grant a development bonus. Development remains the existing
+training/minutes/performance path.
+
+At the scheduled Season-end boundary the loan returns before outgoing squad
+continuity and Contract decisions are derived. Return restores one parent
+membership, re-evaluates the ordinary parent role, preserves injury,
+discipline, statistics, and movement history, and is idempotent. Existing
+honours, leaderboards, Club Journey, and Career History use canonical loan
+Club evidence; a loan is not a permanent transfer, rivalry, milestone, or
+attachment award. NPC loans, free-agent loans, loan fees, wage sharing, buy
+options, recall clauses, and loan negotiation remain out of scope.
 
 ---
 

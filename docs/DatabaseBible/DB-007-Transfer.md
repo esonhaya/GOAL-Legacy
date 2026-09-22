@@ -369,6 +369,24 @@ These additions should extend the existing architecture without breaking compati
 
 ---
 
+## P2-036 Controlled Player Loans
+
+The Transfer database owns one compact `player_loans` state row per loan
+spell. It stores Player, parent Club, loan Club, Season, start/end dates,
+parent and loan `SquadRole`, and `ACTIVE`/`COMPLETED` status. It is lifecycle
+state, not a replacement movement-history ledger. The parent `Contract` row
+remains the wage and contractual Club source while the loan row identifies the
+active playing registration. The active membership uniqueness constraint is
+therefore preserved: the Player is registered with and selectable only for the
+loan Club during an active spell.
+
+Loan acceptance and return are transactional with squad membership and
+Competition registration changes. Return is scheduled at Season end, bounded
+by the parent Contract end date, and idempotent. No loan fee, wage split,
+recall state, buy option, loan progress row, or fabricated historical loan is
+stored. Legacy saves have no loan rows until an explicit controlled loan is
+accepted; read paths use no DML.
+
 ## P2-013 Market Context Boundary
 
 Market stature is derived at evaluation/read time and is not persisted as a

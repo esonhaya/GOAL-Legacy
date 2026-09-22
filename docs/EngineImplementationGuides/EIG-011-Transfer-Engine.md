@@ -28,12 +28,12 @@ It coordinates scouting, transfer interest, negotiations, contract agreements, l
 
 The Transfer Engine owns transfer behaviour.
 
-DOMAIN-005 implementation boundary: the current production slice supports
-deterministic agreed permanent Player transfers only. Contract rows remain
-owned by the Contract Module, registration rows remain owned by the
-Competition Module, and Transfer coordinates their transactional transition.
-Negotiation AI, transfer windows, loans, scouting, agents, releases, and Club
-finance are deferred.
+DOMAIN-005 implementation boundary: the production slice supports
+deterministic agreed permanent Player transfers and the bounded P2-036
+controlled-Player loan lifecycle. Contract rows remain owned by the Contract
+Module, registration rows remain owned by the Competition Module, and
+Transfer coordinates their transactional transitions. Negotiation AI, agents,
+releases, Club finance, NPC loans, and loan-market economics remain deferred.
 
 DOMAIN-012 implementation boundary: CareerMovementService is a bounded
 Player-decision layer over this existing TransferService. It evaluates only
@@ -165,12 +165,16 @@ Controls:
 
 ## Loan Manager
 
-Responsible for:
+The implemented P2-036 boundary is responsible only for:
 
-- Loan duration
-- Playing-time expectations
-- Recall clauses
-- Future purchase options
+- one explicit controlled-Player decision;
+- a Season-end loan duration;
+- parent-vs-active Club membership and registration transition;
+- parent Contract preservation; and
+- idempotent return before Season rollover.
+
+Recall clauses, purchase options, loan fees, wage sharing, NPC loan markets,
+and loan negotiation remain out of scope.
 
 ---
 
@@ -308,7 +312,7 @@ These additions should extend the Transfer Engine without changing its core resp
 
 ✓ Negotiations are modular.
 
-✓ Loan system is independent.
+✓ Controlled loans reuse the Transfer Engine and CareerOpportunity path.
 
 ✓ Transfer rules are data-driven.
 
@@ -371,5 +375,25 @@ canonical Contract and Season squad membership. The expected role is not a
 selection promise. Transfer-interest offers retain their existing atomic
 transfer path and show their stored terms without creating a second
 negotiation system.
+
+## P2-036 Controlled loan lifecycle
+
+`CareerMovementService` owns the controlled Player's explicit loan decision,
+while `TransferService` owns the transactional movement. `LoanRepository`
+stores only the compact active/completed loan state. Starting a loan removes
+the parent active membership and registrations, creates one loan-Club
+membership and registrations, and leaves the parent Contract untouched.
+`PlayerCareerProgressionQuery` resolves the loan Club as active football
+context while exposing the Contract Club separately. `returnDueLoans()` runs
+before Season rollover continuity, restores the parent membership and
+registrations, and reuses the captured parent role for ordinary role
+re-evaluation. Repeated return is a no-op.
+
+The implementation supports `UNTIL_SEASON_END` only. It has no loan fee,
+wage contribution, counterproposal, recall, buy option, free-agent loan,
+NPC negotiation, loan-development bonus, or World scan. Match statistics and
+development continue through their existing actual-Club/actual-minutes paths;
+the loan layer changes registration context, not Match mathematics. Read
+presentation and legacy-load paths construct no loan rows.
 
 END OF DOCUMENT

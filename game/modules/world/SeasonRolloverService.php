@@ -120,6 +120,11 @@ final class SeasonRolloverService
         if ($current->status() !== SeasonStatus::Completed) {
             throw new WorldException('Only completed Seasons can prepare a successor.');
         }
+        // Temporary playing registrations end before outgoing squad
+        // continuity, contract boundaries, and new-Season roles are derived.
+        // This leaves the parent Contract authoritative and gives the normal
+        // rollover role process the restored parent membership.
+        $this->transferService?->returnDueLoans($database, $asOfDate);
         // Resolve durable football achievement before the next Season is
         // prepared and before compaction can remove replay-only evidence.
         $this->careerLegacy?->resolveCompletedSeason($database, $current, $current->endDate());

@@ -25,6 +25,7 @@ use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRetirementRepository;
 use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
 use Goal\Legacy\Modules\Transfer\Domain\TransferStatus;
+use Goal\Legacy\Modules\Transfer\Persistence\LoanRepository;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -114,6 +115,14 @@ final class CareerLegacyService
         foreach ($clubRows->fetchAll(\PDO::FETCH_COLUMN) as $clubId) {
             $club = $this->clubs->repository($database)->get(new \Goal\Legacy\Modules\Club\Domain\ClubId((string) $clubId));
             $clubs[] = ['id' => (string) $clubId, 'name' => $club->canonicalName()];
+        }
+        $knownClubs = array_fill_keys(array_map(static fn (array $club): string => (string) $club['id'], $clubs), true);
+        foreach ((new LoanRepository($database, false))->byPlayer($playerId) as $loan) {
+            foreach ([$loan->parentClubId(), $loan->loanClubId()] as $clubId) {
+                if (isset($knownClubs[$clubId->value()])) { continue; }
+                $clubs[] = ['id' => $clubId->value(), 'name' => $this->clubs->repository($database)->get($clubId)->canonicalName()];
+                $knownClubs[$clubId->value()] = true;
+            }
         }
         $seasonRows = $database->connection()->prepare('SELECT season_id FROM club_squad_memberships WHERE player_id = :player_id ORDER BY season_id ASC');
         $seasonRows->execute(['player_id' => $playerId]);
@@ -272,6 +281,14 @@ final class CareerLegacyService
                 if (($item['kind'] ?? null) === 'transfer' && ($item['destination_club_id'] ?? null) === $transfer->destinationClubId()->value()) { $seenDestination = true; break; }
             }
             $timeline[] = ['source_key' => 'transfer|' . $transfer->id()->value(), 'date' => $transfer->effectiveDate()->toIsoString(), 'title' => $seenDestination ? 'Return to ' . $to : ($this->hasCompletedTransfer($database, $playerId, $transfer->id()->value()) ? 'Transfer to ' . $to : 'First transfer to ' . $to), 'description' => 'Completed Club movement recorded by the Career movement system.', 'kind' => 'transfer', 'importance' => $seenDestination ? 'major' : 'notable', 'season_id' => $transfer->seasonId()->value(), 'from_club_id' => $transfer->sourceClubId()->value(), 'destination_club_id' => $transfer->destinationClubId()->value(), 'clubs' => $from . ' -> ' . $to];
+        }
+        foreach ((new LoanRepository($database, false))->byPlayer($playerId) as $loan) {
+            $parent = $this->clubs->repository($database)->get($loan->parentClubId())->canonicalName();
+            $destination = $this->clubs->repository($database)->get($loan->loanClubId())->canonicalName();
+            $timeline[] = ['source_key' => 'loan|' . $loan->id(), 'date' => $loan->startDate()->toIsoString(), 'title' => 'Loan to ' . $destination, 'description' => 'Temporary playing registration recorded by the Career movement system; the parent Contract remained with ' . $parent . '.', 'kind' => 'loan', 'importance' => 'notable', 'season_id' => $loan->seasonId()->value(), 'from_club_id' => $loan->parentClubId()->value(), 'destination_club_id' => $loan->loanClubId()->value(), 'clubs' => $parent . ' -> ' . $destination];
+            if ($loan->status()->value === 'completed') {
+                $timeline[] = ['source_key' => 'loan-return|' . $loan->id(), 'date' => $loan->scheduledEndDate()->toIsoString(), 'title' => 'Returned to ' . $parent, 'description' => 'The temporary playing registration ended and the Player returned to the parent Club.', 'kind' => 'loan_return', 'importance' => 'notable', 'season_id' => $loan->seasonId()->value(), 'from_club_id' => $loan->loanClubId()->value(), 'destination_club_id' => $loan->parentClubId()->value(), 'clubs' => $destination . ' -> ' . $parent];
+            }
         }
 
         $personalBests = [];
@@ -640,6 +657,17 @@ final class CareerLegacyService
 
     private function seasonClub(DatabaseInterface $database, string $playerId, SeasonId $seasonId): ?string
     {
+        $detailed = $database->connection()->prepare('SELECT stats.club_id FROM match_player_stats stats JOIN match_records matches ON matches.id = stats.match_id WHERE stats.player_id = :player_id AND stats.appeared = 1 AND matches.season_id = :season_id AND matches.status = :status GROUP BY stats.club_id ORDER BY SUM(stats.minutes) DESC, stats.club_id ASC LIMIT 1');
+        $detailed->execute(['player_id' => $playerId, 'season_id' => $seasonId->value(), 'status' => 'completed']);
+        $fromMatches = $detailed->fetchColumn();
+        if ($fromMatches !== false) { return (string) $fromMatches; }
+        $table = $database->connection()->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'player_season_statistics'")->fetchColumn();
+        if ($table !== false) {
+            $compact = $database->connection()->prepare('SELECT club_id FROM player_season_statistics WHERE player_id = :player_id AND season_id = :season_id ORDER BY minutes DESC, appearances DESC, club_id ASC LIMIT 1');
+            $compact->execute(['player_id' => $playerId, 'season_id' => $seasonId->value()]);
+            $fromCompact = $compact->fetchColumn();
+            if ($fromCompact !== false) { return (string) $fromCompact; }
+        }
         $statement = $database->connection()->prepare('SELECT club_id FROM club_squad_memberships WHERE player_id = :player_id AND season_id = :season_id ORDER BY club_id ASC LIMIT 1');
         $statement->execute(['player_id' => $playerId, 'season_id' => $seasonId->value()]);
         $club = $statement->fetchColumn();

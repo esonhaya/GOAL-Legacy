@@ -186,6 +186,12 @@ final class ClubRecruitmentService
                     // TransferService must not execute it automatically.
                     $movedPlayers[$candidate['player']->id()->value()] = true;
                     $opportunity = $careerMovement->prepareControlledTransferDecision($database, $candidate['player']->id(), $season, $asOfDate);
+                    if ($opportunity === null) {
+                        // A development loan is a temporary playing move, not
+                        // an automatic permanent transfer. The controlled
+                        // Player still decides through the normal opportunity UI.
+                        $opportunity = $careerMovement->prepareControlledLoanDecision($database, $candidate['player']->id(), $season, $asOfDate);
+                    }
                     if ($opportunity !== null) {
                         ++$summary['controlled_transfer_opportunities'];
                     }

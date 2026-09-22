@@ -256,6 +256,40 @@ final class FootballSocialService
         $this->pulse?->recordTransfer($database, $id, $oldClubId, $newClubId, $date);
     }
 
+    /**
+     * Keep public/manager context on the active playing Club without treating
+     * a temporary registration as a permanent transfer or changing sentiment.
+     */
+    public function recordTemporaryClubMove(DatabaseInterface $database, PlayerId|string $playerId, string $loanId, string $parentClubId, string $activeClubId, SimulationDate $date, bool $returning = false): void
+    {
+        $id = $this->id($playerId);
+        $this->initializeSchema($database);
+        $database->transaction(function () use ($database, $id, $loanId, $parentClubId, $activeClubId, $date, $returning): void {
+            $state = $this->ensureState($database, $id, $date, $returning ? $parentClubId : $activeClubId);
+            $clubId = $returning ? $parentClubId : $activeClubId;
+            $this->writeState($database, $id->value(), [
+                'public_profile' => (int) $state['public_profile'],
+                'international_profile' => (int) $state['international_profile'],
+                'current_club_id' => $clubId,
+                'club_standing' => (int) $state['club_standing'],
+                'supporter_score' => (int) $state['supporter_score'],
+                'supporter_sentiment' => (string) $state['supporter_sentiment'],
+                'manager_score' => (int) $state['manager_score'],
+                'manager_relationship' => (string) $state['manager_relationship'],
+                'manager_club_id' => $clubId,
+                'updated_date' => $date->toIsoString(),
+            ]);
+            if ($returning) {
+                $this->markFormer($database, $id->value(), $activeClubId);
+                $this->writeClubContext($database, $id->value(), $parentClubId, $date, (int) $state['club_standing'], (int) $state['supporter_score'], (string) $state['supporter_sentiment'], (int) $state['manager_score'], (string) $state['manager_relationship'], false);
+                $this->writeHistory($database, $id->value(), 'loan-return|' . $loanId, $date, 'movement', 'notable', 'Returned to the parent Club', 'A temporary playing registration ended without changing the parent Contract.', $parentClubId);
+            } else {
+                $this->writeClubContext($database, $id->value(), $activeClubId, $date, (int) $state['club_standing'], (int) $state['supporter_score'], (string) $state['supporter_sentiment'], (int) $state['manager_score'], (string) $state['manager_relationship'], false);
+                $this->writeHistory($database, $id->value(), 'loan-start|' . $loanId, $date, 'movement', 'notable', 'Joined a Club on loan', 'A temporary playing registration changed the active Club context; the parent Contract remained in force.', $activeClubId);
+            }
+        });
+    }
+
     public function recordAchievement(DatabaseInterface $database, PlayerId|string $playerId, SimulationDate $date, string $source, string $headline, string $importance = 'major', ?string $clubId = null): void
     {
         $this->initializeSchema($database);

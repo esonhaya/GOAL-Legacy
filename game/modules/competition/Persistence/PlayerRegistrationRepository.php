@@ -133,6 +133,17 @@ final class PlayerRegistrationRepository
         if ((string) $careerState->fetchColumn() === 'retired') { throw new PlayerRegistrationException('Retired Players cannot be registered.'); }
         $contract = $this->database->connection()->prepare('SELECT 1 FROM contract_records WHERE player_id = :player_id AND club_id = :club_id AND status = :status LIMIT 1');
         $contract->execute(['player_id' => $registration->playerId()->value(), 'club_id' => $registration->clubId()->value(), 'status' => 'active']);
-        if ($contract->fetchColumn() === false) { throw new PlayerRegistrationException('Player must have an active Contract with the Club before registration.'); }
+        if ($contract->fetchColumn() === false && !$this->hasActiveLoanRegistration($registration)) { throw new PlayerRegistrationException('Player must have an active Contract with the Club before registration.'); }
+    }
+
+    private function hasActiveLoanRegistration(PlayerRegistration $registration): bool
+    {
+        $table = $this->database->connection()->prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'player_loans'");
+        $table->execute();
+        if ($table->fetchColumn() === false) { return false; }
+        $loan = $this->database->connection()->prepare("SELECT 1 FROM player_loans loans JOIN contract_records contracts ON contracts.player_id = loans.player_id AND contracts.club_id = loans.parent_club_id AND contracts.status = 'active' WHERE loans.player_id = :player_id AND loans.loan_club_id = :club_id AND loans.season_id = :season_id AND loans.status = 'active' LIMIT 1");
+        $loan->execute(['player_id' => $registration->playerId()->value(), 'club_id' => $registration->clubId()->value(), 'season_id' => $registration->seasonId()->value()]);
+
+        return $loan->fetchColumn() !== false;
     }
 }

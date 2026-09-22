@@ -623,6 +623,23 @@ Club or Match records.
 
 ---
 
+## P2-036 Loan Ownership and Integration
+
+Temporary Player movement is owned by the existing Transfer module. A
+`LoanRepository` row is compact lifecycle state only; it is not a second
+movement ledger or achievement source. `CareerMovementService` creates the
+controlled decision and validates ownership, expiry, parent Contract, and
+destination. `TransferService` atomically changes the one active playing
+membership and Competition registrations while leaving the parent Contract,
+wage, Player identity, and Match/statistics owners unchanged.
+
+During an active loan, `PlayerCareerProgressionQuery` exposes the loan Club as
+active football context and the Contract Club as parent context. Rollover
+returns due loans before squad continuity and Contract-boundary decisions.
+Return is idempotent and re-evaluates the parent squad role. NPC loan markets,
+loan fees, wage splits, recall/buy clauses, and loan-specific development are
+not implemented. Read paths perform no loan initialization or repair DML.
+
 ## DOMAIN-010 Population Ownership
 
 Population remains in the Player Module. The service coordinates existing

@@ -41,7 +41,10 @@ use Goal\Legacy\Modules\Transfer\Domain\TransferException;
 use Goal\Legacy\Modules\Transfer\Domain\TransferExecutionTerms;
 use Goal\Legacy\Modules\Transfer\Domain\TransferId;
 use Goal\Legacy\Modules\Transfer\Domain\TransferStatus;
+use Goal\Legacy\Modules\Transfer\Domain\Loan;
+use Goal\Legacy\Modules\Transfer\Domain\LoanStatus;
 use Goal\Legacy\Modules\Contract\Domain\ContractId;
+use Goal\Legacy\Modules\Transfer\Persistence\LoanRepository;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
@@ -640,6 +643,156 @@ final class CareerMovementService
     }
 
     /**
+     * Create one explicit controlled-player loan choice. It is intentionally
+     * separate from permanent transfer interest: the parent Contract stays in
+     * force and only the active playing registration changes on acceptance.
+     */
+    public function prepareControlledLoanDecision(DatabaseInterface $database, PlayerId|string $playerId, Season $season, SimulationDate $date): ?CareerOpportunity
+    {
+        $playerId = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        if (!in_array($playerId->value(), (new CareerPlayerRepository($database))->playerIds(), true)) { throw new TransferException('Loan decisions are available only for the controlled career Player.'); }
+        $player = (new PlayerRepository($database))->get($playerId);
+        if ($player->isRetired()) { return null; }
+        $loans = new LoanRepository($database, false);
+        if ($loans->activeForPlayer($playerId) !== null) { return null; }
+        $sourceMembership = $this->currentMembership($database, $playerId, $season->id());
+        $sourceContract = $this->contractService->repository($database)->activeForPlayer($playerId);
+        if ($sourceMembership === null || $sourceContract === null || $sourceContract->clubId()->value() !== $sourceMembership->clubId()->value()) { return null; }
+        if ($sourceContract->endDate()->isBefore($season->endDate())) { return null; }
+        $age = $player->ageAt($date);
+        $currentMetrics = $this->playerMetrics($database, $player, $sourceMembership->clubId(), $season->id());
+        if ($sourceMembership->role() === SquadRole::KeyPlayer || ($age > 25 && (int) $currentMetrics['minutes'] >= 900)) { return null; }
+        if ($age > 30 || ((int) $currentMetrics['minutes'] >= 1400 && $sourceMembership->role() === SquadRole::Regular)) { return null; }
+        foreach ((new CareerOpportunityRepository($database))->openForPlayer($playerId, $date) as $existing) {
+            if (in_array($existing->type(), [CareerOpportunityType::ContractRenewal, CareerOpportunityType::TransferInterest, CareerOpportunityType::Loan], true)) { return $existing->type() === CareerOpportunityType::Loan && ($existing->context()['decision_kind'] ?? null) === 'controlled_loan' ? $existing : null; }
+        }
+        $sourceKey = implode('|', ['controlled-loan', $playerId->value(), $sourceMembership->clubId()->value(), $season->id()->value()]);
+        $repository = new CareerOpportunityRepository($database);
+        $existing = $repository->bySourceKey($sourceKey);
+        if ($existing !== null) { return $existing; }
+        $sourceClub = $this->clubService->repository($database)->get($sourceMembership->clubId());
+        $profiles = $this->clubMarketProfiles($database, $season->id());
+        $legacy = new CareerLegacyRepository($database, false);
+        $market = $this->marketAssessment($player, $currentMetrics, $sourceMembership->role(), $legacy->awardsForPlayer($playerId->value()), $legacy->honoursForPlayer($playerId->value()), $this->internationalMarketStats($database, $playerId->value()), $date);
+        $candidates = [];
+        foreach ($this->clubService->repository($database)->all() as $targetClub) {
+            if ($targetClub->id()->value() === $sourceClub->id()->value() || $this->competitionForClub($database, $targetClub->id(), $season->id()) === null) { continue; }
+            if (($profiles[$targetClub->id()->value()]['squad_count'] ?? PlayerPopulationService::TARGET_SQUAD_SIZE) >= PlayerPopulationService::TARGET_SQUAD_SIZE) { continue; }
+            $target = $this->targetMetrics($database, $player, $targetClub->id(), $season->id(), $profiles);
+            if ((int) $target['position_rank'] > 8) { continue; }
+            $role = $this->roleForRank((int) $target['position_rank'], $player->overallRating(), (float) $target['position_average']);
+            if ($role === SquadRole::KeyPlayer) { $role = SquadRole::Regular; }
+            if ($role === SquadRole::Prospect) { continue; }
+            $score = $this->interestScore($player, $sourceClub->reputation(), $sourceMembership->role(), $currentMetrics, $target, $targetClub->reputation(), $market);
+            $reasons = [];
+            if ((int) $currentMetrics['minutes'] < 900) { $reasons[] = 'playing_time'; }
+            if (($target['position_need'] ?? false) || (int) $target['position_count'] < 4) { $reasons[] = 'destination_need'; }
+            if ($age <= 23) { $reasons[] = 'development_stage'; }
+            if ($reasons === []) { $reasons[] = 'regular_football_path'; }
+            $candidates[] = ['club' => $targetClub, 'target' => $target, 'role' => $role, 'score' => $score, 'reasons' => $reasons];
+        }
+        usort($candidates, static fn (array $left, array $right): int => ($right['score'] <=> $left['score']) ?: strcmp($left['club']->id()->value(), $right['club']->id()->value()));
+        $candidates = array_slice($candidates, 0, self::MAX_OFFERS);
+        if ($candidates === []) { return null; }
+        $careerSummary = (new PlayerCareerProgressionQuery($this->clubService))->summary($database, $playerId, $date, $season->id());
+        $careerContext = is_array($careerSummary['career_context'] ?? null) ? $careerSummary['career_context'] : [];
+        $sourceProfile = $profiles[$sourceClub->id()->value()] ?? [];
+        $attachment = is_array($careerContext['attachment'] ?? null) ? $careerContext['attachment'] : [];
+        $direction = is_array($careerContext['direction'] ?? null) ? $careerContext['direction'] : [];
+        $options = [];
+        foreach ($candidates as $candidate) {
+            $targetClub = $candidate['club'];
+            $loanId = 'loan-' . substr(hash('sha256', $sourceKey . '|' . $targetClub->id()->value()), 0, 24);
+            $targetProfile = $profiles[$targetClub->id()->value()] ?? [];
+            $options[] = [
+                'id' => 'accept-loan-' . $targetClub->id()->value(),
+                'kind' => 'accept_loan',
+                'loan_id' => $loanId,
+                'club_id' => $targetClub->id()->value(),
+                'target_club_name' => $targetClub->canonicalName(),
+                'parent_club_name' => $sourceClub->canonicalName(),
+                'parent_club_id' => $sourceClub->id()->value(),
+                'role' => $candidate['role']->value,
+                'projected_role' => $candidate['role']->value,
+                'loan_start_date' => $date->toIsoString(),
+                'loan_end_date' => $season->endDate()->toIsoString(),
+                'term_seasons' => 1,
+                'target_club_level' => $targetProfile['level'] ?? null,
+                'target_competition_name' => $targetProfile['competition_name'] ?? null,
+                'current_club_level' => $sourceProfile['level'] ?? null,
+                'current_competition_name' => $sourceProfile['competition_name'] ?? null,
+                'reasons' => $candidate['reasons'],
+                'trade_offs' => ['The parent Contract and wage remain with ' . $sourceClub->canonicalName() . '.', 'The Player returns to the parent Club at Season end.'],
+                'expected_playing_time' => $candidate['role'] === SquadRole::Regular ? 'regular' : 'rotation',
+            ];
+        }
+        $options[] = ['id' => 'decline-loan', 'kind' => 'decline_loan', 'club_id' => $sourceClub->id()->value(), 'target_club_name' => $sourceClub->canonicalName(), 'trade_offs' => ['Remain with the parent Club under the existing Contract.']];
+        $opportunity = new CareerOpportunity('controlled-loan-' . substr(hash('sha256', $sourceKey), 0, 24), $playerId, CareerOpportunityType::Loan, $sourceClub->id(), null, $date, $date->addDays(30), CareerOpportunityStatus::Open, [
+            'decision_kind' => 'controlled_loan',
+            'offer_status' => 'open',
+            'season_id' => $season->id()->value(),
+            'parent_club_id' => $sourceClub->id()->value(),
+            'parent_contract_id' => $sourceContract->id()->value(),
+            'parent_contract_end_date' => $sourceContract->endDate()->toIsoString(),
+            'current_club_context' => ['attachment' => $attachment, 'direction' => $direction, 'role' => $sourceMembership->role()->value, 'playing_time' => $careerSummary['manager_context']['playing_time_status'] ?? null],
+            'options' => $options,
+        ], $sourceKey);
+        $database->transaction(function () use ($repository, $opportunity): void { $repository->saveInTransaction($opportunity); });
+        $this->events->dispatch(new GenericEvent('career.loan_offer_created', $opportunity->toArray()));
+
+        return $opportunity;
+    }
+
+    /** Resolve the single controlled loan choice without creating a Contract. */
+    public function resolveLoanDecision(DatabaseInterface $database, string $opportunityId, string $optionId, SimulationDate $date): CareerOpportunity
+    {
+        $repository = new CareerOpportunityRepository($database);
+        $opportunity = $repository->get($opportunityId);
+        if ($opportunity === null || $opportunity->type() !== CareerOpportunityType::Loan || ($opportunity->context()['decision_kind'] ?? null) !== 'controlled_loan') { throw new TransferException(sprintf('Controlled loan decision "%s" was not found.', $opportunityId)); }
+        if ($opportunity->status() === CareerOpportunityStatus::Resolved) { return $opportunity; }
+        if ($opportunity->status() !== CareerOpportunityStatus::Open) { throw new TransferException('Only open controlled loan decisions can be resolved.'); }
+        if ($opportunity->expiryDate() !== null && $date->isAfter($opportunity->expiryDate())) { $this->setStatus($database, $opportunity, CareerOpportunityStatus::Expired, 'expired'); throw new TransferException('Controlled loan decision has expired.'); }
+        if (!in_array($opportunity->playerId()->value(), (new CareerPlayerRepository($database))->playerIds(), true)) { throw new TransferException('Controlled loan decision no longer belongs to the career Player.'); }
+        $context = $opportunity->context();
+        $selected = null;
+        foreach ((array) ($context['options'] ?? []) as $option) { if (is_array($option) && ($option['id'] ?? null) === $optionId) { $selected = $option; break; } }
+        if (!is_array($selected)) { throw new TransferException('Controlled loan option is stale or unknown.'); }
+        if (($selected['kind'] ?? null) === 'decline_loan') {
+            $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'declined') + ['selected_option' => $optionId]);
+            $this->saveStatus($database, $resolved);
+            $this->events->dispatch(new GenericEvent('career.loan_declined', $resolved->toArray()));
+            return $resolved;
+        }
+        if (($selected['kind'] ?? null) !== 'accept_loan') { throw new TransferException('Unsupported controlled loan option.'); }
+        $loanId = (string) ($selected['loan_id'] ?? '');
+        $loans = new LoanRepository($database, false);
+        $existing = $loanId === '' ? null : $loans->get($loanId);
+        if ($existing?->status() === LoanStatus::Active) {
+            $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'accepted') + ['selected_option' => $optionId, 'loan_id' => $existing->id()]);
+            $this->saveStatus($database, $resolved);
+            return $resolved;
+        }
+        if ($existing?->status() === LoanStatus::Completed) { throw new TransferException('Loan option has already returned.'); }
+        $seasonId = new SeasonId((string) ($context['season_id'] ?? ''));
+        $season = (new SeasonRepository($database))->get($seasonId);
+        $sourceClub = new ClubId((string) ($context['parent_club_id'] ?? $opportunity->sourceClubId()->value()));
+        $player = (new PlayerRepository($database))->get($opportunity->playerId());
+        $membership = $this->currentMembership($database, $player->id(), $seasonId);
+        $contract = $this->contractService->repository($database)->activeForPlayer($player->id());
+        if ($player->isRetired() || $membership === null || $membership->clubId()->value() !== $sourceClub->value() || $contract === null || $contract->clubId()->value() !== $sourceClub->value()) { throw new TransferException('Controlled loan is stale because the parent Club or Contract changed.'); }
+        $destination = new ClubId((string) ($selected['club_id'] ?? ''));
+        $end = SimulationDate::fromIsoString((string) ($selected['loan_end_date'] ?? $season->endDate()->toIsoString()));
+        if (!$this->clubService->repository($database)->exists($destination) || $destination->value() === $sourceClub->value() || $end->isAfter($contract->endDate()) || $end->isBefore($date) || (new LoanRepository($database, false))->activeForPlayer($player->id()) !== null) { throw new TransferException('Controlled loan destination or parent Contract is stale.'); }
+        $loan = new Loan($loanId, $player->id(), $sourceClub, $destination, $seasonId, $date, $end, $membership->role(), SquadRole::fromInput((string) ($selected['role'] ?? SquadRole::Rotation->value)));
+        $this->transferService->startLoan($database, $loan);
+        $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'accepted') + ['selected_option' => $optionId, 'loan_id' => $loan->id(), 'active_club_id' => $loan->loanClubId()->value()]);
+        $this->saveStatus($database, $resolved);
+        $this->events->dispatch(new GenericEvent('career.loan_accepted', $resolved->toArray()));
+
+        return $resolved;
+    }
+
+    /**
      * Create the one controlled-player decision at an expiring Contract
      * boundary.  NPC renewal policy remains owned by SeasonRolloverService;
      * this method only turns its current-club result into career options.
@@ -930,14 +1083,14 @@ final class CareerMovementService
         $id = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
         $repository = new CareerOpportunityRepository($database);
         foreach ($repository->openForPlayer($id) as $opportunity) {
-            if ($opportunity->type() !== CareerOpportunityType::TransferInterest || $opportunity->expiryDate() === null || !$date->isAfter($opportunity->expiryDate())) {
+            if (!in_array($opportunity->type(), [CareerOpportunityType::TransferInterest, CareerOpportunityType::Loan], true) || $opportunity->expiryDate() === null || !$date->isAfter($opportunity->expiryDate())) {
                 continue;
             }
             $expired = $opportunity->withStatusAndContext(CareerOpportunityStatus::Expired, $this->withOfferStatus($opportunity->context(), 'expired'));
             $database->transaction(function () use ($repository, $expired): void { $repository->updateStatusInTransaction($expired, CareerOpportunityStatus::Expired); });
         }
 
-        return array_values(array_filter($repository->openForPlayer($id, $date), static fn (CareerOpportunity $opportunity): bool => $opportunity->type() === CareerOpportunityType::TransferInterest));
+        return array_values(array_filter($repository->openForPlayer($id, $date), static fn (CareerOpportunity $opportunity): bool => in_array($opportunity->type(), [CareerOpportunityType::TransferInterest, CareerOpportunityType::Loan], true)));
     }
 
     private function hasOpenRetirementDecision(DatabaseInterface $database, PlayerId $playerId, SimulationDate $date): bool
@@ -954,7 +1107,7 @@ final class CareerMovementService
     public function inspect(DatabaseInterface $database, string $offerId): CareerOpportunity
     {
         $offer = (new CareerOpportunityRepository($database))->get($offerId);
-        if ($offer === null || $offer->type() !== CareerOpportunityType::TransferInterest) {
+        if ($offer === null || !in_array($offer->type(), [CareerOpportunityType::TransferInterest, CareerOpportunityType::Loan], true)) {
             throw new TransferException(sprintf('Transfer offer "%s" was not found.', $offerId));
         }
 
@@ -964,6 +1117,14 @@ final class CareerMovementService
     public function decline(DatabaseInterface $database, string $offerId, SimulationDate $date): CareerOpportunity
     {
         $offer = $this->inspect($database, $offerId);
+        if ($offer->type() === CareerOpportunityType::Loan) {
+            foreach ((array) ($offer->context()['options'] ?? []) as $option) {
+                if (is_array($option) && ($option['kind'] ?? null) === 'decline_loan') {
+                    return $this->resolveLoanDecision($database, $offerId, (string) ($option['id'] ?? ''), $date);
+                }
+            }
+            throw new TransferException('Loan decision does not contain a decline option.');
+        }
         if ($offer->status() !== CareerOpportunityStatus::Open) {
             throw new TransferException('Only open transfer offers can be declined.');
         }
@@ -1155,7 +1316,13 @@ final class CareerMovementService
 
     private function currentMembership(DatabaseInterface $database, PlayerId $playerId, SeasonId $seasonId): ?ClubSquadMembership
     {
-        return $this->clubService->squadRepository($database)->byPlayer($playerId, $seasonId)[0] ?? null;
+        $memberships = $this->clubService->squadRepository($database)->byPlayer($playerId, $seasonId);
+        $loan = (new LoanRepository($database, false))->activeForPlayer($playerId, $seasonId);
+        if ($loan !== null) {
+            foreach ($memberships as $membership) { if ($membership->clubId()->value() === $loan->loanClubId()->value()) { return $membership; } }
+        }
+
+        return $memberships[0] ?? null;
     }
 
     private function competitionForClub(DatabaseInterface $database, ClubId $clubId, SeasonId $seasonId): ?string

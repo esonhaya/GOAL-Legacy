@@ -31,6 +31,8 @@ use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRetirementRepository;
 use Goal\Legacy\Modules\Transfer\Domain\TransferStatus;
 use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
+use Goal\Legacy\Modules\Transfer\Persistence\LoanRepository;
+use Goal\Legacy\Modules\Transfer\Domain\Loan;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use Goal\Legacy\Modules\World\Persistence\SeasonRepository;
@@ -57,13 +59,16 @@ final class PlayerCareerProgressionQuery
         $contracts = new ContractRepository($database);
         $activeContract = $player->isRetired() ? null : $contracts->activeForPlayer($id);
         $priority = (new PlayerPriorityRepository($database))->current($id);
-        $currentMembership = $this->currentMembership($allMemberships, $activeContract);
+        $activeLoan = (new LoanRepository($database, false))->activeForPlayer($id, $seasonId, $date);
+        $currentMembership = $this->currentMembership($allMemberships, $activeContract, $activeLoan);
         $requestedMembership = $seasonId === null
             ? $currentMembership
             : (array_values(array_filter($allMemberships, static fn (ClubSquadMembership $membership): bool => $membership->seasonId()->value() === $seasonId->value()))[0] ?? null);
         $clubRepository = $this->clubService->repository($database);
         $competitionRepository = new CompetitionRepository($database);
-        $currentClub = $activeContract === null ? null : $clubRepository->get($activeContract->clubId());
+        $currentClub = $currentMembership !== null
+            ? $clubRepository->get($currentMembership->clubId())
+            : ($activeContract === null ? null : $clubRepository->get($activeContract->clubId()));
         $currentCompetition = $this->competitionForMembership($database, $currentMembership, $competitionRepository);
         $seasonHistory = $this->seasonHistory($database, $id, $allMemberships, $clubRepository, $competitionRepository);
         $positionContext = $positions->context($database, $id, $date);
@@ -111,6 +116,8 @@ final class PlayerCareerProgressionQuery
             'active_injury' => $availability->injury()?->toArray(),
             'readiness' => $availability->readiness(),
             'current_club' => $this->clubView($currentClub),
+            'parent_club' => $activeContract === null ? null : $this->clubView($clubRepository->get($activeContract->clubId())),
+            'active_loan' => $this->loanView($activeLoan, $clubRepository),
             'current_competition' => $this->competitionView($currentCompetition),
             'current_role' => $currentMembership?->role()->value,
             'position_competition' => $positionCompetition,
@@ -218,11 +225,16 @@ final class PlayerCareerProgressionQuery
     }
 
     /** @param list<ClubSquadMembership> $memberships */
-    private function currentMembership(array $memberships, ?Contract $contract): ?ClubSquadMembership
+    private function currentMembership(array $memberships, ?Contract $contract, ?Loan $loan = null): ?ClubSquadMembership
     {
-        if ($contract === null) {
+        if ($contract === null && $loan === null) {
             return null;
         }
+        if ($loan !== null) {
+            $loanMemberships = array_values(array_filter($memberships, static fn (ClubSquadMembership $membership): bool => $membership->clubId()->value() === $loan->loanClubId()->value()));
+            if ($loanMemberships !== []) { return $loanMemberships[array_key_last($loanMemberships)]; }
+        }
+        if ($contract === null) { return null; }
         $matches = array_values(array_filter($memberships, static fn (ClubSquadMembership $membership): bool => $membership->clubId()->value() === $contract->clubId()->value()));
 
         return $matches === [] ? null : $matches[array_key_last($matches)];
@@ -401,6 +413,37 @@ final class PlayerCareerProgressionQuery
     private function movementHistory(DatabaseInterface $database, PlayerId $playerId, array $seasonHistory, ClubRepository $clubs): array
     {
         $events = [];
+        foreach ((new LoanRepository($database, false))->byPlayer($playerId) as $loan) {
+            $parent = $clubs->get($loan->parentClubId())->canonicalName();
+            $destination = $clubs->get($loan->loanClubId())->canonicalName();
+            $events[] = [
+                'date' => $loan->startDate()->toIsoString(),
+                'type' => 'loan',
+                'movement_type' => 'loan',
+                'loan_id' => $loan->id(),
+                'season_id' => $loan->seasonId()->value(),
+                'from_club_id' => $loan->parentClubId()->value(),
+                'to_club_id' => $loan->loanClubId()->value(),
+                'from_club' => $parent,
+                'to_club' => $destination,
+                'status' => $loan->status()->value,
+                'scheduled_end_date' => $loan->scheduledEndDate()->toIsoString(),
+            ];
+            if ($loan->status()->value === 'completed') {
+                $events[] = [
+                    'date' => $loan->scheduledEndDate()->toIsoString(),
+                    'type' => 'loan_return',
+                    'movement_type' => 'loan_return',
+                    'loan_id' => $loan->id(),
+                    'season_id' => $loan->seasonId()->value(),
+                    'from_club_id' => $loan->loanClubId()->value(),
+                    'to_club_id' => $loan->parentClubId()->value(),
+                    'from_club' => $destination,
+                    'to_club' => $parent,
+                    'status' => $loan->status()->value,
+                ];
+            }
+        }
         foreach ((new TransferRepository($database))->byPlayer($playerId) as $transfer) {
             if ($transfer->status() !== TransferStatus::Completed) {
                 continue;
@@ -439,6 +482,24 @@ final class PlayerCareerProgressionQuery
     private function clubView(?Club $club): ?array
     {
         return $club === null ? null : ['id' => $club->id()->value(), 'name' => $club->canonicalName(), 'short_name' => $club->shortName(), 'nation_id' => $club->nationId()->value()];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function loanView(?Loan $loan, ClubRepository $clubs): ?array
+    {
+        if ($loan === null) { return null; }
+
+        return [
+            'id' => $loan->id(),
+            'parent_club' => $this->clubView($clubs->get($loan->parentClubId())),
+            'loan_club' => $this->clubView($clubs->get($loan->loanClubId())),
+            'season_id' => $loan->seasonId()->value(),
+            'start_date' => $loan->startDate()->toIsoString(),
+            'scheduled_end_date' => $loan->scheduledEndDate()->toIsoString(),
+            'parent_role' => $loan->parentRole()->value,
+            'loan_role' => $loan->loanRole()->value,
+            'status' => $loan->status()->value,
+        ];
     }
 
     /** @return array<string,mixed> */
@@ -487,7 +548,7 @@ final class PlayerCareerProgressionQuery
     private function availableActions(?\Goal\Legacy\Modules\Player\Domain\CareerPlayerReference $career, ?Contract $contract, ?ClubSquadMembership $membership, array $opportunities): array
     {
         $actions = [];
-        $hasBlockingDecision = array_filter($opportunities, static fn ($opportunity): bool => in_array($opportunity->type()->value, ['contract_renewal', 'transfer_interest'], true));
+        $hasBlockingDecision = array_filter($opportunities, static fn ($opportunity): bool => in_array($opportunity->type()->value, ['contract_renewal', 'transfer_interest', 'loan'], true));
         if ($career !== null && $contract !== null && $membership !== null && $career->transferRequestStatus()->value === 'none' && $hasBlockingDecision === []) {
             $actions[] = ['type' => 'request_transfer'];
         }

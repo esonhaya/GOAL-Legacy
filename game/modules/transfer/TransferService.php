@@ -28,6 +28,9 @@ use Goal\Legacy\Modules\Transfer\Domain\Transfer;
 use Goal\Legacy\Modules\Transfer\Domain\TransferEventNames;
 use Goal\Legacy\Modules\Transfer\Domain\TransferExecutionTerms;
 use Goal\Legacy\Modules\Transfer\Domain\TransferException;
+use Goal\Legacy\Modules\Transfer\Domain\Loan;
+use Goal\Legacy\Modules\Transfer\Domain\LoanStatus;
+use Goal\Legacy\Modules\Transfer\Persistence\LoanRepository;
 use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use Goal\Legacy\Modules\World\Domain\Season;
@@ -142,5 +145,102 @@ final class TransferService
         (new ClubCaptaincyService($this->clubService))->reconcileClubs($database, [$completed->sourceClubId()->value(), $completed->destinationClubId()->value()], $completed->seasonId(), $completed->effectiveDate());
         (new SetPieceResponsibilityService($this->clubService))->reconcileClubs($database, [$completed->destinationClubId()->value()], $completed->seasonId(), $completed->effectiveDate());
         return $completed;
+    }
+
+    /**
+     * Move only the active playing registration. The parent Contract and its
+     * wage remain untouched for the entire temporary spell.
+     */
+    public function startLoan(DatabaseInterface $database, Loan $loan): Loan
+    {
+        if ($loan->status() !== LoanStatus::Active) { throw new TransferException('Only an active loan can be started.'); }
+        if ($loan->parentClubId()->value() === $loan->loanClubId()->value()) { throw new TransferException('A Player cannot be loaned to the parent Club.'); }
+        if ($loan->scheduledEndDate()->isBefore($loan->startDate())) { throw new TransferException('Loan end must not precede its start.'); }
+        if ((new PlayerRepository($database))->get($loan->playerId())->isRetired()) { throw new TransferException('Retired Players cannot start a loan.'); }
+        $loans = new LoanRepository($database);
+        $existingLoan = $loans->get($loan->id());
+        if ($existingLoan?->status() === LoanStatus::Active) { return $existingLoan; }
+        if ($existingLoan !== null && $existingLoan->status() === LoanStatus::Completed) { throw new TransferException('Loan has already been completed.'); }
+        if ($loans->activeForPlayer($loan->playerId()) !== null) { throw new TransferException('Player already has an active loan.'); }
+        $contracts = $this->contractService->repository($database);
+        $parentContract = $contracts->activeForPlayer($loan->playerId());
+        if ($parentContract === null || $parentContract->clubId()->value() !== $loan->parentClubId()->value()) { throw new TransferException('Loan requires an active parent Contract.'); }
+        if ($loan->scheduledEndDate()->isAfter($parentContract->endDate())) { throw new TransferException('Loan must end no later than the parent Contract.'); }
+        if (!$this->clubService->repository($database)->exists($loan->loanClubId())) { throw new TransferException('Loan destination Club does not exist.'); }
+        $squads = $this->clubService->squadRepository($database);
+        $destinationCompetitions = array_values(array_filter($this->clubService->membershipRepository($database)->byClub($loan->loanClubId()), static fn ($membership): bool => $membership->seasonId()->value() === $loan->seasonId()->value()));
+        if ($destinationCompetitions === []) { throw new TransferException('Loan destination Club is not registered for the Season.'); }
+        $parentMembership = $squads->byPlayer($loan->playerId(), $loan->seasonId());
+        $parentMembership = array_values(array_filter($parentMembership, static fn (ClubSquadMembership $membership): bool => $membership->clubId()->value() === $loan->parentClubId()->value()))[0] ?? null;
+        if ($parentMembership === null) { throw new TransferException('Player must belong to the parent Club squad before a loan.'); }
+        $destinationMembership = new ClubSquadMembership($loan->loanClubId(), $loan->playerId(), $loan->seasonId(), $loan->loanRole());
+        if (count($squads->byClub($loan->loanClubId(), $loan->seasonId())) >= PlayerPopulationService::TARGET_SQUAD_SIZE && !$squads->exists($destinationMembership)) { throw new TransferException('Loan destination Club has no safe squad capacity.'); }
+        $registrations = $this->competitionService->registrationRepository($database);
+        $database->transaction(function () use ($database, $loans, $loan, $squads, $parentMembership, $destinationMembership, $registrations, $destinationCompetitions): void {
+            $registrations->unregisterByPlayerClubSeason($loan->playerId(), $loan->parentClubId(), $loan->seasonId());
+            $squads->remove($parentMembership);
+            if (!$squads->exists($destinationMembership)) { $squads->save($destinationMembership); }
+            $loans->saveInTransaction($loan);
+            foreach ($destinationCompetitions as $membership) {
+                $registration = new PlayerRegistration($loan->seasonId(), $membership->competitionId(), $loan->loanClubId(), $loan->playerId());
+                if (!$registrations->exists($registration)) { $registrations->registerInTransaction($registration); }
+            }
+        });
+        (new ClubCaptaincyService($this->clubService))->reconcileClubs($database, [$loan->parentClubId()->value(), $loan->loanClubId()->value()], $loan->seasonId(), $loan->startDate());
+        (new SetPieceResponsibilityService($this->clubService))->reconcileClubs($database, [$loan->parentClubId()->value(), $loan->loanClubId()->value()], $loan->seasonId(), $loan->startDate());
+        $this->social?->recordTemporaryClubMove($database, $loan->playerId(), $loan->id(), $loan->parentClubId()->value(), $loan->loanClubId()->value(), $loan->startDate());
+        $this->events->dispatch(new GenericEvent('career.loan_started', $loan->toArray()));
+
+        return $loan;
+    }
+
+    /** Return a due loan exactly once; the parent Contract is never recreated. */
+    public function returnLoan(DatabaseInterface $database, Loan $loan, SimulationDate $date): Loan
+    {
+        if ($loan->status() === LoanStatus::Completed) { return $loan; }
+        if ($date->isBefore($loan->scheduledEndDate())) { throw new TransferException('Loan is not due to return yet.'); }
+        $loans = new LoanRepository($database);
+        $stored = $loans->get($loan->id());
+        if ($stored !== null && $stored->status() === LoanStatus::Completed) { return $stored; }
+        $loan = $stored ?? $loan;
+        $contracts = $this->contractService->repository($database);
+        $parentContract = $contracts->activeForPlayer($loan->playerId());
+        if ($parentContract === null || $parentContract->clubId()->value() !== $loan->parentClubId()->value()) { throw new TransferException('Loan cannot return without its valid parent Contract.'); }
+        $squads = $this->clubService->squadRepository($database);
+        $loanMembership = $squads->byPlayer($loan->playerId(), $loan->seasonId());
+        $loanMembership = array_values(array_filter($loanMembership, static fn (ClubSquadMembership $membership): bool => $membership->clubId()->value() === $loan->loanClubId()->value()))[0] ?? null;
+        $parentMembership = $squads->byPlayer($loan->playerId(), $loan->seasonId());
+        $parentMembership = array_values(array_filter($parentMembership, static fn (ClubSquadMembership $membership): bool => $membership->clubId()->value() === $loan->parentClubId()->value()))[0] ?? null;
+        $registrations = $this->competitionService->registrationRepository($database);
+        $parentCompetitions = array_values(array_filter($this->clubService->membershipRepository($database)->byClub($loan->parentClubId()), static fn ($membership): bool => $membership->seasonId()->value() === $loan->seasonId()->value()));
+        $returned = $loan->complete();
+        $database->transaction(function () use ($loans, $returned, $squads, $loanMembership, $parentMembership, $loan, $registrations, $parentCompetitions): void {
+            $registrations->unregisterByPlayerClubSeason($loan->playerId(), $loan->loanClubId(), $loan->seasonId());
+            if ($loanMembership !== null) { $squads->remove($loanMembership); }
+            $restored = $parentMembership ?? new ClubSquadMembership($loan->parentClubId(), $loan->playerId(), $loan->seasonId(), $loan->parentRole());
+            if (!$squads->exists($restored)) { $squads->save($restored); }
+            $loans->saveInTransaction($returned);
+            foreach ($parentCompetitions as $membership) {
+                $registration = new PlayerRegistration($loan->seasonId(), $membership->competitionId(), $loan->parentClubId(), $loan->playerId());
+                if (!$registrations->exists($registration)) { $registrations->registerInTransaction($registration); }
+            }
+        });
+        (new ClubCaptaincyService($this->clubService))->reconcileClubs($database, [$loan->parentClubId()->value(), $loan->loanClubId()->value()], $loan->seasonId(), $date);
+        (new SetPieceResponsibilityService($this->clubService))->reconcileClubs($database, [$loan->parentClubId()->value(), $loan->loanClubId()->value()], $loan->seasonId(), $date);
+        $this->social?->recordTemporaryClubMove($database, $loan->playerId(), $loan->id(), $loan->parentClubId()->value(), $loan->loanClubId()->value(), $date, true);
+        $this->events->dispatch(new GenericEvent('career.loan_returned', $returned->toArray() + ['returned_date' => $date->toIsoString()]));
+
+        return $returned;
+    }
+
+    public function returnDueLoans(DatabaseInterface $database, SimulationDate $date): int
+    {
+        $returned = 0;
+        foreach ((new LoanRepository($database, false))->activeDue($date) as $loan) {
+            $this->returnLoan($database, $loan, $date);
+            ++$returned;
+        }
+
+        return $returned;
     }
 }

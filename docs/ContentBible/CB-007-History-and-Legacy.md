@@ -121,6 +121,20 @@ can appear as winners from compact aggregates, but the game does not invent
 their detailed Match histories. A trophy is described only when participation
 evidence supports the Player's attribution.
 
+## P2-036 Loan history and Club context
+
+A completed controlled loan may appear once in the factual Career timeline as
+“Loan to [Club]” and once as the corresponding return. The record names the
+parent Club, loan Club, Season, and temporary nature of the movement. It does
+not imply a permanent transfer, stronger attachment, rivalry, betrayal,
+captaincy, milestone, trophy, wage change, or development bonus. Active loan
+presentation keeps the parent Contract separate from the active playing Club.
+
+Loan Club appearances, goals, assists, honours, and current-Season leaderboard
+evidence retain their canonical actual-Club context. No loan history is
+reconstructed for legacy saves without a stored lifecycle row; duplicate
+acceptance or rollover cannot create duplicate history.
+
 ## P2-016 Playing-Career conclusion
 
 Retirement is a factual conclusion to the Career the Player actually played.

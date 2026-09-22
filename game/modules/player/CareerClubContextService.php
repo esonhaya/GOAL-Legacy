@@ -24,22 +24,32 @@ final class CareerClubContextService
         $movement = array_values(array_filter((array) ($summary['movement_history'] ?? []), 'is_array'));
         $currentClub = is_array($summary['current_club'] ?? null) ? $summary['current_club'] : null;
         $currentClubId = (string) ($currentClub['id'] ?? '');
+        $activeLoan = is_array($summary['active_loan'] ?? null) ? $summary['active_loan'] : null;
+        $parentClubId = is_array($activeLoan['parent_club'] ?? null) ? (string) ($activeLoan['parent_club']['id'] ?? '') : '';
         $current = $currentClubId === '' ? null : ($journey[$currentClubId] ?? null);
         $movementClubIds = [];
+        $loanClubIds = [];
         foreach ($movement as $event) {
-            if (($event['type'] ?? null) !== 'transfer') { continue; }
-            foreach (['from_club_id', 'to_club_id'] as $field) {
-                $clubId = (string) ($event[$field] ?? '');
-                if ($clubId !== '') { $movementClubIds[$clubId] = true; }
+            if (!in_array(($event['type'] ?? null), ['transfer', 'loan', 'loan_return'], true)) { continue; }
+            if (($event['type'] ?? null) === 'transfer') {
+                foreach (['from_club_id', 'to_club_id'] as $field) {
+                    $clubId = (string) ($event[$field] ?? '');
+                    if ($clubId !== '') { $movementClubIds[$clubId] = true; }
+                }
             }
             $fromId = (string) ($event['from_club_id'] ?? '');
-            if ($fromId !== '' && $fromId !== $currentClubId && !isset($journey[$fromId])) {
+            $toId = (string) ($event['to_club_id'] ?? '');
+            if (($event['type'] ?? null) === 'loan' && $toId !== '' && !isset($journey[$toId])) {
+                $journey[$toId] = $this->movementClubRow($toId, (string) ($event['to_club'] ?? $toId), (string) ($event['season_id'] ?? ''), 'Loan Club');
+                $loanClubIds[$toId] = true;
+            }
+            if ($fromId !== '' && $fromId !== $currentClubId && $fromId !== $parentClubId && !isset($journey[$fromId])) {
                 $journey[$fromId] = $this->movementClubRow($fromId, (string) ($event['from_club'] ?? $fromId), (string) ($event['season_id'] ?? ''), 'Former Club');
             }
         }
         $former = [];
         foreach ($journey as $clubId => $row) {
-            if ($clubId !== $currentClubId) {
+            if ($clubId !== $currentClubId && $clubId !== $parentClubId) {
                 $former[] = $row;
             }
         }
@@ -76,7 +86,9 @@ final class CareerClubContextService
             'breakthrough_club' => $breakthrough,
             'longest_club_spell' => $longest,
             'returns' => $returns,
-            'one_club_career' => count(array_unique(array_merge(array_keys($journey), array_keys($movementClubIds)))) <= 1,
+            'one_club_career' => count(array_unique(array_merge(array_diff(array_keys($journey), array_keys($loanClubIds)), array_keys($movementClubIds)))) <= 1,
+            'active_loan' => $activeLoan,
+            'parent_club_id' => $parentClubId === '' ? null : $parentClubId,
             'evidence_source' => 'canonical Club memberships and Career evidence',
         ];
     }

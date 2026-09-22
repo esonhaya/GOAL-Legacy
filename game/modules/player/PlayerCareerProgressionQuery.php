@@ -59,6 +59,8 @@ final class PlayerCareerProgressionQuery
         $contracts = new ContractRepository($database);
         $activeContract = $player->isRetired() ? null : $contracts->activeForPlayer($id);
         $priority = (new PlayerPriorityRepository($database))->current($id);
+        $readiness = $availability->readiness();
+        $readiness['training_intensity'] = TrainingIntensity::forPriority($priority)->value;
         $activeLoan = (new LoanRepository($database, false))->activeForPlayer($id, $seasonId, $date);
         $currentMembership = $this->currentMembership($allMemberships, $activeContract, $activeLoan);
         $requestedMembership = $seasonId === null
@@ -114,7 +116,7 @@ final class PlayerCareerProgressionQuery
             'availability' => $availability->status()->value,
             'fatigue' => $availability->fatigue(),
             'active_injury' => $availability->injury()?->toArray(),
-            'readiness' => $availability->readiness(),
+            'readiness' => $readiness,
             'current_club' => $this->clubView($currentClub),
             'parent_club' => $activeContract === null ? null : $this->clubView($clubRepository->get($activeContract->clubId())),
             'active_loan' => $this->loanView($activeLoan, $clubRepository),

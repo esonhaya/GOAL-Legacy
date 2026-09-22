@@ -647,4 +647,19 @@ Nation lookup, Club squad relationships, Contract persistence, and
 Competition registration; it does not introduce a parallel squad, Contract,
 registration, or procedural-entity framework.
 
+## P2-037 Workload Boundary
+
+PlayerAvailabilityService remains the owner of readiness, compact load, and
+injury-risk application; CareerRecoveryService/P2-026 remains the comeback
+owner. PlayerMatchStatRepository supplies one bounded, dated recent-minutes
+projection for controlled-player presentation. MatchService passes explicit
+controlled-player IDs for detailed Player fidelity and skips workload
+persistence for World-fidelity NPC Matches.
+
+The projection is read-only, deterministic, and schema-compatible. It adds no
+new persistence, no RNG namespace, no Match-performance modifier, no
+repository-wide scan, and no page-render DML. Existing selection and injury
+owners consume their existing inputs; loan/transfer movement carries state
+without a reset.
+
 END OF DOCUMENT

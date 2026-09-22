@@ -597,4 +597,20 @@ ratings remain deferred until their participation/fairness boundary is
 explicitly supported. Save/reload and compaction therefore require no new
 achievement or ranking persistence, and GET reads perform no DML.
 
+## P2-037 Workload Projection
+
+The existing availability state/source tables remain the canonical compact
+owner for player load, lazy calendar recovery, and injury state. P2-037 adds no
+fatigue table, daily snapshot, Match snapshot, or NPC workload persistence.
+Match statistics remain the source for a bounded dated recent-minutes query;
+legacy/minimal schemas without the date column safely return an empty workload
+projection rather than fabricating history.
+
+Availability assessment composes that projection with existing readiness,
+injury, and suspension facts. Existing training intensity is derived from the
+canonical Career priority. Detailed Match application accepts the controlled
+player set so World-fidelity NPC Matches do not create availability rows.
+Loans and permanent transfers preserve the compact state, while compaction and
+legacy saves require no reconstructed workload history.
+
 END OF DOCUMENT

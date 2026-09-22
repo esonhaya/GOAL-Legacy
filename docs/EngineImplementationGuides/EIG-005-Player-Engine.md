@@ -481,4 +481,19 @@ fidelity remains free of a full Player scan and creates no disciplinary
 narrative or history UI. Legacy saves safely start without fabricated active
 sanctions because old aggregate card totals cannot prove future eligibility.
 
+## P2-037 Workload and Recovery
+
+Workload is not a second readiness or injury system. The existing compact
+availability state and source ledger remain authoritative, while a bounded
+recent Match-statistics query describes actual minutes, appearances, short
+recovery, and congestion. There are no daily rows, per-Match fatigue
+snapshots, NPC fatigue tables, or fabricated legacy workload.
+
+Existing Light/Normal/Intense training and P2-026 rehabilitation remain
+authoritative. Fatigue may inform the existing modest selection/injury
+boundary, but it does not auto-bench, change Match mathematics, or change
+injury severity. World fidelity supplies no controlled-player workload IDs.
+Loans, transfers, international minutes, save/reload, and compaction preserve
+or deterministically reproduce the same state.
+
 END OF DOCUMENT

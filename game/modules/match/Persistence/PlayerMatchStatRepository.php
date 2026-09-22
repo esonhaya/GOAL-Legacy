@@ -12,6 +12,7 @@ use Goal\Legacy\Modules\Match\Domain\PlayerMatchStat;
 use Goal\Legacy\Modules\Match\Persistence\ControlledMatchPositionRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
+use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use PDO;
 
 final class PlayerMatchStatRepository
@@ -32,6 +33,80 @@ final class PlayerMatchStatRepository
     public function byMatch(string|MatchId $id): array { $matchId = $id instanceof MatchId ? $id : new MatchId($id); $statement = $this->database->connection()->prepare('SELECT * FROM ' . self::TABLE . ' WHERE match_id = :match_id ORDER BY club_id ASC, player_id ASC'); $statement->execute(['match_id' => $matchId->value()]); return $this->hydrateRows($statement->fetchAll(PDO::FETCH_ASSOC)); }
     /** @return list<PlayerMatchStat> */
     public function byPlayer(string|PlayerId $id): array { $playerId = $id instanceof PlayerId ? $id : new PlayerId($id); $statement = $this->database->connection()->prepare('SELECT * FROM ' . self::TABLE . ' WHERE player_id = :player_id ORDER BY match_id ASC'); $statement->execute(['player_id' => $playerId->value()]); return $this->hydrateRows($statement->fetchAll(PDO::FETCH_ASSOC)); }
+
+    /**
+     * Read the bounded current workload window from canonical Match minutes.
+     * This deliberately does not use the compact availability state as a
+     * substitute for Match evidence: a legacy/compacted save may have the
+     * state but no detailed source rows, and an unused substitute contributes
+     * no workload.
+     *
+     * @return array{window_days:int,recent_minutes:int,recent_appearances:int,recent_starts:int,minutes_last_7_days:int,appearances_last_7_days:int,last_match_date:?string,days_since_last_match:?int,short_recovery_matches:int,congested:bool}
+     */
+    public function recentWorkload(PlayerId $playerId, SimulationDate $date, int $windowDays = 14): array
+    {
+        $windowDays = max(1, min(30, $windowDays));
+        $empty = [
+            'window_days' => $windowDays,
+            'recent_minutes' => 0,
+            'recent_appearances' => 0,
+            'recent_starts' => 0,
+            'minutes_last_7_days' => 0,
+            'appearances_last_7_days' => 0,
+            'last_match_date' => null,
+            'days_since_last_match' => null,
+            'short_recovery_matches' => 0,
+            'congested' => false,
+        ];
+        if (!$this->tableExists() || !$this->tableExists('match_records')) {
+            return $empty;
+        }
+
+        $from = $date->addDays(-$windowDays);
+        $lastWeek = $date->addDays(-7);
+        if (!$this->tableHasColumn('match_records', 'scheduled_date')) {
+            return $empty;
+        }
+        $statement = $this->database->connection()->prepare(
+            'SELECT stats.minutes, stats.started, matches.scheduled_date '
+            . 'FROM ' . self::TABLE . ' stats JOIN match_records matches ON matches.id = stats.match_id '
+            . 'WHERE stats.player_id = :player_id AND stats.appeared = 1 AND stats.minutes > 0 '
+            . 'AND matches.status = :status AND matches.scheduled_date BETWEEN :from_date AND :to_date '
+            . 'ORDER BY matches.scheduled_date ASC, matches.id ASC'
+        );
+        $statement->execute([
+            'player_id' => $playerId->value(),
+            'status' => 'completed',
+            'from_date' => $from->toIsoString(),
+            'to_date' => $date->toIsoString(),
+        ]);
+
+        $lastDate = null;
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $matchDate = SimulationDate::fromIsoString((string) $row['scheduled_date']);
+            $minutes = max(0, (int) $row['minutes']);
+            $empty['recent_minutes'] += $minutes;
+            ++$empty['recent_appearances'];
+            $empty['recent_starts'] += (int) ((bool) $row['started']);
+            if (!$matchDate->isBefore($lastWeek)) {
+                $empty['minutes_last_7_days'] += $minutes;
+                ++$empty['appearances_last_7_days'];
+            }
+            if ($lastDate !== null && $lastDate->daysUntil($matchDate) <= 3) {
+                ++$empty['short_recovery_matches'];
+            }
+            $lastDate = $matchDate;
+        }
+        if ($lastDate !== null) {
+            $empty['last_match_date'] = $lastDate->toIsoString();
+            $empty['days_since_last_match'] = $lastDate->daysUntil($date);
+        }
+        $empty['congested'] = $empty['short_recovery_matches'] > 0
+            || $empty['appearances_last_7_days'] >= 3
+            || $empty['minutes_last_7_days'] >= 180;
+
+        return $empty;
+    }
     /** @return list<array{player_id:string,club_id:string,position:string,stat:PlayerMatchStat}> */
     public function completedSeasonRatingEvidence(SeasonId $seasonId, ?PlayerId $playerId = null): array
     {
@@ -222,11 +297,26 @@ final class PlayerMatchStatRepository
     }
     /** @param list<array<string, mixed>> $rows @return list<PlayerMatchStat> */
     private function hydrateRows(array $rows): array { return array_map(static fn (array $row): PlayerMatchStat => new PlayerMatchStat(new MatchId((string) $row['match_id']), new PlayerId((string) $row['player_id']), new ClubId((string) $row['club_id']), (bool) $row['appeared'], (bool) $row['started'], (int) $row['minutes'], (int) ($row['goals']), (int) ($row['assists'] ?? 0), (int) ($row['shots'] ?? 0), (int) ($row['shots_on_target'] ?? 0), (int) ($row['saves'] ?? 0), (int) ($row['clean_sheets'] ?? 0), (int) ($row['tackles'] ?? 0), (int) ($row['interceptions'] ?? 0), (int) ($row['blocks'] ?? 0), (int) ($row['passes_attempted'] ?? 0), (int) ($row['passes_completed'] ?? 0), (int) ($row['fouls_committed'] ?? 0), (int) ($row['yellow_cards'] ?? 0), (int) ($row['red_cards'] ?? 0)), $rows); }
-    private function tableExists(): bool
+    private function tableExists(string $table = self::TABLE): bool
     {
         $statement = $this->database->connection()->prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = :table");
-        $statement->execute(['table' => self::TABLE]);
+        $statement->execute(['table' => $table]);
 
         return $statement->fetchColumn() !== false;
+    }
+
+    private function tableHasColumn(string $table, string $column): bool
+    {
+        if (!$this->tableExists($table)) {
+            return false;
+        }
+        $statement = $this->database->connection()->query('PRAGMA table_info(' . $table . ')');
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            if ((string) ($row['name'] ?? '') === $column) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

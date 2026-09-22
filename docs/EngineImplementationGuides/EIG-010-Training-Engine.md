@@ -341,4 +341,18 @@ second readiness meter, does not alter attributes, and is disabled for retired
 or NPC Players. Preferred foot is immutable identity; weak-foot improvement is
 private and does not create routine News, Pulse, or Career History entries.
 
+## P2-037 Workload Trade-off
+
+Training continues to use the existing between-Match intensity choice:
+Recovery/Lifestyle priorities use Light, Professional/Balanced use Normal, and
+Development uses Intense. Light reduces load with less development stimulus;
+Intense adds bounded short-term load and exposure; Normal remains the viable
+default. These are inputs to the existing availability/development lifecycle,
+not a new scheduler or fatigue ledger.
+
+Calendar dates and actual Match minutes drive recovery context. Training and
+workload presentation are read-only on page render, do not create daily
+records, and do not simulate detailed NPC fatigue. Club movement, loans, and
+international duty do not reset the Player's physical state.
+
 END OF DOCUMENT

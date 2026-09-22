@@ -36,27 +36,39 @@ final class PlayerAvailabilityService
         $repository = new PlayerAvailabilityRepository($database);
         $injury = $repository->activeInjuryAt($id, $date);
         $fatigue = $repository->fatigueAt($id, $date);
+        $workload = (new PlayerMatchStatRepository($database, false))->recentWorkload($id, $date);
         if ($injury !== null || $fatigue >= self::UNAVAILABLE_FATIGUE) {
-            return new AvailabilityAssessment($id, AvailabilityStatus::Unavailable, $fatigue, $date, $injury);
+            return new AvailabilityAssessment($id, AvailabilityStatus::Unavailable, $fatigue, $date, $injury, $workload);
         }
         if ($fatigue >= self::LIMITED_FATIGUE) {
-            return new AvailabilityAssessment($id, AvailabilityStatus::Limited, $fatigue, $date);
+            return new AvailabilityAssessment($id, AvailabilityStatus::Limited, $fatigue, $date, null, $workload);
         }
 
-        return new AvailabilityAssessment($id, AvailabilityStatus::Available, $fatigue, $date);
+        return new AvailabilityAssessment($id, AvailabilityStatus::Available, $fatigue, $date, null, $workload);
     }
 
     /** @return list<array{event:string,payload:array<string,mixed>}> */
     /** @param list<\Goal\Legacy\Modules\Match\Domain\PlayerMatchStat>|null $stats */
-    public function applyMatchInTransaction(DatabaseInterface $database, GameMatch $match, ?array $stats = null, bool $persistMatchSources = true): array
+    /**
+     * @param list<
+     *     PlayerId|string
+     * >|null $controlledPlayerIds Null preserves the low-level historical
+     * behaviour for direct callers; production Match flow passes an explicit
+     * controlled list so World-fidelity NPCs do not receive detailed state.
+     */
+    public function applyMatchInTransaction(DatabaseInterface $database, GameMatch $match, ?array $stats = null, bool $persistMatchSources = true, ?array $controlledPlayerIds = null): array
     {
         $repository = new PlayerAvailabilityRepository($database);
+        $controlled = $controlledPlayerIds === null ? null : array_fill_keys(array_map(static fn (mixed $id): string => $id instanceof PlayerId ? $id->value() : (string) $id, $controlledPlayerIds), true);
         $changes = [];
         foreach ($stats ?? (new PlayerMatchStatRepository($database))->byMatch($match->id()) as $stat) {
             if (!$stat->appeared() || $stat->minutes() < 1) {
                 continue;
             }
             $player = $stat->playerId();
+            if ($controlled !== null && !isset($controlled[$player->value()])) {
+                continue;
+            }
             $sourceId = $match->id()->value() . ':' . $player->value();
             $before = $repository->fatigueAt($player, $match->scheduledDate());
             $this->applyLoadInTransaction($repository, $player, $match->scheduledDate(), 'match', $sourceId, (int) round($stat->minutes() * self::MATCH_LOAD_PER_MINUTE), $persistMatchSources);

@@ -51,7 +51,8 @@ final class CareerFormatter
         $lines[] = 'Training Focus: ' . CareerLabels::value($summary['training_focus'] ?? 'balanced');
         $lines[] = 'Priority: ' . CareerLabels::value($summary['priority'] ?? 'balanced');
         $readiness = is_array($summary['readiness'] ?? null) ? $summary['readiness'] : [];
-        $lines[] = 'Readiness: ' . CareerLabels::value($readiness['label'] ?? null, 'Ready') . ' (' . $this->number($readiness['fatigue'] ?? 0) . '/100 workload)';
+        $workload = is_array($readiness['workload'] ?? null) ? $readiness['workload'] : [];
+        $lines[] = 'Readiness: ' . CareerLabels::value($readiness['label'] ?? null, 'Ready') . ' (' . CareerLabels::value($workload['label'] ?? null, 'Normal') . ' workload, ' . $this->number($workload['recent_minutes'] ?? 0) . ' recent minutes)';
         $lines[] = 'Training Intensity: ' . CareerLabels::value($summary['training_intensity'] ?? 'normal');
         $recovery = is_array($summary['injury_recovery'] ?? null) ? $summary['injury_recovery'] : [];
         if (($recovery['visible'] ?? false) === true) {

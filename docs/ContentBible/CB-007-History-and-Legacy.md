@@ -434,4 +434,18 @@ P2-012 fact and must agree with the same canonical aggregate used by the
 leaderboard. Rivalry, captaincy, role, traits, trust, and reputation are
 independent context.
 
+## P2-037 Workload and Recovery Language
+
+Player-facing workload uses broad factual labels such as Fresh, Ready,
+Managed, Tired, or Fatigued, alongside recent minutes where useful. The
+surface may explain heavy workload, short recovery, intensive training, or
+returning from injury, but it does not expose false-precision probabilities,
+predict injury, or create fatigue history entries.
+
+The facts come from actual Match minutes and calendar dates plus the existing
+training and rehabilitation systems. Unused bench appearances add no minutes.
+Loan, transfer, international, injury, and suspension context follows the
+Player. Page reads remain presentation-only; no NPC fatigue narrative, daily
+workload feed, or fabricated legacy history is created.
+
 END OF DOCUMENT

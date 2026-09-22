@@ -629,4 +629,22 @@ captaincy, traits, role, trust, attachment, development, and reputation do
 not change leaderboard mathematics. Competition pages are the full surface;
 Career Home and Profile show only relevant current-race context.
 
+## P2-037 Fatigue, Match Load, and Recovery
+
+P2-017 remains the sole owner of player availability, readiness, compact load,
+and injury-risk state; P2-026 remains the owner of rehabilitation and comeback
+completion. P2-037 presents a bounded workload projection from canonical Match
+minutes and calendar dates. Actual minutes matter (unused bench appearances add
+no load), short recovery and congestion are descriptive context, and the
+existing Light/Normal/Intense training choices remain the only training-load
+inputs. There are no daily fatigue rows, manual recovery action, fatigue
+match-math modifier, or arbitrary injury-severity change.
+
+Detailed workload is controlled-player fidelity only. World-fidelity NPC
+Matches do not create detailed availability/load rows. Loans, transfers,
+international minutes, injury return, and suspension recovery carry through
+the same player state rather than resetting it. Career Home, Profile, Training,
+Matchday, and Post-Match expose compact factual labels and recent minutes
+through read-only deterministic projections.
+
 END OF DOCUMENT

@@ -14,6 +14,8 @@ final readonly class AvailabilityAssessment
         private int $fatigue,
         private SimulationDate $date,
         private ?Injury $injury = null,
+        /** @var array<string, int|bool|string|null> */
+        private array $workload = [],
     ) {
     }
 
@@ -22,6 +24,22 @@ final readonly class AvailabilityAssessment
     public function fatigue(): int { return $this->fatigue; }
     public function date(): SimulationDate { return $this->date; }
     public function injury(): ?Injury { return $this->injury; }
+    /** @return array<string, int|bool|string|null> */
+    public function workload(): array
+    {
+        return array_merge([
+            'label' => $this->workloadLabel(),
+            'recent_minutes' => 0,
+            'recent_appearances' => 0,
+            'recent_starts' => 0,
+            'minutes_last_7_days' => 0,
+            'appearances_last_7_days' => 0,
+            'last_match_date' => null,
+            'days_since_last_match' => null,
+            'short_recovery_matches' => 0,
+            'congested' => false,
+        ], $this->workload, ['label' => $this->workloadLabel()]);
+    }
     public function isAvailable(): bool { return $this->status === AvailabilityStatus::Available; }
     public function isLimited(): bool { return $this->status === AvailabilityStatus::Limited; }
     public function isUnavailable(): bool { return $this->status === AvailabilityStatus::Unavailable; }
@@ -52,6 +70,16 @@ final readonly class AvailabilityAssessment
         };
     }
 
+    public function workloadLabel(): string
+    {
+        return match (true) {
+            $this->fatigue >= 85 => 'heavy',
+            $this->fatigue >= 50 => 'managed',
+            $this->fatigue <= 15 => 'fresh',
+            default => 'normal',
+        };
+    }
+
     /** @return array<string, mixed> */
     public function readiness(): array
     {
@@ -61,6 +89,7 @@ final readonly class AvailabilityAssessment
             'injury' => $this->injury?->toArray(),
             'label' => $this->readinessLabel(),
             'status' => $this->status->value,
+            'workload' => $this->workload(),
         ];
     }
 

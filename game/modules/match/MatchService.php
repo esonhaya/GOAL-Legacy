@@ -104,8 +104,14 @@ final class MatchService
         }
         $controlledPositions = [];
         $controlledRoles = [];
+        $controlledPlayerIds = [];
         if ($fidelity === SimulationFidelity::Player) {
             $controlled = array_fill_keys((new CareerPlayerRepository($database))->playerIds(), true);
+            // Standalone Player-fidelity callers may deliberately have no
+            // Career reference yet; retain the historical detailed path for
+            // those fixtures. Production saves with a controlled reference
+            // receive the explicit controlled-player boundary.
+            $controlledPlayerIds = $controlled === [] ? null : array_keys($controlled);
             $roleService = new OnPitchRoleService();
             $controlledRoleMap = $roleService->controlledRoles($database);
             $players = new PlayerRepository($database);
@@ -129,7 +135,7 @@ final class MatchService
             new PlayerCompetitionStatisticsRepository($database);
         }
         $discipline = new PlayerDisciplineService();
-        $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database, $fidelity, $positions, $international, $controlledPositions, $controlledRoles, $discipline): array {
+        $transactionResult = $database->transaction(function () use ($repository, $match, $simulation, $stats, $highlights, $selections, $substitutions, $database, $fidelity, $positions, $international, $controlledPositions, $controlledRoles, $controlledPlayerIds, $discipline): array {
             $completed = $match->complete($simulation->result());
             $repository->saveInTransaction($completed);
             if ($fidelity === SimulationFidelity::Player) {
@@ -146,7 +152,7 @@ final class MatchService
             }
             (new MatchHighlightRepository($database))->replaceForMatchInTransaction($highlights);
             $availability = $this->availability?->reconcileInTransaction($database, $completed->scheduledDate()) ?? [];
-            $availability = array_merge($availability, $this->availability?->applyMatchInTransaction($database, $completed, $stats, $fidelity === SimulationFidelity::Player) ?? []);
+            $availability = array_merge($availability, $this->availability?->applyMatchInTransaction($database, $completed, $stats, $fidelity === SimulationFidelity::Player, $controlledPlayerIds) ?? []);
             $development = $this->development?->applyMatchInTransaction($database, $completed, $stats, $fidelity === SimulationFidelity::Player) ?? [];
             return [$completed, $development, $availability];
         });

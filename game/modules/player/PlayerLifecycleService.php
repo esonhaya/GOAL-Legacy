@@ -11,6 +11,7 @@ use Goal\Legacy\Modules\Competition\Persistence\PlayerRegistrationRepository;
 use Goal\Legacy\Modules\Contract\ContractService;
 use Goal\Legacy\Modules\Contract\Domain\Contract;
 use Goal\Legacy\Modules\Contract\Persistence\ContractRepository;
+use Goal\Legacy\Modules\Contract\Domain\ContractStatus;
 use Goal\Legacy\Modules\Player\Domain\CareerEvent;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunity;
 use Goal\Legacy\Modules\Player\Domain\CareerOpportunityStatus;
@@ -26,9 +27,11 @@ use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerDevelopmentRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRetirementRepository;
+use Goal\Legacy\Modules\Transfer\Persistence\LoanRepository;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
+use Goal\Legacy\Modules\World\Persistence\SeasonRepository;
 
 /** Owns the season-boundary lifecycle of ordinary and controlled Players. */
 final class PlayerLifecycleService
@@ -104,6 +107,7 @@ final class PlayerLifecycleService
         $decisions = 0;
         $processed = 0;
         $contractRepository = $this->contracts->repository($database);
+        $loans = new LoanRepository($database, false);
         $activeContracts = [];
         foreach ($contractRepository->all() as $contract) {
             if ($contract->status()->value === 'active') {
@@ -138,25 +142,30 @@ final class PlayerLifecycleService
                 ++$retired;
                 continue;
             }
+            // A controlled loan must complete through the existing Transfer
+            // owner before a Career can close.  SeasonRolloverService returns
+            // due loans before this review in the normal world path; this
+            // guard keeps direct/replayed lifecycle calls safe as well.
+            if ($loans->activeForPlayer($current->id()) !== null) {
+                continue;
+            }
             if ($retirement['forced']) {
                 $this->retireControlledInTransaction($database, $players, $contractRepository, $current, $active, $nextSeason, 'maximum_playing_age', true);
                 unset($activeContracts[$current->id()->value()]);
                 ++$retired;
                 continue;
             }
-            // Contract expiry, free agency, and an already-open Career
-            // decision own the immediate boundary.  Do not put a second
-            // choice in front of the Player or strand a continuing Career
-            // without a next-Season Club/Contract.  Retirement is evaluated
-            // again at the next boundary if the football path remains open.
-            if ($active === null || $active->endDate()->isBefore($nextSeason->startDate()) || $opportunities->openForPlayer($current->id(), $nextSeason->startDate()) !== []) {
+            // Retirement is the one controlled end-of-Career choice at this
+            // review point.  An already-open movement/Contract decision owns
+            // the boundary and prevents a contradictory second prompt.
+            if ($opportunities->openForPlayer($current->id(), $nextSeason->startDate()) !== []) {
                 continue;
             }
             $sourceKey = 'retirement|' . $current->id()->value() . '|' . $nextSeason->id()->value();
             if ($opportunities->bySourceKey($sourceKey) !== null) {
                 continue;
             }
-            $clubId = $active?->clubId()->value();
+            $clubId = $active?->clubId()->value() ?? $this->latestClubId($database, $current->id());
             $context = [
                 'decision_kind' => 'retirement', 'season_id' => $nextSeason->id()->value(), 'age' => $retirement['age'], 'phase' => $retirement['phase'],
                 'ovr' => $current->overallRating(), 'role' => $this->latestRole($database, $current->id()), 'performance' => $assessment?->toArray(),
@@ -238,8 +247,17 @@ final class PlayerLifecycleService
             }
             $playerRepository = new PlayerRepository($database);
             $player = $playerRepository->get($opportunity->playerId());
+            if (!in_array($player->id()->value(), (new CareerPlayerRepository($database))->playerIds(), true)) {
+                throw new PlayerException('Retirement decisions are available only to the controlled career Player.');
+            }
             if ($player->isRetired()) {
-                return $opportunity->withStatus(CareerOpportunityStatus::Resolved);
+                if ($optionId !== 'retire') {
+                    throw new PlayerException('The playing Career is already complete.');
+                }
+                $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, array_merge($opportunity->context(), ['decision_result' => 'retire']));
+                $opportunities->updateStatusInTransaction($resolved, CareerOpportunityStatus::Resolved);
+
+                return $resolved;
             }
             $context = array_merge($opportunity->context(), ['decision_result' => $optionId]);
             if ($optionId === 'continue-playing') {
@@ -249,6 +267,9 @@ final class PlayerLifecycleService
             }
             if ($optionId !== 'retire') {
                 throw new PlayerException('Choose Continue Playing or Retire.');
+            }
+            if ((new LoanRepository($database, false))->activeForPlayer($player->id()) !== null) {
+                throw new PlayerException('Retirement is deferred until the active loan returns.');
             }
             $seasonId = new SeasonId((string) ($context['season_id'] ?? 'retirement'));
             $contracts = $this->contracts->repository($database);
@@ -272,20 +293,29 @@ final class PlayerLifecycleService
     {
         $date ??= $season?->startDate() ?? SimulationDate::fromIsoString('0001-01-01');
         $seasonId ??= $season?->id() ?? new SeasonId('retirement');
-        $finalClub ??= $active?->clubId()->value();
+        $finalClub ??= $active?->clubId()->value() ?? $this->latestClubId($database, $player->id());
         $players->saveInTransaction($player->withCareerState(PlayerCareerState::Retired));
-        if ($active !== null) {
-            $contracts->saveInTransaction($active->terminate());
+        foreach ($contracts->byPlayer($player->id()) as $contract) {
+            if (in_array($contract->status(), [ContractStatus::Active, ContractStatus::Pending], true)) {
+                $contracts->saveInTransaction($contract->terminate());
+            }
         }
         $squads = new ClubSquadRepository($database);
-        foreach ($squads->byPlayer($player->id(), $seasonId) as $membership) {
-            $squads->remove($membership);
+        foreach ($squads->byPlayer($player->id()) as $membership) {
+            if ($this->isCurrentOrFuturePlayingSeason($database, $membership->seasonId(), $seasonId, $date)) {
+                $squads->remove($membership);
+            }
         }
         $registrations = new PlayerRegistrationRepository($database);
         foreach ($registrations->byPlayer($player->id()) as $registration) {
-            if ($registration->seasonId()->value() === $seasonId->value()) {
+            if ($this->isCurrentOrFuturePlayingSeason($database, $registration->seasonId(), $seasonId, $date)) {
                 $registrations->unregister($registration);
             }
+        }
+        $opportunities = new CareerOpportunityRepository($database);
+        foreach ($opportunities->openForPlayer($player->id()) as $open) {
+            $closed = $open->withStatusAndContext(CareerOpportunityStatus::Expired, array_merge($open->context(), ['decision_result' => 'career_complete', 'offer_status' => 'closed']));
+            $opportunities->updateStatusInTransaction($closed, CareerOpportunityStatus::Expired);
         }
         (new PlayerRetirementRepository($database))->saveInTransaction([
             'player_id' => $player->id()->value(), 'retirement_date' => $date->toIsoString(), 'retirement_season_id' => $seasonId->value(), 'final_club_id' => $finalClub, 'reason' => $reason, 'forced' => $forced,
@@ -298,6 +328,19 @@ final class PlayerLifecycleService
             $eventRepository->saveInTransaction($event);
             $this->social?->recordAchievementInTransaction($database, $player->id(), $date, $source, 'Playing Career complete', $forced ? 'major' : 'landmark', $finalClub);
         }
+    }
+
+    private function isCurrentOrFuturePlayingSeason(DatabaseInterface $database, SeasonId $membershipSeason, SeasonId $retirementSeason, SimulationDate $date): bool
+    {
+        if ($membershipSeason->value() === $retirementSeason->value()) {
+            return true;
+        }
+        $seasons = new SeasonRepository($database);
+        if (!$seasons->exists($membershipSeason)) {
+            return false;
+        }
+
+        return !$seasons->get($membershipSeason)->endDate()->isBefore($date);
     }
 
     private function latestClubId(DatabaseInterface $database, PlayerId $playerId): ?string

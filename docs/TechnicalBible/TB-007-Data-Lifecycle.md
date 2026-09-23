@@ -326,13 +326,19 @@ development source key remains the idempotency boundary, so retrying a
 boundary cannot apply decline twice.
 
 Completed-Season Legacy resolution runs before lifecycle retirement and before
-compaction. A normal eligible Player receives one `CareerOpportunity` of type
-`retirement` with Continue Playing and Retire options. Expiring/free-agent
-Contract decisions and other open Career decisions take precedence. Retiring
-terminates active payroll, removes future-season playing eligibility, persists
-one lazy `career_retirement_records` row, and records one Career History
-landmark. A forced maximum-age transition uses the same closure path without
-creating a Player decision.
+compaction. `PlayerLifecycleService` remains the P2-016 owner of the canonical
+eligibility rule and closure; P2-042 owns only the controlled Player's one
+choice at this review point. A normal eligible contracted Player or free agent
+receives one `CareerOpportunity` of type `retirement` with exactly Continue
+Playing and Retire options. An already-open movement/Contract decision takes
+precedence, and an active loan defers the review until canonical return.
+Continue resolves without changing Contract, Club, injury, attributes, role,
+or History and is suppressed until the next retirement review. Retiring
+terminates active and pending playing Contracts, removes current/future
+playing eligibility, closes stale open actions, persists one lazy
+`career_retirement_records` row, and records one Career History landmark. A
+forced maximum-age transition uses the same closure path without creating a
+Player decision.
 
 Retired saves remain readable and read-only. The progression query hides
 active Contract/opportunity/action state, Career Continue stops safely, and

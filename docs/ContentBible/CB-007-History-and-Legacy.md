@@ -145,13 +145,19 @@ described respectfully without being promoted to a legend; a decorated star
 receives stronger public context only because canonical achievements support
 it.
 
-The active Career surfaces use `Career phase`, `Late Career`, and a single
-retirement decision only when the Season boundary makes it actionable. After
-retirement, Legacy is the primary read-only summary and the Player remains
-available for history, Pulse, and world browsing but cannot continue playing,
-train, transfer, sign a playing Contract, or receive new routine Career
-activity. Echo/Pulse may acknowledge the factual retirement once; Pulse does
-not invent a farewell Match or a post-Career life.
+The active Career surfaces use `Career phase`, `Late Career`, and one bounded
+retirement choice at the canonical Season-end review. Eligibility remains the
+P2-016 lifecycle rule; the controlled Player chooses only Continue Playing or
+Retire. Continue has no fabricated comeback, Contract, Club, injury, or
+History consequence and does not prompt again at the same review. An active
+loan waits for canonical return before the choice is actionable. After
+retirement, Legacy and Career Complete are the primary read-only summaries;
+the Player remains available for history, Pulse, and world browsing but cannot
+continue playing, train, transfer, sign a playing Contract, or receive new
+routine Career activity. Final-Season Review and achievements retain the
+completed Season's canonical facts. Echo/Pulse may acknowledge the factual
+retirement once; Pulse does not invent a farewell Match, reason, or post-Career
+life.
 
 ---
 

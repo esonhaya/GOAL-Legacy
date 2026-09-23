@@ -138,21 +138,26 @@ the current SimulationDate. Phase is descriptive; it is not a second rating
 and does not force a role or an age cliff. The existing PlayerDevelopmentService
 remains the sole owner of attribute growth and bounded age pressure.
 
-At a Season boundary, age and football context may open one controlled
-retirement decision. A Player chooses Continue Playing or Retire when the
-Career is genuinely eligible; expiring/free-agent Contract decisions and
-other open Career decisions retain precedence so the boundary cannot present
-contradictory choices. A forced maximum playing age is a safety boundary,
-not the normal retirement rule. Retirement closes playing eligibility,
-terminates the active playing Contract, preserves assets and history, and
-does not create a manager or post-playing Career.
+At the canonical Season-end review, the P2-016 lifecycle remains the sole
+owner of retirement eligibility and closure. P2-042 adds only the bounded
+controlled-Player choice: Continue Playing or Retire. The same eligible rule
+applies to a contracted Player and a free agent; an already-open movement or
+Contract decision retains precedence, while an active loan defers the review
+until the canonical loan return. Continue has no Contract, Club, injury,
+attribute, role, or History side effect and is suppressed until the next
+retirement review. A forced maximum playing age is a safety boundary, not the
+normal retirement rule. Retirement closes playing eligibility, terminates
+active/pending playing Contracts, preserves completed-Season facts, and does
+not create a manager or post-playing Career.
 
 Retirement is resolved after completed-Season Legacy work and before evidence
 needed for the summary is compacted. The controlled Player receives one
 compact retirement record, one Career History landmark, and one factual
-Echo/Pulse source. NPCs retain the existing bounded retirement/newgen path;
-they receive no retirement summaries, ceremonies, follower state, or
-post-Career simulation.
+Echo/Pulse source; P2-032 Career Complete, Trophy Room, Profile, History, and
+Season Review remain read-only projections of those canonical facts. NPCs
+retain the existing bounded retirement/newgen path; they receive no
+retirement decisions, summaries, ceremonies, follower state, or post-Career
+simulation.
 
 ## P2-005 Controlled Player Finance and Lifestyle
 

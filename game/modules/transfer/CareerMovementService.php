@@ -383,6 +383,9 @@ final class CareerMovementService
         if ($player->isRetired()) {
             return null;
         }
+        if ($this->hasOpenRetirementDecision($database, $playerId, $date)) {
+            return null;
+        }
         $sourceMembership = $this->currentMembership($database, $playerId, $season->id());
         $sourceContract = $this->contractService->repository($database)->activeForPlayer($playerId);
         if ($sourceMembership === null || $sourceContract === null || $sourceContract->clubId()->value() !== $sourceMembership->clubId()->value()) {
@@ -548,6 +551,9 @@ final class CareerMovementService
         if (!in_array($opportunity->playerId()->value(), (new CareerPlayerRepository($database))->playerIds(), true)) {
             throw new TransferException('Controlled transfer decision no longer belongs to the career Player.');
         }
+        if ($this->hasOpenRetirementDecision($database, $opportunity->playerId(), $date)) {
+            throw new TransferException('Resolve the retirement decision before moving the Player.');
+        }
         $context = $opportunity->context();
         $selected = null;
         foreach (($context['options'] ?? []) as $option) {
@@ -653,6 +659,7 @@ final class CareerMovementService
         if (!in_array($playerId->value(), (new CareerPlayerRepository($database))->playerIds(), true)) { throw new TransferException('Loan decisions are available only for the controlled career Player.'); }
         $player = (new PlayerRepository($database))->get($playerId);
         if ($player->isRetired()) { return null; }
+        if ($this->hasOpenRetirementDecision($database, $playerId, $date)) { return null; }
         $loans = new LoanRepository($database, false);
         if ($loans->activeForPlayer($playerId) !== null) { return null; }
         $sourceMembership = $this->currentMembership($database, $playerId, $season->id());
@@ -753,6 +760,7 @@ final class CareerMovementService
         if ($opportunity->status() !== CareerOpportunityStatus::Open) { throw new TransferException('Only open controlled loan decisions can be resolved.'); }
         if ($opportunity->expiryDate() !== null && $date->isAfter($opportunity->expiryDate())) { $this->setStatus($database, $opportunity, CareerOpportunityStatus::Expired, 'expired'); throw new TransferException('Controlled loan decision has expired.'); }
         if (!in_array($opportunity->playerId()->value(), (new CareerPlayerRepository($database))->playerIds(), true)) { throw new TransferException('Controlled loan decision no longer belongs to the career Player.'); }
+        if ($this->hasOpenRetirementDecision($database, $opportunity->playerId(), $date)) { throw new TransferException('Resolve the retirement decision before moving the Player.'); }
         $context = $opportunity->context();
         $selected = null;
         foreach ((array) ($context['options'] ?? []) as $option) { if (is_array($option) && ($option['id'] ?? null) === $optionId) { $selected = $option; break; } }
@@ -805,6 +813,9 @@ final class CareerMovementService
         }
         $player = (new PlayerRepository($database))->get($playerId);
         if ($player->isRetired()) {
+            return null;
+        }
+        if ($this->hasOpenRetirementDecision($database, $playerId, $date)) {
             return null;
         }
         $sourceClub = $this->clubService->repository($database)->get($currentMembership->clubId());
@@ -932,6 +943,9 @@ final class CareerMovementService
         }
         if (!in_array($opportunity->playerId()->value(), (new CareerPlayerRepository($database))->playerIds(), true)) {
             throw new TransferException('Contract decision no longer belongs to the controlled career Player.');
+        }
+        if ($this->hasOpenRetirementDecision($database, $opportunity->playerId(), $date)) {
+            throw new TransferException('Resolve the retirement decision before accepting a Contract.');
         }
         $context = $opportunity->context();
         if (($context['counter_used'] ?? false) === true) {
@@ -1158,6 +1172,9 @@ final class CareerMovementService
         }
         $context = $offer->context();
         $player = (new PlayerRepository($database))->get($offer->playerId());
+        if ($player->isRetired()) {
+            throw new TransferException('Retired Players cannot accept transfer offers.');
+        }
         $membership = $this->currentMembership($database, $offer->playerId(), new SeasonId((string) ($context['season_id'] ?? '')));
         if ($membership === null || $membership->clubId()->value() !== $offer->sourceClubId()->value()) {
             throw new TransferException('Transfer offer is stale because the Player is no longer with the source Club.');

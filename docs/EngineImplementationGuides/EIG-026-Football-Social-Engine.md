@@ -57,6 +57,13 @@ only; future canonical facts populate the feed. A response writes one curated
 Player post exactly once and may not change OVR, attributes, Match outcome,
 rating, or development.
 
+P3-002 extends only presentation structure. `pulse_thread_edges` links a new
+reply or quote post to an existing source post, preserves chronological source
+ordering, and bounds depth at two. Thread intent, voice, and pattern are
+deterministically selected from current event context and a small recent
+window. Feed rendering joins these edges without repair-on-read; legacy posts
+without an edge remain independent roots.
+
 ## Canonical validation
 
 The configured PHPUnit suite is the canonical combined invocation:

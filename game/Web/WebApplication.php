@@ -1597,12 +1597,24 @@ final class WebApplication
         $feed = $pulse->feed($database, $playerId, 40);
         $pending = $pulse->pendingResponse($database, $playerId);
         $posts = '';
+        $feedById = [];
+        foreach ($feed as $feedItem) { if (is_array($feedItem) && isset($feedItem['id'])) { $feedById[(string) $feedItem['id']] = $feedItem; } }
         $actorLabels = ['fan' => 'Supporters', 'club' => 'Club', 'media' => 'Media', 'teammate' => 'Teammate', 'rival' => 'Rival', 'competition' => 'Competition', 'national' => 'National Team', 'player' => 'You'];
         foreach ($feed as $item) {
             if (!is_array($item)) { continue; }
             $actorType = (string) ($item['actor_type'] ?? 'fan');
             $label = $actorLabels[$actorType] ?? 'Football world';
-            $posts .= '<article class="pulse-post"><div class="pulse-post-meta"><strong>' . WebView::e($item['actor_name'] ?? 'Football world') . '</strong><span>' . WebView::e($label) . ' · ' . WebView::e($item['date'] ?? '') . '</span></div><p>' . WebView::e($item['text'] ?? '') . '</p><small>' . WebView::e(number_format((int) ($item['engagement'] ?? 0))) . ' reactions</small></article>';
+            $depth = max(0, min(2, (int) ($item['depth'] ?? 0)));
+            $reference = '';
+            $parentId = (string) ($item['parent_id'] ?? '');
+            $quoteId = (string) ($item['quote_id'] ?? '');
+            $referenceId = $parentId !== '' ? $parentId : $quoteId;
+            if ($referenceId !== '' && isset($feedById[$referenceId])) {
+                $referenced = $feedById[$referenceId];
+                $referenceLabel = $parentId !== '' ? 'Replying to ' : 'Quote reaction to ';
+                $reference = '<div class="pulse-thread-reference"><strong>' . WebView::e($referenceLabel . (string) ($referenced['actor_name'] ?? 'Football world')) . '</strong><span>' . WebView::e((string) ($referenced['text'] ?? '')) . '</span></div>';
+            }
+            $posts .= '<article class="pulse-post pulse-depth-' . $depth . '"><div class="pulse-post-meta"><strong>' . WebView::e($item['actor_name'] ?? 'Football world') . '</strong><span>' . WebView::e($label) . ' · ' . WebView::e($item['date'] ?? '') . '</span></div>' . $reference . '<p>' . WebView::e($item['text'] ?? '') . '</p><small>' . WebView::e(number_format((int) ($item['engagement'] ?? 0))) . ' reactions</small></article>';
         }
         $response = '';
         if (is_array($pending)) {

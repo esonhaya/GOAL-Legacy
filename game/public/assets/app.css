@@ -115,6 +115,10 @@ th { color: var(--muted); font-size: .75rem; letter-spacing: .06em; text-transfo
 .news-item p { margin: 5px 0 0; font-weight: 700; }
 .pulse-feed { display: grid; gap: 12px; max-width: 840px; }
 .pulse-post { padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: #fbfcff; overflow-wrap: anywhere; }
+.pulse-depth-1 { margin-left: 24px; border-left: 3px solid var(--blue); }
+.pulse-depth-2 { margin-left: 48px; border-left: 3px solid var(--gold); }
+.pulse-thread-reference { display: grid; gap: 3px; margin: 9px 0; padding: 8px 10px; border-left: 2px solid var(--line); background: #f2f5fb; color: var(--muted); font-size: .82rem; }
+.pulse-thread-reference span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pulse-post-meta { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .pulse-post-meta span, .pulse-post small { color: var(--muted); font-size: .8rem; }
 .pulse-post p { margin: 10px 0 8px; font-weight: 650; }

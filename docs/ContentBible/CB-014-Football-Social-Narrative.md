@@ -56,3 +56,18 @@ does not invent scores, statistics, history, reasons, or supporter identity.
 Persisted Pulse prose is immutable on reload and legacy saves are not migrated
 or rewritten. Echo still routes importance and event kind, while Pulse alone
 selects presentation wording within the existing controlled-player feed.
+
+## P3-002 conversational writing policy
+
+Pulse may place a short reply or quote reaction beside an existing post. The
+reply must respond to its actual parent through agreement, disagreement,
+reluctant credit, defence, football banter, or a local callback. Replies are
+usually shorter and more conversational than roots, but retain their selected
+voice archetype. Rival or Club perspective is used only when the actor context
+already supplies it. A quote reaction references the parent structurally and
+adds a take rather than copying the parent text.
+
+Threads are intentionally small and may be absent. Maximum depth is two;
+cross-event social memory, invented callbacks, persistent fan identities, and
+social-network mechanics remain out of scope. Match result, discipline,
+transfer, achievement, and other canonical context still controls the tone.

@@ -45,6 +45,18 @@ return, transfer, achievement, and retirement wording use only the canonical
 context supplied by Echo and the existing event path. No network, AI, World
 scan, follower simulation, or historical reconstruction is added.
 
+## P3-002 conversation boundary
+
+New events may add a small conversation around existing root posts. Pulse
+stores reply/quote relationships in `pulse_thread_edges`, with a maximum depth
+of two and normally one or two children. Intent is lightweight—agreement,
+pushback, reluctant credit, defence, banter, or a local callback—and reply
+wording is selected from the same deterministic voice discipline as roots.
+Quote reactions reference a stored parent structurally; they do not duplicate
+the full parent body. A callback may use only the immediately persisted thread
+text it references. Thread creation is event-local and deterministic, with
+bounded pattern suppression. Legacy posts remain unconnected roots.
+
 Dependencies
 
 - Core Engine

@@ -31,6 +31,13 @@ stable canonical source key, date, ECHO kind/importance, and compact context;
 are not a second social state owner. FootballSocialService remains authoritative
 for supporters, relationships, manager context, and public profile.
 
+P3-002 adds the bounded `pulse_thread_edges` table. It stores only the
+controlled-player post relationship needed for a reply or quote reaction:
+parent/quote reference, thread root, depth, intent, conversation pattern, and
+selected voice. Existing `pulse_posts` bodies remain unchanged; old posts are
+roots when no edge exists. The table contains no account, follower, like,
+repost, or social-graph state.
+
 Pulse tables are initialized on legacy-save load without replaying historical
 facts. Only controlled Player IDs may receive rows. Retention removes routine
 old source/post/response rows after the bounded feed limit; Career History,

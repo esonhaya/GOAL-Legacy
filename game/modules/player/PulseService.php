@@ -24,9 +24,11 @@ final class PulseService
 {
     private const SOURCES = 'pulse_feed_sources';
     private const POSTS = 'pulse_posts';
+    private const THREAD_EDGES = 'pulse_thread_edges';
     private const AUDIENCE = 'pulse_player_states';
     private const RESPONSES = 'pulse_response_states';
     private const MAX_SOURCES = 200;
+    private const MAX_THREAD_DEPTH = 2;
 
     /** @var array<string, list<string>> */
     private const TEMPLATES = [
@@ -261,6 +263,38 @@ final class PulseService
         ],
     ];
 
+    /** @var array<string, list<array{voice:string,family:string,opening:string,slang:string,emoji:string,actors:list<string>,text:string}>> */
+    private const THREAD_CATALOG = [
+        'agree' => [
+            ['voice' => 'supportive_fan', 'family' => 'agree_support', 'opening' => 'exactly', 'slang' => '', 'emoji' => '😭', 'actors' => ['fan', 'club', 'teammate'], 'text' => 'Exactly. Let him have this one 😭'],
+            ['voice' => 'casual_fan', 'family' => 'agree_casual', 'opening' => 'fair', 'slang' => 'fair', 'emoji' => '', 'actors' => ['fan', 'teammate'], 'text' => 'Fair tbh, cannot even argue with that.'],
+            ['voice' => 'neutral_viewer', 'family' => 'agree_measured', 'opening' => 'measured', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition'], 'text' => 'That is a fair reading of the moment.'],
+        ],
+        'disagree' => [
+            ['voice' => 'reactionary_fan', 'family' => 'pushback', 'opening' => 'challenge', 'slang' => 'nah', 'emoji' => '', 'actors' => ['fan', 'rival'], 'text' => 'Nah. One moment does not rewrite the whole match.'],
+            ['voice' => 'tactical_fan', 'family' => 'tactical_pushback', 'opening' => 'analysis', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition'], 'text' => 'The result needs a little more context than that.'],
+            ['voice' => 'pessimistic_fan', 'family' => 'skeptic_pushback', 'opening' => 'skeptic', 'slang' => '', 'emoji' => '💀', 'actors' => ['fan'], 'text' => 'Be serious, we are doing this after one good moment? 💀'],
+        ],
+        'reluctant_agreement' => [
+            ['voice' => 'rival_fan', 'family' => 'reluctant_credit', 'opening' => 'reluctant', 'slang' => '', 'emoji' => '', 'actors' => ['rival'], 'text' => 'Fair enough. Hate agreeing, but that was class.'],
+            ['voice' => 'old_school_fan', 'family' => 'reluctant_respect', 'opening' => 'respect', 'slang' => '', 'emoji' => '', 'actors' => ['club', 'media'], 'text' => 'Credit where it is due. That was a proper moment.'],
+        ],
+        'defend_player' => [
+            ['voice' => 'supportive_fan', 'family' => 'defend_player', 'opening' => 'defend', 'slang' => '', 'emoji' => '❤️', 'actors' => ['fan', 'teammate', 'club'], 'text' => 'Let him have this one. The evidence is right there ❤️'],
+            ['voice' => 'optimistic_fan', 'family' => 'defend_optimism', 'opening' => 'optimism', 'slang' => '', 'emoji' => '', 'actors' => ['fan'], 'text' => 'There is something to build on here.'],
+        ],
+        'rival_banter' => [
+            ['voice' => 'rival_fan', 'family' => 'rival_banter', 'opening' => 'banter', 'slang' => 'calm down', 'emoji' => '', 'actors' => ['rival', 'fan'], 'text' => "It's September, mate. Calm down."],
+            ['voice' => 'meme_account', 'family' => 'rival_meme', 'opening' => 'lowercase', 'slang' => 'aura', 'emoji' => '💀', 'actors' => ['rival', 'fan'], 'text' => 'bookmarking this take for later 💀'],
+            ['voice' => 'neutral_viewer', 'family' => 'measured_banter', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition', 'club'], 'text' => 'One result at a time; this thread is getting ahead of itself.'],
+        ],
+        'callback' => [
+            ['voice' => 'reactionary_fan', 'family' => 'local_callback', 'opening' => 'callback', 'slang' => '', 'emoji' => '😭', 'actors' => ['fan', 'rival'], 'text' => 'you really said "{parent_excerpt}" and now you are moving different 😭'],
+            ['voice' => 'casual_fan', 'family' => 'local_callback_casual', 'opening' => 'callback', 'slang' => 'nah', 'emoji' => '', 'actors' => ['fan', 'teammate'], 'text' => 'nah, that is not what you were saying a second ago.'],
+            ['voice' => 'neutral_viewer', 'family' => 'local_callback_measured', 'opening' => 'callback', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition', 'club'], 'text' => 'That is not quite what you were saying in the first post.'],
+        ],
+    ];
+
     public function __construct(private readonly EchoService $echo = new EchoService()) {}
 
     public function initializeSchema(DatabaseInterface $database): void
@@ -271,6 +305,8 @@ final class PulseService
             $connection->exec('CREATE INDEX IF NOT EXISTS idx_pulse_sources_player_date ON ' . self::SOURCES . ' (player_id, occurred_date DESC, source_key DESC)');
             $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::POSTS . ' (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, source_key TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, actor_name TEXT NOT NULL, occurred_date TEXT NOT NULL, post_text TEXT NOT NULL, engagement INTEGER NOT NULL DEFAULT 0, UNIQUE (source_key, actor_type, actor_id))');
             $connection->exec('CREATE INDEX IF NOT EXISTS idx_pulse_posts_player_date ON ' . self::POSTS . ' (player_id, occurred_date DESC, id DESC)');
+            $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::THREAD_EDGES . ' (post_id TEXT PRIMARY KEY, player_id TEXT NOT NULL, source_key TEXT NOT NULL, parent_post_id TEXT NULL, quote_post_id TEXT NULL, thread_root_id TEXT NOT NULL, depth INTEGER NOT NULL, intent TEXT NOT NULL, pattern_family TEXT NOT NULL, voice TEXT NOT NULL)');
+            $connection->exec('CREATE INDEX IF NOT EXISTS idx_pulse_threads_player_root ON ' . self::THREAD_EDGES . ' (player_id, thread_root_id, depth, post_id)');
             $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::AUDIENCE . ' (player_id TEXT PRIMARY KEY, audience_score INTEGER NOT NULL DEFAULT 0, updated_date TEXT NOT NULL)');
             $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::RESPONSES . ' (source_key TEXT PRIMARY KEY, player_id TEXT NOT NULL, status TEXT NOT NULL, choices_json TEXT NOT NULL, selected_id TEXT NULL, response_text TEXT NULL, created_date TEXT NOT NULL, resolved_date TEXT NULL)');
             $connection->exec('CREATE INDEX IF NOT EXISTS idx_pulse_responses_player_status ON ' . self::RESPONSES . ' (player_id, status, created_date DESC)');
@@ -309,14 +345,22 @@ final class PulseService
         if (!$this->available($database, self::POSTS)) {
             return [];
         }
-        $statement = $database->connection()->prepare('SELECT p.*, s.kind, s.importance, s.context_json FROM ' . self::POSTS . ' p JOIN ' . self::SOURCES . ' s ON s.source_key = p.source_key WHERE p.player_id = :player_id ORDER BY p.occurred_date DESC, p.id DESC LIMIT :limit');
+        $edgeFields = 'NULL AS parent_post_id, NULL AS quote_post_id, NULL AS thread_root_id, 0 AS thread_depth, NULL AS thread_intent, NULL AS thread_pattern_family, NULL AS thread_voice';
+        $edgeJoin = '';
+        $edgeOrder = 'p.id DESC';
+        if ($this->available($database, self::THREAD_EDGES)) {
+            $edgeFields = 'e.parent_post_id, e.quote_post_id, e.thread_root_id, e.depth AS thread_depth, e.intent AS thread_intent, e.pattern_family AS thread_pattern_family, e.voice AS thread_voice';
+            $edgeJoin = ' LEFT JOIN ' . self::THREAD_EDGES . ' e ON e.post_id = p.id';
+            $edgeOrder = 'COALESCE(e.thread_root_id, p.id) DESC, CASE WHEN e.post_id IS NULL THEN 0 ELSE e.depth END ASC, p.id DESC';
+        }
+        $statement = $database->connection()->prepare('SELECT p.*, s.kind, s.importance, s.context_json, ' . $edgeFields . ' FROM ' . self::POSTS . ' p JOIN ' . self::SOURCES . ' s ON s.source_key = p.source_key' . $edgeJoin . ' WHERE p.player_id = :player_id ORDER BY p.occurred_date DESC, ' . $edgeOrder . ' LIMIT :limit');
         $statement->bindValue(':player_id', $this->id($playerId));
         $statement->bindValue(':limit', max(1, min(self::MAX_SOURCES, $limit)), PDO::PARAM_INT);
         $statement->execute();
 
         return array_map(static function (array $row): array {
             $context = json_decode((string) $row['context_json'], true);
-            return ['id' => (string) $row['id'], 'source_key' => (string) $row['source_key'], 'date' => (string) $row['occurred_date'], 'actor_type' => (string) $row['actor_type'], 'actor_name' => (string) $row['actor_name'], 'text' => (string) $row['post_text'], 'engagement' => (int) $row['engagement'], 'kind' => (string) $row['kind'], 'importance' => (string) $row['importance'], 'context' => is_array($context) ? $context : []];
+            return ['id' => (string) $row['id'], 'source_key' => (string) $row['source_key'], 'date' => (string) $row['occurred_date'], 'actor_type' => (string) $row['actor_type'], 'actor_name' => (string) $row['actor_name'], 'text' => (string) $row['post_text'], 'engagement' => (int) $row['engagement'], 'kind' => (string) $row['kind'], 'importance' => (string) $row['importance'], 'parent_id' => $row['parent_post_id'] === null ? null : (string) $row['parent_post_id'], 'quote_id' => $row['quote_post_id'] === null ? null : (string) $row['quote_post_id'], 'thread_root_id' => $row['thread_root_id'] === null ? (string) $row['id'] : (string) $row['thread_root_id'], 'depth' => (int) ($row['thread_depth'] ?? 0), 'intent' => $row['thread_intent'] === null ? null : (string) $row['thread_intent'], 'pattern_family' => $row['thread_pattern_family'] === null ? null : (string) $row['thread_pattern_family'], 'voice' => $row['thread_voice'] === null ? null : (string) $row['thread_voice'], 'context' => is_array($context) ? $context : []];
         }, $statement->fetchAll(PDO::FETCH_ASSOC));
     }
 
@@ -491,7 +535,7 @@ final class PulseService
     public function integrity(DatabaseInterface $database, PlayerId|string $playerId): array
     {
         if (!$this->available($database, self::SOURCES) || !$this->available($database, self::POSTS) || !$this->available($database, self::RESPONSES)) {
-            return ['valid' => true, 'sources' => 0, 'posts' => 0, 'retention' => true, 'pending' => 0, 'invalid_actors' => 0];
+            return ['valid' => true, 'sources' => 0, 'posts' => 0, 'retention' => true, 'pending' => 0, 'invalid_actors' => 0, 'invalid_threads' => 0];
         }
         $id = $this->id($playerId);
         $sources = $database->connection()->prepare('SELECT COUNT(*) FROM ' . self::SOURCES . ' WHERE player_id = :player_id'); $sources->execute(['player_id' => $id]);
@@ -501,12 +545,18 @@ final class PulseService
         $sourceCount = (int) $sources->fetchColumn(); $postCount = (int) $posts->fetchColumn(); $pendingCount = (int) $pending->fetchColumn();
         $invalidActor = 0;
         if ($this->available($database, 'player_records')) {
-            $actorCheck = $database->connection()->prepare("SELECT COUNT(*) FROM " . self::POSTS . " p LEFT JOIN player_records players ON players.id = CASE WHEN p.actor_type = 'player' THEN p.actor_id ELSE substr(p.actor_id, 8) END WHERE p.player_id = :player_id AND p.actor_type IN ('player', 'teammate', 'rival') AND players.id IS NULL");
+            $actorCheck = $database->connection()->prepare("SELECT COUNT(*) FROM " . self::POSTS . " p LEFT JOIN player_records players ON players.id = CASE WHEN p.actor_type = 'player' THEN p.actor_id WHEN instr(p.actor_id, '|thread|') > 0 THEN substr(substr(p.actor_id, 8), 1, instr(p.actor_id, '|thread|') - 8) ELSE substr(p.actor_id, 8) END WHERE p.player_id = :player_id AND p.actor_type IN ('player', 'teammate', 'rival') AND players.id IS NULL");
             $actorCheck->execute(['player_id' => $id]);
             $invalidActor = (int) $actorCheck->fetchColumn();
         }
+        $invalidThreads = 0;
+        if ($this->available($database, self::THREAD_EDGES)) {
+            $threadCheck = $database->connection()->prepare('SELECT COUNT(*) FROM ' . self::THREAD_EDGES . ' e LEFT JOIN ' . self::POSTS . ' child ON child.id = e.post_id LEFT JOIN ' . self::POSTS . ' parent ON parent.id = e.parent_post_id LEFT JOIN ' . self::POSTS . ' quote ON quote.id = e.quote_post_id LEFT JOIN ' . self::POSTS . ' root ON root.id = e.thread_root_id WHERE e.player_id = :player_id AND (child.id IS NULL OR root.id IS NULL OR (e.parent_post_id IS NOT NULL AND parent.id IS NULL) OR (e.quote_post_id IS NOT NULL AND quote.id IS NULL) OR e.depth < 1 OR e.depth > ' . self::MAX_THREAD_DEPTH . ')');
+            $threadCheck->execute(['player_id' => $id]);
+            $invalidThreads = (int) $threadCheck->fetchColumn();
+        }
 
-        return ['valid' => $sourceCount <= self::MAX_SOURCES && $pendingCount <= 1 && (int) $orphan->fetchColumn() === 0 && $invalidActor === 0, 'sources' => $sourceCount, 'posts' => $postCount, 'retention' => $sourceCount <= self::MAX_SOURCES, 'pending' => $pendingCount, 'invalid_actors' => $invalidActor];
+        return ['valid' => $sourceCount <= self::MAX_SOURCES && $pendingCount <= 1 && (int) $orphan->fetchColumn() === 0 && $invalidActor === 0 && $invalidThreads === 0, 'sources' => $sourceCount, 'posts' => $postCount, 'retention' => $sourceCount <= self::MAX_SOURCES, 'pending' => $pendingCount, 'invalid_actors' => $invalidActor, 'invalid_threads' => $invalidThreads];
     }
 
     /** @return array<string, int> */
@@ -539,16 +589,23 @@ final class PulseService
             }
         }
         $context['reaction_meta'] = $reactionMeta;
+        $threadPlan = $this->selectThreadPlan($kind, $actors, $sourceKey, $this->recentThreadPatterns($database, $playerId));
+        if ($threadPlan !== null) { $context['thread_meta'] = $threadPlan; }
         $marker = $database->connection()->prepare('INSERT OR IGNORE INTO ' . self::SOURCES . ' (source_key, player_id, occurred_date, kind, importance, context_json) VALUES (:source_key, :player_id, :date, :kind, :importance, :context)');
         $marker->execute(['source_key' => $sourceKey, 'player_id' => $playerId, 'date' => $date->toIsoString(), 'kind' => $kind, 'importance' => $importance, 'context' => json_encode($context, JSON_THROW_ON_ERROR)]);
         if ($marker->rowCount() === 0) { return; }
         $audience = $this->audienceScore($database, $playerId);
         $this->writeAudience($database, $playerId, $this->nextAudience($audience, $importance, $kind), $date);
+        $rootPosts = [];
         foreach ($reactions as $reaction) {
             $actor = $reaction['actor'];
             $actorType = (string) ($actor['type'] ?? 'fan');
             $actorId = (string) ($actor['id'] ?? 'unknown');
-            $this->insertPost($database, $playerId, 'post|' . $sourceKey . '|' . $actorType . '|' . $actorId, $sourceKey, $actorType, $actorId, (string) ($actor['name'] ?? 'Football world'), $date, $reaction['text'], $this->engagement($database, $playerId, $importance, $actorType));
+            $postId = $this->insertPost($database, $playerId, 'post|' . $sourceKey . '|' . $actorType . '|' . $actorId, $sourceKey, $actorType, $actorId, (string) ($actor['name'] ?? 'Football world'), $date, $reaction['text'], $this->engagement($database, $playerId, $importance, $actorType));
+            $rootPosts[] = ['id' => $postId, 'actor' => $actor, 'text' => $reaction['text']];
+        }
+        if ($threadPlan !== null && ($threadPlan['pattern'] ?? 'no_thread') !== 'no_thread') {
+            $this->generateThreadInTransaction($database, $playerId, $sourceKey, $date, $importance, $context, $rootPosts, $threadPlan);
         }
         if ($choices !== null && $this->pendingResponse($database, $playerId) === null) {
             $statement = $database->connection()->prepare('INSERT OR IGNORE INTO ' . self::RESPONSES . ' (source_key, player_id, status, choices_json, created_date) VALUES (:source_key, :player_id, :status, :choices, :date)');
@@ -558,10 +615,13 @@ final class PulseService
     }
 
     /** @param array<string, mixed> $context */
-    private function insertPost(DatabaseInterface $database, string $playerId, string $id, string $sourceKey, string $actorType, string $actorId, string $actorName, SimulationDate $date, string $text, int $engagement): void
+    private function insertPost(DatabaseInterface $database, string $playerId, string $id, string $sourceKey, string $actorType, string $actorId, string $actorName, SimulationDate $date, string $text, int $engagement): string
     {
+        $postId = $this->postId($id);
         $statement = $database->connection()->prepare('INSERT OR IGNORE INTO ' . self::POSTS . ' (id, player_id, source_key, actor_type, actor_id, actor_name, occurred_date, post_text, engagement) VALUES (:id, :player_id, :source_key, :actor_type, :actor_id, :actor_name, :date, :text, :engagement)');
-        $statement->execute(['id' => hash('sha256', $id), 'player_id' => $playerId, 'source_key' => $sourceKey, 'actor_type' => $actorType, 'actor_id' => $actorId, 'actor_name' => $actorName, 'date' => $date->toIsoString(), 'text' => $text, 'engagement' => max(0, $engagement)]);
+        $statement->execute(['id' => $postId, 'player_id' => $playerId, 'source_key' => $sourceKey, 'actor_type' => $actorType, 'actor_id' => $actorId, 'actor_name' => $actorName, 'date' => $date->toIsoString(), 'text' => $text, 'engagement' => max(0, $engagement)]);
+
+        return $postId;
     }
 
     /** @param array<string, mixed> $context */
@@ -572,6 +632,196 @@ final class PulseService
         $index = hexdec(substr(hash('sha256', 'pulse-feed:v1|' . $sourceKey . '|' . $actorType . '|' . $kind), 0, 8)) % count($options);
 
         return $this->interpolate($options[$index], $context);
+    }
+
+    /** @return array{pattern:string,intent:string,quote:bool,reply_index:int,callback_index:int|null}|null */
+    private function selectThreadPlan(string $kind, array $actors, string $sourceKey, array $recentPatterns): ?array
+    {
+        if (!in_array($kind, ['match_goal', 'match_assist', 'match_decisive_goal', 'match_major_contribution', 'match_strong_performance', 'match_result', 'match_red_card', 'transfer', 'free_agent_signing', 'transfer_request', 'award', 'honour', 'record', 'milestone', 'retirement'], true)) {
+            return null;
+        }
+        $patterns = [
+            ['pattern' => 'no_thread', 'intent' => '', 'quote' => false, 'reply_intent' => '', 'callback' => false],
+            ['pattern' => 'agreement', 'intent' => 'agree', 'quote' => false, 'reply_intent' => 'agree', 'callback' => false],
+            ['pattern' => 'pushback', 'intent' => 'disagree', 'quote' => false, 'reply_intent' => 'disagree', 'callback' => false],
+            ['pattern' => 'rival_banter', 'intent' => 'rival_banter', 'quote' => true, 'reply_intent' => 'rival_banter', 'callback' => false],
+            ['pattern' => 'reluctant_credit', 'intent' => 'reluctant_agreement', 'quote' => false, 'reply_intent' => 'reluctant_agreement', 'callback' => false],
+            ['pattern' => 'defence_callback', 'intent' => 'defend_player', 'quote' => false, 'reply_intent' => 'defend_player', 'callback' => true],
+        ];
+        $available = [];
+        foreach ($patterns as $pattern) {
+            if ($pattern['pattern'] === 'no_thread') {
+                $available[] = $pattern + ['reply_index' => null, 'callback_index' => null];
+                continue;
+            }
+            $replyIndex = $this->threadActorIndex($actors, (string) $pattern['reply_intent'], [0]);
+            if ($replyIndex === null) { continue; }
+            $callbackIndex = null;
+            if ($pattern['callback']) {
+                $callbackIndex = $this->threadActorIndex($actors, 'callback', [0, $replyIndex]);
+                if ($callbackIndex === null) { continue; }
+            }
+            $available[] = $pattern + ['reply_index' => $replyIndex, 'callback_index' => $callbackIndex];
+        }
+        if (count($available) <= 1) { return null; }
+        $start = hexdec(substr(hash('sha256', 'pulse-thread:v1|' . $sourceKey . '|' . $kind), 0, 8)) % count($available);
+        $best = null;
+        $bestScore = PHP_INT_MAX;
+        foreach ($available as $offset => $candidate) {
+            $candidate = $available[($start + $offset) % count($available)];
+            $score = isset($recentPatterns[$candidate['pattern']]) ? 100 : 0;
+            if ($candidate['pattern'] === 'no_thread') { $score += 1; }
+            if ($score < $bestScore) {
+                $bestScore = $score;
+                $best = $candidate;
+                if ($score === 0) { break; }
+            }
+        }
+        if ($best === null || $best['pattern'] === 'no_thread') { return ['pattern' => 'no_thread', 'intent' => '', 'quote' => false, 'reply_index' => 0, 'callback_index' => null]; }
+
+        return ['pattern' => (string) $best['pattern'], 'intent' => (string) $best['intent'], 'quote' => (bool) $best['quote'], 'reply_index' => (int) $best['reply_index'], 'callback_index' => $best['callback_index'] === null ? null : (int) $best['callback_index']];
+    }
+
+    private function threadActorIndex(array $actors, string $intent, array $excluded): ?int
+    {
+        $preference = match ($intent) {
+            'reluctant_agreement', 'rival_banter' => ['rival', 'fan', 'media', 'club', 'teammate', 'competition'],
+            'callback' => ['fan', 'rival', 'teammate', 'club', 'media'],
+            'defend_player' => ['teammate', 'fan', 'club', 'rival'],
+            default => ['fan', 'media', 'club', 'teammate', 'rival', 'competition'],
+        };
+        foreach ($preference as $type) {
+            foreach ($actors as $index => $actor) {
+                if (in_array($index, $excluded, true) || !is_array($actor) || (string) ($actor['type'] ?? '') !== $type) { continue; }
+                if ($this->threadCandidateAvailable($intent, $type)) { return $index; }
+            }
+        }
+
+        return null;
+    }
+
+    private function threadCandidateAvailable(string $intent, string $actorType): bool
+    {
+        foreach (self::THREAD_CATALOG[$intent] ?? [] as $candidate) {
+            if (in_array($actorType, $candidate['actors'], true)) { return true; }
+        }
+
+        return false;
+    }
+
+    /** @param array{pattern:string,intent:string,quote:bool,reply_index:int,callback_index:int|null} $plan */
+    private function generateThreadInTransaction(DatabaseInterface $database, string $playerId, string $sourceKey, SimulationDate $date, string $importance, array $context, array $rootPosts, array $plan): void
+    {
+        if (count($rootPosts) < 2 || !$this->available($database, self::THREAD_EDGES)) { return; }
+        $parent = $rootPosts[0];
+        $replyRoot = $rootPosts[$plan['reply_index']] ?? null;
+        if (!is_array($replyRoot)) { return; }
+        $threadHistory = $this->recentThreadReactionHistory($database, $playerId);
+        $used = ['texts' => [], 'families' => [], 'openings' => [], 'slang' => [], 'emojis' => []];
+        $replyContext = $context;
+        $replyContext['parent_excerpt'] = $this->excerpt((string) $parent['text']);
+        $replyActor = $replyRoot['actor'];
+        $replyType = (string) ($replyActor['type'] ?? 'fan');
+        $replyIdentity = (string) ($replyActor['id'] ?? 'unknown') . '|thread|' . $plan['pattern'] . '|1';
+        $reply = $this->selectThreadReaction((string) $plan['intent'], $replyType, $replyContext, $sourceKey, $replyIdentity, $threadHistory, $used);
+        $replyPostId = $this->insertPost($database, $playerId, 'thread|' . $sourceKey . '|' . $plan['pattern'] . '|1', $sourceKey, $replyType, $replyIdentity, (string) ($replyActor['name'] ?? 'Football world'), $date, $reply['text'], $this->engagement($database, $playerId, $importance, $replyType));
+        $this->insertThreadEdge($database, $replyPostId, $playerId, $sourceKey, $plan['quote'] ? null : (string) $parent['id'], $plan['quote'] ? (string) $parent['id'] : null, (string) $parent['id'], 1, (string) $plan['intent'], $plan['pattern'], (string) $reply['meta']['voice']);
+        $used['texts'][$reply['text']] = true;
+        foreach (['families', 'openings', 'slang', 'emojis'] as $dimension) {
+            $value = (string) ($reply['meta'][$dimension] ?? '');
+            if ($value !== '') { $used[$dimension][$value] = true; }
+        }
+        if ($plan['callback_index'] === null) { return; }
+        $callbackRoot = $rootPosts[$plan['callback_index']] ?? null;
+        if (!is_array($callbackRoot)) { return; }
+        $callbackActor = $callbackRoot['actor'];
+        $callbackType = (string) ($callbackActor['type'] ?? 'fan');
+        $callbackIdentity = (string) ($callbackActor['id'] ?? 'unknown') . '|thread|' . $plan['pattern'] . '|2';
+        $callbackContext = $context;
+        $callbackContext['parent_excerpt'] = $this->excerpt((string) $reply['text']);
+        $callback = $this->selectThreadReaction('callback', $callbackType, $callbackContext, $sourceKey, $callbackIdentity, $threadHistory, $used);
+        $callbackPostId = $this->insertPost($database, $playerId, 'thread|' . $sourceKey . '|' . $plan['pattern'] . '|2', $sourceKey, $callbackType, $callbackIdentity, (string) ($callbackActor['name'] ?? 'Football world'), $date, $callback['text'], $this->engagement($database, $playerId, $importance, $callbackType));
+        $this->insertThreadEdge($database, $callbackPostId, $playerId, $sourceKey, $replyPostId, null, (string) $parent['id'], 2, 'callback', $plan['pattern'], (string) $callback['meta']['voice']);
+    }
+
+    /** @param array<string, mixed> $context @param array<string, array<string, bool>> $used */
+    private function selectThreadReaction(string $intent, string $actorType, array $context, string $sourceKey, string $actorId, array $recent, array $used): array
+    {
+        $candidates = array_values(array_filter(self::THREAD_CATALOG[$intent] ?? [], static fn (array $candidate): bool => in_array($actorType, $candidate['actors'], true)));
+        if ($candidates === []) {
+            $fallback = match ($intent) { 'agree' => 'Exactly.', 'disagree' => 'I do not see it that way.', 'reluctant_agreement' => 'Fair enough.', 'defend_player' => 'Let the Player have the moment.', 'rival_banter' => 'We will see about that.', 'callback' => 'And now the conversation has changed.', default => 'Football opinions move quickly.' };
+            return ['text' => $fallback, 'meta' => ['voice' => self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer', 'family' => 'thread_fallback|' . $intent, 'opening' => 'fallback', 'slang' => '', 'emoji' => '']];
+        }
+        $start = hexdec(substr(hash('sha256', 'pulse-thread-reaction:v1|' . $sourceKey . '|' . $intent . '|' . $actorType . '|' . $actorId), 0, 8)) % count($candidates);
+        $best = null;
+        $bestScore = PHP_INT_MAX;
+        foreach ($candidates as $offset => $candidate) {
+            $candidate = $candidates[($start + $offset) % count($candidates)];
+            $text = $this->interpolate($candidate['text'], $context);
+            $score = 0;
+            if (isset($recent['texts'][$text]) || isset($used['texts'][$text])) { $score += 1000; }
+            if (isset($recent['families'][$candidate['family']]) || isset($used['families'][$candidate['family']])) { $score += 100; }
+            if (isset($recent['openings'][$candidate['opening']]) || isset($used['openings'][$candidate['opening']])) { $score += 30; }
+            if ($candidate['slang'] !== '' && (isset($recent['slang'][$candidate['slang']]) || isset($used['slang'][$candidate['slang']]))) { $score += 20; }
+            if ($candidate['emoji'] !== '' && (isset($recent['emojis'][$candidate['emoji']]) || isset($used['emojis'][$candidate['emoji']]))) { $score += 15; }
+            if ($score < $bestScore) {
+                $bestScore = $score;
+                $best = ['text' => $text, 'meta' => ['voice' => $candidate['voice'], 'family' => $candidate['family'], 'opening' => $candidate['opening'], 'slang' => $candidate['slang'], 'emoji' => $candidate['emoji']]];
+                if ($score === 0) { break; }
+            }
+        }
+
+        return $best ?? ['text' => 'Football opinions move quickly.', 'meta' => ['voice' => 'neutral_viewer', 'family' => 'thread_fallback', 'opening' => 'fallback', 'slang' => '', 'emoji' => '']];
+    }
+
+    /** @return array<string, bool> */
+    private function recentThreadPatterns(DatabaseInterface $database, string $playerId): array
+    {
+        $patterns = [];
+        if ($this->available($database, self::THREAD_EDGES)) {
+            $statement = $database->connection()->prepare('SELECT e.pattern_family FROM ' . self::THREAD_EDGES . ' e JOIN ' . self::POSTS . ' p ON p.id = e.post_id WHERE e.player_id = :player_id ORDER BY p.occurred_date DESC, p.id DESC LIMIT 12');
+            $statement->execute(['player_id' => $playerId]);
+            foreach ($statement->fetchAll(PDO::FETCH_COLUMN) as $pattern) { if ((string) $pattern !== '') { $patterns[(string) $pattern] = true; } }
+        }
+        $statement = $database->connection()->prepare('SELECT context_json FROM ' . self::SOURCES . ' WHERE player_id = :player_id ORDER BY occurred_date DESC, source_key DESC LIMIT 12');
+        $statement->execute(['player_id' => $playerId]);
+        foreach ($statement->fetchAll(PDO::FETCH_COLUMN) as $json) {
+            $context = json_decode((string) $json, true);
+            $pattern = is_array($context) && is_array($context['thread_meta'] ?? null) ? (string) ($context['thread_meta']['pattern'] ?? '') : '';
+            if ($pattern !== '') { $patterns[$pattern] = true; }
+        }
+
+        return $patterns;
+    }
+
+    /** @return array{texts:array<string,bool>,families:array<string,bool>,openings:array<string,bool>,slang:array<string,bool>,emojis:array<string,bool>} */
+    private function recentThreadReactionHistory(DatabaseInterface $database, string $playerId): array
+    {
+        $history = ['texts' => [], 'families' => [], 'openings' => [], 'slang' => [], 'emojis' => []];
+        if (!$this->available($database, self::THREAD_EDGES)) { return $history; }
+        $statement = $database->connection()->prepare('SELECT p.post_text, e.pattern_family, e.intent, e.voice FROM ' . self::POSTS . ' p JOIN ' . self::THREAD_EDGES . ' e ON e.post_id = p.id WHERE p.player_id = :player_id ORDER BY p.occurred_date DESC, p.id DESC LIMIT 24');
+        $statement->execute(['player_id' => $playerId]);
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $text = (string) $row['post_text'];
+            $history['texts'][$text] = true;
+            $history['families'][(string) $row['pattern_family'] . '|' . (string) $row['intent']] = true;
+            $history['families'][(string) $row['pattern_family']] = true;
+        }
+
+        return $history;
+    }
+
+    private function insertThreadEdge(DatabaseInterface $database, string $postId, string $playerId, string $sourceKey, ?string $parentId, ?string $quoteId, string $rootId, int $depth, string $intent, string $pattern, string $voice): void
+    {
+        $statement = $database->connection()->prepare('INSERT OR IGNORE INTO ' . self::THREAD_EDGES . ' (post_id, player_id, source_key, parent_post_id, quote_post_id, thread_root_id, depth, intent, pattern_family, voice) VALUES (:post_id, :player_id, :source_key, :parent, :quote, :root, :depth, :intent, :pattern, :voice)');
+        $statement->execute(['post_id' => $postId, 'player_id' => $playerId, 'source_key' => $sourceKey, 'parent' => $parentId, 'quote' => $quoteId, 'root' => $rootId, 'depth' => max(1, min(self::MAX_THREAD_DEPTH, $depth)), 'intent' => $intent, 'pattern' => $pattern, 'voice' => $voice]);
+    }
+
+    private function excerpt(string $text): string
+    {
+        $text = trim((string) preg_replace('/\s+/', ' ', $text));
+
+        return mb_strlen($text) > 42 ? mb_substr($text, 0, 39) . '…' : $text;
     }
 
     /**
@@ -737,6 +987,7 @@ final class PulseService
     {
         $old = $database->connection()->prepare('SELECT source_key FROM ' . self::SOURCES . ' WHERE player_id = :player_id ORDER BY occurred_date DESC, source_key DESC LIMIT -1 OFFSET ' . self::MAX_SOURCES); $old->execute(['player_id' => $playerId]); $keys = $old->fetchAll(PDO::FETCH_COLUMN);
         foreach ($keys as $key) {
+            if ($this->available($database, self::THREAD_EDGES)) { $database->connection()->prepare('DELETE FROM ' . self::THREAD_EDGES . ' WHERE source_key = :source_key')->execute(['source_key' => $key]); }
             $database->connection()->prepare('DELETE FROM ' . self::POSTS . ' WHERE source_key = :source_key')->execute(['source_key' => $key]);
             $database->connection()->prepare('DELETE FROM ' . self::RESPONSES . ' WHERE source_key = :source_key')->execute(['source_key' => $key]);
             $database->connection()->prepare('DELETE FROM ' . self::SOURCES . ' WHERE source_key = :source_key')->execute(['source_key' => $key]);
@@ -795,5 +1046,6 @@ final class PulseService
         return $statement->fetchColumn() !== false;
     }
 
+    private function postId(string $id): string { return hash('sha256', $id); }
     private function id(PlayerId|string $id): string { return $id instanceof PlayerId ? $id->value() : $id; }
 }

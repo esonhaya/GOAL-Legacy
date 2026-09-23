@@ -137,7 +137,9 @@ final class PulseService
     private const CULTURE_ALIASES = [
         'england' => 'england', 'spain' => 'spain', 'germany' => 'germany', 'italy' => 'italy', 'france' => 'france',
         'brazil' => 'brazil', 'argentina' => 'argentina', 'philippines' => 'philippines', 'nigeria' => 'nigeria', 'japan' => 'japan', 'mexico' => 'mexico',
-        'united-states' => 'global', 'usa' => 'global', 'south-korea' => 'japan', 'portugal' => 'spain', 'netherlands' => 'germany', 'belgium' => 'france', 'croatia' => 'italy', 'ghana' => 'nigeria', 'morocco' => 'france',
+        // Unsupported countries deliberately fall back to global football English.
+        // They must not inherit a neighbouring profile's vocabulary by accident.
+        'united-states' => 'global', 'usa' => 'global', 'south-korea' => 'global', 'portugal' => 'global', 'netherlands' => 'global', 'belgium' => 'global', 'croatia' => 'global', 'ghana' => 'global', 'morocco' => 'global',
     ];
 
     /** @var array<string, array<string, array{family:string,opening:string,slang:string,emoji:string,native:bool,text:string}>> */
@@ -573,7 +575,7 @@ final class PulseService
         $team = $this->clubName($database, $stat->clubId()->value());
         $opponentId = $stat->clubId()->value() === $match->homeClubId()->value() ? $match->awayClubId()->value() : $match->homeClubId()->value();
         $opponent = $this->clubName($database, $opponentId);
-        $context = ['player' => $this->playerName($database, $playerId), 'team' => $team, 'opponent' => $opponent, 'competition' => $competition, 'competition_type' => $type, 'score' => $home . '-' . $away, 'result' => $facts['result'], 'goals' => $stat->goals(), 'assists' => $stat->assists(), 'rating' => $story['rating'], 'minutes' => $stat->minutes(), 'saves' => $stat->saves(), 'red_cards' => $stat->redCards(), 'fixture_context' => (string) ($fixtureContext['display_label'] ?? ''), 'rivalry' => $facts['rivalry'], 'derby' => $facts['derby'], 'source_match_id' => $match->id()->value(), 'club_id' => $stat->clubId()->value(), 'opponent_club_id' => $opponentId, 'club_country' => $this->clubCountry($database, $stat->clubId()->value()), 'opponent_country' => $this->clubCountry($database, $opponentId), 'competition_country' => $this->competitionCountry($database, $match->competitionId()->value()), 'player_nationality' => $this->playerNationality($database, $playerId), 'international' => $type === 'international'];
+        $context = ['player' => $this->playerName($database, $playerId), 'team' => $team, 'opponent' => $opponent, 'competition' => $competition, 'competition_type' => $type, 'score' => $home . '-' . $away, 'result' => $facts['result'], 'goals' => $stat->goals(), 'assists' => $stat->assists(), 'rating' => $story['rating'], 'minutes' => $stat->minutes(), 'saves' => $stat->saves(), 'red_cards' => $stat->redCards(), 'fixture_context' => (string) ($fixtureContext['display_label'] ?? ''), 'rivalry' => $facts['rivalry'], 'derby' => $facts['derby'], 'player_of_match' => $facts['player_of_match'], 'decisive' => $facts['decisive'], 'important_match' => $facts['important_match'], 'source_match_id' => $match->id()->value(), 'club_id' => $stat->clubId()->value(), 'opponent_club_id' => $opponentId, 'club_country' => $this->clubCountry($database, $stat->clubId()->value()), 'opponent_country' => $this->clubCountry($database, $opponentId), 'competition_country' => $this->competitionCountry($database, $match->competitionId()->value()), 'player_nationality' => $this->playerNationality($database, $playerId), 'international' => $type === 'international'];
         $actors = [['type' => 'fan', 'id' => 'supporters:' . $stat->clubId()->value(), 'name' => 'Supporters', 'kind' => $route['kind']]];
         if (in_array($route['kind'], ['match_goal', 'match_assist', 'match_decisive_goal', 'match_major_contribution', 'match_strong_performance', 'match_red_card'], true)) {
             $actors[] = ['type' => 'media', 'id' => 'media:matchday-desk', 'name' => 'Matchday Desk', 'kind' => $route['kind']];
@@ -982,27 +984,37 @@ final class PulseService
         return self::CULTURE_ALIASES[$key] ?? ($key === '' ? 'global' : 'global');
     }
 
-    /** @return list<array{post_text:string,source_key:string,stance:string}> */
+    /** @return list<array{post_text:string,source_key:string,stance:string,memory_type:string}> */
     private function recentIdentityMemory(DatabaseInterface $database, string $playerId, string $identityId): array
     {
         if ($identityId === '' || !$this->postColumnAvailable($database, 'identity_id')) { return []; }
-        $statement = $database->connection()->prepare('SELECT p.post_text, p.source_key, s.context_json FROM ' . self::POSTS . ' p JOIN ' . self::SOURCES . ' s ON s.source_key = p.source_key WHERE p.player_id = :player_id AND p.identity_id = :identity_id ORDER BY p.occurred_date DESC, p.id DESC LIMIT 16');
+        $statement = $database->connection()->prepare('SELECT p.post_text, p.source_key, s.kind, s.context_json FROM ' . self::POSTS . ' p JOIN ' . self::SOURCES . ' s ON s.source_key = p.source_key WHERE p.player_id = :player_id AND p.identity_id = :identity_id ORDER BY p.occurred_date DESC, p.id DESC LIMIT 16');
         $statement->execute(['player_id' => $playerId, 'identity_id' => $identityId]);
         $memory = [];
         foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $sourceContext = json_decode((string) ($row['context_json'] ?? ''), true);
             $stance = 'neutral';
             $family = '';
+            $meta = [];
+            $matchedIdentity = false;
             if (is_array($sourceContext)) {
                 foreach ((array) ($sourceContext['identity_meta'] ?? []) as $key => $identity) {
                     if (!is_array($identity) || (string) ($identity['id'] ?? '') !== $identityId) { continue; }
+                    $matchedIdentity = true;
                     $meta = $sourceContext['reaction_meta'][$key] ?? null;
                     if (is_array($meta)) { $stance = (string) ($meta['stance'] ?? 'neutral'); $family = (string) ($meta['family'] ?? ''); }
                     break;
                 }
             }
-            if (str_starts_with($family, 'memory|')) { continue; }
-            $memory[] = ['post_text' => (string) ($row['post_text'] ?? ''), 'source_key' => (string) ($row['source_key'] ?? ''), 'stance' => $stance];
+            // A thread child can carry the stable identity column without being
+            // represented in the source's root reaction metadata. It is not
+            // sufficient evidence for a classified callback.
+            if (!$matchedIdentity || str_starts_with($family, 'memory|')) { continue; }
+            $memoryType = is_array($meta) ? (string) ($meta['memory_type'] ?? '') : '';
+            if ($memoryType === '' || $memoryType === 'callback') {
+                $memoryType = $this->memoryType($family, (string) ($row['kind'] ?? ''), 'fan', $stance);
+            }
+            $memory[] = ['post_text' => (string) ($row['post_text'] ?? ''), 'source_key' => (string) ($row['source_key'] ?? ''), 'stance' => $stance, 'memory_type' => $memoryType];
         }
 
         return $memory;
@@ -1056,6 +1068,31 @@ final class PulseService
         return $result;
     }
 
+    /** @return list<array<string, mixed>> */
+    private function situationalCandidates(string $kind, string $actorType, array $context): array
+    {
+        $candidates = [];
+        $result = (string) ($context['result'] ?? '');
+        $voice = (string) ($context['pulse_voice'] ?? 'neutral_viewer');
+        if (in_array($kind, ['match_goal', 'match_assist', 'match_decisive_goal', 'match_major_contribution', 'match_strong_performance', 'match_result'], true) && (($context['derby'] ?? false) === true || ($context['rivalry'] ?? false) === true)) {
+            if ($result !== 'loss') {
+                $candidates[] = ['voice' => $voice, 'family' => 'situation|rivalry_handled', 'opening' => 'rivalry', 'slang' => '', 'emoji' => '😭', 'actors' => ['fan', 'club'], 'results' => ['win', 'draw'], 'text' => 'Derby days are for handling the noise. {player} did that.', 'stance' => 'praise', 'reference' => 'RIVALRY_CONTEXT', 'situational' => true];
+            }
+            $candidates[] = ['voice' => $voice, 'family' => 'situation|rivalry_annoyance', 'opening' => 'rivalry', 'slang' => '', 'emoji' => '', 'actors' => ['rival'], 'results' => [], 'text' => 'Of course {player} had to make the derby annoying.', 'stance' => 'criticism', 'reference' => 'RIVALRY_CONTEXT', 'situational' => true];
+        }
+        if ($kind === 'match_major_contribution' && ($context['player_of_match'] ?? false) === true) {
+            $candidates[] = ['voice' => $voice, 'family' => 'situation|player_of_match', 'opening' => 'verdict', 'slang' => '', 'emoji' => '', 'actors' => ['fan', 'competition'], 'results' => [], 'text' => 'Player of the Match evidence is clear: {player} delivered.', 'stance' => $result === 'loss' ? 'criticism' : 'praise', 'reference' => 'PLAYER_OF_MATCH', 'situational' => true];
+        }
+        if ($kind === 'match_strong_performance' && $result === 'loss') {
+            $candidates[] = ['voice' => $voice, 'family' => 'situation|individual_in_defeat', 'opening' => 'contrast', 'slang' => '', 'emoji' => '', 'actors' => ['fan', 'media'], 'results' => ['loss'], 'text' => 'A real individual performance, but the scoreline still says defeat.', 'stance' => 'criticism', 'reference' => 'RESULT_CONTEXT', 'situational' => true];
+        }
+        if (in_array($kind, ['transfer', 'free_agent_signing'], true) && ($context['transfer_cross_border'] ?? false) === true) {
+            $candidates[] = ['voice' => $voice, 'family' => 'situation|cross_border_chapter', 'opening' => 'movement', 'slang' => '', 'emoji' => '', 'actors' => ['fan', 'media', 'club', 'national'], 'results' => [], 'text' => 'New football country, same player: {player} has started the next chapter.', 'stance' => 'praise', 'reference' => 'CROSS_BORDER_MOVE', 'situational' => true];
+        }
+
+        return $candidates;
+    }
+
     private function cultureBucket(string $kind, array $context): string
     {
         if (in_array($kind, ['match_red_card', 'injury'], true) || (string) ($context['result'] ?? '') === 'loss') { return 'negative'; }
@@ -1071,16 +1108,18 @@ final class PulseService
         if (!is_array($memory) || $memory === []) { return null; }
         if (hexdec(substr(hash('sha256', 'pulse-memory:v1|' . $sourceKey . '|' . (string) ($context['pulse_identity_id'] ?? '')), 0, 8)) % 4 !== 0) { return null; }
         $prior = $memory[0] ?? null;
-        if (!is_array($prior) || (string) ($prior['post_text'] ?? '') === '') { return null; }
-        $stance = (string) ($prior['stance'] ?? 'neutral');
-        $excerpt = $this->excerpt((string) $prior['post_text']);
-        $text = match ($stance) {
-            'criticism' => 'I was harsher before this one. Fair play, {player} answered.',
-            'praise' => 'I said "{memory_excerpt}" before this one. Still backing it.',
-            default => 'I remember writing "{memory_excerpt}". The conversation has moved on.',
+        if (!is_array($prior) || (string) ($prior['source_key'] ?? '') === '') { return null; }
+        $memoryType = (string) ($prior['memory_type'] ?? $this->memoryType('', '', 'fan', (string) ($prior['stance'] ?? 'neutral')));
+        $text = match ($memoryType) {
+            'criticism' => 'Yeah, I might owe him an apology 😭',
+            'doubt' => 'Okay, he is making that old take look horrible.',
+            'defence' => 'Some of us tried to tell you.',
+            'rival_mockery' => 'This is becoming annoyingly difficult to hate.',
+            'support' => 'I backed him before; I am not changing now.',
+            default => 'The evidence has moved the conversation on.',
         };
 
-        return ['voice' => (string) ($context['pulse_voice'] ?? 'neutral_viewer'), 'family' => 'memory|' . $stance, 'opening' => 'memory_callback', 'slang' => '', 'emoji' => '', 'actors' => ['fan', 'media', 'club', 'national', 'rival', 'competition', 'teammate'], 'results' => [], 'text' => str_replace('{memory_excerpt}', $excerpt, $text), 'stance' => 'neutral', 'reference' => 'EVIDENCE_BACKED_MEMORY'];
+        return ['voice' => (string) ($context['pulse_voice'] ?? 'neutral_viewer'), 'family' => 'memory|' . $memoryType, 'opening' => 'memory_callback|' . $memoryType, 'slang' => '', 'emoji' => '', 'actors' => ['fan', 'media', 'club', 'national', 'rival', 'competition', 'teammate'], 'results' => [], 'text' => $text, 'stance' => 'neutral', 'memory_type' => 'callback', 'reference' => 'EVIDENCE_BACKED_MEMORY'];
     }
 
     /** @param array<string, mixed> $context @param array<string, array<string, bool>> $used */
@@ -1187,6 +1226,7 @@ final class PulseService
         $candidates = $this->cultureCandidates($kind, $actorType, $context, $sourceKey);
         $memoryCandidate = $this->memoryCandidate($kind, $context, $sourceKey);
         if ($memoryCandidate !== null) { array_unshift($candidates, $memoryCandidate); }
+        $candidates = array_merge($candidates, $this->situationalCandidates($kind, $actorType, $context));
         $result = (string) ($context['result'] ?? '');
         foreach (self::REACTION_CATALOG[$kind] ?? [] as $candidate) {
             if (!in_array($actorType, $candidate['actors'], true)) { continue; }
@@ -1200,12 +1240,13 @@ final class PulseService
         }
         if ($candidates === []) {
             $text = $this->render($kind, $actorType, $context, $sourceKey);
-            return ['text' => $text, 'meta' => ['voice' => self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer', 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'stance' => 'neutral', 'text' => $text]];
+            return ['text' => $text, 'meta' => ['voice' => self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer', 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'stance' => 'neutral', 'memory_type' => 'neutral', 'text' => $text]];
         }
 
         $start = hexdec(substr(hash('sha256', 'pulse-reaction:v1|' . $sourceKey . '|' . $actorType . '|' . $actorId . '|' . $kind), 0, 8)) % count($candidates);
         $best = null;
         $bestScore = PHP_INT_MAX;
+        $hasSituationalCandidate = count(array_filter($candidates, static fn (array $candidate): bool => ($candidate['situational'] ?? false) === true)) > 0;
         foreach ($candidates as $offset => $candidate) {
             $candidate = $candidates[($start + $offset) % count($candidates)];
             $text = $this->interpolate($candidate['text'], $context);
@@ -1219,21 +1260,37 @@ final class PulseService
             if (isset($recent['openings'][$opening]) || isset($used['openings'][$opening])) { $score += 30; }
             if ($slang !== '' && (isset($recent['slang'][$slang]) || isset($used['slang'][$slang]))) { $score += 20; }
             if ($emoji !== '' && (isset($recent['emojis'][$emoji]) || isset($used['emojis'][$emoji]))) { $score += 15; }
+            if (($candidate['situational'] ?? false) === true) { $score -= 5; }
             if ($score < $bestScore) {
                 $bestScore = $score;
-                $best = ['text' => $text, 'meta' => ['voice' => $candidate['voice'], 'family' => $family, 'opening' => $opening, 'slang' => $slang, 'emoji' => $emoji, 'stance' => (string) ($candidate['stance'] ?? $this->reactionStance($kind, $context, $actorType)), 'reference' => (string) ($candidate['reference'] ?? ''), 'text' => $text]];
-                if ($score === 0) { break; }
+                $stance = (string) ($candidate['stance'] ?? $this->reactionStance($kind, $context, $actorType));
+                $best = ['text' => $text, 'meta' => ['voice' => $candidate['voice'], 'family' => $family, 'opening' => $opening, 'slang' => $slang, 'emoji' => $emoji, 'stance' => $stance, 'memory_type' => (string) ($candidate['memory_type'] ?? $this->memoryType($family, $kind, $actorType, $stance)), 'reference' => (string) ($candidate['reference'] ?? ''), 'text' => $text]];
+                if ($score === 0 && !$hasSituationalCandidate) { break; }
             }
         }
 
         if ($best !== null && $bestScore >= 1000) {
             $legacyText = $this->render($kind, $actorType, $context, $sourceKey);
             if (!isset($recent['texts'][$legacyText]) && !isset($used['texts'][$legacyText])) {
-                return ['text' => $legacyText, 'meta' => ['voice' => $preferredVoice !== '' ? $preferredVoice : (self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer'), 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'stance' => $this->reactionStance($kind, $context, $actorType), 'text' => $legacyText]];
+                $stance = $this->reactionStance($kind, $context, $actorType);
+                return ['text' => $legacyText, 'meta' => ['voice' => $preferredVoice !== '' ? $preferredVoice : (self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer'), 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'stance' => $stance, 'memory_type' => $this->memoryType('legacy|' . $kind, $kind, $actorType, $stance), 'text' => $legacyText]];
             }
         }
 
-        return $best ?? ['text' => $this->render($kind, $actorType, $context, $sourceKey), 'meta' => ['voice' => $preferredVoice !== '' ? $preferredVoice : (self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer'), 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'stance' => $this->reactionStance($kind, $context, $actorType), 'text' => '']];
+        $stance = $this->reactionStance($kind, $context, $actorType);
+        return $best ?? ['text' => $this->render($kind, $actorType, $context, $sourceKey), 'meta' => ['voice' => $preferredVoice !== '' ? $preferredVoice : (self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer'), 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'stance' => $stance, 'memory_type' => $this->memoryType('legacy|' . $kind, $kind, $actorType, $stance), 'text' => '']];
+    }
+
+    private function memoryType(string $family, string $kind, string $actorType, string $stance): string
+    {
+        $haystack = strtolower($family . '|' . $kind);
+        if ($actorType === 'rival' || preg_match('/(^|[|_])(rival|banter|mock)/', $haystack) === 1) { return 'rival_mockery'; }
+        if (str_contains($haystack, 'defend')) { return 'defence'; }
+        if (preg_match('/(^|[|_])(doubt|skeptic|question|agenda|washed|one_season)/', $haystack) === 1) { return 'doubt'; }
+        if ($stance === 'criticism') { return 'criticism'; }
+        if ($stance === 'praise') { return 'support'; }
+
+        return 'neutral';
     }
 
     private function reactionStance(string $kind, array $context, string $actorType): string

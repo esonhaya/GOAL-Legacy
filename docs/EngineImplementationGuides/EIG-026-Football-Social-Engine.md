@@ -73,6 +73,13 @@ football language and no translation, social graph, or external content call.
 Legacy posts with a null identity remain unchanged. Feed and page rendering
 perform no author/culture repair and no DML.
 
+P3-004 keeps the same persistence boundary. Country-specific vocabulary is
+selected only for the matching identity profile, with `GLOBAL_FOOTBALL` as the
+neutral fallback. Situation families are derived from canonical event context;
+memory callbacks require a classified prior post and emit natural wording
+without quoting stored text. No new table, history scan, social graph, or
+render-time generation is introduced.
+
 ## Canonical validation
 
 The configured PHPUnit suite is the canonical combined invocation:

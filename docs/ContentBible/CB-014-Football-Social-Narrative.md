@@ -94,3 +94,21 @@ Career history or invents an earlier opinion. Existing P3-001/P3-002 posts are
 not rewritten. Recent identity, culture, local-expression, and cultural-reference
 reuse is suppressed where suitable alternatives exist; Pulse rendering never
 repairs authors or generates memory.
+
+## P3-004 situational football culture
+
+Culture profiles are selected by their actual identity context. Italian
+references remain Italian, Spanish/Latin references remain within their
+supported profiles, Brazilian references remain Brazilian, and unsupported
+countries use readable global football English rather than borrowing a nearby
+country's vocabulary. Native expressions are optional; most cultural writing
+may contain none and should still differ through football terms, supporter
+framing, humour, and what the identity notices.
+
+Situational families may use only canonical flags already supplied by Echo,
+Match story, or movement context, including rivalry, Player of the Match,
+result-in-defeat, and cross-border transfer. These families participate in the
+existing anti-repeat selection. Memory callbacks use the classified meaning of
+an identity's actual prior post (support, criticism, doubt, defence, or rival
+banter); they do not quote, truncate, or expose stored prose. This refinement
+adds no social memory scan, persistence system, or runtime text generation.

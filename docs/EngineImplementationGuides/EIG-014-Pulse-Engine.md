@@ -331,6 +331,20 @@ identity IDs survive reload, while old posts without identity metadata remain
 unchanged legacy roots. Recent identity reuse is softly suppressed within the
 same bounded selection window so one account does not dominate a local feed.
 
+## P3-004 context refinement
+
+`PulseService` maps a country to its exact supported culture profile or to
+`global`; unsupported countries never inherit an unrelated profile's terms.
+Culture candidates are English-first and native-language candidates are
+deterministically optional. Situational candidates consume existing canonical
+Match and movement flags only, and share the existing reaction-family and
+recent-history suppression.
+
+Identity memory remains a bounded indexed lookup. New callbacks classify the
+evidenced prior reaction and generate a short natural response; they never
+insert an excerpt or reconstruct a prior body. Existing saved Pulse prose and
+legacy roots remain unchanged.
+
 ---
 
 ## Revision History

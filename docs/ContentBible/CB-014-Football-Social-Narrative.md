@@ -35,3 +35,24 @@ include silence. Templates use isolated deterministic selection, never free
 text, LLM calls, network calls, or random filler. Injury and return language
 uses only recorded availability facts and never speculates about diagnosis or
 recovery timetable.
+
+## P3-001 Pulse voice and repetition policy
+
+Pulse reactions may use bounded fictional voice archetypes: supportive fan,
+reactionary fan, rival fan, tactical fan, casual fan, meme account, old-school
+fan, optimistic fan, pessimistic fan, and neutral viewer. These are presentation
+styles, not persistent NPC profiles. Plain football language must remain part
+of the mix alongside restrained internet language, occasional slang, varied
+capitalization, punctuation, sentence length, and emoji use.
+
+Reaction families describe semantic shapes such as a result, callback, tactical
+detail, reluctant praise, or measured fact. A bounded recent Pulse window
+avoids exact text and immediate family, opening, distinctive slang, and emoji
+reuse. Selection is deterministic from the existing source/event identity and
+does not consume gameplay RNG. Canonical result, performance, discipline,
+availability, transfer, achievement, and Career context controls tone; Pulse
+does not invent scores, statistics, history, reasons, or supporter identity.
+
+Persisted Pulse prose is immutable on reload and legacy saves are not migrated
+or rewritten. Echo still routes importance and event kind, while Pulse alone
+selects presentation wording within the existing controlled-player feed.

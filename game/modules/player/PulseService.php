@@ -134,6 +134,133 @@ final class PulseService
         ],
     ];
 
+    /** @var array<string, list<string>> */
+    private const VOICES_BY_ACTOR = [
+        'fan' => ['supportive_fan', 'reactionary_fan', 'casual_fan', 'meme_account', 'optimistic_fan', 'pessimistic_fan'],
+        'media' => ['neutral_viewer', 'tactical_fan', 'old_school_fan'],
+        'club' => ['supportive_fan', 'old_school_fan'],
+        'competition' => ['neutral_viewer', 'tactical_fan'],
+        'national' => ['supportive_fan', 'neutral_viewer'],
+        'teammate' => ['supportive_fan', 'casual_fan'],
+        'rival' => ['rival_fan', 'reactionary_fan', 'meme_account'],
+    ];
+
+    /**
+     * Presentation-only reactions. Echo remains the source of event kinds;
+     * these entries only vary the public voice around canonical context.
+     *
+     * @var array<string, list<array{voice:string,family:string,opening:string,slang:string,emoji:string,actors:list<string>,results:list<string>,text:string}>>
+     */
+    private const REACTION_CATALOG = [
+        'match_goal' => [
+            ['voice' => 'supportive_fan', 'family' => 'own_celebration', 'opening' => 'caps', 'slang' => '', 'emoji' => '😭', 'actors' => ['fan', 'club'], 'results' => ['win', 'draw'], 'text' => "THAT'S MY {player} 😭"],
+            ['voice' => 'reactionary_fan', 'family' => 'agenda', 'opening' => 'statement', 'slang' => 'agenda', 'emoji' => '', 'actors' => ['fan'], 'results' => ['win', 'draw', 'loss'], 'text' => '{player} scores once and the agenda is back on.'],
+            ['voice' => 'meme_account', 'family' => 'meme_callback', 'opening' => 'lowercase', 'slang' => 'bro', 'emoji' => '💀', 'actors' => ['fan', 'rival'], 'results' => ['win', 'draw', 'loss'], 'text' => "bro remembered he's a footballer 💀"],
+            ['voice' => 'pessimistic_fan', 'family' => 'loss_acknowledgement', 'opening' => 'fragment', 'slang' => '', 'emoji' => '', 'actors' => ['fan'], 'results' => ['loss'], 'text' => 'Good goal. Shame about the scoreline.'],
+            ['voice' => 'casual_fan', 'family' => 'mock_disbelief', 'opening' => 'question', 'slang' => '', 'emoji' => '😭', 'actors' => ['fan'], 'results' => ['win', 'draw', 'loss'], 'text' => 'How has {player} even scored from there 😭'],
+            ['voice' => 'rival_fan', 'family' => 'reluctant_praise', 'opening' => 'respect', 'slang' => '', 'emoji' => '', 'actors' => ['rival'], 'results' => ['win', 'draw', 'loss'], 'text' => 'Respect. Hate the badge but that was class.'],
+            ['voice' => 'neutral_viewer', 'family' => 'plain_evidence', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition'], 'results' => ['win', 'draw', 'loss'], 'text' => 'The finish was excellent; {team} still leave with a {score} result.'],
+            ['voice' => 'tactical_fan', 'family' => 'movement_detail', 'opening' => 'analysis', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition'], 'results' => ['win', 'draw', 'loss'], 'text' => 'The movement before the finish created the opening.'],
+        ],
+        'match_assist' => [
+            ['voice' => 'supportive_fan', 'family' => 'creator_praise', 'opening' => 'supporter', 'slang' => '', 'emoji' => '❤️', 'actors' => ['fan', 'club'], 'results' => ['win', 'draw'], 'text' => "That's my creator ❤️"],
+            ['voice' => 'casual_fan', 'family' => 'vision_reaction', 'opening' => 'lowercase', 'slang' => 'cold', 'emoji' => '', 'actors' => ['fan'], 'results' => ['win', 'draw', 'loss'], 'text' => '{player} saw that pass before everyone else. Cold.'],
+            ['voice' => 'pessimistic_fan', 'family' => 'loss_acknowledgement', 'opening' => 'fragment', 'slang' => '', 'emoji' => '', 'actors' => ['fan'], 'results' => ['loss'], 'text' => 'Lovely assist. Awful result.'],
+            ['voice' => 'neutral_viewer', 'family' => 'chance_creation', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition'], 'results' => ['win', 'draw', 'loss'], 'text' => '{player} created the chance that changed the sequence.'],
+            ['voice' => 'tactical_fan', 'family' => 'final_pass', 'opening' => 'analysis', 'slang' => '', 'emoji' => '', 'actors' => ['media'], 'results' => ['win', 'draw', 'loss'], 'text' => 'The final pass from {player} broke the defensive line.'],
+            ['voice' => 'meme_account', 'family' => 'sneaky_creator', 'opening' => 'fragment', 'slang' => 'lowkey', 'emoji' => '😭', 'actors' => ['fan'], 'results' => ['win', 'draw', 'loss'], 'text' => 'lowkey that assist was filthy 😭'],
+        ],
+        'match_decisive_goal' => [
+            ['voice' => 'supportive_fan', 'family' => 'big_moment', 'opening' => 'caps', 'slang' => '', 'emoji' => '😭', 'actors' => ['fan', 'club'], 'results' => ['win'], 'text' => "HE'S DONE IT. {player} 😭"],
+            ['voice' => 'meme_account', 'family' => 'different_gravy', 'opening' => 'lowercase', 'slang' => 'different gravy', 'emoji' => '💀', 'actors' => ['fan'], 'results' => ['win'], 'text' => "nah {player} is different gravy 💀"],
+            ['voice' => 'rival_fan', 'family' => 'reluctant_praise', 'opening' => 'respect', 'slang' => '', 'emoji' => '', 'actors' => ['rival'], 'results' => ['win'], 'text' => 'Fine. That was the moment, and it was deserved.'],
+            ['voice' => 'neutral_viewer', 'family' => 'decisive_fact', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition'], 'results' => ['win'], 'text' => '{player} supplied the decisive moment as {team} advanced.'],
+            ['voice' => 'old_school_fan', 'family' => 'big_game_memory', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'actors' => ['club'], 'results' => ['win'], 'text' => 'That is what big-game players are remembered for.'],
+        ],
+        'match_major_contribution' => [
+            ['voice' => 'supportive_fan', 'family' => 'performance_pride', 'opening' => 'supporter', 'slang' => '', 'emoji' => '❤️', 'actors' => ['fan', 'club'], 'results' => ['win', 'draw'], 'text' => "That's my player. Proper shift ❤️"],
+            ['voice' => 'reactionary_fan', 'family' => 'agenda_reversal', 'opening' => 'statement', 'slang' => 'cooked', 'emoji' => '', 'actors' => ['fan'], 'results' => ['win', 'draw'], 'text' => '{player} cooked today and I will be hearing no revisionism.'],
+            ['voice' => 'pessimistic_fan', 'family' => 'individual_in_loss', 'opening' => 'fragment', 'slang' => '', 'emoji' => '', 'actors' => ['fan'], 'results' => ['loss'], 'text' => 'Good individual display. We still lost.'],
+            ['voice' => 'tactical_fan', 'family' => 'complete_display', 'opening' => 'analysis', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition'], 'results' => ['win', 'draw', 'loss'], 'text' => 'The useful detail was the work both in and out of possession.'],
+            ['voice' => 'rival_fan', 'family' => 'rival_credit', 'opening' => 'respect', 'slang' => '', 'emoji' => '', 'actors' => ['rival'], 'results' => ['win', 'draw', 'loss'], 'text' => 'Hate admitting it, but {player} made the difference.'],
+        ],
+        'match_strong_performance' => [
+            ['voice' => 'supportive_fan', 'family' => 'form_pride', 'opening' => 'supporter', 'slang' => '', 'emoji' => '😭', 'actors' => ['fan', 'club'], 'results' => ['win', 'draw'], 'text' => "That's my {player}. What a shift 😭"],
+            ['voice' => 'reactionary_fan', 'family' => 'form_agenda', 'opening' => 'statement', 'slang' => 'locked in', 'emoji' => '', 'actors' => ['fan'], 'results' => ['win', 'draw'], 'text' => '{player} was locked in today. More of this, please.'],
+            ['voice' => 'optimistic_fan', 'family' => 'form_turn', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'actors' => ['fan'], 'results' => ['win', 'draw'], 'text' => 'This is the performance we can build on.'],
+            ['voice' => 'pessimistic_fan', 'family' => 'good_in_bad_result', 'opening' => 'fragment', 'slang' => '', 'emoji' => '', 'actors' => ['fan'], 'results' => ['loss'], 'text' => 'One of the few positives in that result.'],
+            ['voice' => 'neutral_viewer', 'family' => 'rating_evidence', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition'], 'results' => ['win', 'draw', 'loss'], 'text' => '{player} gave the match a clear performance to remember.'],
+            ['voice' => 'old_school_fan', 'family' => 'professional_shift', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'actors' => ['club'], 'results' => ['win', 'draw'], 'text' => 'Professional work from first whistle to last.'],
+        ],
+        'match_result' => [
+            ['voice' => 'supportive_fan', 'family' => 'result_joy', 'opening' => 'caps', 'slang' => '', 'emoji' => '😭', 'actors' => ['fan', 'club'], 'results' => ['win'], 'text' => "WE'LL TAKE THAT. {score} 😭"],
+            ['voice' => 'pessimistic_fan', 'family' => 'result_frustration', 'opening' => 'fragment', 'slang' => '', 'emoji' => '', 'actors' => ['fan', 'club'], 'results' => ['loss'], 'text' => 'Not good enough. {score}.'],
+            ['voice' => 'casual_fan', 'family' => 'result_disbelief', 'opening' => 'question', 'slang' => 'what', 'emoji' => '💀', 'actors' => ['fan'], 'results' => ['loss'], 'text' => 'What am I watching? {score} 💀'],
+            ['voice' => 'neutral_viewer', 'family' => 'result_record', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition'], 'results' => ['win', 'draw', 'loss'], 'text' => '{team} leave the {competition} with a {score} result.'],
+            ['voice' => 'tactical_fan', 'family' => 'result_context', 'opening' => 'analysis', 'slang' => '', 'emoji' => '', 'actors' => ['media'], 'results' => ['win', 'draw', 'loss'], 'text' => 'The scoreline reflects a match decided by the margins.'],
+        ],
+        'match_red_card' => [
+            ['voice' => 'pessimistic_fan', 'family' => 'discipline_frustration', 'opening' => 'fragment', 'slang' => '', 'emoji' => '💀', 'actors' => ['fan', 'club'], 'results' => ['win', 'draw', 'loss'], 'text' => 'That red changed everything 💀'],
+            ['voice' => 'reactionary_fan', 'family' => 'discipline_criticism', 'opening' => 'question', 'slang' => 'cooked', 'emoji' => '', 'actors' => ['fan'], 'results' => ['win', 'draw', 'loss'], 'text' => 'Why are we making it this hard? {player} has cooked the whole night.'],
+            ['voice' => 'neutral_viewer', 'family' => 'discipline_fact', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition'], 'results' => ['win', 'draw', 'loss'], 'text' => 'The dismissal became the defining detail of the match.'],
+            ['voice' => 'old_school_fan', 'family' => 'discipline_lesson', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'actors' => ['club'], 'results' => ['win', 'draw', 'loss'], 'text' => 'The team cannot give away moments like that.'],
+        ],
+        'transfer' => [
+            ['voice' => 'supportive_fan', 'family' => 'new_chapter_welcome', 'opening' => 'supporter', 'slang' => '', 'emoji' => '❤️', 'actors' => ['club'], 'results' => [], 'text' => "Welcome to {team}, {player}. Let's get to work ❤️"],
+            ['voice' => 'reactionary_fan', 'family' => 'market_verdict', 'opening' => 'statement', 'slang' => 'aura', 'emoji' => '', 'actors' => ['fan'], 'results' => [], 'text' => '{player} arrives with serious aura. Now prove it.'],
+            ['voice' => 'neutral_viewer', 'family' => 'market_fact', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media'], 'results' => [], 'text' => '{player} begins a new Club chapter with {team}.'],
+            ['voice' => 'old_school_fan', 'family' => 'market_welcome', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'actors' => ['club'], 'results' => [], 'text' => 'A new shirt, the same work. Welcome, {player}.'],
+        ],
+        'free_agent_signing' => [
+            ['voice' => 'supportive_fan', 'family' => 'free_agent_welcome', 'opening' => 'supporter', 'slang' => '', 'emoji' => '😭', 'actors' => ['club'], 'results' => [], 'text' => 'A new home found. Welcome, {player} 😭'],
+            ['voice' => 'meme_account', 'family' => 'free_agent_meme', 'opening' => 'lowercase', 'slang' => 'streets', 'emoji' => '💀', 'actors' => ['fan'], 'results' => [], 'text' => 'the streets said sign him and they were right 💀'],
+            ['voice' => 'neutral_viewer', 'family' => 'free_agent_fact', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media'], 'results' => [], 'text' => 'Free agency ends with {player} joining {team}.'],
+        ],
+        'transfer_request' => [
+            ['voice' => 'reactionary_fan', 'family' => 'market_drama', 'opening' => 'question', 'slang' => 'ngl', 'emoji' => '', 'actors' => ['fan'], 'results' => [], 'text' => 'ngl the market just got interesting.'],
+            ['voice' => 'neutral_viewer', 'family' => 'market_update', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media'], 'results' => [], 'text' => 'The transfer request makes {player}\'s next step a live question.'],
+        ],
+        'award' => [
+            ['voice' => 'supportive_fan', 'family' => 'award_pride', 'opening' => 'caps', 'slang' => '', 'emoji' => '😭', 'actors' => ['fan', 'club'], 'results' => [], 'text' => "THAT'S MY PLAYER. {headline} 😭"],
+            ['voice' => 'reactionary_fan', 'family' => 'award_receipt', 'opening' => 'statement', 'slang' => 'prop', 'emoji' => '', 'actors' => ['fan'], 'results' => [], 'text' => 'The award is the receipt. Give {player} their prop.'],
+            ['voice' => 'neutral_viewer', 'family' => 'award_fact', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'national'], 'results' => [], 'text' => '{headline} is now part of {player}\'s documented Season.'],
+            ['voice' => 'old_school_fan', 'family' => 'award_merit', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'actors' => ['club'], 'results' => [], 'text' => 'Recognition follows the work. Well deserved, {player}.'],
+        ],
+        'honour' => [
+            ['voice' => 'supportive_fan', 'family' => 'honour_pride', 'opening' => 'supporter', 'slang' => '', 'emoji' => '❤️', 'actors' => ['fan', 'club'], 'results' => [], 'text' => 'History made by {player} ❤️'],
+            ['voice' => 'meme_account', 'family' => 'honour_aura', 'opening' => 'lowercase', 'slang' => 'generational', 'emoji' => '😭', 'actors' => ['fan'], 'results' => [], 'text' => 'generational stuff from {player} 😭'],
+            ['voice' => 'neutral_viewer', 'family' => 'honour_fact', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'national'], 'results' => [], 'text' => '{headline} joins the durable record of {player}.'],
+        ],
+        'record' => [
+            ['voice' => 'supportive_fan', 'family' => 'record_pride', 'opening' => 'caps', 'slang' => '', 'emoji' => '😭', 'actors' => ['fan', 'club'], 'results' => [], 'text' => 'Another record for {player}. Unreal 😭'],
+            ['voice' => 'tactical_fan', 'family' => 'record_evidence', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'competition'], 'results' => [], 'text' => 'The record is the clearest evidence of {player}\'s Season.'],
+            ['voice' => 'reactionary_fan', 'family' => 'record_agenda', 'opening' => 'statement', 'slang' => 'cold', 'emoji' => '', 'actors' => ['fan'], 'results' => [], 'text' => '{player} has been cold all Season. The numbers agree.'],
+        ],
+        'milestone' => [
+            ['voice' => 'supportive_fan', 'family' => 'milestone_pride', 'opening' => 'supporter', 'slang' => '', 'emoji' => '❤️', 'actors' => ['fan', 'club', 'national'], 'results' => [], 'text' => 'Small steps, big Career. Well done, {player} ❤️'],
+            ['voice' => 'casual_fan', 'family' => 'milestone_callback', 'opening' => 'lowercase', 'slang' => 'lowkey', 'emoji' => '', 'actors' => ['fan'], 'results' => [], 'text' => 'lowkey this is a big one for {player}.'],
+            ['voice' => 'neutral_viewer', 'family' => 'milestone_fact', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media', 'national'], 'results' => [], 'text' => '{headline} becomes a new marker in {player}\'s Career.'],
+        ],
+        'retirement' => [
+            ['voice' => 'supportive_fan', 'family' => 'retirement_thanks', 'opening' => 'supporter', 'slang' => '', 'emoji' => '😭', 'actors' => ['fan', 'club'], 'results' => [], 'text' => 'Thank you for the memories, {player} 😭'],
+            ['voice' => 'neutral_viewer', 'family' => 'retirement_fact', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media'], 'results' => [], 'text' => 'The playing Career is complete for {player}; the record now belongs to history.'],
+            ['voice' => 'old_school_fan', 'family' => 'retirement_respect', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'actors' => ['fan'], 'results' => [], 'text' => 'A full playing Career deserves respect.'],
+        ],
+        'injury' => [
+            ['voice' => 'supportive_fan', 'family' => 'injury_support', 'opening' => 'supporter', 'slang' => '', 'emoji' => '❤️', 'actors' => ['fan', 'club'], 'results' => [], 'text' => 'Wishing {player} a steady recovery ❤️'],
+            ['voice' => 'neutral_viewer', 'family' => 'injury_fact', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media'], 'results' => [], 'text' => 'The recorded injury takes {player} out of the immediate picture.'],
+        ],
+        'return' => [
+            ['voice' => 'supportive_fan', 'family' => 'comeback_joy', 'opening' => 'caps', 'slang' => '', 'emoji' => '😭', 'actors' => ['fan', 'club', 'national'], 'results' => [], 'text' => "HE'S BACK 😭"],
+            ['voice' => 'meme_account', 'family' => 'comeback_meme', 'opening' => 'lowercase', 'slang' => 'aura', 'emoji' => '💀', 'actors' => ['fan'], 'results' => [], 'text' => 'the aura has returned 💀'],
+            ['voice' => 'neutral_viewer', 'family' => 'comeback_fact', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'actors' => ['media'], 'results' => [], 'text' => '{player} is available again after the recorded injury.'],
+        ],
+        'career_choice' => [
+            ['voice' => 'supportive_fan', 'family' => 'career_support', 'opening' => 'supporter', 'slang' => '', 'emoji' => '❤️', 'actors' => ['teammate'], 'results' => [], 'text' => 'Whatever comes next, we are with you, {player} ❤️'],
+            ['voice' => 'casual_fan', 'family' => 'career_callback', 'opening' => 'lowercase', 'slang' => 'ngl', 'emoji' => '', 'actors' => ['teammate'], 'results' => [], 'text' => 'ngl this next chapter is going to be interesting.'],
+        ],
+    ];
+
     public function __construct(private readonly EchoService $echo = new EchoService()) {}
 
     public function initializeSchema(DatabaseInterface $database): void
@@ -393,14 +520,35 @@ final class PulseService
 
     private function recordSourceInTransaction(DatabaseInterface $database, string $playerId, string $sourceKey, SimulationDate $date, string $kind, string $importance, array $context, array $actors, ?array $choices): void
     {
+        $recent = $this->recentReactionHistory($database, $playerId);
+        $used = ['texts' => [], 'families' => [], 'openings' => [], 'slang' => [], 'emojis' => []];
+        $reactions = [];
+        $reactionMeta = [];
+        foreach ($actors as $actor) {
+            if (!is_array($actor)) { continue; }
+            $actorType = (string) ($actor['type'] ?? 'fan');
+            $actorId = (string) ($actor['id'] ?? 'unknown');
+            $reaction = $this->selectReaction((string) ($actor['kind'] ?? $kind), $actorType, $context, $sourceKey, $actorId, $recent, $used);
+            $reactionKey = $actorType . '|' . $actorId;
+            $reactionMeta[$reactionKey] = $reaction['meta'];
+            $reactions[] = ['actor' => $actor, 'text' => $reaction['text']];
+            $used['texts'][$reaction['text']] = true;
+            foreach (['families', 'openings', 'slang', 'emojis'] as $dimension) {
+                $value = (string) ($reaction['meta'][$dimension] ?? '');
+                if ($value !== '') { $used[$dimension][$value] = true; }
+            }
+        }
+        $context['reaction_meta'] = $reactionMeta;
         $marker = $database->connection()->prepare('INSERT OR IGNORE INTO ' . self::SOURCES . ' (source_key, player_id, occurred_date, kind, importance, context_json) VALUES (:source_key, :player_id, :date, :kind, :importance, :context)');
         $marker->execute(['source_key' => $sourceKey, 'player_id' => $playerId, 'date' => $date->toIsoString(), 'kind' => $kind, 'importance' => $importance, 'context' => json_encode($context, JSON_THROW_ON_ERROR)]);
         if ($marker->rowCount() === 0) { return; }
         $audience = $this->audienceScore($database, $playerId);
         $this->writeAudience($database, $playerId, $this->nextAudience($audience, $importance, $kind), $date);
-        foreach ($actors as $actor) {
-            if (!is_array($actor)) { continue; }
-            $this->insertPost($database, $playerId, 'post|' . $sourceKey . '|' . (string) ($actor['type'] ?? '') . '|' . (string) ($actor['id'] ?? ''), $sourceKey, (string) ($actor['type'] ?? 'fan'), (string) ($actor['id'] ?? 'unknown'), (string) ($actor['name'] ?? 'Football world'), $date, $this->render((string) ($actor['kind'] ?? $kind), (string) ($actor['type'] ?? 'fan'), $context, $sourceKey), $this->engagement($database, $playerId, $importance, (string) ($actor['type'] ?? 'fan')));
+        foreach ($reactions as $reaction) {
+            $actor = $reaction['actor'];
+            $actorType = (string) ($actor['type'] ?? 'fan');
+            $actorId = (string) ($actor['id'] ?? 'unknown');
+            $this->insertPost($database, $playerId, 'post|' . $sourceKey . '|' . $actorType . '|' . $actorId, $sourceKey, $actorType, $actorId, (string) ($actor['name'] ?? 'Football world'), $date, $reaction['text'], $this->engagement($database, $playerId, $importance, $actorType));
         }
         if ($choices !== null && $this->pendingResponse($database, $playerId) === null) {
             $statement = $database->connection()->prepare('INSERT OR IGNORE INTO ' . self::RESPONSES . ' (source_key, player_id, status, choices_json, created_date) VALUES (:source_key, :player_id, :status, :choices, :date)');
@@ -423,7 +571,92 @@ final class PulseService
         $options = $templates[$kind] ?? $templates['match_major_contribution'] ?? $templates['career_choice'] ?? self::TEMPLATES['fan']['career_choice'];
         $index = hexdec(substr(hash('sha256', 'pulse-feed:v1|' . $sourceKey . '|' . $actorType . '|' . $kind), 0, 8)) % count($options);
 
-        return strtr($options[$index], array_map(static fn (mixed $value): string => (string) $value, array_combine(array_map(static fn (string $key): string => '{' . $key . '}', array_keys($context)), array_values($context)) ?: []));
+        return $this->interpolate($options[$index], $context);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @param array<string, array<string, bool>> $used
+     * @return array{text:string,meta:array{voice:string,family:string,opening:string,slang:string,emoji:string,text:string}}
+     */
+    private function selectReaction(string $kind, string $actorType, array $context, string $sourceKey, string $actorId, array $recent, array $used): array
+    {
+        $candidates = [];
+        $result = (string) ($context['result'] ?? '');
+        foreach (self::REACTION_CATALOG[$kind] ?? [] as $candidate) {
+            if (!in_array($actorType, $candidate['actors'], true)) { continue; }
+            if ($candidate['results'] !== [] && !in_array($result, $candidate['results'], true)) { continue; }
+            $candidates[] = $candidate;
+        }
+        if ($candidates === []) {
+            $text = $this->render($kind, $actorType, $context, $sourceKey);
+            return ['text' => $text, 'meta' => ['voice' => self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer', 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'text' => $text]];
+        }
+
+        $start = hexdec(substr(hash('sha256', 'pulse-reaction:v1|' . $sourceKey . '|' . $actorType . '|' . $actorId . '|' . $kind), 0, 8)) % count($candidates);
+        $best = null;
+        $bestScore = PHP_INT_MAX;
+        foreach ($candidates as $offset => $candidate) {
+            $candidate = $candidates[($start + $offset) % count($candidates)];
+            $text = $this->interpolate($candidate['text'], $context);
+            $family = $candidate['family'];
+            $opening = $candidate['opening'];
+            $slang = $candidate['slang'];
+            $emoji = $candidate['emoji'];
+            $score = 0;
+            if (isset($recent['texts'][$text]) || isset($used['texts'][$text])) { $score += 1000; }
+            if (isset($recent['families'][$family]) || isset($used['families'][$family])) { $score += 100; }
+            if (isset($recent['openings'][$opening]) || isset($used['openings'][$opening])) { $score += 30; }
+            if ($slang !== '' && (isset($recent['slang'][$slang]) || isset($used['slang'][$slang]))) { $score += 20; }
+            if ($emoji !== '' && (isset($recent['emojis'][$emoji]) || isset($used['emojis'][$emoji]))) { $score += 15; }
+            if ($score < $bestScore) {
+                $bestScore = $score;
+                $best = ['text' => $text, 'meta' => ['voice' => $candidate['voice'], 'family' => $family, 'opening' => $opening, 'slang' => $slang, 'emoji' => $emoji, 'text' => $text]];
+                if ($score === 0) { break; }
+            }
+        }
+
+        if ($best !== null && $bestScore >= 1000) {
+            $legacyText = $this->render($kind, $actorType, $context, $sourceKey);
+            if (!isset($recent['texts'][$legacyText]) && !isset($used['texts'][$legacyText])) {
+                return ['text' => $legacyText, 'meta' => ['voice' => self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer', 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'text' => $legacyText]];
+            }
+        }
+
+        return $best ?? ['text' => $this->render($kind, $actorType, $context, $sourceKey), 'meta' => ['voice' => self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer', 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'text' => '']];
+    }
+
+    /** @return array{texts:array<string,bool>,families:array<string,bool>,openings:array<string,bool>,slang:array<string,bool>,emojis:array<string,bool>} */
+    private function recentReactionHistory(DatabaseInterface $database, string $playerId): array
+    {
+        $history = ['texts' => [], 'families' => [], 'openings' => [], 'slang' => [], 'emojis' => []];
+        if (!$this->available($database, self::POSTS) || !$this->available($database, self::SOURCES)) { return $history; }
+        $statement = $database->connection()->prepare('SELECT p.post_text, p.actor_type, p.actor_id, s.context_json FROM ' . self::POSTS . ' p JOIN ' . self::SOURCES . ' s ON s.source_key = p.source_key WHERE p.player_id = :player_id ORDER BY p.occurred_date DESC, p.id DESC LIMIT 24');
+        $statement->execute(['player_id' => $playerId]);
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $text = (string) ($row['post_text'] ?? '');
+            if ($text !== '') { $history['texts'][$text] = true; }
+            $context = json_decode((string) ($row['context_json'] ?? ''), true);
+            $key = (string) ($row['actor_type'] ?? 'fan') . '|' . (string) ($row['actor_id'] ?? 'unknown');
+            $meta = is_array($context) && is_array($context['reaction_meta'] ?? null) && is_array($context['reaction_meta'][$key] ?? null) ? $context['reaction_meta'][$key] : [];
+            foreach (['family' => 'families', 'opening' => 'openings', 'slang' => 'slang', 'emoji' => 'emojis'] as $metaKey => $historyKey) {
+                $value = (string) ($meta[$metaKey] ?? '');
+                if ($value !== '') { $history[$historyKey][$value] = true; }
+            }
+        }
+
+        return $history;
+    }
+
+    /** @param array<string, mixed> $context */
+    private function interpolate(string $template, array $context): string
+    {
+        $replacements = [];
+        foreach ($context as $key => $value) {
+            if (is_scalar($value) || $value === null) { $replacements['{' . $key . '}'] = (string) $value; }
+        }
+
+        return strtr($template, $replacements);
     }
 
     /** @return list<array{id:string,label:string,text:string}> */

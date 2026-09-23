@@ -23,6 +23,28 @@ Pulse sources/posts, one audience state, and curated response state. NPCs may
 appear as contextual actor labels but do not receive Pulse accounts or social
 careers.
 
+## P3-001 presentation boundary
+
+`EchoService` remains the event-kind and importance owner. `PulseService` owns
+the presentation catalog: lightweight voices such as supportive, reactionary,
+rival, tactical, casual, meme, old-school, optimistic, pessimistic, and
+neutral viewers are assigned only where the existing actor context permits.
+Voice dimensions vary sentence shape, capitalization, football terminology,
+slang, punctuation, and emoji without creating persistent social identities.
+
+Reaction families and opening families are selected with a small deterministic
+`pulse-reaction:v1` namespace. A bounded recent-post window suppresses exact
+text, close family, opening, slang, and emoji reuse, including between posts
+created by one event. If a catalog cannot safely provide a distinct choice,
+the existing actor template is used. New source context stores the selected
+presentation metadata, so reloads do not regenerate persisted prose; legacy
+posts are never rewritten.
+
+Language remains evidence-bound: Match result, goal/assist, red card, injury,
+return, transfer, achievement, and retirement wording use only the canonical
+context supplied by Echo and the existing event path. No network, AI, World
+scan, follower simulation, or historical reconstruction is added.
+
 Dependencies
 
 - Core Engine

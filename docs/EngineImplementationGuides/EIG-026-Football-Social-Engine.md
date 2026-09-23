@@ -43,9 +43,13 @@ Pulse actor types are aggregate `fan`, `club`, `media`, `competition`,
 `national`, valid `teammate`, valid `rival`, and controlled `player`. Stable
 source keys are derived from canonical Match, transfer, achievement,
 availability, or Career-choice identity. Posts are deterministic under
-`pulse-feed:v1`; engagement is deterministic under `pulse-engagement:v1` and
-does not consume gameplay RNG. The feed retains at most 200 source items per
-controlled Player and reads never write.
+`pulse-feed:v1`; newer catalog presentation uses the separate deterministic
+`pulse-reaction:v1` namespace. Engagement remains deterministic under
+`pulse-engagement:v1`; none consume gameplay RNG. PulseService keeps only a
+small recent post window for exact and semantic-family anti-repeat selection,
+and stores the selected voice/family metadata with each new source context.
+The feed retains at most 200 source items per controlled Player and reads
+never write. Existing source/post rows are not rewritten.
 
 Pulse adds no NPC account, follower row, social graph, detailed Match evidence,
 finance, or legacy simulation. Legacy saves receive empty current Pulse state

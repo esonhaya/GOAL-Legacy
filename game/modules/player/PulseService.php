@@ -30,6 +30,131 @@ final class PulseService
     private const MAX_SOURCES = 200;
     private const MAX_THREAD_DEPTH = 2;
 
+    /** @var list<array{id:string,name:string,handle:string,voice:string,culture:string,nation:string,club:?string}> */
+    private const IDENTITY_CATALOG = [
+        ['id' => 'pulse:mara-stand', 'name' => 'Mara Stone', 'handle' => 'marastand', 'voice' => 'supportive_fan', 'culture' => 'england', 'nation' => 'england', 'club' => 'arsenal'],
+        ['id' => 'pulse:tom-terrace', 'name' => 'Tom Mercer', 'handle' => 'tomterrace', 'voice' => 'old_school_fan', 'culture' => 'england', 'nation' => 'england', 'club' => 'chelsea'],
+        ['id' => 'pulse:ellie-away', 'name' => 'Ellie Ward', 'handle' => 'ellieaway', 'voice' => 'reactionary_fan', 'culture' => 'england', 'nation' => 'england', 'club' => null],
+        ['id' => 'pulse:owen-tactics', 'name' => 'Owen Clarke', 'handle' => 'owentactics', 'voice' => 'tactical_fan', 'culture' => 'england', 'nation' => 'england', 'club' => null],
+        ['id' => 'pulse:lucia-futbol', 'name' => 'Lucía Vidal', 'handle' => 'luciafutbol', 'voice' => 'supportive_fan', 'culture' => 'spain', 'nation' => 'spain', 'club' => 'real-madrid'],
+        ['id' => 'pulse:dani-tactico', 'name' => 'Dani Costa', 'handle' => 'danitactico', 'voice' => 'tactical_fan', 'culture' => 'spain', 'nation' => 'spain', 'club' => 'barcelona'],
+        ['id' => 'pulse:lena-kurve', 'name' => 'Lena Vogt', 'handle' => 'lenakurve', 'voice' => 'old_school_fan', 'culture' => 'germany', 'nation' => 'germany', 'club' => 'bayern-munich'],
+        ['id' => 'pulse:jonas-press', 'name' => 'Jonas Keller', 'handle' => 'jonaspress', 'voice' => 'tactical_fan', 'culture' => 'germany', 'nation' => 'germany', 'club' => null],
+        ['id' => 'pulse:chiara-calcio', 'name' => 'Chiara Riva', 'handle' => 'chiaracalcio', 'voice' => 'supportive_fan', 'culture' => 'italy', 'nation' => 'italy', 'club' => 'juventus'],
+        ['id' => 'pulse:marco-tribuna', 'name' => 'Marco Bellini', 'handle' => 'marcotribuna', 'voice' => 'tactical_fan', 'culture' => 'italy', 'nation' => 'italy', 'club' => null],
+        ['id' => 'pulse:ines-foot', 'name' => 'Inès Laurent', 'handle' => 'inesfoot', 'voice' => 'casual_fan', 'culture' => 'france', 'nation' => 'france', 'club' => 'psg'],
+        ['id' => 'pulse:luc-banc', 'name' => 'Luc Moreau', 'handle' => 'lucbanc', 'voice' => 'tactical_fan', 'culture' => 'france', 'nation' => 'france', 'club' => null],
+        ['id' => 'pulse:bia-futebol', 'name' => 'Bia Rocha', 'handle' => 'biafutebol', 'voice' => 'meme_account', 'culture' => 'brazil', 'nation' => 'brazil', 'club' => 'flamengo'],
+        ['id' => 'pulse:caio-dez', 'name' => 'Caio Mendes', 'handle' => 'caiodez', 'voice' => 'supportive_fan', 'culture' => 'brazil', 'nation' => 'brazil', 'club' => null],
+        ['id' => 'pulse:sol-hincha', 'name' => 'Sol Ferreyra', 'handle' => 'solhincha', 'voice' => 'optimistic_fan', 'culture' => 'argentina', 'nation' => 'argentina', 'club' => 'boca-juniors'],
+        ['id' => 'pulse:nico-pasion', 'name' => 'Nico Acosta', 'handle' => 'nicopasion', 'voice' => 'reactionary_fan', 'culture' => 'argentina', 'nation' => 'argentina', 'club' => null],
+        ['id' => 'pulse:ines-bola', 'name' => 'Inês Silva', 'handle' => 'inesbola', 'voice' => 'casual_fan', 'culture' => 'portugal', 'nation' => 'portugal', 'club' => null],
+        ['id' => 'pulse:rui-linha', 'name' => 'Rui Matos', 'handle' => 'ruilinha', 'voice' => 'tactical_fan', 'culture' => 'portugal', 'nation' => 'portugal', 'club' => null],
+        ['id' => 'pulse:fem-oranje', 'name' => 'Fem de Boer', 'handle' => 'femoranje', 'voice' => 'supportive_fan', 'culture' => 'netherlands', 'nation' => 'netherlands', 'club' => null],
+        ['id' => 'pulse:daan-press', 'name' => 'Daan Visser', 'handle' => 'daanpress', 'voice' => 'tactical_fan', 'culture' => 'netherlands', 'nation' => 'netherlands', 'club' => null],
+        ['id' => 'pulse:noor-stand', 'name' => 'Noor Peeters', 'handle' => 'noorstand', 'voice' => 'optimistic_fan', 'culture' => 'belgium', 'nation' => 'belgium', 'club' => null],
+        ['id' => 'pulse:mathis-ball', 'name' => 'Mathis De Smet', 'handle' => 'mathisball', 'voice' => 'casual_fan', 'culture' => 'belgium', 'nation' => 'belgium', 'club' => null],
+        ['id' => 'pulse:iva-match', 'name' => 'Iva Kovač', 'handle' => 'ivamatch', 'voice' => 'supportive_fan', 'culture' => 'croatia', 'nation' => 'croatia', 'club' => null],
+        ['id' => 'pulse:mateo-tribina', 'name' => 'Mateo Jurić', 'handle' => 'mateotribina', 'voice' => 'reactionary_fan', 'culture' => 'croatia', 'nation' => 'croatia', 'club' => null],
+        ['id' => 'pulse:adaeze-ball', 'name' => 'Adaeze Okafor', 'handle' => 'adaezeball', 'voice' => 'supportive_fan', 'culture' => 'nigeria', 'nation' => 'nigeria', 'club' => null],
+        ['id' => 'pulse:tunde-pitch', 'name' => 'Tunde Adebayo', 'handle' => 'tundepitch', 'voice' => 'meme_account', 'culture' => 'nigeria', 'nation' => 'nigeria', 'club' => null],
+        ['id' => 'pulse:ama-footy', 'name' => 'Ama Mensah', 'handle' => 'amafooty', 'voice' => 'optimistic_fan', 'culture' => 'ghana', 'nation' => 'ghana', 'club' => null],
+        ['id' => 'pulse:kojo-match', 'name' => 'Kojo Asare', 'handle' => 'kojomatch', 'voice' => 'casual_fan', 'culture' => 'ghana', 'nation' => 'ghana', 'club' => null],
+        ['id' => 'pulse:salma-foot', 'name' => 'Salma Idrissi', 'handle' => 'salmafoot', 'voice' => 'supportive_fan', 'culture' => 'morocco', 'nation' => 'morocco', 'club' => null],
+        ['id' => 'pulse:yassin-kora', 'name' => 'Yassin El Amrani', 'handle' => 'yassinkora', 'voice' => 'reactionary_fan', 'culture' => 'morocco', 'nation' => 'morocco', 'club' => null],
+        ['id' => 'pulse:aiko-pitch', 'name' => 'Aiko Mori', 'handle' => 'aikopitch', 'voice' => 'tactical_fan', 'culture' => 'japan', 'nation' => 'japan', 'club' => null],
+        ['id' => 'pulse:ren-match', 'name' => 'Ren Takahashi', 'handle' => 'renmatch', 'voice' => 'casual_fan', 'culture' => 'japan', 'nation' => 'japan', 'club' => null],
+        ['id' => 'pulse:minji-foot', 'name' => 'Minji Han', 'handle' => 'minjifoot', 'voice' => 'optimistic_fan', 'culture' => 'south-korea', 'nation' => 'south-korea', 'club' => null],
+        ['id' => 'pulse:jihoon-game', 'name' => 'Jihoon Park', 'handle' => 'jihoongame', 'voice' => 'tactical_fan', 'culture' => 'south-korea', 'nation' => 'south-korea', 'club' => null],
+        ['id' => 'pulse:bea-football', 'name' => 'Bea Santos', 'handle' => 'beafootball', 'voice' => 'supportive_fan', 'culture' => 'philippines', 'nation' => 'philippines', 'club' => null],
+        ['id' => 'pulse:miguel-laro', 'name' => 'Miguel Laro', 'handle' => 'miguellaro', 'voice' => 'meme_account', 'culture' => 'philippines', 'nation' => 'philippines', 'club' => null],
+        ['id' => 'pulse:sofia-cancha', 'name' => 'Sofía Reyes', 'handle' => 'sofiacancha', 'voice' => 'supportive_fan', 'culture' => 'mexico', 'nation' => 'mexico', 'club' => null],
+        ['id' => 'pulse:mateo-balon', 'name' => 'Mateo Cruz', 'handle' => 'mateobalon', 'voice' => 'reactionary_fan', 'culture' => 'mexico', 'nation' => 'mexico', 'club' => null],
+        ['id' => 'pulse:jordan-football', 'name' => 'Jordan Lee', 'handle' => 'jordanfootball', 'voice' => 'neutral_viewer', 'culture' => 'united-states', 'nation' => 'united-states', 'club' => null],
+        ['id' => 'pulse:casey-global', 'name' => 'Casey Morgan', 'handle' => 'caseyglobal', 'voice' => 'neutral_viewer', 'culture' => 'global', 'nation' => 'global', 'club' => null],
+    ];
+
+    /** @var array<string, array<string, list<array{family:string,opening:string,slang:string,emoji:string,native:bool,reference:string,text:string}>>> */
+    private const CULTURE_REACTIONS = [
+        'england' => [
+            'positive' => [['family' => 'away_end', 'opening' => 'proper', 'slang' => 'proper', 'emoji' => '', 'native' => false, 'reference' => 'PROPER_FOOTBALL', 'text' => 'Proper shift from {player}; the away end will be singing that one.'], ['family' => 'football_weather', 'opening' => 'statement', 'slang' => '', 'emoji' => '😭', 'native' => false, 'reference' => 'AWAY_DAYS', 'text' => 'Rain, pressure, and a footballer who still wants the ball. {player} was class.']],
+            'negative' => [['family' => 'english_standards', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'PROPER_FOOTBALL', 'text' => 'That was not good enough for a side with ambitions. Back to the training ground.'], ['family' => 'away_day_frustration', 'opening' => 'fragment', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'AWAY_DAYS', 'text' => 'Long way home after that. The result did not match the effort.']],
+            'major' => [['family' => 'big_night', 'opening' => 'statement', 'slang' => '', 'emoji' => '😭', 'native' => false, 'reference' => 'AWAY_END', 'text' => 'That is what a big night is for. {player} gave the supporters a memory.']],
+        ],
+        'spain' => [
+            'positive' => [['family' => 'futbol_technical', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'FUTBOL', 'text' => 'The touch, the timing, the calm. {player} understood the fútbol tonight.'], ['family' => 'iberian_joy', 'opening' => 'interjection', 'slang' => '', 'emoji' => '😭', 'native' => true, 'reference' => 'FUTBOL', 'text' => 'Qué jugador. {player} made that look much easier than it was.']],
+            'negative' => [['family' => 'technical_frustration', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'TECHNICAL_FOOTBALL', 'text' => 'Too many simple decisions went wrong. The football was not clean enough.']],
+            'major' => [['family' => 'futbol_moment', 'opening' => 'interjection', 'slang' => '', 'emoji' => '❤️', 'native' => true, 'reference' => 'FUTBOL', 'text' => 'Qué momento. {player} brought fútbol to the biggest stage.']],
+        ],
+        'germany' => [
+            'positive' => [['family' => 'kurve_pride', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'SUPPORTER_CULTURE', 'text' => 'The work was clear from the first whistle. {player} gave the supporters a complete performance.'], ['family' => 'direct_football', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'DIRECT_FOOTBALL', 'text' => 'No unnecessary drama: win the duel, make the right pass, finish the move. {player} did all three.']],
+            'negative' => [['family' => 'defensive_discipline', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'TACTICAL_DISCIPLINE', 'text' => 'The structure disappeared when the match needed it most. That cannot happen again.']],
+            'major' => [['family' => 'kurve_moment', 'opening' => 'statement', 'slang' => '', 'emoji' => '😭', 'native' => false, 'reference' => 'SUPPORTER_CULTURE', 'text' => 'A proper matchday memory. {player} was decisive when the whole ground was waiting.']],
+        ],
+        'italy' => [
+            'positive' => [['family' => 'calcio_reading', 'opening' => 'analysis', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'CALCIO', 'text' => 'That was calcio intelligence: read the space, wait for the moment, punish it.'], ['family' => 'italian_praise', 'opening' => 'interjection', 'slang' => '', 'emoji' => '❤️', 'native' => true, 'reference' => 'CALCIO', 'text' => 'Che giocatore. {player} made the whole move feel inevitable.']],
+            'negative' => [['family' => 'tactical_regret', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'CALCIO_TACTICS', 'text' => 'The tactical detail was missing: too open, too rushed, and punished at once.']],
+            'major' => [['family' => 'calcio_big_moment', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'CALCIO', 'text' => 'Big-match calcio rewards players who can stay calm. {player} stayed calm.']],
+        ],
+        'france' => [
+            'positive' => [['family' => 'french_fluency', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'FOOTBALL_FLUENCY', 'text' => 'The movement was elegant and the decision was ruthless. {player} changed the match.'], ['family' => 'french_joy', 'opening' => 'interjection', 'slang' => '', 'emoji' => '😭', 'native' => true, 'reference' => 'FOOTBALL_FLUENCY', 'text' => 'Mais oui. That is exactly how you take a big chance.']],
+            'negative' => [['family' => 'french_frustration', 'opening' => 'question', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'FOOTBALL_FLUENCY', 'text' => 'How did the team lose control of a match that was there to be won?']],
+            'major' => [['family' => 'french_big_stage', 'opening' => 'statement', 'slang' => '', 'emoji' => '❤️', 'native' => false, 'reference' => 'FOOTBALL_FLUENCY', 'text' => 'The big stage suits {player}. That was a performance with style and consequence.']],
+        ],
+        'brazil' => [
+            'positive' => [['family' => 'futebol_flair', 'opening' => 'statement', 'slang' => '', 'emoji' => '😭', 'native' => false, 'reference' => 'JOGO_BONITO', 'text' => 'That first touch had futebol in it. {player} brought the joy back to the move.'], ['family' => 'brazilian_joy', 'opening' => 'interjection', 'slang' => '', 'emoji' => '😭', 'native' => true, 'reference' => 'JOGO_BONITO', 'text' => 'Meu amigo, what a finish from {player}. Pure disrespect for the angle.']],
+            'negative' => [['family' => 'brazilian_frustration', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'FUTEBOL', 'text' => 'The talent was there, but the team lost the rhythm and the result with it.']],
+            'major' => [['family' => 'jogo_bonito_moment', 'opening' => 'statement', 'slang' => '', 'emoji' => '❤️', 'native' => false, 'reference' => 'JOGO_BONITO', 'text' => 'That is why people fall in love with futebol. {player} made a moment out of nothing.']],
+        ],
+        'argentina' => [
+            'positive' => [['family' => 'hincha_passion', 'opening' => 'statement', 'slang' => '', 'emoji' => '😭', 'native' => false, 'reference' => 'HINCHA_PASSION', 'text' => 'That is a moment for every hincha. {player} played it with courage.'], ['family' => 'argentine_joy', 'opening' => 'interjection', 'slang' => '', 'emoji' => '😭', 'native' => true, 'reference' => 'HINCHA_PASSION', 'text' => 'Hermano, that finish. Fútbol at its most alive.']],
+            'negative' => [['family' => 'argentine_frustration', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'HINCHA_PASSION', 'text' => 'The heart was there, but the match needed more calm in the decisive moments.']],
+            'major' => [['family' => 'pasion_big_night', 'opening' => 'statement', 'slang' => '', 'emoji' => '❤️', 'native' => false, 'reference' => 'HINCHA_PASSION', 'text' => 'You remember nights like this. {player} gave the hinchas something real.']],
+        ],
+        'philippines' => [
+            'positive' => [['family' => 'pinoy_overseas_pride', 'opening' => 'supporter', 'slang' => '', 'emoji' => '😭', 'native' => false, 'reference' => 'PINOY_PRIDE', 'text' => 'Our boy is making the whole football world watch. What a shift, {player} 😭'], ['family' => 'pinoy_joy', 'opening' => 'interjection', 'slang' => '', 'emoji' => '😭', 'native' => true, 'reference' => 'PINOY_PRIDE', 'text' => 'Grabe, {player} really did that in Europe. Our boy is different today.']],
+            'negative' => [['family' => 'pinoy_support', 'opening' => 'supporter', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'PINOY_PRIDE', 'text' => 'Hard result, but we know our boy can answer in the next match.']],
+            'major' => [['family' => 'pinoy_landmark', 'opening' => 'statement', 'slang' => '', 'emoji' => '😭', 'native' => false, 'reference' => 'PINOY_PRIDE', 'text' => 'A huge day for {player} and for everyone back home watching.']],
+        ],
+        'nigeria' => [
+            'positive' => [['family' => 'nigerian_banter', 'opening' => 'statement', 'slang' => '', 'emoji' => '😭', 'native' => false, 'reference' => 'FOOTBALL_BANTER', 'text' => 'He saw the chance and finished it properly. {player} is giving us a serious performance.'], ['family' => 'nigerian_joy', 'opening' => 'interjection', 'slang' => '', 'emoji' => '😭', 'native' => true, 'reference' => 'FOOTBALL_BANTER', 'text' => 'Abeg, who is stopping {player} tonight? That finish was serious.']],
+            'negative' => [['family' => 'nigerian_frustration', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'FOOTBALL_BANTER', 'text' => 'The effort was there, but the team gave away too much in the important moments.']],
+            'major' => [['family' => 'nigerian_landmark', 'opening' => 'statement', 'slang' => 'cold', 'emoji' => '😭', 'native' => false, 'reference' => 'FOOTBALL_BANTER', 'text' => '{player} was cold when the pressure arrived. Big moment, big answer.']],
+        ],
+        'japan' => [
+            'positive' => [['family' => 'japanese_composure', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'COMPOSED_FOOTBALL', 'text' => 'The detail was excellent: clean movement, patience, and a precise finish from {player}.'], ['family' => 'japanese_joy', 'opening' => 'interjection', 'slang' => '', 'emoji' => '😭', 'native' => true, 'reference' => 'COMPOSED_FOOTBALL', 'text' => 'Sugoi finish. {player} stayed calm when the whole match sped up.']],
+            'negative' => [['family' => 'japanese_reflection', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'COMPOSED_FOOTBALL', 'text' => 'The next step is clear: keep the structure, make the final decision earlier.']],
+            'major' => [['family' => 'japanese_landmark', 'opening' => 'statement', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'COMPOSED_FOOTBALL', 'text' => 'A meaningful football moment. {player} earned it through discipline and timing.']],
+        ],
+        'mexico' => [
+            'positive' => [['family' => 'mexican_cancha', 'opening' => 'statement', 'slang' => '', 'emoji' => '😭', 'native' => false, 'reference' => 'CANCHA', 'text' => 'That was pure cancha instinct from {player}; the finish arrived before the defence could think.'], ['family' => 'mexican_joy', 'opening' => 'interjection', 'slang' => '', 'emoji' => '😭', 'native' => true, 'reference' => 'CANCHA', 'text' => 'Qué golazo. {player} found the one gap that mattered.']],
+            'negative' => [['family' => 'mexican_frustration', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'reference' => 'CANCHA', 'text' => 'The team had the match in reach and let it slip. That is the frustrating part.']],
+            'major' => [['family' => 'mexican_landmark', 'opening' => 'statement', 'slang' => '', 'emoji' => '❤️', 'native' => false, 'reference' => 'CANCHA', 'text' => 'A big football memory from {player}; everyone in the cancha would appreciate that.']],
+        ],
+    ];
+
+    /** @var array<string, string> */
+    private const CULTURE_ALIASES = [
+        'england' => 'england', 'spain' => 'spain', 'germany' => 'germany', 'italy' => 'italy', 'france' => 'france',
+        'brazil' => 'brazil', 'argentina' => 'argentina', 'philippines' => 'philippines', 'nigeria' => 'nigeria', 'japan' => 'japan', 'mexico' => 'mexico',
+        'united-states' => 'global', 'usa' => 'global', 'south-korea' => 'japan', 'portugal' => 'spain', 'netherlands' => 'germany', 'belgium' => 'france', 'croatia' => 'italy', 'ghana' => 'nigeria', 'morocco' => 'france',
+    ];
+
+    /** @var array<string, array<string, array{family:string,opening:string,slang:string,emoji:string,native:bool,text:string}>> */
+    private const CULTURE_THREAD_REPLIES = [
+        'england' => ['agree' => ['family' => 'english_fair_play', 'opening' => 'fair_play', 'slang' => 'proper', 'emoji' => '', 'native' => false, 'text' => 'Fair play, the lad earned that one.'], 'disagree' => ['family' => 'english_calm_down', 'opening' => 'question', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'One good game and we are rewriting the whole season?'], 'rival_banter' => ['family' => 'english_away_banter', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'Enjoy it; we will see how the next away day goes.']],
+        'spain' => ['agree' => ['family' => 'spanish_lectura', 'opening' => 'interjection', 'slang' => '', 'emoji' => '', 'native' => true, 'text' => 'Qué lectura; the finish deserved that praise.'], 'disagree' => ['family' => 'spanish_calma', 'opening' => 'calm', 'slang' => '', 'emoji' => '', 'native' => true, 'text' => 'Calma, one match does not settle the argument.'], 'rival_banter' => ['family' => 'spanish_long_season', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'Enjoy the moment, but the league is long.']],
+        'germany' => ['agree' => ['family' => 'german_structure', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'That is a fair assessment; the structure was excellent.'], 'disagree' => ['family' => 'german_measure', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'The result is one thing; the full performance is another.'], 'rival_banter' => ['family' => 'german_next_match', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'One match is not a season.']],
+        'italy' => ['agree' => ['family' => 'italian_giusto', 'opening' => 'interjection', 'slang' => '', 'emoji' => '', 'native' => true, 'text' => 'Giusto, the movement made the difference.'], 'disagree' => ['family' => 'italian_tactics', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'Tactics still matter more than the headline.'], 'rival_banter' => ['family' => 'italian_round', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'We will discuss it again after the next round.']],
+        'france' => ['agree' => ['family' => 'french_oui', 'opening' => 'interjection', 'slang' => '', 'emoji' => '', 'native' => true, 'text' => 'Oui, the quality was obvious there.'], 'disagree' => ['family' => 'french_crown', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'Let us not crown the whole season from one night.'], 'rival_banter' => ['family' => 'french_next', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'The next match will give us more to discuss.']],
+        'brazil' => ['agree' => ['family' => 'brazilian_touch', 'opening' => 'interjection', 'slang' => '', 'emoji' => '😭', 'native' => true, 'text' => 'Meu amigo, you cannot argue with that touch.'], 'disagree' => ['family' => 'brazilian_calma', 'opening' => 'calm', 'slang' => '', 'emoji' => '', 'native' => true, 'text' => 'Calma; one moment does not decide the whole story.'], 'rival_banter' => ['family' => 'brazilian_joy', 'opening' => 'banter', 'slang' => '', 'emoji' => '😭', 'native' => false, 'text' => 'Let him enjoy the night; the ball was beautiful.']],
+        'argentina' => ['agree' => ['family' => 'argentine_hermano', 'opening' => 'interjection', 'slang' => '', 'emoji' => '😭', 'native' => true, 'text' => 'Hermano, that was a proper football moment.'], 'disagree' => ['family' => 'argentine_balance', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'The passion is fine, but the match still needs balance.'], 'rival_banter' => ['family' => 'argentine_hincha', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'Let the hinchas enjoy this one.']],
+        'philippines' => ['agree' => ['family' => 'pinoy_evidence', 'opening' => 'interjection', 'slang' => '', 'emoji' => '😭', 'native' => true, 'text' => 'Grabe, our boy gave you evidence tonight.'], 'disagree' => ['family' => 'pinoy_patience', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'One game first; we can keep the bigger claims for later.'], 'rival_banter' => ['family' => 'pinoy_moment', 'opening' => 'banter', 'slang' => '', 'emoji' => '😭', 'native' => false, 'text' => 'Let our boy have this moment 😭']],
+        'nigeria' => ['agree' => ['family' => 'nigerian_evidence', 'opening' => 'interjection', 'slang' => '', 'emoji' => '', 'native' => true, 'text' => 'Abeg, the evidence is right there.'], 'disagree' => ['family' => 'nigerian_measure', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'No need to overdo it; football will test him again.'], 'rival_banter' => ['family' => 'nigerian_moment', 'opening' => 'banter', 'slang' => '', 'emoji' => '😭', 'native' => false, 'text' => 'Let him enjoy the big moment.']],
+        'japan' => ['agree' => ['family' => 'japanese_precision', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'That was a precise reading of the game.'], 'disagree' => ['family' => 'japanese_detail', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'The detail matters more than one headline.'], 'rival_banter' => ['family' => 'japanese_measure', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'We can appreciate the moment and stay measured.']],
+        'mexico' => ['agree' => ['family' => 'mexican_cancha', 'opening' => 'interjection', 'slang' => '', 'emoji' => '😭', 'native' => true, 'text' => 'Qué momento; the finish earned the noise.'], 'disagree' => ['family' => 'mexican_long_story', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'The match was good, but the whole story is longer.'], 'rival_banter' => ['family' => 'mexican_move', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'Enjoy the cancha moment, then we move.']],
+    ];
+
     /** @var array<string, list<string>> */
     private const TEMPLATES = [
         'fan' => [
@@ -304,7 +429,12 @@ final class PulseService
             $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::SOURCES . ' (source_key TEXT PRIMARY KEY, player_id TEXT NOT NULL, occurred_date TEXT NOT NULL, kind TEXT NOT NULL, importance TEXT NOT NULL, context_json TEXT NOT NULL)');
             $connection->exec('CREATE INDEX IF NOT EXISTS idx_pulse_sources_player_date ON ' . self::SOURCES . ' (player_id, occurred_date DESC, source_key DESC)');
             $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::POSTS . ' (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, source_key TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, actor_name TEXT NOT NULL, occurred_date TEXT NOT NULL, post_text TEXT NOT NULL, engagement INTEGER NOT NULL DEFAULT 0, UNIQUE (source_key, actor_type, actor_id))');
+            $columns = $connection->query('PRAGMA table_info(' . self::POSTS . ')')->fetchAll(PDO::FETCH_ASSOC);
+            if (!in_array('identity_id', array_column($columns, 'name'), true)) {
+                $connection->exec('ALTER TABLE ' . self::POSTS . ' ADD COLUMN identity_id TEXT NULL');
+            }
             $connection->exec('CREATE INDEX IF NOT EXISTS idx_pulse_posts_player_date ON ' . self::POSTS . ' (player_id, occurred_date DESC, id DESC)');
+            $connection->exec('CREATE INDEX IF NOT EXISTS idx_pulse_posts_identity_date ON ' . self::POSTS . ' (player_id, identity_id, occurred_date DESC, id DESC)');
             $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::THREAD_EDGES . ' (post_id TEXT PRIMARY KEY, player_id TEXT NOT NULL, source_key TEXT NOT NULL, parent_post_id TEXT NULL, quote_post_id TEXT NULL, thread_root_id TEXT NOT NULL, depth INTEGER NOT NULL, intent TEXT NOT NULL, pattern_family TEXT NOT NULL, voice TEXT NOT NULL)');
             $connection->exec('CREATE INDEX IF NOT EXISTS idx_pulse_threads_player_root ON ' . self::THREAD_EDGES . ' (player_id, thread_root_id, depth, post_id)');
             $connection->exec('CREATE TABLE IF NOT EXISTS ' . self::AUDIENCE . ' (player_id TEXT PRIMARY KEY, audience_score INTEGER NOT NULL DEFAULT 0, updated_date TEXT NOT NULL)');
@@ -345,6 +475,7 @@ final class PulseService
         if (!$this->available($database, self::POSTS)) {
             return [];
         }
+        $identityField = $this->postColumnAvailable($database, 'identity_id') ? 'p.identity_id' : 'NULL';
         $edgeFields = 'NULL AS parent_post_id, NULL AS quote_post_id, NULL AS thread_root_id, 0 AS thread_depth, NULL AS thread_intent, NULL AS thread_pattern_family, NULL AS thread_voice';
         $edgeJoin = '';
         $edgeOrder = 'p.id DESC';
@@ -353,14 +484,15 @@ final class PulseService
             $edgeJoin = ' LEFT JOIN ' . self::THREAD_EDGES . ' e ON e.post_id = p.id';
             $edgeOrder = 'COALESCE(e.thread_root_id, p.id) DESC, CASE WHEN e.post_id IS NULL THEN 0 ELSE e.depth END ASC, p.id DESC';
         }
-        $statement = $database->connection()->prepare('SELECT p.*, s.kind, s.importance, s.context_json, ' . $edgeFields . ' FROM ' . self::POSTS . ' p JOIN ' . self::SOURCES . ' s ON s.source_key = p.source_key' . $edgeJoin . ' WHERE p.player_id = :player_id ORDER BY p.occurred_date DESC, ' . $edgeOrder . ' LIMIT :limit');
+        $statement = $database->connection()->prepare('SELECT p.*, ' . $identityField . ' AS identity_id, s.kind, s.importance, s.context_json, ' . $edgeFields . ' FROM ' . self::POSTS . ' p JOIN ' . self::SOURCES . ' s ON s.source_key = p.source_key' . $edgeJoin . ' WHERE p.player_id = :player_id ORDER BY p.occurred_date DESC, ' . $edgeOrder . ' LIMIT :limit');
         $statement->bindValue(':player_id', $this->id($playerId));
         $statement->bindValue(':limit', max(1, min(self::MAX_SOURCES, $limit)), PDO::PARAM_INT);
         $statement->execute();
 
-        return array_map(static function (array $row): array {
+        return array_map(function (array $row): array {
             $context = json_decode((string) $row['context_json'], true);
-            return ['id' => (string) $row['id'], 'source_key' => (string) $row['source_key'], 'date' => (string) $row['occurred_date'], 'actor_type' => (string) $row['actor_type'], 'actor_name' => (string) $row['actor_name'], 'text' => (string) $row['post_text'], 'engagement' => (int) $row['engagement'], 'kind' => (string) $row['kind'], 'importance' => (string) $row['importance'], 'parent_id' => $row['parent_post_id'] === null ? null : (string) $row['parent_post_id'], 'quote_id' => $row['quote_post_id'] === null ? null : (string) $row['quote_post_id'], 'thread_root_id' => $row['thread_root_id'] === null ? (string) $row['id'] : (string) $row['thread_root_id'], 'depth' => (int) ($row['thread_depth'] ?? 0), 'intent' => $row['thread_intent'] === null ? null : (string) $row['thread_intent'], 'pattern_family' => $row['thread_pattern_family'] === null ? null : (string) $row['thread_pattern_family'], 'voice' => $row['thread_voice'] === null ? null : (string) $row['thread_voice'], 'context' => is_array($context) ? $context : []];
+            $identity = $this->identityById($row['identity_id'] === null ? null : (string) $row['identity_id']);
+            return ['id' => (string) $row['id'], 'source_key' => (string) $row['source_key'], 'date' => (string) $row['occurred_date'], 'actor_type' => (string) $row['actor_type'], 'actor_name' => (string) $row['actor_name'], 'identity_id' => $identity['id'] ?? null, 'identity_name' => $identity['name'] ?? null, 'identity_handle' => $identity['handle'] ?? null, 'identity_culture' => $identity['culture'] ?? 'global', 'identity_club' => $identity['club'] ?? null, 'text' => (string) $row['post_text'], 'engagement' => (int) $row['engagement'], 'kind' => (string) $row['kind'], 'importance' => (string) $row['importance'], 'parent_id' => $row['parent_post_id'] === null ? null : (string) $row['parent_post_id'], 'quote_id' => $row['quote_post_id'] === null ? null : (string) $row['quote_post_id'], 'thread_root_id' => $row['thread_root_id'] === null ? (string) $row['id'] : (string) $row['thread_root_id'], 'depth' => (int) ($row['thread_depth'] ?? 0), 'intent' => $row['thread_intent'] === null ? null : (string) $row['thread_intent'], 'pattern_family' => $row['thread_pattern_family'] === null ? null : (string) $row['thread_pattern_family'], 'voice' => $row['thread_voice'] === null ? null : (string) $row['thread_voice'], 'context' => is_array($context) ? $context : []];
         }, $statement->fetchAll(PDO::FETCH_ASSOC));
     }
 
@@ -441,7 +573,7 @@ final class PulseService
         $team = $this->clubName($database, $stat->clubId()->value());
         $opponentId = $stat->clubId()->value() === $match->homeClubId()->value() ? $match->awayClubId()->value() : $match->homeClubId()->value();
         $opponent = $this->clubName($database, $opponentId);
-        $context = ['player' => $this->playerName($database, $playerId), 'team' => $team, 'opponent' => $opponent, 'competition' => $competition, 'competition_type' => $type, 'score' => $home . '-' . $away, 'result' => $facts['result'], 'goals' => $stat->goals(), 'assists' => $stat->assists(), 'rating' => $story['rating'], 'minutes' => $stat->minutes(), 'saves' => $stat->saves(), 'red_cards' => $stat->redCards(), 'fixture_context' => (string) ($fixtureContext['display_label'] ?? ''), 'rivalry' => $facts['rivalry'], 'derby' => $facts['derby'], 'source_match_id' => $match->id()->value()];
+        $context = ['player' => $this->playerName($database, $playerId), 'team' => $team, 'opponent' => $opponent, 'competition' => $competition, 'competition_type' => $type, 'score' => $home . '-' . $away, 'result' => $facts['result'], 'goals' => $stat->goals(), 'assists' => $stat->assists(), 'rating' => $story['rating'], 'minutes' => $stat->minutes(), 'saves' => $stat->saves(), 'red_cards' => $stat->redCards(), 'fixture_context' => (string) ($fixtureContext['display_label'] ?? ''), 'rivalry' => $facts['rivalry'], 'derby' => $facts['derby'], 'source_match_id' => $match->id()->value(), 'club_id' => $stat->clubId()->value(), 'opponent_club_id' => $opponentId, 'club_country' => $this->clubCountry($database, $stat->clubId()->value()), 'opponent_country' => $this->clubCountry($database, $opponentId), 'competition_country' => $this->competitionCountry($database, $match->competitionId()->value()), 'player_nationality' => $this->playerNationality($database, $playerId), 'international' => $type === 'international'];
         $actors = [['type' => 'fan', 'id' => 'supporters:' . $stat->clubId()->value(), 'name' => 'Supporters', 'kind' => $route['kind']]];
         if (in_array($route['kind'], ['match_goal', 'match_assist', 'match_decisive_goal', 'match_major_contribution', 'match_strong_performance', 'match_red_card'], true)) {
             $actors[] = ['type' => 'media', 'id' => 'media:matchday-desk', 'name' => 'Matchday Desk', 'kind' => $route['kind']];
@@ -471,7 +603,7 @@ final class PulseService
         $database->transaction(function () use ($database, $id, $oldClubId, $newClubId, $date, $route): void {
             $old = $oldClubId === null || $oldClubId === '' ? 'free agency' : $this->clubName($database, $oldClubId);
             $new = $newClubId === null || $newClubId === '' ? 'free agency' : $this->clubName($database, $newClubId);
-            $context = ['player' => $this->playerName($database, $id), 'from_club' => $old, 'team' => $new, 'headline' => $route['kind'] === 'transfer_request' ? 'a transfer request' : 'a new Club chapter'];
+            $context = ['player' => $this->playerName($database, $id), 'from_club' => $old, 'team' => $new, 'headline' => $route['kind'] === 'transfer_request' ? 'a transfer request' : 'a new Club chapter', 'club_id' => $newClubId, 'old_club_id' => $oldClubId, 'club_country' => $newClubId === null || $newClubId === '' ? null : $this->clubCountry($database, $newClubId), 'from_country' => $oldClubId === null || $oldClubId === '' ? null : $this->clubCountry($database, $oldClubId), 'competition_country' => null, 'player_nationality' => $this->playerNationality($database, $id), 'transfer_cross_border' => $oldClubId !== null && $oldClubId !== '' && $newClubId !== null && $newClubId !== '' && $this->clubCountry($database, $oldClubId) !== $this->clubCountry($database, $newClubId)];
             $actors = [['type' => 'media', 'id' => 'media:market-desk', 'name' => 'Market Desk', 'kind' => $route['kind']]];
             if ($newClubId !== null && $newClubId !== '') { $actors[] = ['type' => 'club', 'id' => 'club:' . $newClubId, 'name' => $new, 'kind' => $route['kind']]; }
             $this->recordSourceInTransaction($database, $id, 'transfer:' . $route['kind'] . ':' . $id . ':' . $date->toIsoString(), $date, (string) $route['kind'], (string) $route['importance'], $context, $actors, $route['response'] === null ? null : $this->responseChoices('transfer'));
@@ -491,7 +623,7 @@ final class PulseService
     {
         $id = $this->id($playerId);
         $route = $this->echo->achievement(['source' => $source, 'headline' => $headline, 'importance' => $importance]);
-        $context = ['player' => $this->playerName($database, $id), 'headline' => $headline, 'team' => $clubId === null ? 'the national team' : $this->clubName($database, $clubId)];
+        $context = ['player' => $this->playerName($database, $id), 'headline' => $headline, 'team' => $clubId === null ? 'the national team' : $this->clubName($database, $clubId), 'club_id' => $clubId, 'club_country' => $clubId === null ? null : $this->clubCountry($database, $clubId), 'competition_country' => null, 'player_nationality' => $this->playerNationality($database, $id), 'international' => str_contains(strtolower($source), 'international')];
         $international = str_contains(strtolower($source), 'international');
         $actors = [['type' => 'fan', 'id' => 'supporters:achievement', 'name' => 'Supporters', 'kind' => $route['kind']], ['type' => 'media', 'id' => 'media:football-desk', 'name' => 'Football Desk', 'kind' => $route['kind']]];
         if ($international) { $actors[] = ['type' => 'national', 'id' => 'national:achievement', 'name' => 'National Team', 'kind' => $route['kind']]; }
@@ -514,7 +646,7 @@ final class PulseService
         $database->transaction(function () use ($database, $playerId, $date, $injuryId, $route, $payload, $event): void {
             $clubId = $this->currentClub($database, $playerId);
             $team = $clubId === null ? 'the football world' : $this->clubName($database, $clubId);
-            $context = ['player' => $this->playerName($database, $playerId), 'team' => $team, 'headline' => $route['kind'] === 'injury' ? 'an injury' : 'a return from injury', 'injury' => (string) ($payload['category'] ?? 'recorded injury')];
+            $context = ['player' => $this->playerName($database, $playerId), 'team' => $team, 'headline' => $route['kind'] === 'injury' ? 'an injury' : 'a return from injury', 'injury' => (string) ($payload['category'] ?? 'recorded injury'), 'club_id' => $clubId, 'club_country' => $clubId === null ? null : $this->clubCountry($database, $clubId), 'competition_country' => null, 'player_nationality' => $this->playerNationality($database, $playerId)];
             $actors = [['type' => 'fan', 'id' => 'supporters:' . ($clubId ?? 'football'), 'name' => 'Supporters', 'kind' => $route['kind']], ['type' => 'media', 'id' => 'media:availability-desk', 'name' => 'Football Desk', 'kind' => $route['kind']]];
             if ($clubId !== null) { $actors[] = ['type' => 'club', 'id' => 'club:' . $clubId, 'name' => $team, 'kind' => $route['kind']]; }
             $this->recordSourceInTransaction($database, $playerId, 'availability:' . $event . ':' . $injuryId, $date, (string) $route['kind'], (string) $route['importance'], $context, $actors, null);
@@ -527,7 +659,8 @@ final class PulseService
         $route = $this->echo->careerChoice($category, $newsworthy);
         if ($route['importance'] === 'routine' && !($choice['social']['history'] ?? false)) { return; }
         $id = $this->id($playerId);
-        $context = ['player' => $this->playerName($database, $id), 'headline' => (string) ($choice['history'] ?? 'A Career choice changed the football context.')];
+        $clubId = $this->currentClub($database, $id);
+        $context = ['player' => $this->playerName($database, $id), 'headline' => (string) ($choice['history'] ?? 'A Career choice changed the football context.'), 'club_id' => $clubId, 'club_country' => $clubId === null ? null : $this->clubCountry($database, $clubId), 'competition_country' => null, 'player_nationality' => $this->playerNationality($database, $id)];
         $this->recordSourceInTransaction($database, $id, 'career-choice:' . $source, $date, 'career_choice', (string) $route['importance'], $context, [['type' => 'teammate', 'id' => 'teammates:career', 'name' => 'Teammates', 'kind' => 'career_choice']], null);
     }
 
@@ -570,16 +703,30 @@ final class PulseService
 
     private function recordSourceInTransaction(DatabaseInterface $database, string $playerId, string $sourceKey, SimulationDate $date, string $kind, string $importance, array $context, array $actors, ?array $choices): void
     {
+        $actors = $this->assignIdentities($database, $playerId, $kind, $sourceKey, $context, $actors);
         $recent = $this->recentReactionHistory($database, $playerId);
         $used = ['texts' => [], 'families' => [], 'openings' => [], 'slang' => [], 'emojis' => []];
         $reactions = [];
         $reactionMeta = [];
+        $identityMeta = [];
         foreach ($actors as $actor) {
             if (!is_array($actor)) { continue; }
             $actorType = (string) ($actor['type'] ?? 'fan');
             $actorId = (string) ($actor['id'] ?? 'unknown');
-            $reaction = $this->selectReaction((string) ($actor['kind'] ?? $kind), $actorType, $context, $sourceKey, $actorId, $recent, $used);
+            $identity = is_array($actor['identity'] ?? null) ? $actor['identity'] : null;
+            $reactionContext = $context;
+            if ($identity !== null) {
+                $reactionContext['pulse_identity_id'] = (string) ($identity['id'] ?? '');
+                $reactionContext['pulse_identity_name'] = (string) ($identity['name'] ?? '');
+                $reactionContext['pulse_identity_handle'] = (string) ($identity['handle'] ?? '');
+                $reactionContext['pulse_culture'] = (string) ($identity['culture'] ?? 'global');
+                $reactionContext['pulse_voice'] = (string) ($identity['voice'] ?? '');
+                $reactionContext['pulse_memory'] = $this->recentIdentityMemory($database, $playerId, (string) ($identity['id'] ?? ''));
+                $identityMeta[$actorType . '|' . $actorId] = $identity;
+            }
+            $reaction = $this->selectReaction((string) ($actor['kind'] ?? $kind), $actorType, $reactionContext, $sourceKey, $actorId, $recent, $used);
             $reactionKey = $actorType . '|' . $actorId;
+            if ($identity !== null) { $reaction['meta']['identity_id'] = (string) ($identity['id'] ?? ''); }
             $reactionMeta[$reactionKey] = $reaction['meta'];
             $reactions[] = ['actor' => $actor, 'text' => $reaction['text']];
             $used['texts'][$reaction['text']] = true;
@@ -589,6 +736,7 @@ final class PulseService
             }
         }
         $context['reaction_meta'] = $reactionMeta;
+        if ($identityMeta !== []) { $context['identity_meta'] = $identityMeta; }
         $threadPlan = $this->selectThreadPlan($kind, $actors, $sourceKey, $this->recentThreadPatterns($database, $playerId));
         if ($threadPlan !== null) { $context['thread_meta'] = $threadPlan; }
         $marker = $database->connection()->prepare('INSERT OR IGNORE INTO ' . self::SOURCES . ' (source_key, player_id, occurred_date, kind, importance, context_json) VALUES (:source_key, :player_id, :date, :kind, :importance, :context)');
@@ -601,7 +749,8 @@ final class PulseService
             $actor = $reaction['actor'];
             $actorType = (string) ($actor['type'] ?? 'fan');
             $actorId = (string) ($actor['id'] ?? 'unknown');
-            $postId = $this->insertPost($database, $playerId, 'post|' . $sourceKey . '|' . $actorType . '|' . $actorId, $sourceKey, $actorType, $actorId, (string) ($actor['name'] ?? 'Football world'), $date, $reaction['text'], $this->engagement($database, $playerId, $importance, $actorType));
+            $identity = is_array($actor['identity'] ?? null) ? $actor['identity'] : null;
+            $postId = $this->insertPost($database, $playerId, 'post|' . $sourceKey . '|' . $actorType . '|' . $actorId, $sourceKey, $actorType, $actorId, (string) ($actor['name'] ?? 'Football world'), $date, $reaction['text'], $this->engagement($database, $playerId, $importance, $actorType), $identity === null ? null : (string) ($identity['id'] ?? null));
             $rootPosts[] = ['id' => $postId, 'actor' => $actor, 'text' => $reaction['text']];
         }
         if ($threadPlan !== null && ($threadPlan['pattern'] ?? 'no_thread') !== 'no_thread') {
@@ -615,11 +764,11 @@ final class PulseService
     }
 
     /** @param array<string, mixed> $context */
-    private function insertPost(DatabaseInterface $database, string $playerId, string $id, string $sourceKey, string $actorType, string $actorId, string $actorName, SimulationDate $date, string $text, int $engagement): string
+    private function insertPost(DatabaseInterface $database, string $playerId, string $id, string $sourceKey, string $actorType, string $actorId, string $actorName, SimulationDate $date, string $text, int $engagement, ?string $identityId = null): string
     {
         $postId = $this->postId($id);
-        $statement = $database->connection()->prepare('INSERT OR IGNORE INTO ' . self::POSTS . ' (id, player_id, source_key, actor_type, actor_id, actor_name, occurred_date, post_text, engagement) VALUES (:id, :player_id, :source_key, :actor_type, :actor_id, :actor_name, :date, :text, :engagement)');
-        $statement->execute(['id' => $postId, 'player_id' => $playerId, 'source_key' => $sourceKey, 'actor_type' => $actorType, 'actor_id' => $actorId, 'actor_name' => $actorName, 'date' => $date->toIsoString(), 'text' => $text, 'engagement' => max(0, $engagement)]);
+        $statement = $database->connection()->prepare('INSERT OR IGNORE INTO ' . self::POSTS . ' (id, player_id, source_key, actor_type, actor_id, actor_name, occurred_date, post_text, engagement, identity_id) VALUES (:id, :player_id, :source_key, :actor_type, :actor_id, :actor_name, :date, :text, :engagement, :identity_id)');
+        $statement->execute(['id' => $postId, 'player_id' => $playerId, 'source_key' => $sourceKey, 'actor_type' => $actorType, 'actor_id' => $actorId, 'actor_name' => $actorName, 'date' => $date->toIsoString(), 'text' => $text, 'engagement' => max(0, $engagement), 'identity_id' => $identityId]);
 
         return $postId;
     }
@@ -722,9 +871,15 @@ final class PulseService
         $replyContext['parent_excerpt'] = $this->excerpt((string) $parent['text']);
         $replyActor = $replyRoot['actor'];
         $replyType = (string) ($replyActor['type'] ?? 'fan');
-        $replyIdentity = (string) ($replyActor['id'] ?? 'unknown') . '|thread|' . $plan['pattern'] . '|1';
-        $reply = $this->selectThreadReaction((string) $plan['intent'], $replyType, $replyContext, $sourceKey, $replyIdentity, $threadHistory, $used);
-        $replyPostId = $this->insertPost($database, $playerId, 'thread|' . $sourceKey . '|' . $plan['pattern'] . '|1', $sourceKey, $replyType, $replyIdentity, (string) ($replyActor['name'] ?? 'Football world'), $date, $reply['text'], $this->engagement($database, $playerId, $importance, $replyType));
+        $replyIdentity = is_array($replyActor['identity'] ?? null) ? $replyActor['identity'] : null;
+        if ($replyIdentity !== null) {
+            $replyContext['pulse_identity_id'] = (string) ($replyIdentity['id'] ?? '');
+            $replyContext['pulse_culture'] = (string) ($replyIdentity['culture'] ?? 'global');
+            $replyContext['pulse_voice'] = (string) ($replyIdentity['voice'] ?? '');
+        }
+        $replyActorId = (string) ($replyActor['id'] ?? 'unknown') . '|thread|' . $plan['pattern'] . '|1';
+        $reply = $this->selectThreadReaction((string) $plan['intent'], $replyType, $replyContext, $sourceKey, $replyActorId, $threadHistory, $used);
+        $replyPostId = $this->insertPost($database, $playerId, 'thread|' . $sourceKey . '|' . $plan['pattern'] . '|1', $sourceKey, $replyType, $replyActorId, (string) ($replyActor['name'] ?? 'Football world'), $date, $reply['text'], $this->engagement($database, $playerId, $importance, $replyType), $replyIdentity === null ? null : (string) ($replyIdentity['id'] ?? null));
         $this->insertThreadEdge($database, $replyPostId, $playerId, $sourceKey, $plan['quote'] ? null : (string) $parent['id'], $plan['quote'] ? (string) $parent['id'] : null, (string) $parent['id'], 1, (string) $plan['intent'], $plan['pattern'], (string) $reply['meta']['voice']);
         $used['texts'][$reply['text']] = true;
         foreach (['families', 'openings', 'slang', 'emojis'] as $dimension) {
@@ -736,18 +891,216 @@ final class PulseService
         if (!is_array($callbackRoot)) { return; }
         $callbackActor = $callbackRoot['actor'];
         $callbackType = (string) ($callbackActor['type'] ?? 'fan');
-        $callbackIdentity = (string) ($callbackActor['id'] ?? 'unknown') . '|thread|' . $plan['pattern'] . '|2';
+        $callbackIdentity = is_array($callbackActor['identity'] ?? null) ? $callbackActor['identity'] : null;
+        $callbackActorId = (string) ($callbackActor['id'] ?? 'unknown') . '|thread|' . $plan['pattern'] . '|2';
         $callbackContext = $context;
         $callbackContext['parent_excerpt'] = $this->excerpt((string) $reply['text']);
-        $callback = $this->selectThreadReaction('callback', $callbackType, $callbackContext, $sourceKey, $callbackIdentity, $threadHistory, $used);
-        $callbackPostId = $this->insertPost($database, $playerId, 'thread|' . $sourceKey . '|' . $plan['pattern'] . '|2', $sourceKey, $callbackType, $callbackIdentity, (string) ($callbackActor['name'] ?? 'Football world'), $date, $callback['text'], $this->engagement($database, $playerId, $importance, $callbackType));
+        if ($callbackIdentity !== null) {
+            $callbackContext['pulse_identity_id'] = (string) ($callbackIdentity['id'] ?? '');
+            $callbackContext['pulse_culture'] = (string) ($callbackIdentity['culture'] ?? 'global');
+            $callbackContext['pulse_voice'] = (string) ($callbackIdentity['voice'] ?? '');
+        }
+        $callback = $this->selectThreadReaction('callback', $callbackType, $callbackContext, $sourceKey, $callbackActorId, $threadHistory, $used);
+        $callbackPostId = $this->insertPost($database, $playerId, 'thread|' . $sourceKey . '|' . $plan['pattern'] . '|2', $sourceKey, $callbackType, $callbackActorId, (string) ($callbackActor['name'] ?? 'Football world'), $date, $callback['text'], $this->engagement($database, $playerId, $importance, $callbackType), $callbackIdentity === null ? null : (string) ($callbackIdentity['id'] ?? null));
         $this->insertThreadEdge($database, $callbackPostId, $playerId, $sourceKey, $replyPostId, null, (string) $parent['id'], 2, 'callback', $plan['pattern'], (string) $callback['meta']['voice']);
+    }
+
+    /** @param list<array<string, mixed>> $actors @return list<array<string, mixed>> */
+    private function assignIdentities(DatabaseInterface $database, string $playerId, string $kind, string $sourceKey, array $context, array $actors): array
+    {
+        $used = [];
+        $recentIdentities = $this->recentIdentityIds($database, $playerId);
+        $assigned = [];
+        foreach ($actors as $index => $actor) {
+            if (!is_array($actor)) { continue; }
+            $identity = $this->selectIdentity($context, (string) ($actor['type'] ?? 'fan'), $sourceKey, $index, $used, $recentIdentities);
+            if ($identity !== null) {
+                $actor['identity'] = $identity;
+                $used[(string) $identity['id']] = true;
+            }
+            $assigned[] = $actor;
+        }
+
+        return $assigned;
+    }
+
+    /** @return array{id:string,name:string,handle:string,voice:string,culture:string,nation:string,club:?string}|null */
+    private function selectIdentity(array $context, string $actorType, string $sourceKey, int $slot, array $used, array $recentIdentities = []): ?array
+    {
+        $allowedVoices = self::VOICES_BY_ACTOR[$actorType] ?? ['neutral_viewer'];
+        $preferredCultures = [];
+        $addCulture = function (?string $nation) use (&$preferredCultures): void {
+            if ($nation === null || $nation === '') { return; }
+            $culture = $this->cultureForNation($nation);
+            if (!in_array($culture, $preferredCultures, true)) { $preferredCultures[] = $culture; }
+        };
+        if ($actorType === 'fan' || $actorType === 'teammate' || $actorType === 'club') {
+            $addCulture((string) ($context['club_country'] ?? ''));
+            $addCulture((string) ($context['competition_country'] ?? ''));
+        }
+        if ($actorType === 'national' || $actorType === 'fan') { $addCulture((string) ($context['player_nationality'] ?? '')); }
+        if ($actorType === 'rival') { $addCulture((string) ($context['opponent_country'] ?? '')); }
+        if ($actorType === 'competition' || $actorType === 'media') { $addCulture((string) ($context['competition_country'] ?? '')); }
+        if ($preferredCultures === []) { $preferredCultures[] = 'global'; }
+
+        $candidates = [];
+        foreach (self::IDENTITY_CATALOG as $identity) {
+            if (isset($used[$identity['id']]) || !in_array($identity['voice'], $allowedVoices, true)) { continue; }
+            $score = 0;
+            $culture = $this->cultureForNation($identity['culture']);
+            $cultureIndex = array_search($culture, $preferredCultures, true);
+            if ($cultureIndex !== false) { $score += 100 - ((int) $cultureIndex * 12); }
+            if ($identity['culture'] === 'global') { $score += ($actorType === 'media' || $actorType === 'competition') ? 70 : 0; }
+            if ($identity['club'] !== null && (string) ($context['club_id'] ?? '') === $identity['club']) { $score += 20; }
+            if ($identity['nation'] !== 'global' && (string) ($context['player_nationality'] ?? '') === $identity['nation']) { $score += $actorType === 'national' ? 100 : 35; }
+            if ($actorType === 'rival' && $identity['club'] !== null && (string) ($context['opponent_club_id'] ?? '') === $identity['club']) { $score += 120; }
+            if (isset($recentIdentities[$identity['id']])) { $score -= 60; }
+            $score += hexdec(substr(hash('sha256', 'pulse-identity-balance:v1|' . $sourceKey . '|' . $actorType . '|' . $identity['id']), 0, 8)) % 81;
+            $tie = hexdec(substr(hash('sha256', 'pulse-identity:v1|' . $sourceKey . '|' . $actorType . '|' . $slot . '|' . $identity['id']), 0, 8));
+            $candidates[] = ['score' => $score, 'tie' => $tie, 'identity' => $identity];
+        }
+        usort($candidates, static fn (array $left, array $right): int => $left['score'] === $right['score'] ? $left['tie'] <=> $right['tie'] : $right['score'] <=> $left['score']);
+
+        return $candidates[0]['identity'] ?? null;
+    }
+
+    /** @return array{id:string,name:string,handle:string,voice:string,culture:string,nation:string,club:?string}|null */
+    private function identityById(?string $identityId): ?array
+    {
+        if ($identityId === null || $identityId === '') { return null; }
+        foreach (self::IDENTITY_CATALOG as $identity) {
+            if ($identity['id'] === $identityId) { return $identity; }
+        }
+
+        return null;
+    }
+
+    private function cultureForNation(string $nation): string
+    {
+        $key = strtolower(trim(str_replace('_', '-', $nation)));
+
+        return self::CULTURE_ALIASES[$key] ?? ($key === '' ? 'global' : 'global');
+    }
+
+    /** @return list<array{post_text:string,source_key:string,stance:string}> */
+    private function recentIdentityMemory(DatabaseInterface $database, string $playerId, string $identityId): array
+    {
+        if ($identityId === '' || !$this->postColumnAvailable($database, 'identity_id')) { return []; }
+        $statement = $database->connection()->prepare('SELECT p.post_text, p.source_key, s.context_json FROM ' . self::POSTS . ' p JOIN ' . self::SOURCES . ' s ON s.source_key = p.source_key WHERE p.player_id = :player_id AND p.identity_id = :identity_id ORDER BY p.occurred_date DESC, p.id DESC LIMIT 16');
+        $statement->execute(['player_id' => $playerId, 'identity_id' => $identityId]);
+        $memory = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $sourceContext = json_decode((string) ($row['context_json'] ?? ''), true);
+            $stance = 'neutral';
+            $family = '';
+            if (is_array($sourceContext)) {
+                foreach ((array) ($sourceContext['identity_meta'] ?? []) as $key => $identity) {
+                    if (!is_array($identity) || (string) ($identity['id'] ?? '') !== $identityId) { continue; }
+                    $meta = $sourceContext['reaction_meta'][$key] ?? null;
+                    if (is_array($meta)) { $stance = (string) ($meta['stance'] ?? 'neutral'); $family = (string) ($meta['family'] ?? ''); }
+                    break;
+                }
+            }
+            if (str_starts_with($family, 'memory|')) { continue; }
+            $memory[] = ['post_text' => (string) ($row['post_text'] ?? ''), 'source_key' => (string) ($row['source_key'] ?? ''), 'stance' => $stance];
+        }
+
+        return $memory;
+    }
+
+    private function postColumnAvailable(DatabaseInterface $database, string $column): bool
+    {
+        if (!$this->available($database, self::POSTS)) { return false; }
+        $columns = $database->connection()->query('PRAGMA table_info(' . self::POSTS . ')')->fetchAll(PDO::FETCH_ASSOC);
+
+        return in_array($column, array_column($columns, 'name'), true);
+    }
+
+    /** @return array<string, bool> */
+    private function recentIdentityIds(DatabaseInterface $database, string $playerId): array
+    {
+        if (!$this->postColumnAvailable($database, 'identity_id')) { return []; }
+        $statement = $database->connection()->prepare('SELECT identity_id FROM ' . self::POSTS . ' WHERE player_id = :player_id AND identity_id IS NOT NULL ORDER BY occurred_date DESC, id DESC LIMIT 12');
+        $statement->execute(['player_id' => $playerId]);
+
+        return array_fill_keys(array_values(array_filter(array_map('strval', $statement->fetchAll(PDO::FETCH_COLUMN)))), true);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function cultureCandidates(string $kind, string $actorType, array $context, string $sourceKey): array
+    {
+        $culture = $this->cultureForNation((string) ($context['pulse_culture'] ?? ''));
+        if ($culture === 'global' || !isset(self::CULTURE_REACTIONS[$culture])) { return []; }
+        $bucket = $this->cultureBucket($kind, $context);
+        $candidates = self::CULTURE_REACTIONS[$culture][$bucket] ?? self::CULTURE_REACTIONS[$culture]['positive'] ?? [];
+        $nativeAllowed = hexdec(substr(hash('sha256', 'pulse-native:v1|' . $sourceKey . '|' . $culture), 0, 8)) % 4 === 0;
+        $result = [];
+        foreach ($candidates as $candidate) {
+            if (($candidate['native'] ?? false) === true && !$nativeAllowed) { continue; }
+            $text = (string) $candidate['text'];
+            if ($kind === 'match_red_card') { $text .= ' The red card changed the night.'; }
+            $result[] = [
+                'voice' => (string) ($context['pulse_voice'] ?? 'neutral_viewer'),
+                'family' => 'culture|' . $culture . '|' . $candidate['family'],
+                'opening' => $candidate['opening'],
+                'slang' => $candidate['slang'],
+                'emoji' => $candidate['emoji'],
+                'actors' => [$actorType],
+                'results' => [],
+                'text' => $text,
+                'stance' => $bucket === 'negative' ? 'criticism' : ($bucket === 'major' || $bucket === 'positive' ? 'praise' : 'neutral'),
+                'reference' => $candidate['reference'],
+            ];
+        }
+
+        return $result;
+    }
+
+    private function cultureBucket(string $kind, array $context): string
+    {
+        if (in_array($kind, ['match_red_card', 'injury'], true) || (string) ($context['result'] ?? '') === 'loss') { return 'negative'; }
+        if (in_array($kind, ['match_decisive_goal', 'award', 'honour', 'record', 'milestone', 'transfer', 'free_agent_signing', 'retirement'], true)) { return 'major'; }
+
+        return 'positive';
+    }
+
+    /** @return array<string, mixed>|null */
+    private function memoryCandidate(string $kind, array $context, string $sourceKey): ?array
+    {
+        $memory = $context['pulse_memory'] ?? [];
+        if (!is_array($memory) || $memory === []) { return null; }
+        if (hexdec(substr(hash('sha256', 'pulse-memory:v1|' . $sourceKey . '|' . (string) ($context['pulse_identity_id'] ?? '')), 0, 8)) % 4 !== 0) { return null; }
+        $prior = $memory[0] ?? null;
+        if (!is_array($prior) || (string) ($prior['post_text'] ?? '') === '') { return null; }
+        $stance = (string) ($prior['stance'] ?? 'neutral');
+        $excerpt = $this->excerpt((string) $prior['post_text']);
+        $text = match ($stance) {
+            'criticism' => 'I was harsher before this one. Fair play, {player} answered.',
+            'praise' => 'I said "{memory_excerpt}" before this one. Still backing it.',
+            default => 'I remember writing "{memory_excerpt}". The conversation has moved on.',
+        };
+
+        return ['voice' => (string) ($context['pulse_voice'] ?? 'neutral_viewer'), 'family' => 'memory|' . $stance, 'opening' => 'memory_callback', 'slang' => '', 'emoji' => '', 'actors' => ['fan', 'media', 'club', 'national', 'rival', 'competition', 'teammate'], 'results' => [], 'text' => str_replace('{memory_excerpt}', $excerpt, $text), 'stance' => 'neutral', 'reference' => 'EVIDENCE_BACKED_MEMORY'];
     }
 
     /** @param array<string, mixed> $context @param array<string, array<string, bool>> $used */
     private function selectThreadReaction(string $intent, string $actorType, array $context, string $sourceKey, string $actorId, array $recent, array $used): array
     {
         $candidates = array_values(array_filter(self::THREAD_CATALOG[$intent] ?? [], static fn (array $candidate): bool => in_array($actorType, $candidate['actors'], true)));
+        $culture = $this->cultureForNation((string) ($context['pulse_culture'] ?? ''));
+        if (isset(self::CULTURE_THREAD_REPLIES[$culture])) {
+            $cultureIntent = $intent === 'reluctant_agreement' || $intent === 'defend_player' ? 'agree' : ($intent === 'callback' ? 'disagree' : $intent);
+            $cultureCandidate = self::CULTURE_THREAD_REPLIES[$culture][$cultureIntent] ?? null;
+            $nativeAllowed = hexdec(substr(hash('sha256', 'pulse-thread-native:v1|' . $sourceKey . '|' . $culture . '|' . $intent), 0, 8)) % 4 === 0;
+            if (is_array($cultureCandidate) && (($cultureCandidate['native'] ?? false) === false || $nativeAllowed)) {
+                array_unshift($candidates, ['voice' => (string) ($context['pulse_voice'] ?? 'neutral_viewer'), 'family' => 'culture_thread|' . $culture . '|' . $cultureCandidate['family'], 'opening' => $cultureCandidate['opening'], 'slang' => $cultureCandidate['slang'], 'emoji' => $cultureCandidate['emoji'], 'actors' => [$actorType], 'text' => $cultureCandidate['text']]);
+            }
+        }
+        $preferredVoice = (string) ($context['pulse_voice'] ?? '');
+        if ($preferredVoice !== '') {
+            $voiceCandidates = array_values(array_filter($candidates, static fn (array $candidate): bool => (string) ($candidate['voice'] ?? '') === $preferredVoice));
+            if ($voiceCandidates !== []) { $candidates = $voiceCandidates; }
+        }
         if ($candidates === []) {
             $fallback = match ($intent) { 'agree' => 'Exactly.', 'disagree' => 'I do not see it that way.', 'reluctant_agreement' => 'Fair enough.', 'defend_player' => 'Let the Player have the moment.', 'rival_banter' => 'We will see about that.', 'callback' => 'And now the conversation has changed.', default => 'Football opinions move quickly.' };
             return ['text' => $fallback, 'meta' => ['voice' => self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer', 'family' => 'thread_fallback|' . $intent, 'opening' => 'fallback', 'slang' => '', 'emoji' => '']];
@@ -831,16 +1184,23 @@ final class PulseService
      */
     private function selectReaction(string $kind, string $actorType, array $context, string $sourceKey, string $actorId, array $recent, array $used): array
     {
-        $candidates = [];
+        $candidates = $this->cultureCandidates($kind, $actorType, $context, $sourceKey);
+        $memoryCandidate = $this->memoryCandidate($kind, $context, $sourceKey);
+        if ($memoryCandidate !== null) { array_unshift($candidates, $memoryCandidate); }
         $result = (string) ($context['result'] ?? '');
         foreach (self::REACTION_CATALOG[$kind] ?? [] as $candidate) {
             if (!in_array($actorType, $candidate['actors'], true)) { continue; }
             if ($candidate['results'] !== [] && !in_array($result, $candidate['results'], true)) { continue; }
             $candidates[] = $candidate;
         }
+        $preferredVoice = (string) ($context['pulse_voice'] ?? '');
+        if ($preferredVoice !== '') {
+            $voiceCandidates = array_values(array_filter($candidates, static fn (array $candidate): bool => (string) ($candidate['voice'] ?? '') === $preferredVoice));
+            if ($voiceCandidates !== []) { $candidates = $voiceCandidates; }
+        }
         if ($candidates === []) {
             $text = $this->render($kind, $actorType, $context, $sourceKey);
-            return ['text' => $text, 'meta' => ['voice' => self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer', 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'text' => $text]];
+            return ['text' => $text, 'meta' => ['voice' => self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer', 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'stance' => 'neutral', 'text' => $text]];
         }
 
         $start = hexdec(substr(hash('sha256', 'pulse-reaction:v1|' . $sourceKey . '|' . $actorType . '|' . $actorId . '|' . $kind), 0, 8)) % count($candidates);
@@ -861,7 +1221,7 @@ final class PulseService
             if ($emoji !== '' && (isset($recent['emojis'][$emoji]) || isset($used['emojis'][$emoji]))) { $score += 15; }
             if ($score < $bestScore) {
                 $bestScore = $score;
-                $best = ['text' => $text, 'meta' => ['voice' => $candidate['voice'], 'family' => $family, 'opening' => $opening, 'slang' => $slang, 'emoji' => $emoji, 'text' => $text]];
+                $best = ['text' => $text, 'meta' => ['voice' => $candidate['voice'], 'family' => $family, 'opening' => $opening, 'slang' => $slang, 'emoji' => $emoji, 'stance' => (string) ($candidate['stance'] ?? $this->reactionStance($kind, $context, $actorType)), 'reference' => (string) ($candidate['reference'] ?? ''), 'text' => $text]];
                 if ($score === 0) { break; }
             }
         }
@@ -869,11 +1229,19 @@ final class PulseService
         if ($best !== null && $bestScore >= 1000) {
             $legacyText = $this->render($kind, $actorType, $context, $sourceKey);
             if (!isset($recent['texts'][$legacyText]) && !isset($used['texts'][$legacyText])) {
-                return ['text' => $legacyText, 'meta' => ['voice' => self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer', 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'text' => $legacyText]];
+                return ['text' => $legacyText, 'meta' => ['voice' => $preferredVoice !== '' ? $preferredVoice : (self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer'), 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'stance' => $this->reactionStance($kind, $context, $actorType), 'text' => $legacyText]];
             }
         }
 
-        return $best ?? ['text' => $this->render($kind, $actorType, $context, $sourceKey), 'meta' => ['voice' => self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer', 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'text' => '']];
+        return $best ?? ['text' => $this->render($kind, $actorType, $context, $sourceKey), 'meta' => ['voice' => $preferredVoice !== '' ? $preferredVoice : (self::VOICES_BY_ACTOR[$actorType][0] ?? 'neutral_viewer'), 'family' => 'legacy|' . $kind, 'opening' => 'legacy', 'slang' => '', 'emoji' => '', 'stance' => $this->reactionStance($kind, $context, $actorType), 'text' => '']];
+    }
+
+    private function reactionStance(string $kind, array $context, string $actorType): string
+    {
+        if ($actorType === 'rival' || in_array($kind, ['match_red_card', 'injury'], true) || (string) ($context['result'] ?? '') === 'loss') { return 'criticism'; }
+        if (in_array($kind, ['match_goal', 'match_assist', 'match_decisive_goal', 'match_major_contribution', 'match_strong_performance', 'award', 'honour', 'record', 'milestone', 'return'], true) || (string) ($context['result'] ?? '') === 'win') { return 'praise'; }
+
+        return 'neutral';
     }
 
     /** @return array{texts:array<string,bool>,families:array<string,bool>,openings:array<string,bool>,slang:array<string,bool>,emojis:array<string,bool>} */
@@ -1023,6 +1391,30 @@ final class PulseService
         $statement = $database->connection()->prepare('SELECT canonical_name FROM club_records WHERE id = :id'); $statement->execute(['id' => $clubId]); $value = $statement->fetchColumn();
 
         return $value === false ? $clubId : (string) $value;
+    }
+
+    private function clubCountry(DatabaseInterface $database, ?string $clubId): ?string
+    {
+        if ($clubId === null || $clubId === '' || !$this->available($database, 'club_records')) { return null; }
+        $statement = $database->connection()->prepare('SELECT nation_id FROM club_records WHERE id = :id'); $statement->execute(['id' => $clubId]); $value = $statement->fetchColumn();
+
+        return $value === false ? null : (string) $value;
+    }
+
+    private function competitionCountry(DatabaseInterface $database, ?string $competitionId): ?string
+    {
+        if ($competitionId === null || $competitionId === '' || !$this->available($database, 'competition_records')) { return null; }
+        $statement = $database->connection()->prepare('SELECT nation_id FROM competition_records WHERE id = :id'); $statement->execute(['id' => $competitionId]); $value = $statement->fetchColumn();
+
+        return $value === false ? null : (string) $value;
+    }
+
+    private function playerNationality(DatabaseInterface $database, string $playerId): ?string
+    {
+        if (!$this->available($database, 'player_records')) { return null; }
+        $statement = $database->connection()->prepare('SELECT primary_nation_id FROM player_records WHERE id = :id'); $statement->execute(['id' => $playerId]); $value = $statement->fetchColumn();
+
+        return $value === false ? null : (string) $value;
     }
 
     private function competitionName(DatabaseInterface $database, string $competitionId): string

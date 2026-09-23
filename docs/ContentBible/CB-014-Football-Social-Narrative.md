@@ -71,3 +71,26 @@ Threads are intentionally small and may be absent. Maximum depth is two;
 cross-event social memory, invented callbacks, persistent fan identities, and
 social-network mechanics remain out of scope. Match result, discipline,
 transfer, achievement, and other canonical context still controls the tone.
+
+## P3-003 global football writing
+
+New Pulse posts may use a bounded recurring fictional identity. Personal voice
+and football culture are separate: the identity keeps its name, handle, voice,
+culture, and optional Club allegiance across events. English remains primary;
+culture is expressed through football vocabulary, supporter framing, sentence
+rhythm, durable references, and occasional short native expressions. No fake
+accents, stereotype writing, or automatic translation is permitted.
+
+Club/competition country, Player nationality, international context, rivalry,
+transfer, and loan context may weight the bounded identity pool. A
+`GLOBAL_FOOTBALL` fallback is used when no supported profile is available.
+Home-country pride is reserved for meaningful evidence-backed events, not
+routine appearances. The pool is not a social graph and does not model
+followers or popularity.
+
+An identity may recall only its own recent persisted Pulse posts. Memory is
+bounded, deterministic, and evidence-backed; it never reconstructs discarded
+Career history or invents an earlier opinion. Existing P3-001/P3-002 posts are
+not rewritten. Recent identity, culture, local-expression, and cultural-reference
+reuse is suppressed where suitable alternatives exist; Pulse rendering never
+repairs authors or generates memory.

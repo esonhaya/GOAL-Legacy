@@ -314,6 +314,23 @@ These additions should extend the Pulse Engine without changing its core respons
 
 ✓ Pulse remains observational.
 
+## P3-003 global identity and culture boundary
+
+PulseService owns a bounded recurring fictional identity catalog. Identity
+selection is deterministic and considers the current Club/competition country,
+Player nationality, international context, rivalry, and movement context.
+Personal P3-001 voice remains distinct from the identity's football culture.
+Posts stay English-first, with restrained regional football language and
+occasional short native expressions. Unsupported countries use the global
+football fallback; no fake accents or stereotype generation is allowed.
+
+An identity can recall only its own recent authored Pulse posts through a small
+indexed window. A memory callback requires persisted source evidence and is
+selected prospectively; rendering does not generate or repair it. Stable
+identity IDs survive reload, while old posts without identity metadata remain
+unchanged legacy roots. Recent identity reuse is softly suppressed within the
+same bounded selection window so one account does not dominate a local feed.
+
 ---
 
 ## Revision History

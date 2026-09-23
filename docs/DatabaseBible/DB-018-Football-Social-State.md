@@ -43,3 +43,13 @@ facts. Only controlled Player IDs may receive rows. Retention removes routine
 old source/post/response rows after the bounded feed limit; Career History,
 News, awards, honours, records, and Match statistics retain their own canonical
 history. All Pulse reads are side-effect free.
+
+## P3-003 identity boundary
+
+`pulse_posts.identity_id` is a nullable additive reference to the bounded
+fictional Pulse identity catalog. New posts persist only the stable identity
+ID; name, handle, culture, voice, and optional Club allegiance remain
+deterministic catalog data. Legacy posts remain valid roots with no fabricated
+author. `idx_pulse_posts_identity_date` supports a bounded recent authored-post
+lookup for evidence-backed memory. No follower, like, repost, account graph,
+country database, or per-post culture snapshot is stored.

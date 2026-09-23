@@ -1612,9 +1612,11 @@ final class WebApplication
             if ($referenceId !== '' && isset($feedById[$referenceId])) {
                 $referenced = $feedById[$referenceId];
                 $referenceLabel = $parentId !== '' ? 'Replying to ' : 'Quote reaction to ';
-                $reference = '<div class="pulse-thread-reference"><strong>' . WebView::e($referenceLabel . (string) ($referenced['actor_name'] ?? 'Football world')) . '</strong><span>' . WebView::e((string) ($referenced['text'] ?? '')) . '</span></div>';
+                $referencedIdentity = ($referenced['identity_name'] ?? null) !== null ? (string) $referenced['identity_name'] . ' · @' . (string) ($referenced['identity_handle'] ?? '') : (string) ($referenced['actor_name'] ?? 'Football world');
+                $reference = '<div class="pulse-thread-reference"><strong>' . WebView::e($referenceLabel . $referencedIdentity) . '</strong><span>' . WebView::e((string) ($referenced['text'] ?? '')) . '</span></div>';
             }
-            $posts .= '<article class="pulse-post pulse-depth-' . $depth . '"><div class="pulse-post-meta"><strong>' . WebView::e($item['actor_name'] ?? 'Football world') . '</strong><span>' . WebView::e($label) . ' · ' . WebView::e($item['date'] ?? '') . '</span></div>' . $reference . '<p>' . WebView::e($item['text'] ?? '') . '</p><small>' . WebView::e(number_format((int) ($item['engagement'] ?? 0))) . ' reactions</small></article>';
+            $identityDisplay = ($item['identity_name'] ?? null) !== null ? (string) $item['identity_name'] . ' · @' . (string) ($item['identity_handle'] ?? '') : (string) ($item['actor_name'] ?? 'Football world');
+            $posts .= '<article class="pulse-post pulse-depth-' . $depth . '"><div class="pulse-post-meta"><strong>' . WebView::e($identityDisplay) . '</strong><span>' . WebView::e($label) . ' · ' . WebView::e($item['date'] ?? '') . '</span></div>' . $reference . '<p>' . WebView::e($item['text'] ?? '') . '</p><small>' . WebView::e(number_format((int) ($item['engagement'] ?? 0))) . ' reactions</small></article>';
         }
         $response = '';
         if (is_array($pending)) {

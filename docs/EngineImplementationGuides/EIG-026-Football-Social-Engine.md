@@ -64,6 +64,15 @@ deterministically selected from current event context and a small recent
 window. Feed rendering joins these edges without repair-on-read; legacy posts
 without an edge remain independent roots.
 
+P3-003 adds stable fictional identity IDs to new `pulse_posts` rows. Culture
+profiles are catalog-owned presentation data, not a second social-state owner.
+Selection uses current canonical event context and a bounded identity pool;
+identity memory reads at most the recent authored window and requires a saved
+prior post. English remains the readable default, with restrained regional
+football language and no translation, social graph, or external content call.
+Legacy posts with a null identity remain unchanged. Feed and page rendering
+perform no author/culture repair and no DML.
+
 ## Canonical validation
 
 The configured PHPUnit suite is the canonical combined invocation:

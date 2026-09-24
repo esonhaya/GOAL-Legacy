@@ -80,6 +80,15 @@ memory callbacks require a classified prior post and emit natural wording
 without quoting stored text. No new table, history scan, social graph, or
 render-time generation is introduced.
 
+P3-005 adds no social subsystem. Career-story reactions are selected from
+explicit canonical event evidence already carried in the Pulse source context:
+breakthrough/form labels, injury return, trophy, movement perspective, and
+retirement closure. Selection reuses the existing reaction families and
+bounded recent-history suppression. A former-Club reaction is emitted only
+when the movement event supplies the former Club; loans do not mutate stable
+identity allegiance. No hidden storyline score or full Career-history scan is
+introduced.
+
 ## Canonical validation
 
 The configured PHPUnit suite is the canonical combined invocation:

@@ -345,6 +345,22 @@ evidenced prior reaction and generate a short natural response; they never
 insert an excerpt or reconstruct a prior body. Existing saved Pulse prose and
 legacy roots remain unchanged.
 
+## P3-005 Career story context
+
+`PulseService` may derive a small list of presentation markers from the
+canonical Echo kind and supplied source/headline evidence. This supports
+breakthrough, explicit form labels, recorded injury return, trophy, transfer,
+Contract context, and retirement families without persisting Career stage,
+hype, sentiment, redemption, or popularity state. Missing evidence means the
+specialized family is skipped.
+
+Movement context can identify new-Club and former-Club aggregate actors when
+both Club IDs are canonical. The stable identity catalog supplies allegiance;
+no transfer or loan rewrites an identity. Memory callbacks continue to use only
+the bounded recent authored-post lookup and classified prior stance, producing
+natural wording rather than stored-text excerpts. Existing posts are immutable,
+and feed/page reads remain DML-free.
+
 ---
 
 ## Revision History

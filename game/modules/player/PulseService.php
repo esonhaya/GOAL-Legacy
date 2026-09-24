@@ -145,7 +145,7 @@ final class PulseService
     /** @var array<string, array<string, array{family:string,opening:string,slang:string,emoji:string,native:bool,text:string}>> */
     private const CULTURE_THREAD_REPLIES = [
         'england' => ['agree' => ['family' => 'english_fair_play', 'opening' => 'fair_play', 'slang' => 'proper', 'emoji' => '', 'native' => false, 'text' => 'Fair play, the lad earned that one.'], 'disagree' => ['family' => 'english_calm_down', 'opening' => 'question', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'One good game and we are rewriting the whole season?'], 'rival_banter' => ['family' => 'english_away_banter', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'Enjoy it; we will see how the next away day goes.']],
-        'spain' => ['agree' => ['family' => 'spanish_lectura', 'opening' => 'interjection', 'slang' => '', 'emoji' => '', 'native' => true, 'text' => 'Qué lectura; the finish deserved that praise.'], 'disagree' => ['family' => 'spanish_calma', 'opening' => 'calm', 'slang' => '', 'emoji' => '', 'native' => true, 'text' => 'Calma, one match does not settle the argument.'], 'rival_banter' => ['family' => 'spanish_long_season', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'Enjoy the moment, but the league is long.']],
+        'spain' => ['agree' => ['family' => 'spanish_lectura', 'opening' => 'interjection', 'slang' => '', 'emoji' => '', 'native' => true, 'text' => 'Qué lectura del momento. The finish deserved the praise.'], 'disagree' => ['family' => 'spanish_calma', 'opening' => 'calm', 'slang' => '', 'emoji' => '', 'native' => true, 'text' => 'Calma, one match does not settle the argument.'], 'rival_banter' => ['family' => 'spanish_long_season', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'Enjoy the moment, but the league is long.']],
         'germany' => ['agree' => ['family' => 'german_structure', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'That is a fair assessment; the structure was excellent.'], 'disagree' => ['family' => 'german_measure', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'The result is one thing; the full performance is another.'], 'rival_banter' => ['family' => 'german_next_match', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'One match is not a season.']],
         'italy' => ['agree' => ['family' => 'italian_giusto', 'opening' => 'interjection', 'slang' => '', 'emoji' => '', 'native' => true, 'text' => 'Giusto, the movement made the difference.'], 'disagree' => ['family' => 'italian_tactics', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'Tactics still matter more than the headline.'], 'rival_banter' => ['family' => 'italian_round', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'We will discuss it again after the next round.']],
         'france' => ['agree' => ['family' => 'french_oui', 'opening' => 'interjection', 'slang' => '', 'emoji' => '', 'native' => true, 'text' => 'Oui, the quality was obvious there.'], 'disagree' => ['family' => 'french_crown', 'opening' => 'plain', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'Let us not crown the whole season from one night.'], 'rival_banter' => ['family' => 'french_next', 'opening' => 'banter', 'slang' => '', 'emoji' => '', 'native' => false, 'text' => 'The next match will give us more to discuss.']],
@@ -582,7 +582,9 @@ final class PulseService
         }
         if ($route['importance'] !== 'routine') {
             $actors[] = ['type' => 'competition', 'id' => 'competition:' . $match->competitionId()->value(), 'name' => $competition, 'kind' => $route['kind']];
-            $actors[] = ['type' => $type === 'international' ? 'national' : 'club', 'id' => $type === 'international' ? 'national:' . $stat->clubId()->value() : 'club:' . $stat->clubId()->value(), 'name' => $type === 'international' ? 'National Team' : $team, 'kind' => $route['kind']];
+            $actors[] = $type === 'international'
+                ? ['type' => 'national', 'id' => 'national:' . $stat->clubId()->value(), 'name' => 'National Team', 'kind' => $route['kind']]
+                : ['type' => 'club', 'id' => 'club:' . $stat->clubId()->value(), 'name' => $team, 'club_id' => $stat->clubId()->value(), 'kind' => $route['kind']];
         }
         $related = $this->relatedPlayer($database, $match, $stat, $route['kind']);
         if ($related !== null) {
@@ -602,12 +604,13 @@ final class PulseService
             $route['kind'] = 'transfer';
         }
         $id = $this->id($playerId);
-        $database->transaction(function () use ($database, $id, $oldClubId, $newClubId, $date, $route): void {
+        $database->transaction(function () use ($database, $id, $oldClubId, $newClubId, $date, $route, $kind): void {
             $old = $oldClubId === null || $oldClubId === '' ? 'free agency' : $this->clubName($database, $oldClubId);
             $new = $newClubId === null || $newClubId === '' ? 'free agency' : $this->clubName($database, $newClubId);
-            $context = ['player' => $this->playerName($database, $id), 'from_club' => $old, 'team' => $new, 'headline' => $route['kind'] === 'transfer_request' ? 'a transfer request' : 'a new Club chapter', 'club_id' => $newClubId, 'old_club_id' => $oldClubId, 'club_country' => $newClubId === null || $newClubId === '' ? null : $this->clubCountry($database, $newClubId), 'from_country' => $oldClubId === null || $oldClubId === '' ? null : $this->clubCountry($database, $oldClubId), 'competition_country' => null, 'player_nationality' => $this->playerNationality($database, $id), 'transfer_cross_border' => $oldClubId !== null && $oldClubId !== '' && $newClubId !== null && $newClubId !== '' && $this->clubCountry($database, $oldClubId) !== $this->clubCountry($database, $newClubId)];
+            $context = ['player' => $this->playerName($database, $id), 'from_club' => $old, 'team' => $new, 'headline' => $route['kind'] === 'transfer_request' ? 'a transfer request' : 'a new Club chapter', 'club_id' => $newClubId, 'old_club_id' => $oldClubId, 'club_country' => $newClubId === null || $newClubId === '' ? null : $this->clubCountry($database, $newClubId), 'from_country' => $oldClubId === null || $oldClubId === '' ? null : $this->clubCountry($database, $oldClubId), 'competition_country' => null, 'player_nationality' => $this->playerNationality($database, $id), 'movement_kind' => $kind, 'career_moments' => $this->careerMoments($route['kind'], $kind . ' ' . $old . ' ' . $new), 'transfer_cross_border' => $oldClubId !== null && $oldClubId !== '' && $newClubId !== null && $newClubId !== '' && $this->clubCountry($database, $oldClubId) !== $this->clubCountry($database, $newClubId)];
             $actors = [['type' => 'media', 'id' => 'media:market-desk', 'name' => 'Market Desk', 'kind' => $route['kind']]];
-            if ($newClubId !== null && $newClubId !== '') { $actors[] = ['type' => 'club', 'id' => 'club:' . $newClubId, 'name' => $new, 'kind' => $route['kind']]; }
+            if ($newClubId !== null && $newClubId !== '') { $actors[] = ['type' => 'club', 'id' => 'club:' . $newClubId, 'name' => $new, 'club_id' => $newClubId, 'perspective' => 'new_club', 'kind' => $route['kind']]; }
+            if ($oldClubId !== null && $oldClubId !== '' && $route['kind'] === 'transfer') { $actors[] = ['type' => 'club', 'id' => 'club:' . $oldClubId, 'name' => $old, 'club_id' => $oldClubId, 'perspective' => 'former_club', 'kind' => $route['kind']]; }
             $this->recordSourceInTransaction($database, $id, 'transfer:' . $route['kind'] . ':' . $id . ':' . $date->toIsoString(), $date, (string) $route['kind'], (string) $route['importance'], $context, $actors, $route['response'] === null ? null : $this->responseChoices('transfer'));
         });
     }
@@ -625,11 +628,11 @@ final class PulseService
     {
         $id = $this->id($playerId);
         $route = $this->echo->achievement(['source' => $source, 'headline' => $headline, 'importance' => $importance]);
-        $context = ['player' => $this->playerName($database, $id), 'headline' => $headline, 'team' => $clubId === null ? 'the national team' : $this->clubName($database, $clubId), 'club_id' => $clubId, 'club_country' => $clubId === null ? null : $this->clubCountry($database, $clubId), 'competition_country' => null, 'player_nationality' => $this->playerNationality($database, $id), 'international' => str_contains(strtolower($source), 'international')];
+        $context = ['player' => $this->playerName($database, $id), 'headline' => $headline, 'team' => $clubId === null ? 'the national team' : $this->clubName($database, $clubId), 'club_id' => $clubId, 'club_country' => $clubId === null ? null : $this->clubCountry($database, $clubId), 'competition_country' => null, 'player_nationality' => $this->playerNationality($database, $id), 'career_moments' => $this->careerMoments($route['kind'], $source . ' ' . $headline), 'international' => str_contains(strtolower($source), 'international')];
         $international = str_contains(strtolower($source), 'international');
         $actors = [['type' => 'fan', 'id' => 'supporters:achievement', 'name' => 'Supporters', 'kind' => $route['kind']], ['type' => 'media', 'id' => 'media:football-desk', 'name' => 'Football Desk', 'kind' => $route['kind']]];
         if ($international) { $actors[] = ['type' => 'national', 'id' => 'national:achievement', 'name' => 'National Team', 'kind' => $route['kind']]; }
-        if ($clubId !== null && $clubId !== '') { $actors[] = ['type' => 'club', 'id' => 'club:' . $clubId, 'name' => $this->clubName($database, $clubId), 'kind' => $route['kind']]; }
+        if ($clubId !== null && $clubId !== '') { $actors[] = ['type' => 'club', 'id' => 'club:' . $clubId, 'name' => $this->clubName($database, $clubId), 'club_id' => $clubId, 'kind' => $route['kind']]; }
         $responseContext = $route['kind'] === 'retirement' ? 'retirement' : 'achievement';
         $this->recordSourceInTransaction($database, $id, 'achievement:' . $source, $date, (string) $route['kind'], (string) $route['importance'], $context, $actors, $this->responseChoices($responseContext));
     }
@@ -648,9 +651,9 @@ final class PulseService
         $database->transaction(function () use ($database, $playerId, $date, $injuryId, $route, $payload, $event): void {
             $clubId = $this->currentClub($database, $playerId);
             $team = $clubId === null ? 'the football world' : $this->clubName($database, $clubId);
-            $context = ['player' => $this->playerName($database, $playerId), 'team' => $team, 'headline' => $route['kind'] === 'injury' ? 'an injury' : 'a return from injury', 'injury' => (string) ($payload['category'] ?? 'recorded injury'), 'club_id' => $clubId, 'club_country' => $clubId === null ? null : $this->clubCountry($database, $clubId), 'competition_country' => null, 'player_nationality' => $this->playerNationality($database, $playerId)];
+            $context = ['player' => $this->playerName($database, $playerId), 'team' => $team, 'headline' => $route['kind'] === 'injury' ? 'an injury' : 'a return from injury', 'injury' => (string) ($payload['category'] ?? 'recorded injury'), 'club_id' => $clubId, 'club_country' => $clubId === null ? null : $this->clubCountry($database, $clubId), 'competition_country' => null, 'player_nationality' => $this->playerNationality($database, $playerId), 'career_moments' => $route['kind'] === 'return' ? ['return_from_injury'] : ['injury']];
             $actors = [['type' => 'fan', 'id' => 'supporters:' . ($clubId ?? 'football'), 'name' => 'Supporters', 'kind' => $route['kind']], ['type' => 'media', 'id' => 'media:availability-desk', 'name' => 'Football Desk', 'kind' => $route['kind']]];
-            if ($clubId !== null) { $actors[] = ['type' => 'club', 'id' => 'club:' . $clubId, 'name' => $team, 'kind' => $route['kind']]; }
+            if ($clubId !== null) { $actors[] = ['type' => 'club', 'id' => 'club:' . $clubId, 'name' => $team, 'club_id' => $clubId, 'kind' => $route['kind']]; }
             $this->recordSourceInTransaction($database, $playerId, 'availability:' . $event . ':' . $injuryId, $date, (string) $route['kind'], (string) $route['importance'], $context, $actors, null);
         });
     }
@@ -662,7 +665,7 @@ final class PulseService
         if ($route['importance'] === 'routine' && !($choice['social']['history'] ?? false)) { return; }
         $id = $this->id($playerId);
         $clubId = $this->currentClub($database, $id);
-        $context = ['player' => $this->playerName($database, $id), 'headline' => (string) ($choice['history'] ?? 'A Career choice changed the football context.'), 'club_id' => $clubId, 'club_country' => $clubId === null ? null : $this->clubCountry($database, $clubId), 'competition_country' => null, 'player_nationality' => $this->playerNationality($database, $id)];
+        $context = ['player' => $this->playerName($database, $id), 'headline' => (string) ($choice['history'] ?? 'A Career choice changed the football context.'), 'club_id' => $clubId, 'club_country' => $clubId === null ? null : $this->clubCountry($database, $clubId), 'competition_country' => null, 'player_nationality' => $this->playerNationality($database, $id), 'career_moments' => $this->careerMoments('career_choice', $category . ' ' . (string) ($choice['history'] ?? ''))];
         $this->recordSourceInTransaction($database, $id, 'career-choice:' . $source, $date, 'career_choice', (string) $route['importance'], $context, [['type' => 'teammate', 'id' => 'teammates:career', 'name' => 'Teammates', 'kind' => 'career_choice']], null);
     }
 
@@ -717,6 +720,12 @@ final class PulseService
             $actorId = (string) ($actor['id'] ?? 'unknown');
             $identity = is_array($actor['identity'] ?? null) ? $actor['identity'] : null;
             $reactionContext = $context;
+            if ((string) ($actor['club_id'] ?? '') !== '') {
+                $reactionContext['pulse_allegiance_club_id'] = (string) $actor['club_id'];
+            }
+            if ((string) ($actor['perspective'] ?? '') !== '') {
+                $reactionContext['pulse_perspective'] = (string) $actor['perspective'];
+            }
             if ($identity !== null) {
                 $reactionContext['pulse_identity_id'] = (string) ($identity['id'] ?? '');
                 $reactionContext['pulse_identity_name'] = (string) ($identity['name'] ?? '');
@@ -915,7 +924,15 @@ final class PulseService
         $assigned = [];
         foreach ($actors as $index => $actor) {
             if (!is_array($actor)) { continue; }
-            $identity = $this->selectIdentity($context, (string) ($actor['type'] ?? 'fan'), $sourceKey, $index, $used, $recentIdentities);
+            $identityContext = $context;
+            if ((string) ($actor['club_id'] ?? '') !== '') {
+                $identityContext['pulse_allegiance_club_id'] = (string) $actor['club_id'];
+                $identityContext['pulse_allegiance_club_country'] = (string) ($actor['club_country'] ?? (($actor['perspective'] ?? '') === 'former_club' ? ($context['from_country'] ?? '') : ($context['club_country'] ?? '')));
+            }
+            if ((string) ($actor['perspective'] ?? '') !== '') {
+                $identityContext['pulse_perspective'] = (string) $actor['perspective'];
+            }
+            $identity = $this->selectIdentity($identityContext, (string) ($actor['type'] ?? 'fan'), $sourceKey, $index, $used, $recentIdentities);
             if ($identity !== null) {
                 $actor['identity'] = $identity;
                 $used[(string) $identity['id']] = true;
@@ -937,7 +954,7 @@ final class PulseService
             if (!in_array($culture, $preferredCultures, true)) { $preferredCultures[] = $culture; }
         };
         if ($actorType === 'fan' || $actorType === 'teammate' || $actorType === 'club') {
-            $addCulture((string) ($context['club_country'] ?? ''));
+            $addCulture((string) ($context['pulse_allegiance_club_country'] ?? $context['club_country'] ?? ''));
             $addCulture((string) ($context['competition_country'] ?? ''));
         }
         if ($actorType === 'national' || $actorType === 'fan') { $addCulture((string) ($context['player_nationality'] ?? '')); }
@@ -953,7 +970,8 @@ final class PulseService
             $cultureIndex = array_search($culture, $preferredCultures, true);
             if ($cultureIndex !== false) { $score += 100 - ((int) $cultureIndex * 12); }
             if ($identity['culture'] === 'global') { $score += ($actorType === 'media' || $actorType === 'competition') ? 70 : 0; }
-            if ($identity['club'] !== null && (string) ($context['club_id'] ?? '') === $identity['club']) { $score += 20; }
+            $allegianceClub = (string) ($context['pulse_allegiance_club_id'] ?? $context['club_id'] ?? '');
+            if ($identity['club'] !== null && $allegianceClub === $identity['club']) { $score += 90; }
             if ($identity['nation'] !== 'global' && (string) ($context['player_nationality'] ?? '') === $identity['nation']) { $score += $actorType === 'national' ? 100 : 35; }
             if ($actorType === 'rival' && $identity['club'] !== null && (string) ($context['opponent_club_id'] ?? '') === $identity['club']) { $score += 120; }
             if (isset($recentIdentities[$identity['id']])) { $score -= 60; }
@@ -1086,8 +1104,113 @@ final class PulseService
         if ($kind === 'match_strong_performance' && $result === 'loss') {
             $candidates[] = ['voice' => $voice, 'family' => 'situation|individual_in_defeat', 'opening' => 'contrast', 'slang' => '', 'emoji' => '', 'actors' => ['fan', 'media'], 'results' => ['loss'], 'text' => 'A real individual performance, but the scoreline still says defeat.', 'stance' => 'criticism', 'reference' => 'RESULT_CONTEXT', 'situational' => true];
         }
-        if (in_array($kind, ['transfer', 'free_agent_signing'], true) && ($context['transfer_cross_border'] ?? false) === true) {
+        if (in_array($kind, ['transfer', 'free_agent_signing'], true) && ($context['transfer_cross_border'] ?? false) === true && !($actorType === 'club' && ($context['pulse_perspective'] ?? '') === 'former_club')) {
             $candidates[] = ['voice' => $voice, 'family' => 'situation|cross_border_chapter', 'opening' => 'movement', 'slang' => '', 'emoji' => '', 'actors' => ['fan', 'media', 'club', 'national'], 'results' => [], 'text' => 'New football country, same player: {player} has started the next chapter.', 'stance' => 'praise', 'reference' => 'CROSS_BORDER_MOVE', 'situational' => true];
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Derive only explicit, already-published Career markers.  These are
+     * presentation signals, not a second Career progression model.
+     * @return list<string>
+     */
+    private function careerMoments(string $kind, string $evidence): array
+    {
+        $haystack = strtolower($kind . '|' . $evidence);
+        $moments = [];
+        $signals = [
+            'debut' => ['debut'],
+            'breakthrough' => ['breakthrough', 'first senior', 'first-team breakthrough'],
+            'first_goal' => ['first goal', 'maiden goal'],
+            'first_assist' => ['first assist', 'maiden assist'],
+            'strong_run' => ['strong run', 'run of form', 'run of performances'],
+            'poor_run' => ['poor run', 'slump', 'poor form'],
+            'return_to_form' => ['return to form', 'back in form'],
+            'trophy' => ['trophy', 'champion', 'cup winner', 'league winner'],
+            'late_career' => ['late-career', 'late career', 'veteran'],
+        ];
+        foreach ($signals as $moment => $needles) {
+            foreach ($needles as $needle) {
+                if (str_contains($haystack, $needle)) {
+                    $moments[] = $moment;
+                    break;
+                }
+            }
+        }
+        if ($kind === 'retirement') { $moments[] = 'retirement'; }
+        if ($kind === 'return') { $moments[] = 'return_from_injury'; }
+        if ($kind === 'transfer' || $kind === 'free_agent_signing') { $moments[] = 'transfer_arrival'; }
+        if ($kind === 'transfer_request') { $moments[] = 'transfer_uncertainty'; }
+        if ($kind === 'career_choice' && str_contains($haystack, 'contract')) { $moments[] = 'contract_decision'; }
+
+        return array_values(array_unique($moments));
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function careerCandidates(string $kind, string $actorType, array $context): array
+    {
+        $moments = array_values(array_map('strval', (array) ($context['career_moments'] ?? [])));
+        $voice = (string) ($context['pulse_voice'] ?? 'neutral_viewer');
+        $perspective = (string) ($context['pulse_perspective'] ?? '');
+        $candidates = [];
+        $add = static function (array &$target, array $actors, string $family, string $opening, string $text, string $stance, string $reference) use ($actorType, $voice): void {
+            if (!in_array($actorType, $actors, true)) { return; }
+            $target[] = ['voice' => $voice, 'family' => 'career|' . $family, 'opening' => $opening, 'slang' => '', 'emoji' => '', 'actors' => $actors, 'results' => [], 'text' => $text, 'stance' => $stance, 'reference' => $reference, 'career' => true];
+        };
+        $has = static fn (string $moment): bool => in_array($moment, $moments, true);
+
+        if ($has('debut')) {
+            $add($candidates, ['fan', 'club', 'national'], 'debut_marker', 'new_face', 'A first-team debut gives {player} a real chapter to build from.', 'praise', 'CAREER_DEBUT');
+        }
+        if ($has('breakthrough')) {
+            $add($candidates, ['fan', 'club', 'national'], 'breakthrough_belief', 'breakthrough', 'The breakthrough is now part of {player}\'s Career evidence. Keep working.', 'praise', 'CAREER_BREAKTHROUGH');
+            $add($candidates, ['media', 'competition'], 'breakthrough_record', 'marker', '{headline} gives {player} a documented step forward.', 'praise', 'CAREER_BREAKTHROUGH');
+        }
+        if ($has('first_goal') || $has('first_assist')) {
+            $add($candidates, ['fan', 'club', 'national'], 'first_landmark', 'landmark', 'A first senior landmark for {player}. The next one will have to be earned too.', 'praise', 'CAREER_FIRST_LANDMARK');
+            $add($candidates, ['media', 'competition'], 'first_landmark_fact', 'plain', '{headline} is a new line in {player}\'s Career record.', 'praise', 'CAREER_FIRST_LANDMARK');
+        }
+        if ($has('strong_run')) {
+            $add($candidates, ['fan', 'club'], 'form_run', 'run', 'This run from {player} is becoming difficult to ignore.', 'praise', 'RECENT_FORM');
+            $add($candidates, ['media', 'competition'], 'form_run_evidence', 'form', 'The recent run has given {player} a clear body of work.', 'praise', 'RECENT_FORM');
+        }
+        if ($has('poor_run')) {
+            $add($candidates, ['fan', 'club'], 'form_slump', 'frustration', 'The recent run has not been good enough; the next response matters.', 'criticism', 'RECENT_FORM');
+            $add($candidates, ['media', 'competition'], 'form_slump_context', 'context', 'The current run is the football problem to solve for {player}.', 'criticism', 'RECENT_FORM');
+        }
+        if ($has('return_to_form')) {
+            $add($candidates, ['fan', 'club', 'national'], 'form_return', 'return', 'That return to form came at the right time for {player}.', 'praise', 'RETURN_TO_FORM');
+        }
+        if ($has('return_from_injury')) {
+            $add($candidates, ['fan', 'club', 'national'], 'setback_return', 'recovery', 'Back from the recorded setback and back in the football conversation.', 'praise', 'RECORDED_COMEBACK');
+        }
+        if ($has('trophy')) {
+            $add($candidates, ['fan', 'club', 'national'], 'trophy_chapter', 'trophy', '{headline} changes the chapter for {player}. Enjoy the achievement.', 'praise', 'TROPHY_CONTEXT');
+            $add($candidates, ['media', 'competition'], 'trophy_record', 'trophy', '{headline} is now part of {player}\'s documented Career.', 'praise', 'TROPHY_CONTEXT');
+        }
+        if ($has('late_career')) {
+            $add($candidates, ['fan', 'club', 'media', 'competition'], 'late_career_work', 'longevity', 'Still producing at this stage of the Career. The work speaks for itself.', 'praise', 'EXPLICIT_CAREER_STAGE');
+        }
+        if ($has('retirement')) {
+            if ($actorType === 'club') {
+                $add($candidates, ['club'], 'career_closing_club', 'farewell', 'The playing chapter closes here for {player}; the Club remembers the work.', 'neutral', 'RETIREMENT_EVENT');
+            } else {
+                $add($candidates, ['fan'], 'career_closing_chapter', 'farewell', 'A routine match reaction will not do here: {player}\'s playing Career has closed.', 'neutral', 'RETIREMENT_EVENT');
+            }
+            $add($candidates, ['media', 'national'], 'career_closure_record', 'closure', 'The playing chapter closes for {player}; the documented Career remains.', 'neutral', 'RETIREMENT_EVENT');
+        }
+        if ($has('transfer_uncertainty')) {
+            $add($candidates, ['fan', 'media'], 'career_uncertainty', 'question', 'The next Career chapter is now a live question for {player}.', 'neutral', 'TRANSFER_REQUEST');
+        }
+        if ($has('transfer_arrival') && $perspective === 'former_club') {
+            $add($candidates, ['club'], 'former_club_departure', 'farewell', 'The old Club chapter is over for {player}. Good luck in the next one.', 'neutral', 'FORMER_CLUB_CONTEXT');
+        } elseif ($has('transfer_arrival') && $perspective === 'new_club') {
+            $add($candidates, ['club'], 'new_club_arrival', 'welcome', 'Welcome to {team}; the next chapter starts with the work.', 'praise', 'NEW_CLUB_CONTEXT');
+        }
+        if ($has('contract_decision')) {
+            $add($candidates, ['fan', 'media', 'club'], 'contract_chapter', 'decision', 'A Contract decision gives {player}\'s next chapter a shape.', 'neutral', 'CONTRACT_CONTEXT');
         }
 
         return $candidates;
@@ -1110,12 +1233,15 @@ final class PulseService
         $prior = $memory[0] ?? null;
         if (!is_array($prior) || (string) ($prior['source_key'] ?? '') === '') { return null; }
         $memoryType = (string) ($prior['memory_type'] ?? $this->memoryType('', '', 'fan', (string) ($prior['stance'] ?? 'neutral')));
-        $text = match ($memoryType) {
-            'criticism' => 'Yeah, I might owe him an apology 😭',
-            'doubt' => 'Okay, he is making that old take look horrible.',
-            'defence' => 'Some of us tried to tell you.',
-            'rival_mockery' => 'This is becoming annoyingly difficult to hate.',
-            'support' => 'I backed him before; I am not changing now.',
+        $text = match (true) {
+            $kind === 'retirement' && $memoryType === 'support' => 'I backed him before; I am glad I got to see this chapter close.',
+            $kind === 'retirement' && $memoryType === 'criticism' => 'I was hard on him before; the full Career gave me plenty to rethink.',
+            $kind === 'retirement' && $memoryType === 'rival_mockery' => 'Still hated the badge, but the Career deserves respect.',
+            $memoryType === 'criticism' => 'Yeah, I might owe him an apology 😭',
+            $memoryType === 'doubt' => 'Okay, he is making that old take look horrible.',
+            $memoryType === 'defence' => 'Some of us tried to tell you.',
+            $memoryType === 'rival_mockery' => 'This is becoming annoyingly difficult to hate.',
+            $memoryType === 'support' => 'I backed him before; I am not changing now.',
             default => 'The evidence has moved the conversation on.',
         };
 
@@ -1227,6 +1353,7 @@ final class PulseService
         $memoryCandidate = $this->memoryCandidate($kind, $context, $sourceKey);
         if ($memoryCandidate !== null) { array_unshift($candidates, $memoryCandidate); }
         $candidates = array_merge($candidates, $this->situationalCandidates($kind, $actorType, $context));
+        $candidates = array_merge($candidates, $this->careerCandidates($kind, $actorType, $context));
         $result = (string) ($context['result'] ?? '');
         foreach (self::REACTION_CATALOG[$kind] ?? [] as $candidate) {
             if (!in_array($actorType, $candidate['actors'], true)) { continue; }
@@ -1246,7 +1373,7 @@ final class PulseService
         $start = hexdec(substr(hash('sha256', 'pulse-reaction:v1|' . $sourceKey . '|' . $actorType . '|' . $actorId . '|' . $kind), 0, 8)) % count($candidates);
         $best = null;
         $bestScore = PHP_INT_MAX;
-        $hasSituationalCandidate = count(array_filter($candidates, static fn (array $candidate): bool => ($candidate['situational'] ?? false) === true)) > 0;
+        $hasContextCandidate = count(array_filter($candidates, static fn (array $candidate): bool => ($candidate['situational'] ?? false) === true || ($candidate['career'] ?? false) === true)) > 0;
         foreach ($candidates as $offset => $candidate) {
             $candidate = $candidates[($start + $offset) % count($candidates)];
             $text = $this->interpolate($candidate['text'], $context);
@@ -1260,12 +1387,12 @@ final class PulseService
             if (isset($recent['openings'][$opening]) || isset($used['openings'][$opening])) { $score += 30; }
             if ($slang !== '' && (isset($recent['slang'][$slang]) || isset($used['slang'][$slang]))) { $score += 20; }
             if ($emoji !== '' && (isset($recent['emojis'][$emoji]) || isset($used['emojis'][$emoji]))) { $score += 15; }
-            if (($candidate['situational'] ?? false) === true) { $score -= 5; }
+            if (($candidate['situational'] ?? false) === true || ($candidate['career'] ?? false) === true) { $score -= 5; }
             if ($score < $bestScore) {
                 $bestScore = $score;
                 $stance = (string) ($candidate['stance'] ?? $this->reactionStance($kind, $context, $actorType));
                 $best = ['text' => $text, 'meta' => ['voice' => $candidate['voice'], 'family' => $family, 'opening' => $opening, 'slang' => $slang, 'emoji' => $emoji, 'stance' => $stance, 'memory_type' => (string) ($candidate['memory_type'] ?? $this->memoryType($family, $kind, $actorType, $stance)), 'reference' => (string) ($candidate['reference'] ?? ''), 'text' => $text]];
-                if ($score === 0 && !$hasSituationalCandidate) { break; }
+                if ($score === 0 && !$hasContextCandidate) { break; }
             }
         }
 

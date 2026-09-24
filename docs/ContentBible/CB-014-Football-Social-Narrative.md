@@ -112,3 +112,19 @@ existing anti-repeat selection. Memory callbacks use the classified meaning of
 an identity's actual prior post (support, criticism, doubt, defence, or rival
 banter); they do not quote, truncate, or expose stored prose. This refinement
 adds no social memory scan, persistence system, or runtime text generation.
+
+## P3-005 Career story writing
+
+Pulse may follow a controlled Player's Career through explicit canonical
+markers already supplied by Echo: debut/breakthrough, form evidence, injury
+return, trophy, movement, and retirement. These are bounded reaction families,
+not a hype, sentiment, popularity, or storyline score. A form or redemption
+claim requires the corresponding recorded event or the identity's own recent
+classified post; one positive reaction never becomes invented lifelong belief.
+
+Transfer presentation may include both the new Club and former Club when both
+are supplied by the movement event. Club allegiance is stable and is not
+rewritten by a loan or transfer. Retirement wording acknowledges closure
+without inventing a legend status, reason, or historical detail. Existing
+anti-repeat, deterministic selection, English-first cultural writing, and
+read-only rendering rules remain authoritative.

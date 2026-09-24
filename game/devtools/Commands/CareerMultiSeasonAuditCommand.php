@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Goal\Legacy\Devtools\Commands;
 
 use DateTimeImmutable;
+use Goal\Legacy\Core\Bootstrap\Bootstrap;
 use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\JsonSerializer;
 use Goal\Legacy\Core\Persistence\SaveMetadata;
@@ -28,12 +29,21 @@ use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
 use Goal\Legacy\Modules\Player\Domain\CareerId;
 use Goal\Legacy\Modules\Player\Domain\CareerPlayerReference;
+use Goal\Legacy\Modules\Player\Domain\CareerStartRequest;
+use Goal\Legacy\Modules\Player\Domain\DevelopmentProfile;
 use Goal\Legacy\Modules\Player\Domain\Player;
 use Goal\Legacy\Modules\Player\Domain\PlayerAttributeSet;
 use Goal\Legacy\Modules\Player\Domain\PlayerCareerState;
 use Goal\Legacy\Modules\Player\Domain\PlayerCreationRequest;
+use Goal\Legacy\Modules\Player\Domain\TrainingRequest;
+use Goal\Legacy\Modules\Player\Persistence\CareerLegacyRepository;
+use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
+use Goal\Legacy\Modules\Player\Persistence\PlayerAvailabilityRepository;
+use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
+use Goal\Legacy\Modules\Player\YouthCareerStartService;
 use Goal\Legacy\Modules\Player\PlayerPopulationService;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
+use Goal\Legacy\Modules\Transfer\Persistence\LoanRepository;
 use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
 use Goal\Legacy\Modules\World\Domain\Season;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
@@ -58,6 +68,9 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
 
     public function execute(array $arguments, ConsoleOutputInterface $output): int
     {
+        if (in_array('--observatory', $arguments, true)) {
+            return $this->executeObservatory($arguments, $output);
+        }
         $requested = $this->argumentInt($arguments, '--seasons=', 3);
         $seed = $this->argumentInt($arguments, '--seed=', 13003);
         $lifecycleOnly = in_array('--lifecycle-only', $arguments, true);
@@ -134,6 +147,376 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
             unset($database);
             $this->removeStorage($directory);
         }
+    }
+
+    /**
+     * Run the same World/Match/Season lifecycle with compact controlled-player
+     * checkpoints. This deliberately lives beside the older audit so the
+     * observatory cannot drift into a second Career simulation.
+     */
+    private function executeObservatory(array $arguments, ConsoleOutputInterface $output): int
+    {
+        $requested = $this->argumentInt($arguments, '--seasons=', 5);
+        $seed = $this->argumentInt($arguments, '--seed=', 13007);
+        $requestedProfile = strtolower($this->argumentValue($arguments, '--archetype=', 'all'));
+        $profiles = $requestedProfile === 'all'
+            ? [DevelopmentProfile::LateBloomer, DevelopmentProfile::Regular, DevelopmentProfile::Prodigy]
+            : [DevelopmentProfile::fromInput($requestedProfile)];
+        if ($requested < 1 || $requested > 5) {
+            $output->error('Career observatory requires --seasons between 1 and 5.');
+
+            return 1;
+        }
+        if (in_array('--equivalence', $arguments, true) && count($profiles) !== 1) {
+            $output->error('Career observatory equivalence accepts one --archetype.');
+
+            return 1;
+        }
+
+        $overallStart = hrtime(true);
+        try {
+            foreach ($profiles as $profile) {
+                // Each isolated save also gets a fresh core clock. The
+                // production clock is intentionally monotonic, so reusing
+                // one service graph would make the next profile look like a
+                // time-traveling save rather than an independent sample.
+                $profileServices = (new Bootstrap())->create(dirname(__DIR__, 3));
+                (new self($profileServices))->runObservatoryProfile($profile, $seed, $requested, $arguments, $output);
+            }
+            $output->write(sprintf('OBSERVATORY_TOTAL runtime_ms=%.2f profiles=%d seasons=%d', $this->elapsedMilliseconds($overallStart), count($profiles), $requested));
+
+            return 0;
+        } catch (Throwable $exception) {
+            $output->error('Career observatory failed: ' . $exception->getMessage());
+
+            return 1;
+        }
+    }
+
+    private function runObservatoryProfile(DevelopmentProfile $profile, int $seed, int $requested, array $arguments, ConsoleOutputInterface $output): void
+    {
+        $directory = sys_get_temp_dir() . '/goal-legacy-pacing-observatory-' . $profile->value . '-' . bin2hex(random_bytes(8));
+        $database = null;
+        $started = hrtime(true);
+        try {
+            [$store, $database, $season, $world] = $this->initialize($directory, $seed);
+            $population = $this->services->playerModule()->service()->populationService()->populate($database, $season, $seed);
+            $installation = $this->installObservatoryPlayer($database, $season, $profile, $seed);
+            $player = $installation['player'];
+            $competitionIds = [$installation['competition_id']];
+            $matchService = $this->services->matchModule()->service();
+            $this->generateSeasonFixtures($database, $matchService, $competitionIds, $season);
+            $checkpoints = [];
+            $checkpoints['START'] = $this->observatoryCheckpoint($database, $player, $season, $season->startDate());
+            $seasonRuntimes = [];
+            $worldAtStart = $this->services->worldModule()->service()->load($database, self::SAVE_ID)->toArray();
+
+            for ($seasonNumber = 1; $seasonNumber <= $requested; ++$seasonNumber) {
+                $season = $this->services->worldModule()->service()->seasonRepository($database)->get($season->id());
+                $matches = $this->matchesForSeason($database, $competitionIds, $season);
+                if ($matches === []) {
+                    throw new RuntimeException('No fixtures exist for ' . $season->id()->value() . '.');
+                }
+                $seasonStart = hrtime(true);
+                $materializedMatches = $this->simulateObservatorySeason($database, $matchService, $matches, $player, $season);
+                $remaining = count(array_filter($this->allMatchesForSeason($database, $season), static fn ($match): bool => $match->status() !== MatchStatus::Completed));
+                $output->write(sprintf('OBSERVATORY_BOUNDARY profile=%s season=%d matches=%d unresolved=%d', $profile->value, $seasonNumber, $materializedMatches, $remaining));
+                $this->services->worldModule()->service()->advanceToDate($database, self::SAVE_ID, $season->endDate()->addDays(1));
+                $season = $this->services->worldModule()->service()->seasonRepository($database)->get($season->id());
+                $checkpoints['SEASON_' . $seasonNumber] = $this->observatoryCheckpoint($database, $player, $season, $season->endDate()->addDays(1));
+                $seasonRuntimes[$seasonNumber] = $this->elapsedMilliseconds($seasonStart);
+
+                if ($seasonNumber < $requested) {
+                    $this->resolveObservatoryContractDecision($database, $player, $season->endDate()->addDays(1));
+                    $nextId = new SeasonId(sprintf('season-%04d-%02d', $season->startDate()->year() + 1, ($season->startDate()->year() + 2) % 100));
+                    $next = $this->services->worldModule()->service()->seasonRepository($database)->get($nextId);
+                    $this->services->worldModule()->service()->advanceToDate($database, self::SAVE_ID, $next->startDate());
+                    $season = $this->services->worldModule()->service()->seasonRepository($database)->get($next->id());
+                    if ($season->status()->value !== 'active') {
+                        throw new RuntimeException('Next Season did not activate: ' . $season->id()->value());
+                    }
+                }
+            }
+
+            $equivalence = 'not_requested';
+            if (in_array('--equivalence', $arguments, true)) {
+                $worldBeforeReload = $this->services->worldModule()->service()->load($database, self::SAVE_ID)->toArray();
+                $snapshotBeforeReload = $this->observatoryCheckpoint($database, $player, $season, $season->startDate());
+                unset($database);
+                $database = $store->openDatabase(self::SAVE_ID);
+                $worldAfterReload = $this->services->worldModule()->service()->load($database, self::SAVE_ID)->toArray();
+                $snapshotAfterReload = $this->observatoryCheckpoint($database, $player, $season, $season->startDate());
+                $equivalence = $worldBeforeReload === $worldAfterReload && $snapshotBeforeReload === $snapshotAfterReload ? 'pass' : 'fail';
+                if ($equivalence !== 'pass') {
+                    throw new RuntimeException('Observatory save/reload equivalence failed for ' . $profile->value . '.');
+                }
+            }
+
+            $warnings = $this->observatoryWarnings($checkpoints);
+            $output->write(sprintf('OBSERVATORY profile=%s seed=%d requested=%d runtime_ms=%.2f population=%d equivalence=%s', $profile->value, $seed, $requested, $this->elapsedMilliseconds($started), (int) ($population['players_total'] ?? 0), $equivalence));
+            $output->write(sprintf('OBSERVATORY_WORLD start_hash=%s final_season=%s final_season_status=%s', substr(hash('sha256', json_encode($worldAtStart, JSON_THROW_ON_ERROR)), 0, 12), $season->id()->value(), $season->status()->value));
+            foreach ($checkpoints as $label => $checkpoint) {
+                $output->write($this->formatObservatoryCheckpoint($label, $checkpoint));
+            }
+            foreach ($seasonRuntimes as $number => $runtime) {
+                $output->write(sprintf('OBSERVATORY_TIMING profile=%s season=%d runtime_ms=%.2f', $profile->value, $number, $runtime));
+            }
+            $output->write(sprintf('OBSERVATORY_WARNINGS profile=%s values=%s', $profile->value, $warnings === [] ? 'none' : implode(',', $warnings)));
+        } finally {
+            unset($database);
+            $this->removeStorage($directory);
+        }
+    }
+
+    /** @return array{player:Player,competition_id:string} */
+    private function installObservatoryPlayer($database, Season $season, DevelopmentProfile $profile, int $seed): array
+    {
+        $playerService = $this->services->playerModule()->service();
+        $start = new YouthCareerStartService(
+            $playerService,
+            $this->services->clubModule()->service(),
+            $this->services->competitionModule()->service(),
+            $this->services->contractModule()->service(),
+            $this->services->playerFinanceService(),
+        );
+        $careerId = new CareerId('pacing-' . $profile->value . '-career');
+        $startDate = SimulationDate::fromIsoString('2024-07-31');
+        $player = $start->createProspect(new CareerStartRequest('pacing-' . $profile->value, 'Pacing ' . ucfirst($profile->value), 'england', 180, 75, 'CM', $profile->value, $seed));
+        $opportunities = $start->opportunities($database, $player, $season);
+        $selected = $opportunities[0] ?? null;
+        if ($selected === null) {
+            throw new RuntimeException('Youth Camp produced no observatory opportunity for ' . $profile->value . '.');
+        }
+        $clubId = (string) $selected['club_id'];
+        $start->accept($database, $player, $careerId, $season, $startDate, $opportunities, $clubId);
+
+        return ['player' => $player, 'competition_id' => (string) $selected['competition_id']];
+    }
+
+    /** @param list<object> $matches */
+    private function simulateObservatorySeason($database, $matchService, array $matches, Player $player, Season $season): int
+    {
+        $trainingBlocks = $this->observatoryTrainingBlocks($season->startDate());
+        $trainingIndex = 0;
+        $lastDate = null;
+        while (true) {
+            $scheduled = array_values(array_filter(
+                $this->allMatchesForSeason($database, $season),
+                static fn ($match): bool => $match->status() === MatchStatus::Scheduled,
+            ));
+            if ($scheduled === []) {
+                break;
+            }
+            $date = $scheduled[0]->scheduledDate();
+            if ($lastDate !== null && !$date->isAfter($lastDate)) {
+                throw new RuntimeException('Observatory could not advance scheduled Competition Matches.');
+            }
+            while (isset($trainingBlocks[$trainingIndex]) && !$trainingBlocks[$trainingIndex]['end']->isAfter($date)) {
+                $block = $trainingBlocks[$trainingIndex];
+                $this->services->playerModule()->service()->trainingService()->complete(
+                    $database,
+                    new TrainingRequest($player->id(), $season->id()->value() . ':' . $block['id'] . ':' . $player->id()->value(), 'balanced', $block['start'], $block['end']),
+                );
+                ++$trainingIndex;
+            }
+            $this->services->worldModule()->service()->advanceToDate($database, self::SAVE_ID, $date);
+            $matchService->simulateDue($database, $date);
+            $lastDate = $date;
+        }
+
+        return count($this->allMatchesForSeason($database, $season));
+    }
+
+    /** @return list<array{id:string,start:SimulationDate,end:SimulationDate}> */
+    private function observatoryTrainingBlocks(SimulationDate $seasonStart): array
+    {
+        $blocks = [];
+        for ($index = 0; $index < 10; ++$index) {
+            $start = $seasonStart->addDays($index * 28);
+            $blocks[] = ['id' => 'pacing-training-' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT), 'start' => $start, 'end' => $start->addDays(27)];
+        }
+
+        return $blocks;
+    }
+
+    private function resolveObservatoryContractDecision($database, Player $player, SimulationDate $date): void
+    {
+        $opportunities = (new CareerOpportunityRepository($database))->openForPlayer($player->id(), $date);
+        foreach ($opportunities as $opportunity) {
+            if ($opportunity->type()->value !== 'contract_renewal') {
+                continue;
+            }
+            $options = is_array($opportunity->context()['options'] ?? null) ? $opportunity->context()['options'] : [];
+            $selected = null;
+            foreach ($options as $option) {
+                if (is_array($option) && ($option['id'] ?? null) === 'renew-current-club') {
+                    $selected = $option;
+                    break;
+                }
+            }
+            $selected ??= array_values(array_filter($options, static fn ($option): bool => is_array($option) && isset($option['id'])))[0] ?? null;
+            if (is_array($selected)) {
+                $decisionDate = $date;
+                $currentContractId = $opportunity->context()['current_contract_id'] ?? null;
+                if (is_string($currentContractId) && $currentContractId !== '') {
+                    foreach ($this->services->contractModule()->service()->repository($database)->byPlayer($player->id()) as $contract) {
+                        if ($contract->id()->value() === $currentContractId && !$contract->endDate()->isBefore($decisionDate)) {
+                            $decisionDate = $contract->endDate()->addDays(1);
+                            $this->services->worldModule()->service()->advanceToDate($database, self::SAVE_ID, $decisionDate);
+                            break;
+                        }
+                    }
+                }
+                $this->services->transferModule()->service()->careerMovement()->resolveContractDecision($database, $opportunity->id(), (string) $selected['id'], $decisionDate);
+            }
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function observatoryCheckpoint($database, Player $player, Season $season, SimulationDate $date): array
+    {
+        $players = new PlayerRepository($database);
+        $current = $players->get($player->id());
+        $membership = $this->services->clubModule()->service()->squadRepository($database)->byPlayer($player->id(), $season->id())[0] ?? null;
+        $club = $membership === null ? null : $this->services->clubModule()->service()->repository($database)->get($membership->clubId());
+        $query = new PlayerCareerProgressionQuery($this->services->clubModule()->service());
+        $summary = $query->summary($database, $player->id(), $date, $season->id());
+        $stats = is_array($summary['season_stats'] ?? null) ? $summary['season_stats'] : [];
+        $contract = is_array($summary['current_contract'] ?? null) ? $summary['current_contract'] : null;
+        $contracts = $this->services->contractModule()->service()->repository($database)->byPlayer($player->id());
+        $transfers = array_values(array_filter((new TransferRepository($database))->byPlayer($player->id()), static fn ($transfer): bool => $transfer->status()->value === 'completed'));
+        $loans = (new LoanRepository($database, false))->byPlayer($player->id());
+        $injuries = (new PlayerAvailabilityRepository($database))->byPlayer($player->id());
+        $legacy = new CareerLegacyRepository($database, false);
+        $finance = $this->services->playerFinanceService()->summary($database, $player->id(), $date);
+        $competition = is_array($summary['current_competition'] ?? null) ? $summary['current_competition'] : null;
+        if ($competition === null && $club !== null) {
+            foreach ($this->services->clubModule()->service()->membershipRepository($database)->bySeason($season->id()) as $clubMembership) {
+                if ($clubMembership->clubId()->value() !== $club->id()->value()) {
+                    continue;
+                }
+                $competitionRecord = $this->services->competitionModule()->service()->repository($database)->get($clubMembership->competitionId());
+                $competition = ['name' => $competitionRecord->name(), 'tier' => $competitionRecord->tier()];
+                break;
+            }
+        }
+        $outlook = is_array($summary['career_outlook'] ?? null) ? $summary['career_outlook']['category'] ?? null : null;
+        $attributes = $current->attributes()->toArray();
+        $term = $contract === null ? null : $date->daysUntil(SimulationDate::fromIsoString((string) ($contract['end_date'] ?? $date->toIsoString())));
+
+        return [
+            'season' => $season->id()->value(),
+            'season_label' => $season->label(),
+            'age' => $current->ageAt($date),
+            'club' => $club?->canonicalName() ?? 'free-agent',
+            'competition' => $competition['name'] ?? null,
+            'tier' => $competition['tier'] ?? null,
+            'ovr' => $current->overallRating(),
+            'attributes' => $attributes,
+            'potential' => $current->potential(),
+            'role' => $membership?->role()->value ?? 'none',
+            'appearances' => (int) ($stats['appearances'] ?? 0),
+            'starts' => (int) ($stats['starts'] ?? 0),
+            'minutes' => (int) ($stats['minutes'] ?? 0),
+            'goals' => (int) ($stats['goals'] ?? 0),
+            'assists' => (int) ($stats['assists'] ?? 0),
+            'rating' => $stats['average_match_rating'] ?? null,
+            'availability' => $summary['availability'] ?? null,
+            'fatigue' => $summary['fatigue'] ?? 0,
+            'injuries' => count($injuries),
+            'contract' => $contract['status'] ?? 'none',
+            'contract_days' => $term,
+            'wage' => $contract['wage'] ?? ($finance['current_wage'] ?? null),
+            'contracts' => count($contracts),
+            'transfers' => count($transfers),
+            'loans' => count($loans),
+            'honours' => count($legacy->honoursForPlayer($player->id()->value())),
+            'awards' => count($legacy->awardsForPlayer($player->id()->value())),
+            'outlook' => $outlook,
+            'retirement' => $summary['retirement'] !== null,
+            'career_state' => $current->careerState()->value,
+        ];
+    }
+
+    /** @param array<string, array<string, mixed>> $checkpoints @return list<string> */
+    private function observatoryWarnings(array $checkpoints): array
+    {
+        $warnings = [];
+        foreach ($checkpoints as $label => $checkpoint) {
+            if (str_starts_with($label, 'SEASON_') && $checkpoint['ovr'] >= $checkpoint['potential'] && $label !== 'SEASON_5') {
+                $warnings[] = 'POTENTIAL_REACHED_EARLY';
+            }
+        }
+        $seasonCheckpoints = array_values(array_filter($checkpoints, static fn (string $label): bool => str_starts_with($label, 'SEASON_'), ARRAY_FILTER_USE_KEY));
+        if (count($seasonCheckpoints) >= 3) {
+            $latest = $seasonCheckpoints[array_key_last($seasonCheckpoints)];
+            if ((int) $latest['minutes'] < 900 && in_array($latest['role'], ['prospect', 'rotation'], true)) {
+                $warnings[] = 'MINUTES_TRAP';
+            }
+        }
+
+        return array_values(array_unique($warnings));
+    }
+
+    /** @param array<string, mixed> $checkpoint */
+    private function formatObservatoryCheckpoint(string $label, array $checkpoint): string
+    {
+        $attributes = $checkpoint['attributes'];
+
+        return sprintf(
+            'CHECKPOINT label=%s season=%s age=%d club=%s competition=%s tier=%s ovr=%d attrs=%d/%d/%d/%d/%d/%d potential=%d role=%s apps=%d starts=%d minutes=%d goals=%d assists=%d rating=%s availability=%s fatigue=%d injuries=%d contract=%s contract_days=%s wage=%s contracts=%d transfers=%d loans=%d honours=%d awards=%d outlook=%s retirement=%s state=%s',
+            $label,
+            $checkpoint['season_label'],
+            $checkpoint['age'],
+            $checkpoint['club'],
+            $checkpoint['competition'] ?? 'none',
+            $checkpoint['tier'] ?? 'none',
+            $checkpoint['ovr'],
+            $attributes['pace'],
+            $attributes['shooting'],
+            $attributes['passing'],
+            $attributes['dribbling'],
+            $attributes['defending'],
+            $attributes['physicality'],
+            $checkpoint['potential'],
+            $checkpoint['role'],
+            $checkpoint['appearances'],
+            $checkpoint['starts'],
+            $checkpoint['minutes'],
+            $checkpoint['goals'],
+            $checkpoint['assists'],
+            $checkpoint['rating'] ?? 'none',
+            $checkpoint['availability'] ?? 'unknown',
+            $checkpoint['fatigue'],
+            $checkpoint['injuries'],
+            $checkpoint['contract'],
+            $checkpoint['contract_days'] ?? 'none',
+            $checkpoint['wage'] ?? 'none',
+            $checkpoint['contracts'],
+            $checkpoint['transfers'],
+            $checkpoint['loans'],
+            $checkpoint['honours'],
+            $checkpoint['awards'],
+            $checkpoint['outlook'] ?? 'none',
+            $checkpoint['retirement'] ? 'eligible' : 'not_eligible',
+            $checkpoint['career_state'],
+        );
+    }
+
+    private function argumentValue(array $arguments, string $prefix, string $default): string
+    {
+        foreach ($arguments as $argument) {
+            if (str_starts_with($argument, $prefix)) {
+                return (string) substr($argument, strlen($prefix));
+            }
+        }
+
+        return $default;
+    }
+
+    private function elapsedMilliseconds(int $started): float
+    {
+        return round((hrtime(true) - $started) / 1_000_000, 2);
     }
 
     private function executeLifecycleOnly($store, $database, World $world, Season $season, int $requested, int $seed, string $directory, ConsoleOutputInterface $output, ?SqlProfiler $profiler = null): int
@@ -299,6 +682,18 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         $matches = [];
         foreach ($competitionIds as $competitionId) { $matches = array_merge($matches, $repository->byCompetition($competitionId, $season->id())); }
         usort($matches, static fn ($left, $right): int => $left->scheduledDate()->compareTo($right->scheduledDate()) ?: strcmp($left->id()->value(), $right->id()->value()));
+        return $matches;
+    }
+
+    /** @return list<object> */
+    private function allMatchesForSeason($database, Season $season): array
+    {
+        $matches = array_values(array_filter(
+            (new MatchRepository($database))->all(),
+            static fn ($match): bool => $match->seasonId()->value() === $season->id()->value(),
+        ));
+        usort($matches, static fn ($left, $right): int => $left->scheduledDate()->compareTo($right->scheduledDate()) ?: strcmp($left->id()->value(), $right->id()->value()));
+
         return $matches;
     }
 

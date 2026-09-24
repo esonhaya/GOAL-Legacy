@@ -8,6 +8,8 @@ use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Devtools\Diagnostics\CoreFoundationCheck;
+use Goal\Legacy\Devtools\Diagnostics\HayaSimulationCheck;
+use Goal\Legacy\Devtools\Simulation\GoalSimulationAdapter;
 use Throwable;
 use Tools\Doctor\Checks\PhpRuntimeCheck;
 use Tools\Doctor\Engine\CheckRunner;
@@ -39,6 +41,7 @@ final class DoctorCommand implements CommandInterface
             $registry->fromChecks($this->checks ?? [
                 new PhpRuntimeCheck(),
                 new CoreFoundationCheck($this->services, $this->projectRoot),
+                new HayaSimulationCheck(new GoalSimulationAdapter($this->services, $this->projectRoot)),
             ]);
             $result = (new CheckRunner())->run($registry->all(), 'DOCTOR');
 

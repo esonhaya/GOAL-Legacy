@@ -47,6 +47,11 @@ final readonly class CareerPlayerReference
         return new self($this->careerId, $this->playerId, $this->startDate, $this->transferRequestStatus, $this->transferRequestSeasonId, $role);
     }
 
+    public function withCareerId(CareerId $careerId): self
+    {
+        return new self($careerId, $this->playerId, $this->startDate, $this->transferRequestStatus, $this->transferRequestSeasonId, $this->preferredOnPitchRole);
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {

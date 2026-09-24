@@ -14,6 +14,12 @@ interface SaveStore
 
     public function open(string $saveId): SaveMetadata;
 
+    public function update(SaveMetadata $metadata): void;
+
+    public function cloneSave(string $sourceId, SaveMetadata $destination): void;
+
+    public function delete(string $saveId): void;
+
     /** @return list<SaveMetadata> */
     public function list(): array;
 }

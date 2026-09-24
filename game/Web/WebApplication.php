@@ -6,6 +6,9 @@ namespace Goal\Legacy\Web;
 
 use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Core\Simulation\SimulationMutation;
+use Goal\Legacy\Core\Simulation\SimulationPermission;
+use Goal\Legacy\Core\Simulation\SimulationToolkit;
 use Goal\Legacy\Devtools\BufferedConsoleOutput;
 use Goal\Legacy\Devtools\Commands\CareerContinueCommand;
 use Goal\Legacy\Devtools\Presentation\CareerPresentationService;
@@ -36,6 +39,7 @@ use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use Goal\Legacy\Modules\Nation\Persistence\NationRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
+use Goal\Legacy\Devtools\Simulation\GoalSimulationAdapter;
 use RuntimeException;
 
 /** Server-rendered graphical adapter around the existing career services. */
@@ -81,6 +85,13 @@ final class WebApplication
             return $this->redirect(WebView::url('menu'));
         }
 
+        if ($page === 'developer' && !WebAccessContext::fromSession($session)->isDeveloper()) {
+            return $this->html('Developer Console', $this->errorPage('Developer Console access is restricted.'), null, '', 403, $session);
+        }
+        if ($page === 'sandbox' && !WebAccessContext::fromSession($session)->canSandbox()) {
+            return $this->html('Sandbox', $this->errorPage('Premium Sandbox access is not enabled for this account.'), null, '', 403, $session);
+        }
+
         return match ($page) {
             'home' => $this->home($saveId, $session),
             'career' => $this->career($saveId, $session),
@@ -105,6 +116,8 @@ final class WebApplication
             'event' => $this->event($saveId, $session),
             'decision' => $this->decision($saveId, $session),
             'matchday' => $this->matchday($saveId, (string) ($query['match'] ?? ''), $session),
+            'developer' => $this->developerConsole($saveId, $session),
+            'sandbox' => $this->sandbox($saveId, $session),
             default => $this->html('Not found', $this->errorPage('That page is not available.'), $saveId, '', 404, $session),
         };
     }
@@ -138,6 +151,10 @@ final class WebApplication
                 'withdraw_transfer' => $this->transferRequest($post, $session, true),
                 'accept_transfer_offer' => $this->acceptTransferOffer($post, $session),
                 'resolve_pulse' => $this->resolvePulse($post, $session),
+                'developer_diagnostics' => $this->developerDiagnostics($post, $session),
+                'sandbox_mutate' => $this->sandboxMutate($post, $session),
+                'sandbox_clone' => $this->sandboxClone($post, $session),
+                'sandbox_restore' => $this->sandboxRestore($post, $session),
                 default => throw new RuntimeException('That action is not available.'),
             };
         } catch (\Throwable $exception) {
@@ -148,6 +165,9 @@ final class WebApplication
                 return $this->redirect(WebView::url('new', ['step' => $step]));
             }
             $session['web_flash'] = $exception->getMessage();
+            if ($saveId !== null && $this->services->saveStore()->exists($saveId) && str_starts_with($action, 'sandbox')) {
+                return $this->redirect(WebView::url('sandbox', ['save' => $saveId]));
+            }
             return $this->redirect($saveId === null || !$this->services->saveStore()->exists($saveId) ? WebView::url('menu') : WebView::url('home', ['save' => $saveId]));
         }
     }
@@ -254,7 +274,8 @@ final class WebApplication
         if (!isset($draft['player'], $draft['opportunities'])) { throw new RuntimeException('Return to Youth Camp before selecting a Club.'); }
         $request = $this->careerRequest($draft, (string) $draft['position'], (string) $draft['archetype'], (int) $draft['seed']);
         $appearance = PlayerAppearance::fromArray((array) ($draft['appearance'] ?? []));
-        (new WebCareerStartWorkflow($this->services, $this->projectRoot))->create($request, $clubId, $appearance, is_array($draft['opportunities'] ?? null) ? $draft['opportunities'] : null);
+        $accountId = WebAccessContext::fromSession($session)->accountId();
+        (new WebCareerStartWorkflow($this->services, $this->projectRoot))->create($request, $clubId, $appearance, is_array($draft['opportunities'] ?? null) ? $draft['opportunities'] : null, $accountId === 'anonymous' ? null : $accountId);
         unset($session[self::DRAFT]);
         $session['web_flash'] = 'Career started. Your first Season is ready.';
 
@@ -536,6 +557,108 @@ final class WebApplication
         $session['web_flash'] = 'Transfer accepted. Your new Club Contract is active.';
 
         return $this->redirect(WebView::url('home', ['save' => $saveId]));
+    }
+
+    private function developerConsole(string $saveId, array &$session): array
+    {
+        $toolkit = $this->toolkit();
+        $inspection = $toolkit->inspect($saveId);
+        $diagnostics = array_map(static fn ($result): array => $result->toArray(), $toolkit->diagnostics($saveId));
+        $capabilities = $toolkit->capabilityDescriptors();
+        $player = (array) ($inspection['player'] ?? []);
+        $career = (array) ($inspection['career'] ?? []);
+        $rows = '';
+        foreach ($diagnostics as $diagnostic) {
+            $rows .= '<tr><td>' . WebView::e($diagnostic['id']) . '</td><td><strong>' . WebView::e($diagnostic['status']) . '</strong></td><td>' . WebView::e($diagnostic['summary']) . '</td><td>' . WebView::e(implode(' · ', array_map('strval', (array) ($diagnostic['evidence'] ?? [])))) . '</td></tr>';
+        }
+        $capabilityRows = '';
+        foreach ($capabilities as $capability) {
+            $capabilityRows .= '<tr><td>' . WebView::e($capability['id']) . '</td><td>' . WebView::e($capability['category']) . '</td><td>' . WebView::e($capability['permission']) . '</td><td>' . WebView::e($capability['read_only'] ? 'READ' : 'WRITE') . '</td></tr>';
+        }
+        $body = '<div class="flow-heading"><div class="eyebrow">HAYA DEVELOPER CONSOLE</div><h1>GOAL state lab</h1><p>Curated state and diagnostics from the same adapter used by CLI and tests. No arbitrary SQL, PHP, shell, or filesystem access is exposed.</p></div>';
+        $body .= WebView::section('SAVE', 'Selected Career', '<div class="stat-grid compact">' . WebView::stat('Save', $saveId) . WebView::stat('Player', $player['preferred_name'] ?? 'Player') . WebView::stat('OVR', $player['overall_rating'] ?? '—') . WebView::stat('Club', ((array) ($career['current_club'] ?? []))['name'] ?? 'Free Agent') . WebView::stat('State', $career['career_state'] ?? 'unknown') . '</div><p class="metric-note">Metadata: ' . WebView::e(json_encode($inspection['save'] ?? [], JSON_UNESCAPED_SLASHES) ?: '{}') . '</p>');
+        $body .= WebView::section('PLAYER', 'Curated projection', '<div class="stat-grid compact">' . WebView::stat('Position', $player['primary_position'] ?? '—') . WebView::stat('Potential', $player['potential'] ?? '—') . WebView::stat('Role', $career['current_role'] ?? '—') . WebView::stat('Availability', $career['availability'] ?? '—') . WebView::stat('Contract', is_array($career['current_contract'] ?? null) ? ($career['current_contract']['status'] ?? 'active') : 'none') . '</div>');
+        $body .= WebView::section('DOCTOR', 'GOAL diagnostics', $rows === '' ? WebView::emptyState('No diagnostics available.') : '<div class="table-scroll"><table><thead><tr><th>ID</th><th>Status</th><th>Summary</th><th>Evidence</th></tr></thead><tbody>' . $rows . '</tbody></table></div>');
+        $body .= WebView::section('CAPABILITIES', 'Adapter registry', '<div class="table-scroll"><table><thead><tr><th>ID</th><th>Category</th><th>Permission</th><th>Mode</th></tr></thead><tbody>' . $capabilityRows . '</tbody></table></div>');
+        if (WebAccessContext::fromSession($session)->canSandbox()) {
+            $body .= '<div class="form-actions">' . WebView::link('sandbox', ['save' => $saveId], 'Open Premium Sandbox', 'button button-primary') . '</div>';
+        }
+
+        return $this->html('Developer Console', $body, $saveId, 'developer', 200, $session);
+    }
+
+    private function sandbox(string $saveId, array &$session): array
+    {
+        $inspection = $this->toolkit()->inspect($saveId);
+        $player = (array) ($inspection['player'] ?? []);
+        $career = (array) ($inspection['career'] ?? []);
+        $sandbox = (($inspection['save']['sandbox'] ?? false) === true) ? '<span class="tag">SANDBOX SAVE</span>' : '<span class="tag">ORIGINAL SAVE</span>';
+        $token = fn (string $key): string => $this->issueToken($session, $key);
+        $form = static function (string $action, string $label, array $fields, string $tokenValue) use ($saveId): string {
+            $html = '<form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="' . WebView::e($action) . '"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="token" value="' . WebView::e($tokenValue) . '">';
+            foreach ($fields as $field => $input) { $html .= '<label>' . WebView::e($field) . $input . '</label>'; }
+            return $html . '<button class="button button-primary" type="submit">' . WebView::e($label) . '</button></form>';
+        };
+        $body = '<div class="flow-heading"><div class="eyebrow">CAREER LAB · SAVE-SCOPED</div><h1>Sandbox</h1><p>Experiment with this save only. Source files and the original Career remain untouched. ' . $sandbox . '</p></div>';
+        $body .= WebView::section('PLAYER', (string) ($player['preferred_name'] ?? 'Controlled Player'), '<div class="stat-grid compact">' . WebView::stat('OVR', $player['overall_rating'] ?? '—') . WebView::stat('Potential', $player['potential'] ?? '—') . WebView::stat('Club', ((array) ($career['current_club'] ?? []))['name'] ?? 'Free Agent') . WebView::stat('Role', $career['current_role'] ?? '—') . WebView::stat('Balance', $inspection['finance']['balance'] ?? 0) . '</div>');
+        $body .= WebView::section('MUTATIONS', 'Bounded controls', $form('sandbox_mutate', 'Set attribute', ['Attribute' => '<select name="name"><option value="pace">pace</option><option value="shooting">shooting</option><option value="passing">passing</option><option value="dribbling">dribbling</option><option value="defending">defending</option><option value="physicality">physicality</option></select>', 'Value' => '<input required type="number" min="0" max="99" name="value">', 'Capability' => '<input type="hidden" name="capability" value="goal.player.set_attribute">'], $token('sandbox_mutate_' . $saveId))
+            . $form('sandbox_mutate', 'Set potential', ['Value' => '<input required type="number" min="1" max="99" name="value">', 'Capability' => '<input type="hidden" name="capability" value="goal.player.set_potential">'], $token('sandbox_mutate_potential_' . $saveId))
+            . $form('sandbox_mutate', 'Set squad role', ['Role' => '<select name="role"><option value="prospect">Prospect</option><option value="rotation">Rotation</option><option value="regular">Regular</option><option value="key_player">Key Player</option></select>', 'Capability' => '<input type="hidden" name="capability" value="goal.player.set_role">'], $token('sandbox_mutate_role_' . $saveId))
+            . $form('sandbox_mutate', 'Set balance', ['Balance' => '<input required type="number" min="0" max="100000000" name="balance">', 'Capability' => '<input type="hidden" name="capability" value="goal.player.set_balance">'], $token('sandbox_mutate_balance_' . $saveId))
+            . $form('sandbox_mutate', 'Advance time', ['Days' => '<input required type="number" min="1" max="31" name="days">', 'Capability' => '<input type="hidden" name="capability" value="time.advance">'], $token('sandbox_mutate_time_' . $saveId)));
+        $body .= WebView::section('SAFETY', 'Clone and restore', $form('sandbox_clone', 'Clone to Sandbox', ['Destination save ID' => '<input required name="destination" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,63}">'], $token('sandbox_clone_' . $saveId)) . $form('sandbox_restore', 'Restore last snapshot', [], $token('sandbox_restore_' . $saveId)));
+
+        return $this->html('Career Sandbox', $body, $saveId, 'sandbox', 200, $session);
+    }
+
+    private function developerDiagnostics(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        if (!WebAccessContext::fromSession($session)->isDeveloper() || !$this->consumeToken($session, 'developer_diagnostics_' . $saveId, (string) ($post['token'] ?? ''))) { throw new RuntimeException('Developer diagnostic request was not authorized.'); }
+        return $this->redirect(WebView::url('developer', ['save' => $saveId]));
+    }
+
+    private function sandboxMutate(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        $context = WebAccessContext::fromSession($session);
+        $capability = trim((string) ($post['capability'] ?? ''));
+        $tokenKey = match ($capability) {
+            'goal.player.set_potential' => 'sandbox_mutate_potential_' . $saveId,
+            'goal.player.set_role' => 'sandbox_mutate_role_' . $saveId,
+            'goal.player.set_balance' => 'sandbox_mutate_balance_' . $saveId,
+            'time.advance' => 'sandbox_mutate_time_' . $saveId,
+            default => 'sandbox_mutate_' . $saveId,
+        };
+        if (!$context->canSandbox() || !$this->consumeToken($session, $tokenKey, (string) ($post['token'] ?? ''))) { throw new RuntimeException('Sandbox mutation was not authorized or has already been submitted.'); }
+        $result = $this->toolkit()->mutate(new SimulationMutation($capability, $saveId, $saveId, $post, $context->accountId(), $context->permission()));
+        $session['web_flash'] = $result->message();
+        return $this->redirect(WebView::url('sandbox', ['save' => $saveId]));
+    }
+
+    private function sandboxClone(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        $context = WebAccessContext::fromSession($session);
+        if (!$context->canSandbox() || !$this->consumeToken($session, 'sandbox_clone_' . $saveId, (string) ($post['token'] ?? ''))) { throw new RuntimeException('Sandbox cloning was not authorized or has already been submitted.'); }
+        $result = $this->toolkit()->mutate(new SimulationMutation('sandbox.clone', $saveId, trim((string) ($post['destination'] ?? '')), ['destination' => (string) ($post['destination'] ?? '')], $context->accountId(), $context->permission()));
+        $session['web_flash'] = $result->message();
+        return $this->redirect(WebView::url('sandbox', ['save' => (string) ($post['destination'] ?? $saveId)]));
+    }
+
+    private function sandboxRestore(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        $context = WebAccessContext::fromSession($session);
+        if (!$context->canSandbox() || !$this->consumeToken($session, 'sandbox_restore_' . $saveId, (string) ($post['token'] ?? ''))) { throw new RuntimeException('Sandbox restore was not authorized or has already been submitted.'); }
+        $result = $this->toolkit()->mutate(new SimulationMutation('sandbox.restore_snapshot', $saveId, $saveId, [], $context->accountId(), $context->permission()));
+        $session['web_flash'] = $result->message();
+        return $this->redirect(WebView::url('sandbox', ['save' => $saveId]));
+    }
+
+    private function toolkit(): SimulationToolkit
+    {
+        return new SimulationToolkit(new GoalSimulationAdapter($this->services, $this->projectRoot));
     }
 
     /** @param array<string,mixed> $session */

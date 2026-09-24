@@ -99,6 +99,42 @@ final class SqliteSaveStore implements SaveStore
         return $metadata;
     }
 
+    public function update(SaveMetadata $metadata): void
+    {
+        $database = $this->openDatabase($metadata->id());
+        $this->initializeSchema($database->connection());
+        $this->writeMetadata($database->connection(), $metadata->id(), $metadata);
+    }
+
+    public function cloneSave(string $sourceId, SaveMetadata $destination): void
+    {
+        if (!$this->exists($sourceId)) {
+            throw new PersistenceException(sprintf('Source save "%s" does not exist.', $sourceId));
+        }
+        $destinationPath = $this->pathFor($destination->id());
+        if (file_exists($destinationPath) || is_link($destinationPath)) {
+            throw new PersistenceException(sprintf('Save "%s" already exists.', $destination->id()));
+        }
+        if (!copy($this->pathFor($sourceId), $destinationPath)) {
+            throw new PersistenceException(sprintf('Unable to clone save "%s".', $sourceId));
+        }
+        try {
+            $database = $this->openDatabase($destination->id());
+            $this->writeMetadata($database->connection(), $sourceId, $destination);
+        } catch (\Throwable $exception) {
+            if (is_file($destinationPath)) { unlink($destinationPath); }
+            throw $exception;
+        }
+    }
+
+    public function delete(string $saveId): void
+    {
+        $path = $this->pathFor($saveId);
+        if (is_file($path) && !unlink($path)) {
+            throw new PersistenceException(sprintf('Unable to delete save "%s".', $saveId));
+        }
+    }
+
     public function list(): array
     {
         $files = glob($this->saveDirectory . DIRECTORY_SEPARATOR . '*.sqlite');
@@ -133,5 +169,21 @@ final class SqliteSaveStore implements SaveStore
             . 'payload TEXT NOT NULL'
             . ')'
         );
+    }
+
+    private function writeMetadata(PDO $connection, string $lookupId, SaveMetadata $metadata): void
+    {
+        $statement = $connection->prepare('UPDATE ' . self::TABLE . ' SET id = :new_id, payload = :payload WHERE id = :lookup_id');
+        $statement->execute([
+            'lookup_id' => $lookupId,
+            'new_id' => $metadata->id(),
+            'payload' => $this->serializer->encode([
+                'format_version' => SaveMetadata::FORMAT_VERSION,
+                'metadata' => $metadata->toArray(),
+            ]),
+        ]);
+        if ($statement->rowCount() !== 1) {
+            throw new PersistenceException(sprintf('Save "%s" metadata could not be updated.', $metadata->id()));
+        }
     }
 }

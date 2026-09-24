@@ -83,6 +83,19 @@ final class WorldRepository
         $this->save($world);
     }
 
+    /** Rebind the single World root when an isolated save is cloned. */
+    public function rebindRoot(WorldId $sourceId, WorldId $destinationId): void
+    {
+        if ($sourceId->value() === $destinationId->value()) {
+            return;
+        }
+        $world = $this->get($sourceId)->withId($destinationId);
+        $this->database->transaction(function () use ($sourceId, $world): void {
+            $this->database->connection()->prepare('DELETE FROM ' . self::TABLE . ' WHERE id = :id')->execute(['id' => $sourceId->value()]);
+            $this->save($world);
+        });
+    }
+
     public function exists(string|WorldId $id): bool
     {
         $worldId = $id instanceof WorldId ? $id : new WorldId($id);

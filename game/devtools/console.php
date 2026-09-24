@@ -45,6 +45,7 @@ use Goal\Legacy\Devtools\Commands\CareerPortraitCommand;
 use Goal\Legacy\Devtools\Commands\CareerAppearanceCommand;
 use Goal\Legacy\Devtools\Commands\AvatarValidateCommand;
 use Goal\Legacy\Devtools\Commands\AvatarContactSheetCommand;
+use Goal\Legacy\Devtools\Commands\HayaSimulationCommand;
 
 $projectRoot = dirname(__DIR__, 2);
 $services = (new Bootstrap())->create($projectRoot);
@@ -86,6 +87,7 @@ $commands->register(new CareerAppearanceCommand($services));
 $commands->register(new AvatarValidateCommand($services));
 $commands->register(new AvatarContactSheetCommand($services));
 $commands->register(new CareerPlayCommand($services));
+$commands->register(new HayaSimulationCommand($services, $projectRoot));
 
 $application = new ConsoleApplication($commands);
 exit($application->run($argv, new StreamConsoleOutput(STDOUT, STDERR)));

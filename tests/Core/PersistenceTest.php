@@ -77,6 +77,23 @@ final class PersistenceTest extends TestCase
         $store->exists('../outside');
     }
 
+    public function testSaveMetadataSupportsOwnershipSandboxAndBoundedClone(): void
+    {
+        $store = new SqliteSaveStore($this->directory, new JsonSerializer());
+        $source = SaveMetadata::create('owned_source', 'Owned Career', new SimulationTime(3), new DateTimeImmutable('@0'), 'account-1');
+        $store->create($source);
+        $destination = SaveMetadata::create('owned_clone', 'Owned Clone', new SimulationTime(3), new DateTimeImmutable('@0'), 'account-1')->asSandbox('owned_source', new DateTimeImmutable('@1'));
+        $store->cloneSave('owned_source', $destination);
+
+        self::assertSame('account-1', $store->open('owned_clone')->ownerId());
+        self::assertTrue($store->open('owned_clone')->isSandbox());
+        self::assertSame('owned_source', $store->open('owned_clone')->sandboxSourceId());
+        $store->update($source->asSandbox('owned_source', new DateTimeImmutable('@2')));
+        self::assertTrue($store->open('owned_source')->isSandbox());
+        $store->delete('owned_clone');
+        self::assertFalse($store->exists('owned_clone'));
+    }
+
     public function testJsonSerializationIsDeterministicAndRejectsMalformedData(): void
     {
         $serializer = new JsonSerializer();

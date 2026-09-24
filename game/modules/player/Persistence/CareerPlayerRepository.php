@@ -60,6 +60,19 @@ final class CareerPlayerRepository
         }
     }
 
+    /** Rebind the single controlled-career root when an isolated save is cloned. */
+    public function rebindCareerId(CareerId $sourceId, CareerId $destinationId): void
+    {
+        if ($sourceId->value() === $destinationId->value()) {
+            return;
+        }
+        $reference = $this->get($sourceId)->withCareerId($destinationId);
+        $this->database->transaction(function () use ($sourceId, $reference): void {
+            $this->database->connection()->prepare('DELETE FROM ' . self::TABLE . ' WHERE career_id = :career_id')->execute(['career_id' => $sourceId->value()]);
+            $this->save($reference);
+        });
+    }
+
     public function get(string|CareerId $id): CareerPlayerReference
     {
         $careerId = $id instanceof CareerId ? $id : new CareerId($id);

@@ -60,7 +60,7 @@ final class WebCareerStartWorkflow
     }
 
     /** @param list<array<string,mixed>>|null $opportunities */
-    public function create(CareerStartRequest $request, string $clubId, \Goal\Legacy\Modules\Player\Domain\PlayerAppearance $appearance, ?array $opportunities = null): void
+    public function create(CareerStartRequest $request, string $clubId, \Goal\Legacy\Modules\Player\Domain\PlayerAppearance $appearance, ?array $opportunities = null, ?string $ownerId = null): void
     {
         $store = $this->services->saveStore();
         if ($store->exists($request->careerId)) {
@@ -74,7 +74,7 @@ final class WebCareerStartWorkflow
         $careerId = new CareerId($request->careerId);
         $created = false;
         try {
-            $store->create(SaveMetadata::create($careerId->value(), $request->name . ' career', $world->currentTime(), new DateTimeImmutable('@0')));
+            $store->create(SaveMetadata::create($careerId->value(), $request->name . ' career', $world->currentTime(), new DateTimeImmutable('@0'), $ownerId));
             $created = true;
             $database = $store->openDatabase($careerId->value());
             $this->services->worldModule()->service()->initialize($database, $world, $season);

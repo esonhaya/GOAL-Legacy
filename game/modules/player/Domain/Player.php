@@ -146,6 +146,31 @@ final readonly class Player
         );
     }
 
+    public function withPotential(int $potential): self
+    {
+        return new self(
+            $this->id,
+            $this->firstName,
+            $this->lastName,
+            $this->preferredName,
+            $this->birthDate,
+            $this->primaryNationId,
+            $this->secondaryNationIds,
+            $this->birthNationId,
+            $this->eligibilityNationIds,
+            $this->heightCm,
+            $this->weightKg,
+            $this->primaryPosition,
+            $this->attributes,
+            $potential,
+            $this->developmentProfile,
+            $this->creationSeed,
+            $this->careerState,
+            $this->preferredFoot,
+            $this->weakFoot,
+        );
+    }
+
     public function withPrimaryPosition(PlayerPosition $position): self
     {
         return new self(

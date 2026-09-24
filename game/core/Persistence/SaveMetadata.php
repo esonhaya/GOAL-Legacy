@@ -19,6 +19,9 @@ final readonly class SaveMetadata
         private string $createdAt,
         private string $updatedAt,
         private SimulationTime $simulationTime,
+        private ?string $ownerId = null,
+        private bool $sandbox = false,
+        private ?string $sandboxSourceId = null,
     ) {
         self::validateId($id);
         if (trim($name) === '') {
@@ -36,10 +39,11 @@ final readonly class SaveMetadata
         string $name,
         SimulationTime $simulationTime,
         DateTimeImmutable $timestamp,
+        ?string $ownerId = null,
     ): self {
         $formatted = $timestamp->format(DATE_ATOM);
 
-        return new self($id, $name, self::FORMAT_VERSION, $formatted, $formatted, $simulationTime);
+        return new self($id, $name, self::FORMAT_VERSION, $formatted, $formatted, $simulationTime, $ownerId);
     }
 
     public static function fromArray(array $data): self
@@ -63,6 +67,9 @@ final readonly class SaveMetadata
             $data['created_at'],
             $data['updated_at'],
             new SimulationTime($data['simulation_time']),
+            isset($data['owner_id']) && is_string($data['owner_id']) ? $data['owner_id'] : null,
+            (bool) ($data['sandbox'] ?? false),
+            isset($data['sandbox_source_id']) && is_string($data['sandbox_source_id']) ? $data['sandbox_source_id'] : null,
         );
     }
 
@@ -78,6 +85,24 @@ final readonly class SaveMetadata
 
     public function simulationTime(): SimulationTime { return $this->simulationTime; }
 
+    public function ownerId(): ?string { return $this->ownerId; }
+
+    public function isSandbox(): bool { return $this->sandbox; }
+
+    public function sandboxSourceId(): ?string { return $this->sandboxSourceId; }
+
+    public function withOwner(?string $ownerId): self
+    {
+        return new self($this->id, $this->name, $this->formatVersion, $this->createdAt, $this->updatedAt, $this->simulationTime, $ownerId, $this->sandbox, $this->sandboxSourceId);
+    }
+
+    public function asSandbox(?string $sourceId = null, ?DateTimeImmutable $timestamp = null): self
+    {
+        $updatedAt = ($timestamp ?? new DateTimeImmutable())->format(DATE_ATOM);
+
+        return new self($this->id, $this->name, $this->formatVersion, $this->createdAt, $updatedAt, $this->simulationTime, $this->ownerId, true, $sourceId ?? $this->sandboxSourceId);
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {
@@ -88,6 +113,9 @@ final readonly class SaveMetadata
             'name' => $this->name,
             'simulation_time' => $this->simulationTime->ticks(),
             'updated_at' => $this->updatedAt,
+            'owner_id' => $this->ownerId,
+            'sandbox' => $this->sandbox,
+            'sandbox_source_id' => $this->sandboxSourceId,
         ];
     }
 

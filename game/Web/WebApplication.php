@@ -88,8 +88,12 @@ final class WebApplication
         if ($page === 'developer' && !WebAccessContext::fromSession($session)->isDeveloper()) {
             return $this->html('Developer Console', $this->errorPage('Developer Console access is restricted.'), null, '', 403, $session);
         }
-        if ($page === 'sandbox' && !WebAccessContext::fromSession($session)->canSandbox()) {
+        $access = WebAccessContext::fromSession($session);
+        if ($page === 'sandbox' && !$access->canSandbox()) {
             return $this->html('Sandbox', $this->errorPage('Premium Sandbox access is not enabled for this account.'), null, '', 403, $session);
+        }
+        if ($page === 'sandbox' && !$access->isDeveloper() && (($metadata = $this->services->saveStore()->open($saveId))->ownerId() !== $access->accountId())) {
+            return $this->html('Sandbox', $this->errorPage('That save is not owned by this account.'), null, '', 403, $session);
         }
 
         return match ($page) {
@@ -152,6 +156,8 @@ final class WebApplication
                 'accept_transfer_offer' => $this->acceptTransferOffer($post, $session),
                 'resolve_pulse' => $this->resolvePulse($post, $session),
                 'developer_diagnostics' => $this->developerDiagnostics($post, $session),
+                'developer_match' => $this->developerMatch($post, $session),
+                'developer_scenario' => $this->developerScenario($post, $session),
                 'sandbox_mutate' => $this->sandboxMutate($post, $session),
                 'sandbox_clone' => $this->sandboxClone($post, $session),
                 'sandbox_restore' => $this->sandboxRestore($post, $session),
@@ -562,6 +568,7 @@ final class WebApplication
     private function developerConsole(string $saveId, array &$session): array
     {
         $toolkit = $this->toolkit();
+        $adapter = new GoalSimulationAdapter($this->services, $this->projectRoot);
         $inspection = $toolkit->inspect($saveId);
         $diagnostics = array_map(static fn ($result): array => $result->toArray(), $toolkit->diagnostics($saveId));
         $capabilities = $toolkit->capabilityDescriptors();
@@ -575,11 +582,28 @@ final class WebApplication
         foreach ($capabilities as $capability) {
             $capabilityRows .= '<tr><td>' . WebView::e($capability['id']) . '</td><td>' . WebView::e($capability['category']) . '</td><td>' . WebView::e($capability['permission']) . '</td><td>' . WebView::e($capability['read_only'] ? 'READ' : 'WRITE') . '</td></tr>';
         }
+        $scenarioRows = '';
+        foreach ($adapter->scenarioDescriptors() as $scenario) {
+            $scenarioRows .= '<tr><td>' . WebView::e($scenario['id']) . '</td><td>' . WebView::e($scenario['label']) . '</td><td>' . WebView::e($scenario['cost']) . '</td><td>' . WebView::e($scenario['description']) . '</td></tr>';
+        }
         $body = '<div class="flow-heading"><div class="eyebrow">HAYA DEVELOPER CONSOLE</div><h1>GOAL state lab</h1><p>Curated state and diagnostics from the same adapter used by CLI and tests. No arbitrary SQL, PHP, shell, or filesystem access is exposed.</p></div>';
         $body .= WebView::section('SAVE', 'Selected Career', '<div class="stat-grid compact">' . WebView::stat('Save', $saveId) . WebView::stat('Player', $player['preferred_name'] ?? 'Player') . WebView::stat('OVR', $player['overall_rating'] ?? '—') . WebView::stat('Club', ((array) ($career['current_club'] ?? []))['name'] ?? 'Free Agent') . WebView::stat('State', $career['career_state'] ?? 'unknown') . '</div><p class="metric-note">Metadata: ' . WebView::e(json_encode($inspection['save'] ?? [], JSON_UNESCAPED_SLASHES) ?: '{}') . '</p>');
         $body .= WebView::section('PLAYER', 'Curated projection', '<div class="stat-grid compact">' . WebView::stat('Position', $player['primary_position'] ?? '—') . WebView::stat('Potential', $player['potential'] ?? '—') . WebView::stat('Role', $career['current_role'] ?? '—') . WebView::stat('Availability', $career['availability'] ?? '—') . WebView::stat('Contract', is_array($career['current_contract'] ?? null) ? ($career['current_contract']['status'] ?? 'active') : 'none') . '</div>');
         $body .= WebView::section('DOCTOR', 'GOAL diagnostics', $rows === '' ? WebView::emptyState('No diagnostics available.') : '<div class="table-scroll"><table><thead><tr><th>ID</th><th>Status</th><th>Summary</th><th>Evidence</th></tr></thead><tbody>' . $rows . '</tbody></table></div>');
         $body .= WebView::section('CAPABILITIES', 'Adapter registry', '<div class="table-scroll"><table><thead><tr><th>ID</th><th>Category</th><th>Permission</th><th>Mode</th></tr></thead><tbody>' . $capabilityRows . '</tbody></table></div>');
+        $body .= WebView::section('SIMULATION LAB', 'Canonical Match runner', '<p class="metric-note">Runs at most three upcoming controlled-Club Matches through WorldService and MatchService. Results are shown as bounded checkpoints and state changes.</p><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="developer_match"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'developer_match_' . $saveId)) . '"><label>Matches<input required type="number" min="1" max="3" name="count" value="1"></label><button class="button button-primary" type="submit">Run canonical Matches</button></form><div class="table-scroll"><table><thead><tr><th>ID</th><th>Label</th><th>Cost</th><th>Description</th></tr></thead><tbody>' . $scenarioRows . '</tbody></table></div><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="developer_scenario"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'developer_scenario_' . $saveId)) . '"><label>Scenario<select name="scenario">' . implode('', array_map(static fn (array $scenario): string => '<option value="' . WebView::e((string) $scenario['id']) . '">' . WebView::e((string) $scenario['label']) . '</option>', $adapter->scenarioDescriptors())) . '</select></label><label>Seed<input required type="number" min="0" name="seed" value="3009"></label><button class="button" type="submit">Run isolated scenario</button></form>');
+        if (is_array($session['developer_lab_result'] ?? null)) {
+            $lab = $session['developer_lab_result'];
+            $checkpointRows = '';
+            foreach ((array) ($lab['checkpoints'] ?? []) as $checkpoint) {
+                $checkpointRows .= '<tr><td>' . WebView::e((string) ($checkpoint['period'] ?? '')) . '</td><td>' . WebView::e(json_encode($checkpoint['state'] ?? [], JSON_UNESCAPED_SLASHES) ?: '{}') . '</td></tr>';
+            }
+            $diffRows = '';
+            foreach ((array) ($lab['diff'] ?? []) as $change) {
+                $diffRows .= '<tr><td>' . WebView::e((string) ($change['path'] ?? '')) . '</td><td>' . WebView::e((string) ($change['status'] ?? '')) . '</td><td>' . WebView::e(json_encode($change['before'] ?? null, JSON_UNESCAPED_SLASHES) ?: 'null') . '</td><td>' . WebView::e(json_encode($change['after'] ?? null, JSON_UNESCAPED_SLASHES) ?: 'null') . '</td></tr>';
+            }
+            $body .= WebView::section('LAB RESULT', (string) ($lab['status'] ?? 'RESULT'), '<div class="table-scroll"><table><thead><tr><th>Checkpoint</th><th>State</th></tr></thead><tbody>' . ($checkpointRows === '' ? '<tr><td colspan="2">No checkpoints.</td></tr>' : $checkpointRows) . '</tbody></table></div><div class="table-scroll"><table><thead><tr><th>Path</th><th>Status</th><th>Before</th><th>After</th></tr></thead><tbody>' . ($diffRows === '' ? '<tr><td colspan="4">No state changes.</td></tr>' : $diffRows) . '</tbody></table></div>');
+        }
         if (WebAccessContext::fromSession($session)->canSandbox()) {
             $body .= '<div class="form-actions">' . WebView::link('sandbox', ['save' => $saveId], 'Open Premium Sandbox', 'button button-primary') . '</div>';
         }
@@ -593,6 +617,10 @@ final class WebApplication
         $player = (array) ($inspection['player'] ?? []);
         $career = (array) ($inspection['career'] ?? []);
         $sandbox = (($inspection['save']['sandbox'] ?? false) === true) ? '<span class="tag">SANDBOX SAVE</span>' : '<span class="tag">ORIGINAL SAVE</span>';
+        $auditRows = '';
+        foreach ((new GoalSimulationAdapter($this->services, $this->projectRoot))->audit($saveId) as $audit) {
+            $auditRows .= '<tr><td>' . WebView::e((string) ($audit['occurred_at'] ?? '')) . '</td><td>' . WebView::e((string) ($audit['capability'] ?? '')) . '</td><td>' . WebView::e((string) ($audit['status'] ?? '')) . '</td><td>' . WebView::e((string) ($audit['actor'] ?? '')) . '</td></tr>';
+        }
         $token = fn (string $key): string => $this->issueToken($session, $key);
         $form = static function (string $action, string $label, array $fields, string $tokenValue) use ($saveId): string {
             $html = '<form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="' . WebView::e($action) . '"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="token" value="' . WebView::e($tokenValue) . '">';
@@ -605,8 +633,13 @@ final class WebApplication
             . $form('sandbox_mutate', 'Set potential', ['Value' => '<input required type="number" min="1" max="99" name="value">', 'Capability' => '<input type="hidden" name="capability" value="goal.player.set_potential">'], $token('sandbox_mutate_potential_' . $saveId))
             . $form('sandbox_mutate', 'Set squad role', ['Role' => '<select name="role"><option value="prospect">Prospect</option><option value="rotation">Rotation</option><option value="regular">Regular</option><option value="key_player">Key Player</option></select>', 'Capability' => '<input type="hidden" name="capability" value="goal.player.set_role">'], $token('sandbox_mutate_role_' . $saveId))
             . $form('sandbox_mutate', 'Set balance', ['Balance' => '<input required type="number" min="0" max="100000000" name="balance">', 'Capability' => '<input type="hidden" name="capability" value="goal.player.set_balance">'], $token('sandbox_mutate_balance_' . $saveId))
-            . $form('sandbox_mutate', 'Advance time', ['Days' => '<input required type="number" min="1" max="31" name="days">', 'Capability' => '<input type="hidden" name="capability" value="time.advance">'], $token('sandbox_mutate_time_' . $saveId)));
+            . $form('sandbox_mutate', 'Advance time', ['Days' => '<input required type="number" min="1" max="31" name="days">', 'Capability' => '<input type="hidden" name="capability" value="time.advance">'], $token('sandbox_mutate_time_' . $saveId))
+            . $form('sandbox_mutate', 'Apply injury', ['Severity' => '<select name="severity"><option value="minor">Minor</option><option value="moderate">Moderate</option><option value="major">Major</option></select>', 'Capability' => '<input type="hidden" name="capability" value="goal.player.apply_injury">'], $token('sandbox_injury_' . $saveId))
+            . $form('sandbox_mutate', 'Clear injury', ['Capability' => '<input type="hidden" name="capability" value="goal.player.clear_injury">'], $token('sandbox_clear_injury_' . $saveId))
+            . $form('sandbox_mutate', 'Apply suspension', ['Matches' => '<input required type="number" min="1" max="5" name="matches" value="1">', 'Capability' => '<input type="hidden" name="capability" value="goal.player.apply_suspension">'], $token('sandbox_suspension_' . $saveId))
+            . $form('sandbox_mutate', 'Clear suspension', ['Capability' => '<input type="hidden" name="capability" value="goal.player.clear_suspension">'], $token('sandbox_clear_suspension_' . $saveId)));
         $body .= WebView::section('SAFETY', 'Clone and restore', $form('sandbox_clone', 'Clone to Sandbox', ['Destination save ID' => '<input required name="destination" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,63}">'], $token('sandbox_clone_' . $saveId)) . $form('sandbox_restore', 'Restore last snapshot', [], $token('sandbox_restore_' . $saveId)));
+        $body .= WebView::section('AUDIT', 'Recent Sandbox changes', $auditRows === '' ? WebView::emptyState('No Sandbox mutations recorded.') : '<div class="table-scroll"><table><thead><tr><th>Time</th><th>Capability</th><th>Status</th><th>Actor</th></tr></thead><tbody>' . $auditRows . '</tbody></table></div>');
 
         return $this->html('Career Sandbox', $body, $saveId, 'sandbox', 200, $session);
     }
@@ -615,6 +648,28 @@ final class WebApplication
     {
         $saveId = $this->requiredSave($post);
         if (!WebAccessContext::fromSession($session)->isDeveloper() || !$this->consumeToken($session, 'developer_diagnostics_' . $saveId, (string) ($post['token'] ?? ''))) { throw new RuntimeException('Developer diagnostic request was not authorized.'); }
+        return $this->redirect(WebView::url('developer', ['save' => $saveId]));
+    }
+
+    private function developerMatch(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        $context = WebAccessContext::fromSession($session);
+        if (!$context->isDeveloper() || !$this->consumeToken($session, 'developer_match_' . $saveId, (string) ($post['token'] ?? ''))) { throw new RuntimeException('Simulation Lab access was not authorized or has already been submitted.'); }
+        $before = $this->toolkit()->inspect($saveId);
+        $result = (new GoalSimulationAdapter($this->services, $this->projectRoot))->runMatches($saveId, max(1, min(3, (int) ($post['count'] ?? 1))));
+        $after = $this->toolkit()->inspect($saveId);
+        $session['developer_lab_result'] = ['status' => $result->status(), 'checkpoints' => array_map(static fn ($checkpoint): array => $checkpoint->toArray(), $result->checkpoints()), 'diff' => $this->toolkit()->compare($before, $after), 'metrics' => $result->metrics()];
+        return $this->redirect(WebView::url('developer', ['save' => $saveId]));
+    }
+
+    private function developerScenario(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        $context = WebAccessContext::fromSession($session);
+        if (!$context->isDeveloper() || !$this->consumeToken($session, 'developer_scenario_' . $saveId, (string) ($post['token'] ?? ''))) { throw new RuntimeException('Simulation Lab access was not authorized or has already been submitted.'); }
+        $result = (new GoalSimulationAdapter($this->services, $this->projectRoot))->runScenario((string) ($post['scenario'] ?? ''), max(0, (int) ($post['seed'] ?? 3009)));
+        $session['developer_lab_result'] = ['status' => $result->status(), 'checkpoints' => array_map(static fn ($checkpoint): array => $checkpoint->toArray(), $result->checkpoints()), 'diff' => [], 'metrics' => $result->metrics()];
         return $this->redirect(WebView::url('developer', ['save' => $saveId]));
     }
 
@@ -628,6 +683,10 @@ final class WebApplication
             'goal.player.set_role' => 'sandbox_mutate_role_' . $saveId,
             'goal.player.set_balance' => 'sandbox_mutate_balance_' . $saveId,
             'time.advance' => 'sandbox_mutate_time_' . $saveId,
+            'goal.player.apply_injury' => 'sandbox_injury_' . $saveId,
+            'goal.player.clear_injury' => 'sandbox_clear_injury_' . $saveId,
+            'goal.player.apply_suspension' => 'sandbox_suspension_' . $saveId,
+            'goal.player.clear_suspension' => 'sandbox_clear_suspension_' . $saveId,
             default => 'sandbox_mutate_' . $saveId,
         };
         if (!$context->canSandbox() || !$this->consumeToken($session, $tokenKey, (string) ($post['token'] ?? ''))) { throw new RuntimeException('Sandbox mutation was not authorized or has already been submitted.'); }

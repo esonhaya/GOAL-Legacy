@@ -25,6 +25,12 @@ final class SimulationToolkit
     /** @return array<string,mixed> */
     public function inspect(string $saveId): array { return $this->adapter->inspect($saveId); }
 
+    /** @param array<string,mixed> $before @param array<string,mixed> $after @return list<array{path:string,status:string,before:mixed,after:mixed}> */
+    public function compare(array $before, array $after, int $limit = 100): array
+    {
+        return SimulationStateDiff::compare($before, $after, $limit);
+    }
+
     public function run(SimulationScenario $scenario): SimulationResult
     {
         if ($scenario->game() !== $this->adapter->gameIdentifier()) {

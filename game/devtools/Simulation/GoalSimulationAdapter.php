@@ -7,6 +7,7 @@ namespace Goal\Legacy\Devtools\Simulation;
 use DateTimeImmutable;
 use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Core\Simulation\GameSimulationAdapter;
 use Goal\Legacy\Core\Simulation\SimulationCapability;
 use Goal\Legacy\Core\Simulation\SimulationCheckpoint;
@@ -16,6 +17,7 @@ use Goal\Legacy\Core\Simulation\SimulationMutationResult;
 use Goal\Legacy\Core\Simulation\SimulationPermission;
 use Goal\Legacy\Core\Simulation\SimulationResult;
 use Goal\Legacy\Core\Simulation\SimulationScenario;
+use Goal\Legacy\Core\Simulation\SimulationStateDiff;
 use Goal\Legacy\Devtools\BufferedConsoleOutput;
 use Goal\Legacy\Devtools\Commands\CareerMultiSeasonAuditCommand;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
@@ -26,6 +28,9 @@ use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Match\Persistence\MatchSelectionRepository;
 use Goal\Legacy\Modules\Match\Persistence\PlayerMatchStatRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerAttributeSet;
+use Goal\Legacy\Modules\Player\Domain\Injury;
+use Goal\Legacy\Modules\Player\Domain\InjuryCategory;
+use Goal\Legacy\Modules\Player\Domain\InjurySeverity;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Domain\CareerId;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
@@ -34,6 +39,7 @@ use Goal\Legacy\Modules\Player\Finance\PlayerFinanceRepository;
 use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
 use Goal\Legacy\Modules\Player\Persistence\PlayerAvailabilityRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerDisciplineRepository;
+use Goal\Legacy\Modules\Player\PlayerDisciplineService;
 use Goal\Legacy\Modules\Transfer\Persistence\LoanRepository;
 use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
@@ -49,10 +55,16 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
     public function __construct(
         private readonly CoreServices $services,
         private readonly string $projectRoot,
+        private readonly ?SaveStore $simulationStore = null,
     ) {
     }
 
     public function gameIdentifier(): string { return 'goal-legacy'; }
+
+    public function scenarioCatalog(): GoalScenarioCatalog { return new GoalScenarioCatalog(); }
+
+    /** @return list<array<string,mixed>> */
+    public function scenarioDescriptors(): array { return $this->scenarioCatalog()->descriptors(); }
 
     /** @return list<SimulationCapability> */
     public function capabilities(): array
@@ -64,11 +76,16 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
             new SimulationCapability('goal.diagnostics.squad_competition', 'Squad competition', 'Show deployable positions and relevant canonical squad context.', 'DIAGNOSTICS', true, 'SAVE', SimulationPermission::DEVELOPER),
             new SimulationCapability('goal.diagnostics.mobility', 'Mobility diagnostic', 'Inspect existing transfer, loan, and Contract opportunity state.', 'DIAGNOSTICS', true, 'SAVE', SimulationPermission::DEVELOPER),
             new SimulationCapability('goal.validation.integrity', 'Career integrity', 'Check controlled-player identity and active-state consistency.', 'DIAGNOSTICS', true, 'SAVE', SimulationPermission::DEVELOPER),
+            new SimulationCapability('sandbox.audit', 'Sandbox audit', 'Read the bounded mutation audit for the selected save.', 'SANDBOX', true, 'SAVE', SimulationPermission::PREMIUM_SANDBOX),
             new SimulationCapability('goal.simulation.multi_period', 'Bounded Career simulation', 'Run the canonical observatory for a bounded number of Seasons.', 'SIMULATION', true, 'SCENARIO', SimulationPermission::DEVELOPER, ['horizon' => ['type' => 'integer', 'min' => 1, 'max' => 5], 'archetype' => ['type' => 'string']]),
             new SimulationCapability('goal.player.set_attribute', 'Set Player attribute', 'Change one controlled-player attribute inside canonical bounds.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX, ['name' => ['type' => 'string'], 'value' => ['type' => 'integer', 'min' => 0, 'max' => 99]]),
             new SimulationCapability('goal.player.set_potential', 'Set potential', 'Change potential without allowing OVR to exceed it.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX, ['value' => ['type' => 'integer', 'min' => 1, 'max' => 99]]),
             new SimulationCapability('goal.player.set_role', 'Set squad role', 'Use the canonical squad role repository for the current Season.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX, ['role' => ['type' => 'string']]),
             new SimulationCapability('goal.player.set_balance', 'Set finance balance', 'Set the controlled-player sandbox balance inside a safe bound.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX, ['balance' => ['type' => 'integer', 'min' => 0, 'max' => 100000000]]),
+            new SimulationCapability('goal.player.apply_injury', 'Apply injury', 'Apply a bounded canonical sandbox injury.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX, ['severity' => ['type' => 'string', 'values' => ['minor', 'moderate', 'major']]]),
+            new SimulationCapability('goal.player.clear_injury', 'Clear injury', 'Mark the current sandbox injury recovered.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX),
+            new SimulationCapability('goal.player.apply_suspension', 'Apply suspension', 'Apply a bounded domestic disciplinary suspension.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX, ['matches' => ['type' => 'integer', 'min' => 1, 'max' => 5]]),
+            new SimulationCapability('goal.player.clear_suspension', 'Clear suspension', 'Clear current sandbox disciplinary suspensions.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX),
             new SimulationCapability('time.advance', 'Advance Career time', 'Advance a save by at most 31 days through WorldService.', 'SIMULATION', false, 'SAVE', SimulationPermission::PREMIUM_SANDBOX, ['days' => ['type' => 'integer', 'min' => 1, 'max' => 31]]),
             new SimulationCapability('sandbox.clone', 'Clone to Sandbox', 'Copy an owned Career to a new save without overwriting the source.', 'SANDBOX', false, 'SAVE', SimulationPermission::PREMIUM_SANDBOX, ['destination' => ['type' => 'string']]),
             new SimulationCapability('sandbox.restore_snapshot', 'Restore snapshot', 'Restore the bounded pre-mutation sandbox snapshot.', 'SANDBOX', false, 'SAVE', SimulationPermission::PREMIUM_SANDBOX),
@@ -88,9 +105,10 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
         $career = (new CareerPlayerRepository($database))->get($saveId);
         $date = $world->currentDate($worldService->calendar());
         $summary = (new PlayerCareerProgressionQuery($this->services->clubModule()->service()))->summary($database, $career->playerId(), $date, $seasonId);
+        $summary['discipline'] = (new PlayerDisciplineService())->context($database, $career->playerId());
 
         return [
-            'save' => $this->services->saveStore()->open($saveId)->toArray(),
+            'save' => $this->store()->open($saveId)->toArray(),
             'date' => $date->toIsoString(),
             'player_id' => $career->playerId()->value(),
             'player' => $summary['player'] ?? [],
@@ -121,6 +139,42 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
         }
 
         return new SimulationResult('PASS', $checkpoints, [], ['seed' => $scenario->seed(), 'archetype' => $archetype, 'horizon' => $horizon, 'console' => $output->messages()]);
+    }
+
+    public function runMatches(string $saveId, int $count = 1, ?string $firstMatchId = null): SimulationResult
+    {
+        $database = $this->database($saveId);
+        $career = (new CareerPlayerRepository($database))->get($saveId);
+
+        return (new GoalMatchRunner($this->services))->many($database, $saveId, $career->playerId()->value(), $count, $firstMatchId);
+    }
+
+    public function runScenario(string $scenarioId, int $seed = 3009): SimulationResult
+    {
+        $fixture = (new GoalScenarioBuilder($this->services))->build($scenarioId, $seed);
+        try {
+            return (new GoalMatchRunner($this->services))->one($fixture->database(), $fixture->saveId(), $fixture->playerId()->value());
+        } finally {
+            $fixture->close();
+        }
+    }
+
+    /** @param array<string,mixed> $before @param array<string,mixed> $after @return list<array{path:string,status:string,before:mixed,after:mixed}> */
+    public function stateDiff(array $before, array $after, int $limit = 100): array
+    {
+        return SimulationStateDiff::compare($before, $after, $limit);
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function audit(string $saveId): array
+    {
+        $connection = $this->database($saveId)->connection();
+        $exists = $connection->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'haya_simulation_mutation_audit'")->fetchColumn();
+        if ($exists === false) {
+            return [];
+        }
+
+        return $connection->query('SELECT occurred_at, actor, capability, target, status, before_json, after_json FROM haya_simulation_mutation_audit ORDER BY id DESC LIMIT 50')->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /** @return list<SimulationDiagnosticResult> */
@@ -187,6 +241,32 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
                 if ($state === null) { throw new RuntimeException('The controlled Player has no initialized finance state.'); }
                 $finance->saveStateInTransaction($playerId, $value, (string) $state['initialized_date'], (string) $state['last_payroll_date']);
                 break;
+            case 'goal.player.apply_injury':
+                $availability = new PlayerAvailabilityRepository($database);
+                if ($availability->activeInjuryAt(new PlayerId($playerId), $date) !== null) { throw new RuntimeException('The controlled Player already has an active injury.'); }
+                $severity = InjurySeverity::from(strtolower(trim((string) ($input['severity'] ?? 'moderate'))));
+                $injury = new Injury(hash('sha256', 'sandbox-injury|' . $playerId . '|' . $date->toIsoString()), new PlayerId($playerId), 'sandbox', 'sandbox-injury-' . $date->toIsoString(), InjuryCategory::Other, $severity, $date, $date->addDays($severity->durationDays()));
+                $database->transaction(static fn () => $availability->saveInjuryInTransaction($injury));
+                break;
+            case 'goal.player.clear_injury':
+                $availability = new PlayerAvailabilityRepository($database);
+                $injury = $availability->activeInjuryAt(new PlayerId($playerId), $date);
+                if ($injury === null) { throw new RuntimeException('The controlled Player has no active injury.'); }
+                $database->transaction(static fn () => $availability->markRecoveredInTransaction($injury, $date));
+                break;
+            case 'goal.player.apply_suspension':
+                $matches = filter_var($input['matches'] ?? 1, FILTER_VALIDATE_INT);
+                if ($matches === false || $matches < 1 || $matches > 5) { throw new RuntimeException('Sandbox suspensions must last from 1 to 5 Matches.'); }
+                (new PlayerDisciplineRepository($database))->save(['player_id' => $playerId, 'scope' => 'domestic_league', 'accumulation_cycle' => $date->toIsoString(), 'yellow_count' => 0, 'suspension_matches_remaining' => $matches, 'suspension_reason' => 'sandbox', 'source_match_id' => null, 'source_competition_id' => 'premier-league', 'updated_date' => $date->toIsoString()]);
+                break;
+            case 'goal.player.clear_suspension':
+                $discipline = new PlayerDisciplineRepository($database);
+                foreach ($discipline->byPlayer($playerId) as $state) {
+                    $state['suspension_matches_remaining'] = 0;
+                    $state['suspension_reason'] = null;
+                    $discipline->save($state);
+                }
+                break;
             case 'time.advance':
                 $days = filter_var($input['days'] ?? null, FILTER_VALIDATE_INT);
                 if ($days === false || $days < 1 || $days > 31) { throw new RuntimeException('Time advancement is limited to 1-31 days.'); }
@@ -201,8 +281,8 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
             throw $exception;
         }
         $after = $this->inspect($mutation->saveId());
-        $metadata = $this->services->saveStore()->open($mutation->saveId())->asSandbox($mutation->saveId(), new DateTimeImmutable());
-        $this->services->saveStore()->update($metadata);
+        $metadata = $this->store()->open($mutation->saveId())->asSandbox($mutation->saveId(), new DateTimeImmutable());
+        $this->store()->update($metadata);
         $this->recordAudit($mutation, 'success', $this->compactState($before), $this->compactState($after));
 
         return new SimulationMutationResult('PASS', $this->compactState($before), $this->compactState($after), 'Sandbox mutation applied to the selected save.');
@@ -210,8 +290,8 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
 
     private function database(string $saveId): DatabaseInterface
     {
-        if (!$this->services->saveStore()->exists($saveId)) { throw new RuntimeException('That save does not exist.'); }
-        return $this->services->saveStore()->openDatabase($saveId);
+        if (!$this->store()->exists($saveId)) { throw new RuntimeException('That save does not exist.'); }
+        return $this->store()->openDatabase($saveId);
     }
 
     private function assertMutationAccess(SimulationMutation $mutation): void
@@ -219,7 +299,7 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
         if (!in_array($mutation->permission(), [SimulationPermission::PREMIUM_SANDBOX, SimulationPermission::DEVELOPER, SimulationPermission::SYSTEM_TEST], true)) {
             throw new RuntimeException('Sandbox mutations require Premium Sandbox, Developer, or System Test permission.');
         }
-        $metadata = $this->services->saveStore()->open($mutation->saveId());
+        $metadata = $this->store()->open($mutation->saveId());
         if ($mutation->permission() === SimulationPermission::PREMIUM_SANDBOX && ($metadata->ownerId() === null || $metadata->ownerId() !== $mutation->actor())) {
             throw new RuntimeException('You may only mutate saves owned by your account.');
         }
@@ -227,22 +307,22 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
 
     private function snapshot(string $saveId, string $actor): void
     {
-        $metadata = $this->services->saveStore()->open($saveId);
+        $metadata = $this->store()->open($saveId);
         $snapshotId = $this->snapshotId($saveId);
-        if ($this->services->saveStore()->exists($snapshotId)) { $this->services->saveStore()->delete($snapshotId); }
+        if ($this->store()->exists($snapshotId)) { $this->store()->delete($snapshotId); }
         $snapshot = \Goal\Legacy\Core\Persistence\SaveMetadata::create($snapshotId, $metadata->name() . ' snapshot', $metadata->simulationTime(), new DateTimeImmutable(), $metadata->ownerId())->asSandbox($saveId);
-        $this->services->saveStore()->cloneSave($saveId, $snapshot);
+        $this->store()->cloneSave($saveId, $snapshot);
     }
 
     private function restoreSnapshot(SimulationMutation $mutation): SimulationMutationResult
     {
-        $metadata = $this->services->saveStore()->open($mutation->saveId());
+        $metadata = $this->store()->open($mutation->saveId());
         $snapshotId = $this->snapshotId($mutation->saveId());
-        if (!$this->services->saveStore()->exists($snapshotId)) { throw new RuntimeException('No sandbox snapshot is available.'); }
+        if (!$this->store()->exists($snapshotId)) { throw new RuntimeException('No sandbox snapshot is available.'); }
         $before = $this->inspect($mutation->saveId());
-        $this->services->saveStore()->delete($mutation->saveId());
+        $this->store()->delete($mutation->saveId());
         $restored = \Goal\Legacy\Core\Persistence\SaveMetadata::create($mutation->saveId(), $metadata->name(), $metadata->simulationTime(), new DateTimeImmutable($metadata->createdAt()), $metadata->ownerId())->asSandbox($metadata->sandboxSourceId(), new DateTimeImmutable());
-        $this->services->saveStore()->cloneSave($snapshotId, $restored);
+        $this->store()->cloneSave($snapshotId, $restored);
         $after = $this->inspect($mutation->saveId());
         $this->recordAudit($mutation, 'success', $this->compactState($before), $this->compactState($after));
         return new SimulationMutationResult('PASS', $this->compactState($before), $this->compactState($after), 'Sandbox snapshot restored.');
@@ -254,10 +334,10 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
         if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/', $destinationId) !== 1 || $destinationId === $mutation->saveId()) {
             throw new RuntimeException('Choose a different destination save ID using letters, numbers, hyphens, or underscores.');
         }
-        if ($this->services->saveStore()->exists($destinationId)) { throw new RuntimeException('The destination sandbox save already exists.'); }
-        $source = $this->services->saveStore()->open($mutation->saveId());
+        if ($this->store()->exists($destinationId)) { throw new RuntimeException('The destination sandbox save already exists.'); }
+        $source = $this->store()->open($mutation->saveId());
         $destination = \Goal\Legacy\Core\Persistence\SaveMetadata::create($destinationId, $source->name() . ' Sandbox', $source->simulationTime(), new DateTimeImmutable($source->createdAt()), $mutation->actor())->asSandbox($mutation->saveId());
-        $this->services->saveStore()->cloneSave($mutation->saveId(), $destination);
+        $this->store()->cloneSave($mutation->saveId(), $destination);
         $destinationDatabase = $this->database($destinationId);
         (new CareerPlayerRepository($destinationDatabase))->rebindCareerId(new CareerId($mutation->saveId()), new CareerId($destinationId));
         (new WorldRepository($destinationDatabase))->rebindRoot(new WorldId($mutation->saveId()), new WorldId($destinationId));
@@ -267,6 +347,11 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
     }
 
     private function snapshotId(string $saveId): string { return substr($saveId, 0, 43) . '-sandbox-snapshot'; }
+
+    private function store(): SaveStore
+    {
+        return $this->simulationStore ?? $this->services->saveStore();
+    }
 
     /** @param array<string,mixed> $state @return array<string,mixed> */
     private function compactState(array $state): array

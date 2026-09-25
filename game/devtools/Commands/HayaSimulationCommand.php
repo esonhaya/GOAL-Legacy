@@ -22,13 +22,18 @@ final class HayaSimulationCommand implements CommandInterface
 
     public function execute(array $arguments, ConsoleOutputInterface $output): int
     {
-        $toolkit = new SimulationToolkit(new GoalSimulationAdapter($this->services, $this->projectRoot));
+        $adapter = new GoalSimulationAdapter($this->services, $this->projectRoot);
+        $toolkit = new SimulationToolkit($adapter);
         $operation = (string) ($arguments[0] ?? 'capabilities');
         if ($operation === 'capabilities') {
             foreach ($toolkit->capabilityDescriptors() as $capability) { $output->write(sprintf('%s [%s] %s permission=%s', $capability['id'], $capability['read_only'] ? 'READ' : 'WRITE', $capability['description'], $capability['permission'])); }
             return 0;
         }
         $options = $this->options(array_slice($arguments, 1));
+        if ($operation === 'scenarios') {
+            $output->write(json_encode($adapter->scenarioDescriptors(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            return 0;
+        }
         if ($operation === 'inspect') {
             $saveId = $this->required($options, 'save');
             $output->write(json_encode($toolkit->inspect($saveId), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
@@ -46,8 +51,21 @@ final class HayaSimulationCommand implements CommandInterface
             $output->write('SIMULATION status=' . $result->status());
             return 0;
         }
+        if ($operation === 'match' || $operation === 'matches') {
+            $saveId = $this->required($options, 'save');
+            $count = max(1, min(10, (int) ($options['count'] ?? 1)));
+            $result = $adapter->runMatches($saveId, $count, isset($options['match']) ? (string) $options['match'] : null);
+            $output->write(json_encode(['status' => $result->status(), 'checkpoints' => array_map(static fn ($checkpoint): array => $checkpoint->toArray(), $result->checkpoints()), 'metrics' => $result->metrics()], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            return 0;
+        }
+        if ($operation === 'scenario') {
+            $scenario = $this->required($options, 'scenario');
+            $result = $adapter->runScenario($scenario, (int) ($options['seed'] ?? 3009));
+            $output->write(json_encode(['status' => $result->status(), 'checkpoints' => array_map(static fn ($checkpoint): array => $checkpoint->toArray(), $result->checkpoints()), 'metrics' => $result->metrics()], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            return 0;
+        }
 
-        throw new RuntimeException('Usage: haya:simulation [capabilities|inspect|diagnostics|run] --save=<id> [--seasons=1..5] [--seed=n] [--archetype=regular].');
+        throw new RuntimeException('Usage: haya:simulation [capabilities|scenarios|inspect|diagnostics|run|match|matches|scenario] --save=<id> [--count=1..10] [--scenario=ID] [--seasons=1..5] [--seed=n] [--archetype=regular].');
     }
 
     /** @return array<string,string> */

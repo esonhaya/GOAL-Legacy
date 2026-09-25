@@ -31,6 +31,27 @@ and `GoalScenarioBuilder` provide canonical, isolated fixtures such as
 MatchService; it is not a second Match loop. `SimulationStateDiff` supplies a
 bounded before/after comparison for tests, Doctor, and the Lab.
 
+P3-010 adds Contract and movement scenarios to the same catalogue:
+`CONTRACT_EXPIRING`, `CONTRACT_LONG_TERM`, `FREE_AGENT`,
+`TRANSFER_REQUESTED`, `LOAN_ACTIVE`, `POST_LOAN_RETURN`, and
+`PERMANENT_TRANSFER`. They compose with the existing Player, availability, and
+squad setup. Contract edits use `ContractService`; movement and loan changes
+use `TransferService`/`CareerMovementService`. No Contract or movement engine
+exists in the toolkit.
+
+For routine validation, use the public entry point that matches the question:
+one Match for participation, `GoalMatchRunner::many()` for bounded accumulation,
+the canonical Season runner for rollover, and the Career observatory only for
+multi-Season pacing. Measure the operation once locally rather than rebuilding
+state or writing a custom loop. Contract and movement checkpoint projections
+are curated so a state diff shows Club, Contract, loan, and request changes.
+
+Reference local P3-010 timings (Android Termux, deterministic
+`HEALTHY_LOW_MINUTES`, seed 3010): scenario build about 28.5s, one Match about
+3.8s, ten Matches about 25.5s, cheap integrity Doctor about 28ms, and an empty
+curated checkpoint diff about 6ms. These are guidance, not performance
+guarantees; use a fresh Bootstrap clock for separate isolated timing runs.
+
 Standing workflow: search the scenario library before manually creating test
 state; use the canonical runner before writing a Match or Season loop; use
 checkpoint/diagnostic APIs before querying state manually; use the isolated

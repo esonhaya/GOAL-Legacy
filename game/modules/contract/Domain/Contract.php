@@ -50,6 +50,11 @@ final readonly class Contract
         return new self($this->id, $this->playerId, $this->clubId, $this->startDate, $this->endDate, $this->wage, $status);
     }
 
+    public function withTerms(SimulationDate $endDate, int $wage): self
+    {
+        return new self($this->id, $this->playerId, $this->clubId, $this->startDate, $endDate, $wage, $this->status);
+    }
+
     public function terminate(): self
     {
         if ($this->status === ContractStatus::Expired) {

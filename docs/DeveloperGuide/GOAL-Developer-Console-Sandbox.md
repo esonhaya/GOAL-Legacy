@@ -8,7 +8,9 @@ as the CLI and tests.
   bounded Simulation Lab.
 - `?page=sandbox&save=<id>` is available to Premium Sandbox or Developer
   sessions and exposes bounded Player attribute, potential, role, balance,
-  injury, suspension, and time controls.
+  injury, suspension, Contract wage/term, transfer-request, due-loan-return,
+  and validated permanent-movement controls. Premium gameplay mutations
+  require a SANDBOX save; clone the original first.
 - The Developer Simulation Lab can run up to three upcoming controlled-Club
   Matches or an isolated catalog scenario. It shows curated checkpoints and a
   bounded before/after diff; it does not run long Seasons synchronously.
@@ -20,6 +22,11 @@ as the CLI and tests.
   mutation audit table.
 - A save can be cloned before experimentation. A single/few bounded snapshot
   is maintained for restore. The source save is not overwritten by cloning.
+- Contract changes retain the current Contract Club and reject a term that would
+  make an active loan outlive its parent Contract. Movement controls never set
+  a Club ID directly: canonical Contract, squad, registration, transfer, and
+  loan owners perform the transition. The same workflow is useful in tests and
+  Doctor: inspect -> mutate -> diff -> cheap integrity diagnostic -> restore.
 
 The local web shell reads `haya_role`, `haya_premium_sandbox`, and
 `account_id` from the server-side session. Production authentication and

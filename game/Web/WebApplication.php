@@ -616,7 +616,9 @@ final class WebApplication
         $inspection = $this->toolkit()->inspect($saveId);
         $player = (array) ($inspection['player'] ?? []);
         $career = (array) ($inspection['career'] ?? []);
-        $sandbox = (($inspection['save']['sandbox'] ?? false) === true) ? '<span class="tag">SANDBOX SAVE</span>' : '<span class="tag">ORIGINAL SAVE</span>';
+        $access = WebAccessContext::fromSession($session);
+        $isSandbox = (($inspection['save']['sandbox'] ?? false) === true);
+        $sandbox = $isSandbox ? '<span class="tag">SANDBOX SAVE</span>' : '<span class="tag">ORIGINAL SAVE</span>';
         $auditRows = '';
         foreach ((new GoalSimulationAdapter($this->services, $this->projectRoot))->audit($saveId) as $audit) {
             $auditRows .= '<tr><td>' . WebView::e((string) ($audit['occurred_at'] ?? '')) . '</td><td>' . WebView::e((string) ($audit['capability'] ?? '')) . '</td><td>' . WebView::e((string) ($audit['status'] ?? '')) . '</td><td>' . WebView::e((string) ($audit['actor'] ?? '')) . '</td></tr>';
@@ -629,15 +631,29 @@ final class WebApplication
         };
         $body = '<div class="flow-heading"><div class="eyebrow">CAREER LAB · SAVE-SCOPED</div><h1>Sandbox</h1><p>Experiment with this save only. Source files and the original Career remain untouched. ' . $sandbox . '</p></div>';
         $body .= WebView::section('PLAYER', (string) ($player['preferred_name'] ?? 'Controlled Player'), '<div class="stat-grid compact">' . WebView::stat('OVR', $player['overall_rating'] ?? '—') . WebView::stat('Potential', $player['potential'] ?? '—') . WebView::stat('Club', ((array) ($career['current_club'] ?? []))['name'] ?? 'Free Agent') . WebView::stat('Role', $career['current_role'] ?? '—') . WebView::stat('Balance', $inspection['finance']['balance'] ?? 0) . '</div>');
-        $body .= WebView::section('MUTATIONS', 'Bounded controls', $form('sandbox_mutate', 'Set attribute', ['Attribute' => '<select name="name"><option value="pace">pace</option><option value="shooting">shooting</option><option value="passing">passing</option><option value="dribbling">dribbling</option><option value="defending">defending</option><option value="physicality">physicality</option></select>', 'Value' => '<input required type="number" min="0" max="99" name="value">', 'Capability' => '<input type="hidden" name="capability" value="goal.player.set_attribute">'], $token('sandbox_mutate_' . $saveId))
+        $mutationForms = $isSandbox || $access->isDeveloper()
+            ? $form('sandbox_mutate', 'Set attribute', ['Attribute' => '<select name="name"><option value="pace">pace</option><option value="shooting">shooting</option><option value="passing">passing</option><option value="dribbling">dribbling</option><option value="defending">defending</option><option value="physicality">physicality</option></select>', 'Value' => '<input required type="number" min="0" max="99" name="value">', 'Capability' => '<input type="hidden" name="capability" value="goal.player.set_attribute">'], $token('sandbox_mutate_' . $saveId))
             . $form('sandbox_mutate', 'Set potential', ['Value' => '<input required type="number" min="1" max="99" name="value">', 'Capability' => '<input type="hidden" name="capability" value="goal.player.set_potential">'], $token('sandbox_mutate_potential_' . $saveId))
             . $form('sandbox_mutate', 'Set squad role', ['Role' => '<select name="role"><option value="prospect">Prospect</option><option value="rotation">Rotation</option><option value="regular">Regular</option><option value="key_player">Key Player</option></select>', 'Capability' => '<input type="hidden" name="capability" value="goal.player.set_role">'], $token('sandbox_mutate_role_' . $saveId))
             . $form('sandbox_mutate', 'Set balance', ['Balance' => '<input required type="number" min="0" max="100000000" name="balance">', 'Capability' => '<input type="hidden" name="capability" value="goal.player.set_balance">'], $token('sandbox_mutate_balance_' . $saveId))
+            . $form('sandbox_mutate', 'Set Contract wage', ['Wage' => '<input required type="number" min="0" max="500000" name="wage">', 'Capability' => '<input type="hidden" name="capability" value="goal.contract.set_wage">'], $token('sandbox_contract_wage_' . $saveId))
+            . $form('sandbox_mutate', 'Set Contract end date', ['End date' => '<input required type="date" name="end_date">', 'Capability' => '<input type="hidden" name="capability" value="goal.contract.set_term">'], $token('sandbox_contract_term_' . $saveId))
             . $form('sandbox_mutate', 'Advance time', ['Days' => '<input required type="number" min="1" max="31" name="days">', 'Capability' => '<input type="hidden" name="capability" value="time.advance">'], $token('sandbox_mutate_time_' . $saveId))
             . $form('sandbox_mutate', 'Apply injury', ['Severity' => '<select name="severity"><option value="minor">Minor</option><option value="moderate">Moderate</option><option value="major">Major</option></select>', 'Capability' => '<input type="hidden" name="capability" value="goal.player.apply_injury">'], $token('sandbox_injury_' . $saveId))
             . $form('sandbox_mutate', 'Clear injury', ['Capability' => '<input type="hidden" name="capability" value="goal.player.clear_injury">'], $token('sandbox_clear_injury_' . $saveId))
             . $form('sandbox_mutate', 'Apply suspension', ['Matches' => '<input required type="number" min="1" max="5" name="matches" value="1">', 'Capability' => '<input type="hidden" name="capability" value="goal.player.apply_suspension">'], $token('sandbox_suspension_' . $saveId))
-            . $form('sandbox_mutate', 'Clear suspension', ['Capability' => '<input type="hidden" name="capability" value="goal.player.clear_suspension">'], $token('sandbox_clear_suspension_' . $saveId)));
+            . $form('sandbox_mutate', 'Clear suspension', ['Capability' => '<input type="hidden" name="capability" value="goal.player.clear_suspension">'], $token('sandbox_clear_suspension_' . $saveId))
+            . $form('sandbox_mutate', 'Request transfer', ['Capability' => '<input type="hidden" name="capability" value="goal.movement.request_transfer">'], $token('sandbox_transfer_request_' . $saveId))
+            . $form('sandbox_mutate', 'Return due loan', ['Capability' => '<input type="hidden" name="capability" value="goal.movement.return_loan">'], $token('sandbox_loan_return_' . $saveId))
+            : '';
+        if ($isSandbox || $access->isDeveloper()) {
+            $clubs = '';
+            foreach ($this->services->clubModule()->service()->repository($this->database($saveId))->all() as $club) {
+                $clubs .= '<option value="' . WebView::e($club->id()->value()) . '">' . WebView::e($club->canonicalName()) . '</option>';
+            }
+            $mutationForms .= $form('sandbox_mutate', 'Permanent transfer', ['Target Club' => '<select name="club">' . $clubs . '</select>', 'Wage' => '<input required type="number" min="0" max="500000" name="wage" value="1000">', 'End date' => '<input required type="date" name="end_date" value="2025-06-30">', 'Capability' => '<input type="hidden" name="capability" value="goal.movement.permanent_transfer">'], $token('sandbox_permanent_transfer_' . $saveId));
+        }
+        $body .= WebView::section('MUTATIONS', 'Bounded controls', ($isSandbox || $access->isDeveloper()) ? $mutationForms : '<p class="metric-note">Clone this Career to a SANDBOX SAVE before using gameplay controls. The original save is read-only for Premium Sandbox accounts.</p>');
         $body .= WebView::section('SAFETY', 'Clone and restore', $form('sandbox_clone', 'Clone to Sandbox', ['Destination save ID' => '<input required name="destination" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,63}">'], $token('sandbox_clone_' . $saveId)) . $form('sandbox_restore', 'Restore last snapshot', [], $token('sandbox_restore_' . $saveId)));
         $body .= WebView::section('AUDIT', 'Recent Sandbox changes', $auditRows === '' ? WebView::emptyState('No Sandbox mutations recorded.') : '<div class="table-scroll"><table><thead><tr><th>Time</th><th>Capability</th><th>Status</th><th>Actor</th></tr></thead><tbody>' . $auditRows . '</tbody></table></div>');
 
@@ -687,6 +703,11 @@ final class WebApplication
             'goal.player.clear_injury' => 'sandbox_clear_injury_' . $saveId,
             'goal.player.apply_suspension' => 'sandbox_suspension_' . $saveId,
             'goal.player.clear_suspension' => 'sandbox_clear_suspension_' . $saveId,
+            'goal.contract.set_wage' => 'sandbox_contract_wage_' . $saveId,
+            'goal.contract.set_term' => 'sandbox_contract_term_' . $saveId,
+            'goal.movement.request_transfer' => 'sandbox_transfer_request_' . $saveId,
+            'goal.movement.return_loan' => 'sandbox_loan_return_' . $saveId,
+            'goal.movement.permanent_transfer' => 'sandbox_permanent_transfer_' . $saveId,
             default => 'sandbox_mutate_' . $saveId,
         };
         if (!$context->canSandbox() || !$this->consumeToken($session, $tokenKey, (string) ($post['token'] ?? ''))) { throw new RuntimeException('Sandbox mutation was not authorized or has already been submitted.'); }

@@ -8,9 +8,11 @@ use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Modules\Contract\Domain\Contract;
 use Goal\Legacy\Modules\Contract\Domain\ContractCreationRequest;
 use Goal\Legacy\Modules\Contract\Domain\ContractEventNames;
+use Goal\Legacy\Modules\Contract\Domain\ContractException;
 use Goal\Legacy\Modules\Contract\Domain\ContractStatus;
 use Goal\Legacy\Modules\Contract\Persistence\ContractRepository;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
+use InvalidArgumentException;
 
 final class ContractService
 {
@@ -24,6 +26,25 @@ final class ContractService
     public function save(DatabaseInterface $database, Contract $contract): void { $this->repository($database)->save($contract); }
 
     public function activeForPlayer(DatabaseInterface $database, string $playerId): ?Contract { return $this->repository($database)->activeForPlayer($playerId); }
+
+    public function updateActiveTerms(DatabaseInterface $database, string $playerId, SimulationDate $endDate, int $wage): Contract
+    {
+        if ($wage < 0) {
+            throw new InvalidArgumentException('Contract wage cannot be negative.');
+        }
+        $repository = $this->repository($database);
+        $contract = $repository->activeForPlayer($playerId);
+        if ($contract === null) {
+            throw new ContractException('Only an active Contract can be experimented with.');
+        }
+        if ($endDate->isBefore($contract->startDate())) {
+            throw new InvalidArgumentException('Contract term cannot end before its start date.');
+        }
+        $updated = $contract->withTerms($endDate, $wage);
+        $repository->save($updated);
+
+        return $updated;
+    }
 
     /** @return list<array{before: Contract, after: Contract}> */
     public function evaluateInTransaction(DatabaseInterface $database, SimulationDate $date): array

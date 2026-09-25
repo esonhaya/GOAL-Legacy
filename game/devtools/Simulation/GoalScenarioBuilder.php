@@ -16,6 +16,10 @@ use Goal\Legacy\Modules\Competition\Domain\CompetitionId;
 use Goal\Legacy\Modules\Competition\Domain\PlayerRegistration;
 use Goal\Legacy\Modules\Contract\Domain\ContractCreationRequest;
 use Goal\Legacy\Modules\Contract\Domain\ContractId;
+use Goal\Legacy\Modules\Transfer\Domain\Transfer;
+use Goal\Legacy\Modules\Transfer\Domain\TransferExecutionTerms;
+use Goal\Legacy\Modules\Transfer\Domain\TransferId;
+use Goal\Legacy\Modules\Transfer\Persistence\LoanRepository;
 use Goal\Legacy\Modules\Player\Domain\CareerId;
 use Goal\Legacy\Modules\Player\Domain\CareerPlayerReference;
 use Goal\Legacy\Modules\Player\Domain\DevelopmentProfile;
@@ -72,10 +76,15 @@ final class GoalScenarioBuilder
                 $this->services->playerModule()->service()->trainingService()->complete($database, new TrainingRequest($player->id(), 'scenario-secondary-position', TrainingFocus::Balanced, $date, $date->addDays(70), TrainingIntensity::Normal));
             }
             $this->createContract($database, $player->id()->value(), $clubId, $season, $options);
-            $this->services->competitionModule()->service()->registrationRepository($database)->register(new PlayerRegistration($season->id(), new CompetitionId('premier-league'), new ClubId($clubId), $player->id()));
+            if (($options['contract'] ?? true) !== false) {
+                $this->services->competitionModule()->service()->registrationRepository($database)->register(new PlayerRegistration($season->id(), new CompetitionId('premier-league'), new ClubId($clubId), $player->id()));
+            } else {
+                $this->services->clubModule()->service()->squadRepository($database)->remove($membership);
+            }
             $this->createCompetitors($database, $season, $clubId, (array) ($options['competitor_ovrs'] ?? []), $seed);
             $this->applyAvailability($database, $player->id()->value(), $season, (string) ($options['availability'] ?? 'available'));
             $matches = $this->services->matchModule()->service()->generateFixtures($database, 'premier-league', $season->id());
+            $this->applyMovement($database, $player->id()->value(), $clubId, $season, $options);
 
             return new GoalScenarioFixture($directory, $store, $saveId, $database, $player->id(), $clubId, $season->id(), array_map(static fn ($match): string => $match->id()->value(), $matches));
         } catch (\Throwable $exception) {
@@ -110,9 +119,64 @@ final class GoalScenarioBuilder
             return;
         }
         $start = SimulationDate::fromIsoString('2024-07-31');
-        $end = ($options['contract'] ?? '') === 'expiring' ? SimulationDate::fromIsoString('2024-12-31') : $season->endDate()->addDays(30);
+        $contractKind = (string) ($options['contract'] ?? '');
+        $end = match ($contractKind) {
+            'expiring' => SimulationDate::fromIsoString('2024-12-31'),
+            'long_term' => $season->endDate()->addDays(365 * 3),
+            default => $season->endDate()->addDays(30),
+        };
         $service = $this->services->contractModule()->service();
         $service->save($database, $service->create(new ContractCreationRequest(new ContractId('scenario-contract'), new \Goal\Legacy\Modules\Player\Domain\PlayerId($playerId), new ClubId($clubId), $start, $end, (int) ($options['wage'] ?? 1000), $start)));
+    }
+
+    /** @param array<string,mixed> $options */
+    private function applyMovement($database, string $playerId, string $clubId, Season $season, array $options): void
+    {
+        $movement = (string) ($options['movement'] ?? '');
+        if ($movement === '') {
+            return;
+        }
+        $player = (new \Goal\Legacy\Modules\Player\Persistence\PlayerRepository($database))->get($playerId);
+        $date = $season->startDate();
+        $careerMovement = $this->services->transferModule()->service()->careerMovement();
+        if ($movement === 'transfer_requested') {
+            $careerMovement->requestTransfer($database, $player->id(), $season, $date);
+            return;
+        }
+        if ($movement === 'permanent_transfer') {
+            $transfer = new Transfer(new TransferId('scenario-transfer'), $player->id(), new ClubId($clubId), new ClubId('chelsea'), $season->id(), 0, $date);
+            $this->services->transferModule()->service()->execute($database, $transfer, new TransferExecutionTerms(new ContractId('scenario-destination-contract'), $season->endDate()->addDays(365), 1200, SquadRole::Regular));
+            return;
+        }
+        // The canonical loan market excludes full destination squads.  Make
+        // one deterministic vacancy in the fixture so the production
+        // opportunity/acceptance path can be exercised without forging a loan.
+        $loanSquad = $this->services->clubModule()->service()->squadRepository($database);
+        $vacancy = $loanSquad->byClub('cardiff-city', $season->id())[0] ?? null;
+        if ($vacancy !== null) {
+            $loanSquad->remove($vacancy);
+        }
+        $opportunity = $careerMovement->prepareControlledLoanDecision($database, $player->id(), $season, $date);
+        if ($opportunity === null) {
+            throw new RuntimeException('The scenario could not produce a canonical loan opportunity.');
+        }
+        $option = array_values(array_filter((array) ($opportunity->context()['options'] ?? []), static fn (mixed $row): bool => is_array($row) && ($row['kind'] ?? null) === 'accept_loan'))[0] ?? null;
+        if (!is_array($option)) {
+            throw new RuntimeException('The scenario loan decision has no accepted loan option.');
+        }
+        $resolved = $careerMovement->resolveLoanDecision($database, $opportunity->id(), (string) ($option['id'] ?? ''), $date);
+        if ($movement === 'loan_active') {
+            return;
+        }
+        if ($movement === 'post_loan_return') {
+            $loan = (new LoanRepository($database))->get((string) ($option['loan_id'] ?? ''));
+            if ($loan === null) {
+                throw new RuntimeException('The scenario loan was not persisted.');
+            }
+            $this->services->transferModule()->service()->returnLoan($database, $loan, $loan->scheduledEndDate());
+            return;
+        }
+        throw new RuntimeException(sprintf('Unknown scenario movement "%s".', $movement));
     }
 
     /** @param list<int> $ovrs */

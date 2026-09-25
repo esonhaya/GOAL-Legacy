@@ -42,6 +42,9 @@ use Goal\Legacy\Modules\Player\Persistence\PlayerDisciplineRepository;
 use Goal\Legacy\Modules\Player\PlayerDisciplineService;
 use Goal\Legacy\Modules\Transfer\Persistence\LoanRepository;
 use Goal\Legacy\Modules\Transfer\Persistence\TransferRepository;
+use Goal\Legacy\Modules\Transfer\Domain\Transfer;
+use Goal\Legacy\Modules\Transfer\Domain\TransferExecutionTerms;
+use Goal\Legacy\Modules\Transfer\Domain\TransferId;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use Goal\Legacy\Modules\World\Domain\WorldId;
@@ -86,6 +89,11 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
             new SimulationCapability('goal.player.clear_injury', 'Clear injury', 'Mark the current sandbox injury recovered.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX),
             new SimulationCapability('goal.player.apply_suspension', 'Apply suspension', 'Apply a bounded domestic disciplinary suspension.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX, ['matches' => ['type' => 'integer', 'min' => 1, 'max' => 5]]),
             new SimulationCapability('goal.player.clear_suspension', 'Clear suspension', 'Clear current sandbox disciplinary suspensions.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX),
+            new SimulationCapability('goal.contract.set_wage', 'Set Contract wage', 'Change the active controlled-player Contract wage on a Sandbox save.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX, ['wage' => ['type' => 'integer', 'min' => 0, 'max' => 500000]]),
+            new SimulationCapability('goal.contract.set_term', 'Set Contract term', 'Change the active controlled-player Contract end date on a Sandbox save.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX, ['end_date' => ['type' => 'date']]),
+            new SimulationCapability('goal.movement.request_transfer', 'Request transfer', 'Create the canonical controlled-player transfer request for the current window.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX),
+            new SimulationCapability('goal.movement.return_loan', 'Return loan', 'Return a due active loan through the canonical loan lifecycle.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX),
+            new SimulationCapability('goal.movement.permanent_transfer', 'Permanent transfer', 'Run a validated permanent movement through TransferService.', 'MUTATION', false, 'PLAYER', SimulationPermission::PREMIUM_SANDBOX, ['club' => ['type' => 'string'], 'wage' => ['type' => 'integer', 'min' => 0, 'max' => 500000], 'end_date' => ['type' => 'date']]),
             new SimulationCapability('time.advance', 'Advance Career time', 'Advance a save by at most 31 days through WorldService.', 'SIMULATION', false, 'SAVE', SimulationPermission::PREMIUM_SANDBOX, ['days' => ['type' => 'integer', 'min' => 1, 'max' => 31]]),
             new SimulationCapability('sandbox.clone', 'Clone to Sandbox', 'Copy an owned Career to a new save without overwriting the source.', 'SANDBOX', false, 'SAVE', SimulationPermission::PREMIUM_SANDBOX, ['destination' => ['type' => 'string']]),
             new SimulationCapability('sandbox.restore_snapshot', 'Restore snapshot', 'Restore the bounded pre-mutation sandbox snapshot.', 'SANDBOX', false, 'SAVE', SimulationPermission::PREMIUM_SANDBOX),
@@ -153,6 +161,12 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
     {
         $fixture = (new GoalScenarioBuilder($this->services))->build($scenarioId, $seed);
         try {
+            $adapter = new self($this->services, $this->projectRoot, $fixture->store());
+            $inspection = $adapter->inspect($fixture->saveId());
+            if (($inspection['career']['current_club'] ?? null) === null || ($inspection['career']['current_contract'] ?? null) === null) {
+                return new SimulationResult('PASS', [new SimulationCheckpoint('SCENARIO', 'GOAL_PLAYER', $adapter->compactState($inspection), ['source' => 'GoalScenarioBuilder'])], [], ['scenario' => strtoupper($scenarioId), 'seed' => $seed]);
+            }
+
             return (new GoalMatchRunner($this->services))->one($fixture->database(), $fixture->saveId(), $fixture->playerId()->value());
         } finally {
             $fixture->close();
@@ -267,6 +281,61 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
                     $discipline->save($state);
                 }
                 break;
+            case 'goal.contract.set_wage':
+                $contract = (new ContractRepository($database))->activeForPlayer($playerId);
+                if ($contract === null) { throw new RuntimeException('The controlled Player has no active Contract.'); }
+                $wage = filter_var($input['wage'] ?? null, FILTER_VALIDATE_INT);
+                if ($wage === false || $wage < 0 || $wage > 500000) { throw new RuntimeException('Contract wage must be an integer from 0 to 500000.'); }
+                $loan = (new LoanRepository($database, false))->activeForPlayer(new PlayerId($playerId));
+                if ($loan !== null && $contract->clubId()->value() !== $loan->parentClubId()->value()) { throw new RuntimeException('An active loan must retain its parent Contract.'); }
+                $this->services->contractModule()->service()->updateActiveTerms($database, $playerId, $contract->endDate(), $wage);
+                break;
+            case 'goal.contract.set_term':
+                $contract = (new ContractRepository($database))->activeForPlayer($playerId);
+                if ($contract === null) { throw new RuntimeException('The controlled Player has no active Contract.'); }
+                $endDate = SimulationDate::fromIsoString(trim((string) ($input['end_date'] ?? '')));
+                if (!$endDate->isAfter($date)) { throw new RuntimeException('Contract term must end after the current Career date.'); }
+                $loan = (new LoanRepository($database, false))->activeForPlayer(new PlayerId($playerId));
+                if ($loan !== null && $endDate->isBefore($loan->scheduledEndDate())) { throw new RuntimeException('An active loan cannot outlive the parent Contract.'); }
+                $this->services->contractModule()->service()->updateActiveTerms($database, $playerId, $endDate, $contract->wage());
+                break;
+            case 'goal.movement.request_transfer':
+                $worldService = $this->services->worldModule()->service();
+                $world = $worldService->load($database, $mutation->saveId());
+                $seasonId = $world->currentSeasonId();
+                if ($seasonId === null) { throw new RuntimeException('The save has no active Season.'); }
+                $season = (new \Goal\Legacy\Modules\World\Persistence\SeasonRepository($database))->get($seasonId);
+                $this->services->transferModule()->service()->careerMovement()->requestTransfer($database, $playerId, $season, $date);
+                break;
+            case 'goal.movement.return_loan':
+                $loan = (new LoanRepository($database, false))->activeForPlayer(new PlayerId($playerId));
+                if ($loan === null) { throw new RuntimeException('The controlled Player has no due active loan.'); }
+                $this->services->transferModule()->service()->returnLoan($database, $loan, $date);
+                break;
+            case 'goal.movement.permanent_transfer':
+                $worldService = $this->services->worldModule()->service();
+                $world = $worldService->load($database, $mutation->saveId());
+                $seasonId = $world->currentSeasonId();
+                if ($seasonId === null) { throw new RuntimeException('The save has no active Season.'); }
+                $season = (new \Goal\Legacy\Modules\World\Persistence\SeasonRepository($database))->get($seasonId);
+                $loan = (new LoanRepository($database, false))->activeForPlayer(new PlayerId($playerId), null, $date);
+                if ($loan !== null) { throw new RuntimeException('Permanent movement is unavailable while the Player is on loan.'); }
+                $membership = (new ClubSquadRepository($database))->byPlayer($playerId, $seasonId)[0] ?? null;
+                $contract = (new ContractRepository($database))->activeForPlayer($playerId);
+                $targetClubId = trim((string) ($input['club'] ?? ''));
+                if ($membership === null || $contract === null) { throw new RuntimeException('Permanent movement requires an active Club membership and Contract.'); }
+                if ($targetClubId === '' || $targetClubId === $membership->clubId()->value() || !$this->services->clubModule()->service()->repository($database)->exists(new \Goal\Legacy\Modules\Club\Domain\ClubId($targetClubId))) { throw new RuntimeException('Choose a different existing destination Club.'); }
+                $targetMemberships = array_values(array_filter($this->services->clubModule()->service()->membershipRepository($database)->byClub($targetClubId), static fn ($row): bool => $row->seasonId()->value() === $seasonId->value()));
+                if ($targetMemberships === []) { throw new RuntimeException('Destination Club is not registered for the current Season.'); }
+                if (count($this->services->clubModule()->service()->squadRepository($database)->byClub($targetClubId, $seasonId)) >= \Goal\Legacy\Modules\Player\PlayerPopulationService::TARGET_SQUAD_SIZE) { throw new RuntimeException('Destination Club has no safe squad capacity.'); }
+                foreach ((new TransferRepository($database))->byPlayer($playerId) as $existing) { if ($existing->seasonId()->value() === $seasonId->value() && $existing->status()->value === 'completed') { throw new RuntimeException('The Player has already moved in this Season.'); } }
+                $wage = filter_var($input['wage'] ?? $contract->wage(), FILTER_VALIDATE_INT);
+                if ($wage === false || $wage < 0 || $wage > 500000) { throw new RuntimeException('Destination wage must be an integer from 0 to 500000.'); }
+                $endDate = isset($input['end_date']) && trim((string) $input['end_date']) !== '' ? SimulationDate::fromIsoString(trim((string) $input['end_date'])) : $date->addDays(365);
+                $transferId = new TransferId('sandbox-transfer-' . substr(hash('sha256', $playerId . '|' . $targetClubId . '|' . $date->toIsoString()), 0, 24));
+                $transfer = new Transfer($transferId, new PlayerId($playerId), $membership->clubId(), new \Goal\Legacy\Modules\Club\Domain\ClubId($targetClubId), $seasonId, 0, $date);
+                $this->services->transferModule()->service()->execute($database, $transfer, new TransferExecutionTerms(new \Goal\Legacy\Modules\Contract\Domain\ContractId('sandbox-destination-contract-' . substr(hash('sha256', $transferId->value()), 0, 20)), $endDate, $wage, $membership->role()));
+                break;
             case 'time.advance':
                 $days = filter_var($input['days'] ?? null, FILTER_VALIDATE_INT);
                 if ($days === false || $days < 1 || $days > 31) { throw new RuntimeException('Time advancement is limited to 1-31 days.'); }
@@ -300,6 +369,9 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
             throw new RuntimeException('Sandbox mutations require Premium Sandbox, Developer, or System Test permission.');
         }
         $metadata = $this->store()->open($mutation->saveId());
+        if ($mutation->permission() === SimulationPermission::PREMIUM_SANDBOX && $mutation->capability() !== 'sandbox.clone' && !$metadata->isSandbox()) {
+            throw new RuntimeException('Premium gameplay experiments require a SANDBOX SAVE. Clone the Career first.');
+        }
         if ($mutation->permission() === SimulationPermission::PREMIUM_SANDBOX && ($metadata->ownerId() === null || $metadata->ownerId() !== $mutation->actor())) {
             throw new RuntimeException('You may only mutate saves owned by your account.');
         }
@@ -356,7 +428,8 @@ final class GoalSimulationAdapter implements GameSimulationAdapter
     /** @param array<string,mixed> $state @return array<string,mixed> */
     private function compactState(array $state): array
     {
-        return ['save' => $state['save'] ?? [], 'date' => $state['date'] ?? null, 'player_id' => $state['player_id'] ?? null, 'player' => $state['player'] ?? [], 'finance' => ['balance' => $state['finance']['balance'] ?? null], 'career' => ['current_club' => $state['career']['current_club'] ?? null, 'current_role' => $state['career']['current_role'] ?? null, 'career_state' => $state['career']['career_state'] ?? null]];
+        $career = (array) ($state['career'] ?? []);
+        return ['save' => $state['save'] ?? [], 'date' => $state['date'] ?? null, 'player_id' => $state['player_id'] ?? null, 'player' => $state['player'] ?? [], 'finance' => ['balance' => $state['finance']['balance'] ?? null], 'career' => ['current_club' => $career['current_club'] ?? null, 'current_role' => $career['current_role'] ?? null, 'career_state' => $career['career_state'] ?? null, 'current_contract' => $career['current_contract'] ?? null, 'active_loan' => $career['active_loan'] ?? null, 'transfer_request' => $career['transfer_request'] ?? null]];
     }
 
     /** @param array<string,mixed> $before @param array<string,mixed> $after */

@@ -22,7 +22,7 @@ final class P3009SimulationLabTest extends TestCase
     public function testCatalogIsDiscoverableAndStateDiffIsGameNeutral(): void
     {
         $catalog = new GoalScenarioCatalog();
-        self::assertCount(10, $catalog->all());
+        self::assertCount(17, $catalog->all());
         self::assertSame('HIGH_OVR_STRONG_COMPETITION', $catalog->get('high_ovr_strong_competition')->id());
         self::assertSame([
             ['path' => 'player.ovr', 'status' => 'changed', 'before' => 81, 'after' => 82],

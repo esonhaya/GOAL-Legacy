@@ -129,6 +129,307 @@ final class CareerPresentationService
     }
 
     /**
+     * Project the small set of facts that Career Home needs to orient the
+     * player. Decisions remain owned by their domain services; this method
+     * only orders and explains already persisted/read-model facts.
+     *
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed>|null $nextMatch
+     * @return array<string, mixed>
+     */
+    public function careerHome(array $summary, SimulationDate $date, ?array $nextMatch = null): array
+    {
+        $model = $this->homeContext($summary, $nextMatch, $date);
+        $model['recent_story'] = $this->homeRecentStory($summary);
+
+        return $model;
+    }
+
+    /** @param array<string, mixed> $summary @return list<array{date:string,headline:string}> */
+    private function homeRecentStory(array $summary): array
+    {
+        $items = [];
+        foreach ((array) ($summary['career_life_history'] ?? []) as $event) {
+            if (!is_array($event)) { continue; }
+            $context = is_array($event['context'] ?? null) ? $event['context'] : [];
+            if (($context['historyworthy'] ?? true) !== true) { continue; }
+            $consequence = is_array($event['consequence'] ?? null) ? $event['consequence'] : [];
+            $headline = trim((string) ($consequence['history'] ?? $event['title'] ?? ''));
+            if ($headline === '') { continue; }
+            $items[] = ['date' => (string) ($event['date'] ?? ''), 'headline' => 'CAREER — ' . $headline];
+        }
+        foreach ((array) ($summary['movement_history'] ?? []) as $movement) {
+            if (!is_array($movement)) { continue; }
+            $type = (string) ($movement['type'] ?? 'movement');
+            $from = (string) ($movement['from_club'] ?? 'Previous Club');
+            $to = (string) ($movement['to_club'] ?? ($movement['club']['name'] ?? 'Club'));
+            $headline = $type === 'transfer'
+                ? 'TRANSFER — ' . $from . ' to ' . $to
+                : CareerLabels::value($type, 'Club movement') . ' — ' . $to;
+            $items[] = ['date' => (string) ($movement['date'] ?? ''), 'headline' => $headline];
+        }
+        foreach ((array) ($summary['recent_development'] ?? []) as $development) {
+            if (!is_array($development)) { continue; }
+            $items[] = ['date' => (string) ($development['date'] ?? $development['occurred_date'] ?? ''), 'headline' => 'DEVELOPMENT — OVR ' . (string) ($development['before_ovr'] ?? '?') . ' → ' . (string) ($development['after_ovr'] ?? '?')];
+        }
+        foreach ((array) ($summary['role_history'] ?? []) as $role) {
+            if (!is_array($role)) { continue; }
+            $items[] = ['date' => (string) ($role['occurred_date'] ?? ''), 'headline' => 'ROLE — ' . CareerLabels::value($role['role'] ?? null, 'Role changed')];
+        }
+        foreach ((array) ($summary['social_history'] ?? []) as $social) {
+            if (!is_array($social) || trim((string) ($social['headline'] ?? '')) === '') { continue; }
+            $items[] = ['date' => (string) ($social['event_date'] ?? ''), 'headline' => strtoupper((string) ($social['importance'] ?? 'notable')) . ' — ' . (string) $social['headline']];
+        }
+        usort($items, static fn (array $left, array $right): int => strcmp((string) $right['date'] . (string) $right['headline'], (string) $left['date'] . (string) $left['headline']));
+        $unique = [];
+        foreach ($items as $item) {
+            $key = $item['date'] . '|' . $item['headline'];
+            if (isset($unique[$key])) { continue; }
+            $unique[$key] = $item;
+            if (count($unique) >= 5) { break; }
+        }
+
+        return array_values($unique);
+    }
+
+    /**
+     * Pure presentation projection used by the web page and low-cost tests.
+     * It deliberately has no repository access, writes, or hidden state.
+     *
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed>|null $nextMatch
+     * @return array<string, mixed>
+     */
+    public function homeContext(array $summary, ?array $nextMatch = null, ?SimulationDate $date = null): array
+    {
+        $player = is_array($summary['player'] ?? null) ? $summary['player'] : [];
+        $club = is_array($summary['current_club'] ?? null) ? $summary['current_club'] : null;
+        $competition = is_array($summary['current_competition'] ?? null) ? $summary['current_competition'] : null;
+        $contract = is_array($summary['current_contract'] ?? null) ? $summary['current_contract'] : null;
+        $loan = is_array($summary['active_loan'] ?? null) ? $summary['active_loan'] : null;
+        $discipline = is_array($summary['discipline'] ?? null) ? $summary['discipline'] : [];
+        $recovery = is_array($summary['injury_recovery'] ?? null) ? $summary['injury_recovery'] : [];
+        $readiness = is_array($summary['readiness'] ?? null) ? $summary['readiness'] : [];
+        $outlook = is_array($summary['career_outlook'] ?? null) ? $summary['career_outlook'] : [];
+        $season = is_array($summary['season_stats'] ?? null) ? $summary['season_stats'] : [];
+        $form = is_array($summary['recent_form'] ?? null) ? $summary['recent_form'] : [];
+        $manager = is_array($summary['manager_context'] ?? null) ? $summary['manager_context'] : [];
+        $positionCompetition = is_array($summary['position_competition'] ?? null) ? $summary['position_competition'] : [];
+        $state = (string) ($summary['career_state'] ?? 'active');
+        $retired = $state === 'retired';
+        $transfer = is_array($summary['transfer_request'] ?? null) ? $summary['transfer_request'] : [];
+
+        $status = $this->homeAvailability($summary, $discipline, $recovery, $readiness, $retired);
+        $playing = $this->homePlayingStatus($summary, $season, $manager, $positionCompetition, $status);
+        $attention = $this->homeAttention($summary, $outlook, $status, $date);
+        $primary = $this->homePrimaryAction($summary, $attention, $status, $nextMatch);
+        $contractProjection = $this->homeContract($contract, $date);
+        $movement = [
+            'transfer_request' => (string) ($transfer['status'] ?? 'none'),
+            'active_loan' => $loan !== null,
+            'current_club' => $club['name'] ?? null,
+            'parent_club' => $loan['parent_club']['name'] ?? ($summary['parent_club']['name'] ?? null),
+            'loan_club' => $loan['loan_club']['name'] ?? null,
+        ];
+
+        return [
+            'header' => [
+                'name' => $player['preferred_name'] ?? 'Player',
+                'age' => $summary['age'] ?? null,
+                'position' => $player['primary_position'] ?? null,
+                'club' => $club['name'] ?? null,
+                'competition' => $competition['name'] ?? null,
+                'ovr' => $summary['current_ovr'] ?? null,
+                'role' => $summary['current_role'] ?? $summary['squad_role'] ?? null,
+                'career_phase' => $summary['career_phase'] ?? null,
+                'career_state' => $state,
+                'free_agent' => $club === null || $contract === null,
+                'loaned' => $loan !== null,
+            ],
+            'next_up' => [
+                'action' => $primary,
+                'fixture' => $nextMatch,
+            ],
+            'current_status' => $status,
+            'playing_status' => $playing,
+            'season_snapshot' => $season,
+            'form' => $form,
+            'development' => [
+                'ovr' => $summary['current_ovr'] ?? null,
+                'focus' => $summary['training_focus'] ?? null,
+                'recent' => array_slice((array) ($summary['recent_development'] ?? []), 0, 2),
+            ],
+            'outlook' => $outlook,
+            'needs_attention' => $attention,
+            'contract' => $contractProjection,
+            'movement' => $movement,
+            'loan' => $loan,
+            'quick_links' => $this->homeQuickLinks($summary, $retired),
+        ];
+    }
+
+    /** @param array<string, mixed> $summary @param array<string, mixed> $discipline @param array<string, mixed> $recovery @param array<string, mixed> $readiness @return array<string, mixed> */
+    private function homeAvailability(array $summary, array $discipline, array $recovery, array $readiness, bool $retired): array
+    {
+        if ($retired) {
+            return ['code' => 'retired', 'label' => 'Career complete', 'explanation' => 'Your playing Career is complete. Your record remains available to review.'];
+        }
+        if (($discipline['active'] ?? false) === true) {
+            return ['code' => 'suspended', 'label' => 'Suspended', 'explanation' => 'A competition suspension is currently limiting Match eligibility.'];
+        }
+        if (($summary['active_injury'] ?? null) !== null) {
+            return ['code' => 'injured', 'label' => 'Injured', 'explanation' => (string) ($recovery['message'] ?? 'Recovery is required before returning to Match play.')];
+        }
+        $availability = (string) ($summary['availability'] ?? 'available');
+        if ($availability === 'limited' || in_array((string) ($readiness['label'] ?? ''), ['tired', 'fatigued'], true)) {
+            return ['code' => 'limited', 'label' => 'Limited', 'explanation' => (string) ($readiness['description'] ?? 'Readiness is being managed between Matches.')];
+        }
+
+        return ['code' => 'available', 'label' => 'Available', 'explanation' => 'Available for the next football block.'];
+    }
+
+    /** @param array<string, mixed> $summary @param array<string, mixed> $season @param array<string, mixed> $manager @param array<string, mixed> $competition @param array<string, mixed> $status @return array<string, mixed> */
+    private function homePlayingStatus(array $summary, array $season, array $manager, array $competition, array $status): array
+    {
+        $role = (string) ($summary['current_role'] ?? $summary['squad_role'] ?? '');
+        $minutes = (int) ($season['minutes'] ?? 0);
+        $appearances = (int) ($season['appearances'] ?? 0);
+        $starts = (int) ($season['starts'] ?? 0);
+        if (in_array($status['code'] ?? '', ['injured', 'suspended', 'limited'], true)) {
+            $explanation = (string) ($status['explanation'] ?? 'Availability is affecting Match involvement.');
+        } elseif (in_array((string) ($manager['playing_time_status'] ?? ''), ['below_expectation', 'severely_below_expectation'], true)) {
+            $explanation = 'Competition for places is limiting your minutes.';
+        } elseif ((int) ($competition['higher_ovr_count'] ?? 0) >= 2 && $minutes === 0) {
+            $explanation = 'Strong competition in your positions is limiting your minutes.';
+        } elseif ($appearances === 0 && in_array($role, ['prospect', 'rotation'], true)) {
+            $explanation = 'You are building evidence for a larger role.';
+        } else {
+            $explanation = (string) ($manager['feedback'] ?? 'Your role is being assessed through availability, form and Match evidence.');
+        }
+
+        return [
+            'role' => $role,
+            'label' => $role === '' ? 'Squad role not set' : $role,
+            'appearances' => $appearances,
+            'starts' => $starts,
+            'minutes' => $minutes,
+            'explanation' => $explanation,
+        ];
+    }
+
+    /** @param array<string, mixed> $summary @param array<string, mixed> $outlook @param array<string, mixed> $status @return list<array<string, mixed>> */
+    private function homeAttention(array $summary, array $outlook, array $status, ?SimulationDate $date): array
+    {
+        $items = [];
+        foreach ((array) ($summary['pending_decisions'] ?? []) as $decision) {
+            if (!is_array($decision)) { continue; }
+            $type = (string) ($decision['type'] ?? 'career');
+            $items[] = [
+                'type' => $type,
+                'label' => match ($type) {
+                    'retirement' => 'Retirement decision',
+                    'contract_renewal' => 'Contract decision',
+                    'transfer_interest' => 'Transfer opportunity',
+                    'loan' => 'Loan decision',
+                    default => 'Career decision',
+                },
+                'why' => match ($type) {
+                    'retirement' => 'Your Season boundary requires a choice about continuing your playing Career.',
+                    'contract_renewal' => 'A Contract choice is waiting before the next Career step.',
+                    'transfer_interest' => 'A Club opportunity is waiting for your decision.',
+                    'loan' => 'A loan decision is waiting for your response.',
+                    default => 'A Career decision is waiting for your response.',
+                },
+                'destination' => 'decision',
+                'priority' => 'REQUIRED_DECISION',
+            ];
+        }
+        if (($summary['pending_career_event'] ?? null) !== null) {
+            $items[] = ['type' => 'career_event', 'label' => 'Career event', 'why' => 'A Career moment is waiting for your response.', 'destination' => 'event', 'priority' => 'REQUIRED_DECISION'];
+        }
+        if (($status['code'] ?? '') === 'injured') {
+            $items[] = ['type' => 'injury', 'label' => 'Recovery', 'why' => 'Your injury currently blocks normal Match involvement.', 'destination' => 'training', 'priority' => 'RECOVERY'];
+        } elseif (($status['code'] ?? '') === 'suspended') {
+            $items[] = ['type' => 'suspension', 'label' => 'Suspension', 'why' => 'Your current suspension limits applicable Match selection.', 'destination' => null, 'priority' => 'RECOVERY'];
+        }
+        if (($outlook['category'] ?? null) === 'contract_uncertainty' && ($outlook['contract_outlook'] ?? null) === 'approaching_decision') {
+            $items[] = ['type' => 'contract_review', 'label' => 'Contract review', 'why' => 'Your current Contract is approaching a decision point.', 'destination' => 'market', 'priority' => 'CAREER_OPPORTUNITY'];
+        }
+        if (($summary['transfer_request']['status'] ?? 'none') === 'requested') {
+            $items[] = ['type' => 'transfer_request', 'label' => 'Transfer request active', 'why' => 'Your transfer request remains active while the Career moves forward.', 'destination' => null, 'priority' => 'CAREER_OPPORTUNITY'];
+        }
+
+        return $items;
+    }
+
+    /** @param array<string, mixed> $summary @param list<array<string, mixed>> $attention @param array<string, mixed> $status @param array<string, mixed>|null $next @return array<string, mixed> */
+    private function homePrimaryAction(array $summary, array $attention, array $status, ?array $next): array
+    {
+        if (($summary['career_state'] ?? 'active') === 'retired') {
+            return ['kind' => 'legacy', 'priority' => 'INFORMATIONAL', 'label' => 'Open Career Legacy', 'why' => 'Review the completed playing Career.'];
+        }
+        foreach ($attention as $item) {
+            if (($item['priority'] ?? '') === 'REQUIRED_DECISION') {
+                return ['kind' => (string) ($item['destination'] ?? 'decision'), 'priority' => 'REQUIRED_DECISION', 'label' => 'Resolve ' . strtolower((string) ($item['label'] ?? 'Career decision')), 'why' => (string) ($item['why'] ?? '')];
+            }
+        }
+        if (($status['code'] ?? '') === 'injured') {
+            return ['kind' => 'continue', 'priority' => 'RECOVERY', 'label' => 'Continue recovery', 'why' => (string) ($status['explanation'] ?? '')];
+        }
+        if (($status['code'] ?? '') === 'suspended') {
+            return ['kind' => 'continue', 'priority' => 'RECOVERY', 'label' => 'Continue Career', 'why' => (string) ($status['explanation'] ?? '')];
+        }
+        if (($summary['current_club'] ?? null) === null || ($summary['current_contract'] ?? null) === null) {
+            return ['kind' => 'market', 'priority' => 'CAREER_OPPORTUNITY', 'label' => 'Review the transfer market', 'why' => 'You are a free agent; a new Club is the next Career step.'];
+        }
+        if ($next !== null) {
+            return ['kind' => 'continue', 'priority' => 'MATCHDAY', 'label' => 'Continue to next fixture', 'why' => 'The next scheduled fixture is ready to progress.'];
+        }
+
+        return ['kind' => 'continue', 'priority' => 'INFORMATIONAL', 'label' => 'Continue Career', 'why' => 'Advance the Career to the next available football event.'];
+    }
+
+    /** @param array<string, mixed>|null $contract @return array<string, mixed>|null */
+    private function homeContract(?array $contract, ?SimulationDate $date): ?array
+    {
+        if ($contract === null) { return null; }
+        $remainingDays = null;
+        if ($date !== null && is_string($contract['end_date'] ?? null)) {
+            $remainingDays = $date->daysUntil(SimulationDate::fromIsoString((string) $contract['end_date']));
+        }
+
+        return ['status' => $contract['status'] ?? null, 'club' => $contract['club']['name'] ?? null, 'end_date' => $contract['end_date'] ?? null, 'remaining_days' => $remainingDays, 'wage' => $contract['wage'] ?? null];
+    }
+
+    /** @param array<string, mixed> $summary @return list<array<string, mixed>> */
+    private function homeQuickLinks(array $summary, bool $retired): array
+    {
+        $player = is_array($summary['player'] ?? null) ? $summary['player'] : [];
+        $links = [
+            ['page' => 'profile', 'label' => 'Player Profile', 'player' => $player['id'] ?? null],
+            ['page' => 'career', 'label' => 'Career History'],
+            ['page' => 'trophies', 'label' => 'Trophy Room'],
+        ];
+        if ($retired) {
+            $links[] = ['page' => 'legacy', 'label' => 'Career Legacy'];
+        }
+        if (!$retired) {
+            $links[] = ['page' => 'training', 'label' => 'Training'];
+            $links[] = ['page' => 'market', 'label' => 'Contract & Movement'];
+        }
+        foreach ((array) ($summary['season_history'] ?? []) as $season) {
+            if (is_array($season) && ($season['season_status'] ?? null) === 'completed') {
+                $links[] = ['page' => 'season-review', 'label' => 'Season Review'];
+                break;
+            }
+        }
+        $links[] = ['page' => 'finances', 'label' => 'Finances'];
+        $links[] = ['page' => 'pulse', 'label' => 'Pulse'];
+
+        return $links;
+    }
+
+    /**
      * Compose the read-only Trophy Room projection from the existing
      * presentation summary. The projection owns no achievement facts.
      * @param array<string, mixed> $summary

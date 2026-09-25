@@ -104,6 +104,23 @@ The controlled profile uses the active Contract/current-career read model for
 Club identity, so a former Club cannot leak into a free-agent presentation.
 These are presentation fixes over canonical state, not a new UI state store.
 
+## P3-011 Career Home information hierarchy
+
+Career Home now leads with the controlled Player's identity, `NEXT UP`,
+`CURRENT STATUS`, `NEEDS ATTENTION`, and `RECENT STORY` before the deeper
+Season, Club, readiness, and Career context panels. `CareerPresentationService`
+owns the bounded read projection and a deterministic presentation priority;
+`WebApplication` renders it and keeps existing forms/routes as the action
+boundary. A primary action is shown once, while quick links remain secondary.
+
+The projection distinguishes available, limited, injured, suspended, free
+agent, loaned, and retired states using existing canonical facts. It never
+predicts selection, invents deadlines or manager sentiment, persists an action
+queue, or exposes Developer/Sandbox controls in normal Career Home. At narrow
+widths attention rows stack and the primary action remains a tappable button.
+Scenario-backed presentation tests cover representative limited, injury, and
+Contract states; the read path is checked with SQLite `total_changes()`.
+
 ## P2-024 On-Pitch Role Presentation
 
 The controlled Profile presents Position, Squad Role, On-Pitch Role, and

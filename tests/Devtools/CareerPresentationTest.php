@@ -4,11 +4,117 @@ declare(strict_types=1);
 
 namespace Goal\Legacy\Tests\Devtools;
 
+use Goal\Legacy\Core\Bootstrap\Bootstrap;
 use Goal\Legacy\Devtools\Presentation\CareerFormatter;
+use Goal\Legacy\Devtools\Presentation\CareerPresentationService;
+use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use PHPUnit\Framework\TestCase;
 
 final class CareerPresentationTest extends TestCase
 {
+    public function testCareerHomeUsesOneDeterministicPriorityAndExplainsLimitedPlay(): void
+    {
+        $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);
+        $presentation = new CareerPresentationService($services);
+        $model = $presentation->homeContext([
+            'player' => ['id' => 'player-1', 'preferred_name' => 'Alex Rivera', 'primary_position' => 'CM'],
+            'career_state' => 'active', 'current_role' => 'rotation', 'current_ovr' => 82,
+            'current_club' => ['name' => 'Arsenal'], 'current_competition' => ['name' => 'Premier League'],
+            'availability' => 'available', 'discipline' => [],
+            'season_stats' => ['appearances' => 0, 'starts' => 0, 'minutes' => 0],
+            'position_competition' => ['higher_ovr_count' => 2],
+            'pending_decisions' => [['type' => 'contract_renewal']],
+            'transfer_request' => ['status' => 'none'],
+            'current_contract' => ['status' => 'active', 'club' => ['name' => 'Arsenal'], 'end_date' => '2025-12-31', 'wage' => 1200],
+        ], ['match_id' => 'fixture-1', 'home_club' => 'Arsenal', 'away_club' => 'Chelsea'], SimulationDate::fromIsoString('2025-01-01'));
+
+        self::assertSame('REQUIRED_DECISION', $model['next_up']['action']['priority']);
+        self::assertSame('decision', $model['next_up']['action']['kind']);
+        self::assertSame('Contract decision', $model['needs_attention'][0]['label']);
+        self::assertStringContainsString('competition', strtolower($model['playing_status']['explanation']));
+        self::assertSame(364, $model['contract']['remaining_days']);
+    }
+
+    public function testCareerHomeKeepsAvailabilityStatesAndMovementContextDistinct(): void
+    {
+        $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);
+        $presentation = new CareerPresentationService($services);
+        $base = [
+            'player' => ['id' => 'player-1', 'preferred_name' => 'Alex Rivera', 'primary_position' => 'CM'],
+            'career_state' => 'active', 'current_role' => 'regular', 'season_stats' => [],
+            'current_club' => ['name' => 'Loan Club'], 'parent_club' => ['name' => 'Parent Club'],
+            'current_contract' => ['status' => 'active', 'club' => ['name' => 'Parent Club'], 'end_date' => '2026-06-30', 'wage' => 1600],
+            'active_loan' => ['loan_club' => ['name' => 'Loan Club'], 'parent_club' => ['name' => 'Parent Club']],
+            'transfer_request' => ['status' => 'none'], 'pending_decisions' => [],
+        ];
+        $injured = $base + ['availability' => 'unavailable', 'active_injury' => ['recovery_date' => '2025-02-01'], 'injury_recovery' => ['message' => 'Rehabilitation continues.']];
+        $suspended = $base + ['availability' => 'available', 'active_injury' => null, 'discipline' => ['active' => true]];
+        $loan = $presentation->homeContext($base);
+        $injury = $presentation->homeContext($injured);
+        $ban = $presentation->homeContext($suspended);
+
+        self::assertTrue($loan['movement']['active_loan']);
+        self::assertSame('Loan Club', $loan['movement']['current_club']);
+        self::assertSame('Parent Club', $loan['movement']['parent_club']);
+        self::assertSame('injured', $injury['current_status']['code']);
+        self::assertSame('suspended', $ban['current_status']['code']);
+        self::assertNotSame($injury['current_status']['label'], $ban['current_status']['label']);
+    }
+
+    public function testCareerHomeRetiredStateRemovesActiveCareerPriority(): void
+    {
+        $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);
+        $model = (new CareerPresentationService($services))->homeContext([
+            'player' => ['id' => 'player-1', 'preferred_name' => 'Alex Rivera'],
+            'career_state' => 'retired', 'career_phase' => 'retired', 'current_club' => null,
+            'current_contract' => null, 'pending_decisions' => [], 'season_stats' => [],
+        ], ['match_id' => 'fixture-1']);
+
+        self::assertSame('legacy', $model['next_up']['action']['kind']);
+        self::assertSame('retired', $model['current_status']['code']);
+        self::assertTrue($model['header']['free_agent']);
+        self::assertFalse(array_search('training', array_column($model['quick_links'], 'page'), true) !== false);
+    }
+
+    public function testCareerHomeFreeAgentSurfacesTheNextCareerStep(): void
+    {
+        $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);
+        $model = (new CareerPresentationService($services))->homeContext([
+            'player' => ['id' => 'player-1', 'preferred_name' => 'Alex Rivera'],
+            'career_state' => 'active', 'current_club' => null, 'current_contract' => null,
+            'pending_decisions' => [], 'season_stats' => [], 'availability' => 'available',
+        ]);
+
+        self::assertSame('market', $model['next_up']['action']['kind']);
+        self::assertTrue($model['header']['free_agent']);
+        self::assertStringContainsString('free agent', strtolower($model['next_up']['action']['why']));
+    }
+
+    public function testCareerHomeStateMatrixKeepsActiveLimitedAndTransferContextReadable(): void
+    {
+        $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);
+        $presentation = new CareerPresentationService($services);
+        $base = [
+            'player' => ['id' => 'player-1', 'preferred_name' => 'Alex Rivera'],
+            'career_state' => 'active', 'current_club' => ['name' => 'Arsenal'],
+            'current_contract' => ['status' => 'active', 'club' => ['name' => 'Arsenal'], 'end_date' => '2026-06-30'],
+            'current_role' => 'regular', 'season_stats' => ['appearances' => 3, 'starts' => 2, 'minutes' => 190],
+            'pending_decisions' => [], 'availability' => 'available', 'transfer_request' => ['status' => 'none'],
+        ];
+        $active = $presentation->homeContext($base, ['match_id' => 'fixture']);
+        $limited = $presentation->homeContext(array_merge($base, ['availability' => 'limited', 'readiness' => ['label' => 'fatigued', 'description' => 'Managed recovery.']]), ['match_id' => 'fixture']);
+        $requested = $presentation->homeContext(array_merge($base, ['transfer_request' => ['status' => 'requested']]), ['match_id' => 'fixture']);
+        $retirement = $presentation->homeContext(array_merge($base, ['pending_decisions' => [['type' => 'retirement']]]), ['match_id' => 'fixture']);
+
+        self::assertSame('available', $active['current_status']['code']);
+        self::assertSame('MATCHDAY', $active['next_up']['action']['priority']);
+        self::assertSame('limited', $limited['current_status']['code']);
+        self::assertSame('requested', $requested['movement']['transfer_request']);
+        self::assertSame('transfer_request', $requested['needs_attention'][0]['type']);
+        self::assertSame('decision', $retirement['next_up']['action']['kind']);
+        self::assertSame('REQUIRED_DECISION', $retirement['next_up']['action']['priority']);
+    }
+
     public function testCareerHomeMakesZeroEvidenceReadable(): void
     {
         $text = implode("\n", (new CareerFormatter())->home([

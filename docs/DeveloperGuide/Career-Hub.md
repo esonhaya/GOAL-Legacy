@@ -75,6 +75,26 @@ Availability is a first-class Career Home situation line. An active injury
 shows its recovery date; limited availability is shown without inventing a
 medical forecast. The read remains side-effect free.
 
+## P3-011 Career Home consolidation
+
+`CareerPresentationService::careerHome()` projects the player-facing Home
+context from the existing snapshot. It provides the header, deterministic
+`NEXT UP` priority, availability and playing-status explanation, bounded
+`NEEDS ATTENTION` items, contract/loan context, quick links, and at most five
+recent story items. The web controller owns only HTML composition; it does not
+create a second decision queue.
+
+Priority is presentation-only: required decisions first, then recovery,
+then the next scheduled fixture, with informational continuation as the
+fallback. Contract, movement, training, retirement, and Season Review links
+still resolve through their existing owners and stale-action validation.
+Retired Careers receive a read-only Career Complete Home with Legacy, Trophy
+Room, and Season Review navigation; free agents receive a transfer-market next
+step; loaned Players show the playing Club separately from the parent Contract.
+Recent story is bounded and sourced from the existing Career/news projection.
+Home, History, Season Review, Trophy Room, and Profile remain observational;
+the projection performs no gameplay DML, World scan, or full-history rebuild.
+
 Season-end presentation projects existing competition facts into a compact
 summary: per-competition controlled Player evidence, domestic Cup/European
 outcome, and current-season international totals. It does not snapshot

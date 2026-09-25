@@ -148,6 +148,11 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('READINESS', $home['body']);
             self::assertStringContainsString('Workload', $home['body']);
             self::assertStringContainsString('Trophy Room', $home['body']);
+            self::assertStringContainsString('NEXT UP', $home['body']);
+            self::assertStringContainsString('CURRENT STATUS', $home['body']);
+            self::assertStringContainsString('NEEDS ATTENTION', $home['body']);
+            self::assertStringContainsString('RECENT STORY', $home['body']);
+            self::assertStringContainsString('Player Profile', $home['body']);
             self::assertStringNotContainsString('No active Club manager', $home['body']);
             $training = $this->application->handle('GET', '/', ['page' => 'training', 'save' => $save], [], $session);
             self::assertSame(200, $training['status']);

@@ -925,6 +925,7 @@ final class WebApplication
             : $presentation->competitionLeaderboards($database, $currentCompetitionId, new SeasonId($currentSeasonId), (string) $player['id']);
         $finance = $this->services->playerFinanceService()->summary($database, (string) ($player['id'] ?? ''), $snapshot['date']);
         $next = $presentation->nextMatch($database, $summary);
+        $homeContext = $presentation->careerHome($summary, $snapshot['date'], $next);
         $clubContext = $presentation->clubContext($database, $summary);
         $clubSeason = is_array($summary['club_season'] ?? null) ? $summary['club_season'] : null;
         $careerContext = is_array($summary['career_context'] ?? null) ? $summary['career_context'] : [];
@@ -1036,9 +1037,25 @@ final class WebApplication
             $careerDirectionPanel = WebView::section('CAREER DIRECTION', 'Context for the next chapter', $careerDirectionBody);
         }
         $seasonReviewLink = $this->latestCompletedSeasonId($summary) === null ? '' : WebView::link('season-review', ['save' => $saveId], 'Season Review');
-        $actions = '<div class="action-grid">' . $this->primaryCareerAction($saveId, $summary, $session, $next) . WebView::link('career', ['save' => $saveId], 'Career') . $seasonReviewLink . WebView::link('trophies', ['save' => $saveId], 'Trophy Room') . WebView::link('squad', ['save' => $saveId], 'Squad') . WebView::link('world', ['save' => $saveId], 'World') . WebView::link('news', ['save' => $saveId], 'News') . WebView::link('pulse', ['save' => $saveId], 'Pulse') . WebView::link('relationships', ['save' => $saveId], 'Relationships') . WebView::link('training', ['save' => $saveId], 'Training') . WebView::link('finances', ['save' => $saveId], 'Finances') . WebView::link('lifestyle', ['save' => $saveId], 'Lifestyle') . '</div>';
+        $primaryAction = $this->primaryCareerAction($saveId, $summary, $session, $next, $homeContext);
+        $actions = '<div class="action-grid">' . $this->careerHomeQuickLinks($saveId, $homeContext) . '</div>';
         $actions .= $this->contextActions($saveId, $summary) . WebView::form('save_exit', 'Save & Exit', ['save' => $saveId], 'button button-secondary', 'data-busy');
-        $body = $profile . '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $seasonBody) . $loanPanel . $racePanel . $careerMemoryPanel . $captaincyPanel . $setPiecePanel . $recoveryPanel . $disciplinePanel . WebView::section('CLUB SEASON', 'What the Club is trying to achieve', $clubSeasonBody) . WebView::section('READINESS', 'Between Matches', $readinessPanel) . WebView::section('MANAGER / SQUAD STATUS', 'Your place in the team', $managerPanel) . WebView::section('NEXT MATCH', 'What is coming next', $nextBody) . WebView::section('CLUB', $club['name'] ?? 'Free Agent', $clubBody) . WebView::section('INTERNATIONAL DUTY', 'National-team context', $internationalBody) . WebView::section('PUBLIC CONTEXT', 'Football reputation', $socialBody) . WebView::section('PULSE', 'Trending on Pulse', $pulseBody) . '</div><aside class="dashboard-side">' . WebView::section('CAREER SITUATION', 'Your direction', $situation) . $careerDirectionPanel . WebView::section('ACTIONS', 'Play', $actions) . '</aside></div>';
+        $now = is_array($homeContext['current_status'] ?? null) ? $homeContext['current_status'] : [];
+        $playing = is_array($homeContext['playing_status'] ?? null) ? $homeContext['playing_status'] : [];
+        $nowBody = '<div class="stat-grid compact">' . WebView::stat('Availability', $now['label'] ?? 'Available') . WebView::stat('Squad role', CareerLabels::value($playing['role'] ?? null, 'Not set')) . WebView::stat('Appearances', $playing['appearances'] ?? 0) . WebView::stat('Minutes', $playing['minutes'] ?? 0) . '</div><p>' . WebView::e($now['explanation'] ?? '') . '</p><p class="muted">' . WebView::e($playing['explanation'] ?? '') . '</p>';
+        $attention = $this->careerHomeAttention($saveId, (array) ($homeContext['needs_attention'] ?? []));
+        $story = $this->careerHomeStory($saveId, (array) ($homeContext['recent_story'] ?? []));
+        $nextUp = '<div class="next-up-action">' . $primaryAction . '<p class="muted">' . WebView::e($homeContext['next_up']['action']['why'] ?? '') . '</p></div>' . $nextBody;
+        $retired = ($homeContext['header']['career_state'] ?? 'active') === 'retired';
+        $mainPanels = $retired
+            ? WebView::section('CAREER COMPLETE', 'Your playing Career is closed', '<p>The final playing record is preserved. Explore the Career Legacy, Trophy Room, and Season Reviews below.</p><div class="form-actions">' . WebView::link('legacy', ['save' => $saveId], 'Open Career Legacy', 'button button-primary') . WebView::link('trophies', ['save' => $saveId], 'Trophy Room') . $seasonReviewLink . '</div>')
+                . WebView::section('FINAL SEASON', $snapshot['summary']['current_season_label'] ?? 'Final Season', $seasonBody)
+                . WebView::section('CLUB', $club['name'] ?? 'Final Club', $clubBody)
+                . WebView::section('INTERNATIONAL DUTY', 'National-team record', $internationalBody)
+                . WebView::section('PULSE', 'Recent football reaction', $pulseBody)
+            : WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $seasonBody) . $loanPanel . $racePanel . $careerMemoryPanel . $captaincyPanel . $setPiecePanel . $recoveryPanel . $disciplinePanel . WebView::section('CLUB SEASON', 'What the Club is trying to achieve', $clubSeasonBody) . WebView::section('READINESS', 'Between Matches', $readinessPanel) . WebView::section('MANAGER / SQUAD STATUS', 'Your place in the team', $managerPanel) . WebView::section('CLUB', $club['name'] ?? 'Free Agent', $clubBody) . WebView::section('INTERNATIONAL DUTY', 'National-team context', $internationalBody) . WebView::section('PUBLIC CONTEXT', 'Football reputation', $socialBody) . WebView::section('PULSE', 'Trending on Pulse', $pulseBody);
+        $sidePanels = WebView::section('CAREER SITUATION', 'Your direction', $situation) . $careerDirectionPanel . WebView::section('ACTIONS', 'Explore your Career', $actions);
+        $body = $profile . WebView::section('NEXT UP', 'Your most important next step', $nextUp, 'career-home-next') . WebView::section('CURRENT STATUS', 'What is happening now', $nowBody) . $attention . $story . '<div class="dashboard-grid"><div class="dashboard-main">' . $mainPanels . '</div><aside class="dashboard-side">' . $sidePanels . '</aside></div>';
 
         return $this->html('Career Home', $body, $saveId, 'home', 200, $session);
     }
@@ -2155,8 +2172,25 @@ final class WebApplication
     }
 
     /** @param array<string, mixed> $summary @param array<string, mixed> $session @param array<string, mixed>|null $next */
-    private function primaryCareerAction(string $saveId, array $summary, array &$session, ?array $next): string
+    private function primaryCareerAction(string $saveId, array $summary, array &$session, ?array $next, ?array $homeContext = null): string
     {
+        $planned = is_array($homeContext['next_up']['action'] ?? null) ? $homeContext['next_up']['action'] : null;
+        if ($planned !== null) {
+            $kind = (string) ($planned['kind'] ?? 'continue');
+            if ($kind === 'legacy') {
+                return WebView::link('legacy', ['save' => $saveId], (string) ($planned['label'] ?? 'Open Career Legacy'), 'button button-primary button-large');
+            }
+            if (in_array($kind, ['decision', 'event'], true)) {
+                return WebView::link($kind, ['save' => $saveId], (string) ($planned['label'] ?? 'Resolve Career decision'), 'button button-primary button-large');
+            }
+            if ($kind === 'training') {
+                return WebView::link('training', ['save' => $saveId], (string) ($planned['label'] ?? 'Open Training'), 'button button-primary button-large');
+            }
+            if ($kind === 'market') {
+                return WebView::link('market', ['save' => $saveId], (string) ($planned['label'] ?? 'Review the transfer market'), 'button button-primary button-large');
+            }
+            return WebView::form('continue', (string) ($planned['label'] ?? 'Continue Career'), ['save' => $saveId, 'token' => $this->issueToken($session, 'continue_' . $saveId)], 'button button-primary button-large', 'data-busy');
+        }
         if (($summary['career_state'] ?? 'active') === 'retired') {
             return WebView::link('legacy', ['save' => $saveId], 'Career Complete — Open Legacy', 'button button-primary button-large');
         }
@@ -2169,6 +2203,62 @@ final class WebApplication
         $label = $next === null ? 'Continue Career' : 'Continue to next fixture';
 
         return WebView::form('continue', $label, ['save' => $saveId, 'token' => $this->issueToken($session, 'continue_' . $saveId)], 'button button-primary button-large', 'data-busy');
+    }
+
+    /** @param array<string, mixed> $homeContext */
+    private function careerHomeQuickLinks(string $saveId, array $homeContext): string
+    {
+        $links = '';
+        $playerId = (string) (($homeContext['header']['player_id'] ?? '') ?: '');
+        foreach ((array) ($homeContext['quick_links'] ?? []) as $link) {
+            if (!is_array($link)) { continue; }
+            $page = (string) ($link['page'] ?? '');
+            if ($page === '') { continue; }
+            $parameters = ['save' => $saveId];
+            if ($page === 'profile') {
+                $playerId = (string) ($link['player'] ?? $playerId);
+                if ($playerId === '') { continue; }
+                $parameters['player'] = $playerId;
+            }
+            $links .= WebView::link($page, $parameters, (string) ($link['label'] ?? 'Open'));
+        }
+
+        return $links;
+    }
+
+    /** @param list<array<string, mixed>> $items */
+    private function careerHomeAttention(string $saveId, array $items): string
+    {
+        if ($items === []) {
+            return WebView::section('NEEDS ATTENTION', 'Nothing urgent', WebView::emptyState('No unresolved Career decision needs your attention right now.'));
+        }
+        $rows = '';
+        foreach (array_slice($items, 0, 4) as $item) {
+            if (!is_array($item)) { continue; }
+            $action = '';
+            $destination = $item['destination'] ?? null;
+            if (is_string($destination) && in_array($destination, ['decision', 'event', 'training', 'market'], true)) {
+                $action = WebView::link($destination, ['save' => $saveId], 'Open');
+            }
+            $rows .= '<article class="attention-item"><div><strong>' . WebView::e($item['label'] ?? 'Career update') . '</strong><p>' . WebView::e($item['why'] ?? '') . '</p></div>' . $action . '</article>';
+        }
+
+        return WebView::section('NEEDS ATTENTION', 'Decisions and important status', '<div class="attention-list">' . $rows . '</div>', 'career-home-attention');
+    }
+
+    /** @param list<array<string, mixed>> $items */
+    private function careerHomeStory(string $saveId, array $items): string
+    {
+        if ($items === []) {
+            return WebView::section('RECENT STORY', 'What changed recently', WebView::emptyState('No recent Career events are recorded yet.'));
+        }
+        $rows = '';
+        foreach (array_slice($items, 0, 5) as $item) {
+            if (!is_array($item)) { continue; }
+            $rows .= '<li><time>' . WebView::e($item['date'] ?? 'Recorded') . '</time><span>' . WebView::e($item['headline'] ?? 'Career event') . '</span></li>';
+        }
+
+        return WebView::section('RECENT STORY', 'What changed recently', '<ul class="timeline career-home-story">' . $rows . '</ul>' . WebView::link('career', ['save' => $saveId], 'Open Career History', 'button button-secondary'), 'career-home-story-panel');
     }
 
     private function latestControlledMatch(DatabaseInterface $database, array $summary, SimulationDate $date): ?GameMatch

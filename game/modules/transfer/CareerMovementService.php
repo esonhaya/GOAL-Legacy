@@ -566,7 +566,7 @@ final class CareerMovementService
             throw new TransferException('Controlled transfer option is stale or unknown.');
         }
         if (($selected['kind'] ?? null) === 'stay') {
-            $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'stayed') + ['selected_option' => $optionId]);
+            $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'stayed') + ['selected_option' => $optionId, 'resolved_date' => $date->toIsoString()]);
             $this->saveStatus($database, $resolved);
             $this->clearRequestForOpportunity($database, $resolved);
             $this->events->dispatch(new GenericEvent('career.controlled_transfer_declined', $resolved->toArray()));
@@ -585,7 +585,7 @@ final class CareerMovementService
                 throw new TransferException('Controlled transfer record does not match the current decision.');
             }
             if ($stored->status() === TransferStatus::Completed) {
-                $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'completed') + ['selected_option' => $optionId, 'completed_transfer_id' => $stored->id()->value()]);
+                $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'completed') + ['selected_option' => $optionId, 'completed_transfer_id' => $stored->id()->value(), 'resolved_date' => $date->toIsoString()]);
                 $this->saveStatus($database, $resolved);
 
                 return $resolved;
@@ -627,7 +627,7 @@ final class CareerMovementService
             ? $transfers->get($transferId)
             : new Transfer($transferId, $player->id(), $sourceClubId, $destinationClubId, $seasonId, (int) ($selected['fee'] ?? 0), $date, TransferStatus::Agreed);
         if ($transfer->status() === TransferStatus::Completed) {
-            $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'completed') + ['selected_option' => $optionId, 'completed_transfer_id' => $transfer->id()->value()]);
+            $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'completed') + ['selected_option' => $optionId, 'completed_transfer_id' => $transfer->id()->value(), 'resolved_date' => $date->toIsoString()]);
             $this->saveStatus($database, $resolved);
 
             return $resolved;
@@ -640,7 +640,7 @@ final class CareerMovementService
         }
         $role = SquadRole::fromInput((string) ($selected['role'] ?? SquadRole::Prospect->value));
         $completed = $this->transferService->execute($database, $transfer, new TransferExecutionTerms(new ContractId((string) $selected['destination_contract_id']), SimulationDate::fromIsoString((string) $selected['contract_end_date']), (int) $selected['wage'], $role));
-        $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'completed') + ['selected_option' => $optionId, 'completed_transfer_id' => $completed->id()->value()]);
+        $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'completed') + ['selected_option' => $optionId, 'completed_transfer_id' => $completed->id()->value(), 'resolved_date' => $date->toIsoString()]);
         $this->saveStatus($database, $resolved);
         $this->clearRequestForOpportunity($database, $resolved);
         $this->events->dispatch(new GenericEvent('career.controlled_transfer_completed', $resolved->toArray()));
@@ -766,7 +766,7 @@ final class CareerMovementService
         foreach ((array) ($context['options'] ?? []) as $option) { if (is_array($option) && ($option['id'] ?? null) === $optionId) { $selected = $option; break; } }
         if (!is_array($selected)) { throw new TransferException('Controlled loan option is stale or unknown.'); }
         if (($selected['kind'] ?? null) === 'decline_loan') {
-            $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'declined') + ['selected_option' => $optionId]);
+            $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'declined') + ['selected_option' => $optionId, 'resolved_date' => $date->toIsoString()]);
             $this->saveStatus($database, $resolved);
             $this->events->dispatch(new GenericEvent('career.loan_declined', $resolved->toArray()));
             return $resolved;
@@ -776,7 +776,7 @@ final class CareerMovementService
         $loans = new LoanRepository($database, false);
         $existing = $loanId === '' ? null : $loans->get($loanId);
         if ($existing?->status() === LoanStatus::Active) {
-            $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'accepted') + ['selected_option' => $optionId, 'loan_id' => $existing->id()]);
+            $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'accepted') + ['selected_option' => $optionId, 'loan_id' => $existing->id(), 'resolved_date' => $date->toIsoString()]);
             $this->saveStatus($database, $resolved);
             return $resolved;
         }
@@ -793,7 +793,7 @@ final class CareerMovementService
         if (!$this->clubService->repository($database)->exists($destination) || $destination->value() === $sourceClub->value() || $end->isAfter($contract->endDate()) || $end->isBefore($date) || (new LoanRepository($database, false))->activeForPlayer($player->id()) !== null) { throw new TransferException('Controlled loan destination or parent Contract is stale.'); }
         $loan = new Loan($loanId, $player->id(), $sourceClub, $destination, $seasonId, $date, $end, $membership->role(), SquadRole::fromInput((string) ($selected['role'] ?? SquadRole::Rotation->value)));
         $this->transferService->startLoan($database, $loan);
-        $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'accepted') + ['selected_option' => $optionId, 'loan_id' => $loan->id(), 'active_club_id' => $loan->loanClubId()->value()]);
+        $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'accepted') + ['selected_option' => $optionId, 'loan_id' => $loan->id(), 'active_club_id' => $loan->loanClubId()->value(), 'resolved_date' => $date->toIsoString()]);
         $this->saveStatus($database, $resolved);
         $this->events->dispatch(new GenericEvent('career.loan_accepted', $resolved->toArray()));
 
@@ -1051,6 +1051,7 @@ final class CareerMovementService
         }
         $resolvedContext = $this->withOfferStatus($context, 'resolved');
         $resolvedContext['selected_option'] = $optionId;
+        $resolvedContext['resolved_date'] = $date->toIsoString();
         $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $resolvedContext);
         $this->saveStatus($database, $resolved);
         $this->events->dispatch(new GenericEvent('career.contract_decision_resolved', $resolved->toArray()));
@@ -1146,7 +1147,7 @@ final class CareerMovementService
             $this->setStatus($database, $offer, CareerOpportunityStatus::Expired, 'expired');
             throw new TransferException('Transfer offer has expired.');
         }
-        $declined = $offer->withStatusAndContext(CareerOpportunityStatus::Declined, $this->withOfferStatus($offer->context(), 'declined'));
+        $declined = $offer->withStatusAndContext(CareerOpportunityStatus::Declined, $this->withOfferStatus($offer->context(), 'declined') + ['resolved_date' => $date->toIsoString()]);
         $this->saveStatus($database, $declined);
         $this->clearRequestForOpportunity($database, $declined);
         $this->events->dispatch(new GenericEvent('career.transfer_offer_declined', $declined->toArray()));
@@ -1194,7 +1195,7 @@ final class CareerMovementService
             ? $transferRepository->get($transferId)
             : new Transfer($transferId, $player->id(), $offer->sourceClubId(), $destination, $seasonId, (int) $context['fee'], $date, TransferStatus::Agreed);
         if ($transfer->status() === TransferStatus::Completed) {
-            $resolved = $offer->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'completed') + ['completed_transfer_id' => $transfer->id()->value()]);
+            $resolved = $offer->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($context, 'completed') + ['completed_transfer_id' => $transfer->id()->value(), 'resolved_date' => $date->toIsoString()]);
             $this->saveStatus($database, $resolved);
             return $resolved;
         }
@@ -1212,7 +1213,7 @@ final class CareerMovementService
         }
         $role = SquadRole::fromInput((string) ($context['proposed_role'] ?? SquadRole::Prospect->value));
         $completed = $this->transferService->execute($database, $transfer, new TransferExecutionTerms(new ContractId((string) $context['destination_contract_id']), SimulationDate::fromIsoString((string) $context['contract_end_date']), (int) $context['wage'], $role));
-        $resolved = $offer->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($offer->context(), 'completed') + ['completed_transfer_id' => $completed->id()->value()]);
+        $resolved = $offer->withStatusAndContext(CareerOpportunityStatus::Resolved, $this->withOfferStatus($offer->context(), 'completed') + ['completed_transfer_id' => $completed->id()->value(), 'resolved_date' => $date->toIsoString()]);
         $this->saveStatus($database, $resolved);
 
         return $resolved;

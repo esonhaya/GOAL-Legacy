@@ -135,3 +135,13 @@ Matchday/Post-Match use the role stored in the existing controlled Match
 position snapshot, so an actual fallback/default is shown when needed. NPC
 Profiles may show a deterministic on-demand role; no NPC role state is written.
 All role presentation is read-safe and uses no page-render mutation.
+
+## P3-012 decision flow
+
+Pending Contract, transfer, loan, and retirement pages use the existing
+CareerPresentationService to show current facts, known effects, and explicitly
+non-guaranteed future effects. CareerMovementService and PlayerLifecycleService
+remain the execution owners. After a successful POST, outcome copy is derived
+from the resolved domain opportunity, and bounded decision history reuses that
+opportunity record for Career History/Home. Decision GETs do not simulate or
+mutate gameplay; stale checks and redirect-after-POST remain authoritative.

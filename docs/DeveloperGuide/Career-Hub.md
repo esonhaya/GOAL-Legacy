@@ -99,3 +99,24 @@ Season-end presentation projects existing competition facts into a compact
 summary: per-competition controlled Player evidence, domestic Cup/European
 outcome, and current-season international totals. It does not snapshot
 brackets or create duplicate history.
+
+## P3-012 decision context and outcomes
+
+Pending Contract, transfer, loan, and retirement choices are projected by
+`CareerPresentationService::decisionChoiceContext()`. The decision page shows
+the current Club/competition/role and Contract facts, then separates known
+effects from possible later effects. A proposed role or destination is never
+presented as a guarantee of selection or playing time. Loan context keeps the
+playing Club distinct from the parent Contract Club.
+
+Execution remains with `CareerMovementService` and `PlayerLifecycleService`.
+The web action only turns their resolved `CareerOpportunity` into factual
+outcome copy after the canonical mutation succeeds. One-time POST tokens,
+stale opportunity checks, and redirect-after-POST remain authoritative.
+
+Significant resolved opportunities are reused as bounded `decision_history`
+read data. Resolution date metadata is stored in the existing opportunity
+context by the domain owner; no second history ledger is created. Career
+History shows these choices, while Career Home may surface only the most
+useful outcome in its bounded Recent Story. Routine clicks and God Mode audit
+entries remain outside this player-facing history.

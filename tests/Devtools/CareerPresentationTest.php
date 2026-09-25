@@ -115,6 +115,51 @@ final class CareerPresentationTest extends TestCase
         self::assertSame('REQUIRED_DECISION', $retirement['next_up']['action']['priority']);
     }
 
+    public function testDecisionChoiceContextSeparatesKnownTermsFromUncertainFootballOutcomes(): void
+    {
+        $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);
+        $presentation = new CareerPresentationService($services);
+        $choice = $presentation->decisionChoiceContext(
+            [
+                'current_club' => ['name' => 'Arsenal'],
+                'current_competition' => ['name' => 'Premier League'],
+                'current_role' => 'rotation',
+                'current_contract' => ['wage' => 1200, 'end_date' => '2026-06-30'],
+            ],
+            ['decision_kind' => 'contract_boundary', 'current_wage' => 1200],
+            'contract_boundary',
+            [[
+                'id' => 'renew-current-club', 'kind' => 'renew_current_club',
+                'target_club_name' => 'Arsenal', 'wage' => 1500, 'term_seasons' => 2,
+            ]],
+        );
+
+        self::assertSame('Arsenal', $choice['context']['comparison']['current']['club']);
+        self::assertContains('The selected Contract terms, Club and recorded role are the facts shown on each offer.', $choice['context']['known_effects']);
+        self::assertContains('Future selection, playing time and later offers are not guaranteed.', $choice['context']['uncertain_effects']);
+        self::assertContains('The selected Club, wage, term and recorded role are shown in this offer.', $choice['options'][0]['known_effects']);
+        self::assertContains('Future selection and development are not guaranteed by the Contract.', $choice['options'][0]['uncertain_effects']);
+    }
+
+    public function testDecisionOutcomesUseTheResolvedChoiceWithoutInventingFutureResults(): void
+    {
+        $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);
+        $presentation = new CareerPresentationService($services);
+        $loan = $presentation->decisionOutcome([
+            'type' => 'loan',
+            'context' => [
+                'decision_kind' => 'controlled_loan', 'offer_status' => 'accepted', 'selected_option' => 'accept-loan-arsenal',
+                'parent_club_name' => 'Chelsea',
+                'options' => [['id' => 'accept-loan-arsenal', 'kind' => 'accept_loan', 'target_club_name' => 'Arsenal', 'parent_club_name' => 'Chelsea']],
+            ],
+        ]);
+        $retirement = $presentation->decisionOutcome(['type' => 'retirement', 'context' => ['decision_kind' => 'retirement', 'decision_result' => 'continue-playing']]);
+
+        self::assertSame('Loan accepted: you are playing for Arsenal; your parent Contract remains with Chelsea.', $loan);
+        self::assertSame('You chose to continue playing. Your Career remains active.', $retirement);
+        self::assertStringNotContainsString('starter', strtolower($loan));
+    }
+
     public function testCareerHomeMakesZeroEvidenceReadable(): void
     {
         $text = implode("\n", (new CareerFormatter())->home([

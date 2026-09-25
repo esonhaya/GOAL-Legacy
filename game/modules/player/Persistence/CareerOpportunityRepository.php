@@ -54,6 +54,22 @@ final class CareerOpportunityRepository
         return array_values(array_filter($rows, static fn (CareerOpportunity $value): bool => $value->expiryDate() === null || !$asOf->isAfter($value->expiryDate())));
     }
 
+    /**
+     * Return a small bounded window of the Player's persisted opportunities.
+     * This is a read for presentation/history; it deliberately does not
+     * reinterpret or rewrite an opportunity's lifecycle status.
+     *
+     * @return list<CareerOpportunity>
+     */
+    public function recentForPlayer(PlayerId $playerId, int $limit = 12): array
+    {
+        $limit = max(1, min(50, $limit));
+        $statement = $this->database->connection()->prepare('SELECT * FROM ' . self::TABLE . ' WHERE player_id = :player_id ORDER BY created_date DESC, id DESC LIMIT ' . $limit);
+        $statement->execute(['player_id' => $playerId->value()]);
+
+        return array_map(fn (array $row): CareerOpportunity => $this->hydrate($row), $statement->fetchAll(PDO::FETCH_ASSOC));
+    }
+
     public function updateStatusInTransaction(CareerOpportunity $opportunity, CareerOpportunityStatus $status): void
     {
         $this->database->connection()->prepare('UPDATE ' . self::TABLE . ' SET status = :status, context_json = :context_json WHERE id = :id')->execute(['status' => $status->value, 'context_json' => json_encode($opportunity->context(), JSON_THROW_ON_ERROR), 'id' => $opportunity->id()]);

@@ -254,13 +254,14 @@ final class PlayerLifecycleService
                 if ($optionId !== 'retire') {
                     throw new PlayerException('The playing Career is already complete.');
                 }
-                $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, array_merge($opportunity->context(), ['decision_result' => 'retire']));
+                $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, array_merge($opportunity->context(), ['decision_result' => 'retire', 'resolved_date' => $date->toIsoString()]));
                 $opportunities->updateStatusInTransaction($resolved, CareerOpportunityStatus::Resolved);
 
                 return $resolved;
             }
             $context = array_merge($opportunity->context(), ['decision_result' => $optionId]);
             if ($optionId === 'continue-playing') {
+                $context['resolved_date'] = $date->toIsoString();
                 $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $context);
                 $opportunities->updateStatusInTransaction($resolved, CareerOpportunityStatus::Resolved);
                 return $resolved;
@@ -274,6 +275,7 @@ final class PlayerLifecycleService
             $seasonId = new SeasonId((string) ($context['season_id'] ?? 'retirement'));
             $contracts = $this->contracts->repository($database);
             $this->retireControlledInTransaction($database, $playerRepository, $contracts, $player, $contracts->activeForPlayer($player->id()), null, 'player_choice', false, $seasonId, $date, $context['final_club_id'] ?? null);
+            $context['resolved_date'] = $date->toIsoString();
             $resolved = $opportunity->withStatusAndContext(CareerOpportunityStatus::Resolved, $context);
             $opportunities->updateStatusInTransaction($resolved, CareerOpportunityStatus::Resolved);
 

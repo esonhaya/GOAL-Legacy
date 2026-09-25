@@ -77,6 +77,7 @@ final class CareerPresentationService
             $date,
             $world->currentSeasonId(),
         );
+        $summary['decision_history'] = $this->decisionHistory($database, $career->playerId()->value());
         $summary['injury_recovery'] = $this->recoveryService()->context($database, $career->playerId(), $date);
         $summary['discipline'] = (new PlayerDisciplineService())->context($database, $career->playerId());
         $summary['career_outlook']['recovery_context'] = ($summary['injury_recovery']['visible'] ?? false) === true
@@ -175,6 +176,10 @@ final class CareerPresentationService
         foreach ((array) ($summary['role_history'] ?? []) as $role) {
             if (!is_array($role)) { continue; }
             $items[] = ['date' => (string) ($role['occurred_date'] ?? ''), 'headline' => 'ROLE — ' . CareerLabels::value($role['role'] ?? null, 'Role changed')];
+        }
+        foreach ((array) ($summary['decision_history'] ?? []) as $decision) {
+            if (!is_array($decision) || trim((string) ($decision['story'] ?? '')) === '') { continue; }
+            $items[] = ['date' => (string) ($decision['date'] ?? ''), 'headline' => 'DECISION — ' . (string) $decision['story']];
         }
         foreach ((array) ($summary['social_history'] ?? []) as $social) {
             if (!is_array($social) || trim((string) ($social['headline'] ?? '')) === '') { continue; }
@@ -1131,6 +1136,8 @@ final class CareerPresentationService
             $performance = is_array($context['performance'] ?? null) ? $context['performance'] : [];
             $finalClub = (string) ($context['final_club_id'] ?? '');
             $finalClubName = $finalClub === '' || $finalClub === 'free-agent' ? 'Free Agent' : $this->clubRecord($database, $finalClub)->canonicalName();
+            $retirementOptions = array_values(array_map(static fn (array $option): array => ['id' => $option['id'] ?? null, 'label' => CareerLabels::value($option['id'] ?? null, 'Available choice'), 'club' => null, 'role' => null, 'wage' => null, 'current_wage' => null, 'term_seasons' => null, 'contract_end_date' => null, 'reasons' => [], 'club_level' => null, 'projected_role' => null, 'european_qualification' => false, 'market_path' => null, 'counter_available' => false], array_filter($options, 'is_array')));
+            $choice = $this->decisionChoiceContext($summary, $context, 'retirement', $retirementOptions);
             return [
                 'id' => $decision['id'] ?? null,
                 'type' => $decision['type'] ?? null,
@@ -1148,7 +1155,8 @@ final class CareerPresentationService
                 'awards' => count((array) ($legacy['awards'] ?? [])),
                 'counter_used' => false,
                 'counter_response' => null,
-                'options' => array_values(array_map(static fn (array $option): array => ['id' => $option['id'] ?? null, 'label' => CareerLabels::value($option['id'] ?? null, 'Available choice'), 'club' => null, 'role' => null, 'wage' => null, 'current_wage' => null, 'term_seasons' => null, 'contract_end_date' => null, 'reasons' => [], 'club_level' => null, 'projected_role' => null, 'european_qualification' => false, 'market_path' => null, 'counter_available' => false], array_filter($options, 'is_array'))),
+                'options' => $choice['options'],
+                'choice_context' => $choice['context'],
             ];
         }
         $seasonId = isset($context['season_id']) && is_string($context['season_id']) ? new SeasonId($context['season_id']) : null;
@@ -1184,6 +1192,7 @@ final class CareerPresentationService
             };
             $formatted[] = [
                 'id' => $option['id'] ?? null,
+                'kind' => $kind,
                 'label' => $label,
                 'club' => $clubView,
                 'target_club_name' => $option['target_club_name'] ?? ($clubView['name'] ?? null),
@@ -1224,6 +1233,8 @@ final class CareerPresentationService
             }
         }
 
+        $choice = $this->decisionChoiceContext($summary, $context, (string) ($context['decision_kind'] ?? $decision['type'] ?? ''), $formatted);
+
         return [
             'id' => $decision['id'] ?? null,
             'type' => $decision['type'] ?? null,
@@ -1235,8 +1246,202 @@ final class CareerPresentationService
             'career_context' => is_array($summary['career_context'] ?? null) ? $summary['career_context'] : [],
             'counter_used' => ($context['counter_used'] ?? false) === true,
             'counter_response' => $context['counter_response'] ?? null,
-            'options' => $formatted,
+            'options' => $choice['options'],
+            'choice_context' => $choice['context'],
         ];
+    }
+
+    /**
+     * Project a decision into facts a Player can use before choosing. The
+     * domain service still owns the option and its outcome; this projection
+     * only labels known effects and keeps future selection/results explicit as
+     * uncertain.
+     *
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed> $context
+     * @param list<array<string, mixed>> $options
+     * @return array{context:array<string,mixed>,options:list<array<string,mixed>>}
+     */
+    public function decisionChoiceContext(array $summary, array $context, string $kind, array $options): array
+    {
+        $contract = is_array($summary['current_contract'] ?? null) ? $summary['current_contract'] : [];
+        $currentClub = is_array($summary['current_club'] ?? null) ? $summary['current_club'] : [];
+        $currentCompetition = is_array($summary['current_competition'] ?? null) ? $summary['current_competition'] : [];
+        $current = [
+            'club' => $currentClub['name'] ?? ($context['current_club_name'] ?? null),
+            'competition' => $currentCompetition['name'] ?? ($context['current_competition_name'] ?? null),
+            'role' => $context['current_role'] ?? $summary['current_role'] ?? null,
+            'wage' => $context['current_wage'] ?? $contract['wage'] ?? null,
+            'end_date' => $contract['end_date'] ?? null,
+            'parent_club' => (($summary['active_loan']['parent_club']['name'] ?? null) ?: ($summary['parent_club']['name'] ?? null)),
+        ];
+        $known = [];
+        $uncertain = [];
+        $summaryText = 'The choice is based on the football situation recorded now.';
+        if (in_array($kind, ['contract_boundary', 'contract_renewal', 'free_agent_contract'], true)) {
+            $summaryText = ($current['club'] ?? null) === null
+                ? 'You are choosing whether to take a Club offer or remain a free agent.'
+                : 'Compare the available Contract terms with your current Club situation.';
+            $known[] = 'The selected Contract terms, Club and recorded role are the facts shown on each offer.';
+            $uncertain[] = 'Future selection, playing time and later offers are not guaranteed.';
+        } elseif ($kind === 'controlled_transfer') {
+            $summaryText = 'This choice changes your Club chapter only if you accept a destination.';
+            $known[] = 'The destination, competition, proposed role and Contract terms come from the current offer.';
+            $uncertain[] = 'A proposed role does not guarantee selection or minutes after the move.';
+        } elseif ($kind === 'controlled_loan') {
+            $summaryText = 'A loan changes your playing Club temporarily while keeping the parent Contract in place.';
+            $known[] = 'The parent Contract remains with the parent Club; the loan Club becomes the playing context until the recorded return date.';
+            $uncertain[] = 'The projected role is not a guarantee of selection or playing time.';
+        } elseif ($kind === 'retirement') {
+            $summaryText = 'This Season boundary asks whether your playing Career continues.';
+            $known[] = 'Continue playing keeps the active Career open; retiring closes the playing Career and preserves its record.';
+            $uncertain[] = 'Continuing does not guarantee a future Contract, role or playing time.';
+        }
+
+        $projected = [];
+        foreach ($options as $option) {
+            if (!is_array($option)) { continue; }
+            $optionKnown = [];
+            $optionUncertain = [];
+            $optionKind = (string) ($option['kind'] ?? '');
+            $club = (string) ($option['target_club_name'] ?? (($option['club']['name'] ?? null) ?: ''));
+            if ($kind === 'retirement') {
+                if (($option['id'] ?? null) === 'retire') {
+                    $optionKnown[] = 'Your playing Career will close if this choice is confirmed.';
+                } else {
+                    $optionKnown[] = 'Your playing Career remains active if this choice is confirmed.';
+                }
+            } elseif ($optionKind === 'stay') {
+                $optionKnown[] = 'You remain with the current Club and its recorded role and Contract context.';
+            } elseif ($optionKind === 'enter_free_agency') {
+                $optionKnown[] = 'You enter free agency and will not have an active Club Contract.';
+                $optionUncertain[] = 'A new Club offer is not guaranteed.';
+            } elseif ($optionKind === 'accept_loan') {
+                $optionKnown[] = 'Your playing Club becomes ' . ($club === '' ? 'the loan Club' : $club) . ' until the recorded return date.';
+                $optionKnown[] = 'The parent Contract and wage remain with the parent Club.';
+                $optionUncertain[] = 'The projected role remains subject to selection.';
+            } elseif ($optionKind === 'decline_loan') {
+                $optionKnown[] = 'You remain with the parent Club under the existing Contract.';
+            } elseif ($optionKind === 'accept_transfer') {
+                $optionKnown[] = 'Your active Club and Contract would change to the destination shown if the move completes.';
+                $optionUncertain[] = 'The proposed role is not a guarantee of selection or minutes.';
+            } elseif (in_array($optionKind, ['renew_current_club', 'sign_with_club'], true)) {
+                $optionKnown[] = 'The selected Club, wage, term and recorded role are shown in this offer.';
+                $optionUncertain[] = 'Future selection and development are not guaranteed by the Contract.';
+            }
+            $option['known_effects'] = array_values(array_unique($optionKnown));
+            $option['uncertain_effects'] = array_values(array_unique($optionUncertain));
+            $projected[] = $option;
+        }
+
+        return [
+            'context' => [
+                'kind' => $kind,
+                'summary' => $summaryText,
+                'known_effects' => array_values(array_unique($known)),
+                'uncertain_effects' => array_values(array_unique($uncertain)),
+                'comparison' => ['current' => $current],
+            ],
+            'options' => $projected,
+        ];
+    }
+
+    /**
+     * Turn a resolved opportunity into a concise factual outcome. This reads
+     * the domain result; it never resolves an option or rolls a second result.
+     * @param array<string, mixed> $opportunity
+     */
+    public function decisionOutcome(array $opportunity): string
+    {
+        $context = is_array($opportunity['context'] ?? null) ? $opportunity['context'] : [];
+        $kind = (string) ($context['decision_kind'] ?? $opportunity['type'] ?? 'career');
+        $result = (string) ($context['decision_result'] ?? $context['offer_status'] ?? 'resolved');
+        $selectedId = (string) ($context['selected_option'] ?? $result);
+        $selected = null;
+        foreach ((array) ($context['options'] ?? []) as $option) {
+            if (is_array($option) && (string) ($option['id'] ?? '') === $selectedId) {
+                $selected = $option;
+                break;
+            }
+        }
+        $selectedKind = (string) ($selected['kind'] ?? '');
+        $target = (string) ($selected['target_club_name'] ?? ($selected['club_name'] ?? ($selected['club']['name'] ?? ($context['target_club_name'] ?? ''))));
+        $current = (string) ($context['current_club_name'] ?? ($context['source_club_name'] ?? 'your current Club'));
+        if ($kind === 'retirement') {
+            return ($context['decision_result'] ?? '') === 'retire'
+                ? 'You retired from playing football. Your Career record remains available.'
+                : 'You chose to continue playing. Your Career remains active.';
+        }
+        if ($kind === 'controlled_loan' || (string) ($opportunity['type'] ?? '') === 'loan') {
+            return $result === 'accepted'
+                ? 'Loan accepted: you are playing for ' . ($target === '' ? 'the loan Club' : $target) . '; your parent Contract remains with ' . ((string) ($selected['parent_club_name'] ?? $context['parent_club_name'] ?? 'the parent Club')) . '.'
+                : 'Loan declined. You remain with the parent Club under the existing Contract.';
+        }
+        if ($kind === 'controlled_transfer') {
+            if ($selectedKind === 'stay' || $result === 'stayed') {
+                return 'You chose to stay with ' . ($current === '' ? 'your current Club' : $current) . '.';
+            }
+            return $result === 'completed'
+                ? 'Transfer completed: you moved from ' . $current . ' to ' . ($target === '' ? 'the destination Club' : $target) . '.'
+                : 'Transfer opportunity declined. You remain with ' . $current . '.';
+        }
+        if ($kind === 'transfer_interest' || (string) ($opportunity['type'] ?? '') === 'transfer_interest') {
+            return $result === 'completed'
+                ? 'Transfer completed: you moved from ' . $current . ' to ' . ($target === '' ? 'the destination Club' : $target) . '.'
+                : 'Transfer opportunity declined. You remain with ' . $current . '.';
+        }
+        if (in_array($kind, ['contract_boundary', 'contract_renewal', 'free_agent_contract'], true)) {
+            if ($selectedKind === 'enter_free_agency') {
+                return 'You entered free agency. No new Club offer is guaranteed.';
+            }
+            return 'Contract accepted with ' . ($target === '' ? 'the selected Club' : $target) . '.';
+        }
+        return 'Career decision resolved.';
+    }
+
+    /**
+     * Project significant resolved opportunities as bounded factual memory.
+     * The opportunity record is the existing durable source; no new history
+     * ledger is created. @return list<array<string, mixed>>
+     */
+    public function decisionHistory(DatabaseInterface $database, string $playerId, int $limit = 12): array
+    {
+        $history = [];
+        foreach ((new CareerOpportunityRepository($database))->recentForPlayer(new PlayerId($playerId), $limit) as $opportunity) {
+            if ($opportunity->status()->value === 'open') { continue; }
+            $context = $opportunity->context();
+            $kind = (string) ($context['decision_kind'] ?? $opportunity->type()->value);
+            if (!in_array($kind, ['contract_boundary', 'contract_renewal', 'free_agent_contract', 'controlled_transfer', 'controlled_loan', 'transfer_interest', 'retirement'], true)) { continue; }
+            $record = $opportunity->toArray();
+            $outcome = $this->decisionOutcome($record);
+            $selectedKind = '';
+            $selectedId = (string) ($context['selected_option'] ?? '');
+            foreach ((array) ($context['options'] ?? []) as $option) {
+                if (is_array($option) && (string) ($option['id'] ?? '') === $selectedId) { $selectedKind = (string) ($option['kind'] ?? ''); break; }
+            }
+            $story = $outcome;
+            // Accepted moves and retirement already have canonical movement or
+            // Career-event records; keep the Home story from saying the same
+            // fact twice while retaining the decision in Career History.
+            if ((in_array($kind, ['controlled_transfer', 'transfer_interest'], true) && ($context['offer_status'] ?? '') === 'completed')
+                || ($kind === 'controlled_loan' && ($context['offer_status'] ?? '') === 'accepted')
+                || ($kind === 'retirement' && ($context['decision_result'] ?? '') === 'retire')) {
+                $story = '';
+            }
+            $history[] = [
+                'date' => (string) ($context['resolved_date'] ?? $opportunity->createdDate()->toIsoString()),
+                'offer_date' => $opportunity->createdDate()->toIsoString(),
+                'kind' => $kind,
+                'status' => $opportunity->status()->value,
+                'selected_kind' => $selectedKind,
+                'outcome' => $outcome,
+                'story' => $story,
+            ];
+        }
+
+        usort($history, static fn (array $left, array $right): int => strcmp((string) $right['date'] . (string) $right['kind'], (string) $left['date'] . (string) $left['kind']));
+
+        return array_slice($history, 0, $limit);
     }
 
     /** @param array<string, mixed> $summary @return list<array{date:string,headline:string}> */

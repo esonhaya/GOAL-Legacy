@@ -46,6 +46,29 @@ protect event generation and consequences against reloads and retries. A
 resolved event is returned unchanged if resolution is attempted again.
 Pending events therefore show the same copy and options after save/reload.
 
+## P3-013 variety audit and late-career context
+
+The catalog remains data-driven and `CareerExperienceService` remains the
+only selector. Its deterministic ranking path now also exposes the
+development-only `auditEligibility()` read model. The sampler uses the same
+completed-Match gate, canonical signals, requirement checks, recent memory,
+repeatability/cooldown suppression, contextual score, priority tie-break, and
+hash selection as `ensureEvent()`; it does not create a second event engine or
+persist presentational choices. The `career:variety` command may build one
+owned `GoalScenarioCatalog` fixture, run the canonical bounded Match runner
+when needed, and report eligible families, suppressed definitions/reasons,
+recent events, and deterministic repeat output. It is never called by normal
+gameplay or page rendering.
+
+`CareerEventCatalog::validate()` is a bounded authored-content integrity
+check. It rejects duplicate IDs, semantic duplicates, unknown families or
+requirements, incomplete copy, invalid repeatability, duplicate choices, and
+unknown canonical training/priority references. A late-career moment uses the
+existing Player lifecycle phase (`veteran`/`decline`) and routes its two
+meaningful options through the existing training-focus and Career-priority
+owners. It does not add a decline meter, hidden score, retirement pressure,
+manager promise, or new history ledger.
+
 ## Chains and transfer continuity
 
 Chains are ordinary catalog definitions linked by `chain_id`, `chain_stage`,

@@ -78,6 +78,59 @@ final class CareerExperienceService
     public function eventCatalog(): array { return CareerEventCatalog::all(); }
 
     /**
+     * Read-only developer inspection of the production eligibility and
+     * selection path. This deliberately shares the same signals, cooldowns,
+     * history checks, scoring, and deterministic tie-break as ensureEvent().
+     * @param array<string, mixed> $summary
+     * @return array<string, mixed>
+     */
+    public function auditEligibility(DatabaseInterface $database, PlayerId|string $playerId, SeasonId $seasonId, SimulationDate $date, array $summary): array
+    {
+        $id = $playerId instanceof PlayerId ? $playerId : new PlayerId($playerId);
+        $club = is_array($summary['current_club'] ?? null) ? $summary['current_club'] : null;
+        $clubId = is_array($club) ? (string) ($club['id'] ?? '') : '';
+        $isFreeAgent = $clubId === '' && ($summary['current_contract'] ?? null) === null;
+        if ($clubId === '' && !$isFreeAgent) {
+            return ['status' => 'no_current_career_context', 'eligible' => [], 'suppressed' => [], 'selected' => null];
+        }
+        $completed = $isFreeAgent ? [] : $this->completedMatches($database, $clubId, $seasonId, $date);
+        if (!$isFreeAgent && $completed === []) {
+            return ['status' => 'waiting_for_completed_match', 'eligible' => [], 'suppressed' => [], 'selected' => null];
+        }
+        $sourceKey = $id->value() . '|' . $seasonId->value() . '|' . sprintf('%04d-%02d', $date->year(), $date->month());
+        $signals = $this->signals($database, $id, $seasonId, $summary, $date, $completed === [] ? null : $completed[array_key_last($completed)]);
+        $resolved = (new CareerEventRepository($database))->resolvedForPlayer($id, 250);
+        $priority = $this->priority($database, $id);
+        $ranked = $this->rankedCandidates($sourceKey, $priority, $signals, $resolved, $date, $clubId);
+        $eligible = array_map(static function (array $candidate): array {
+            $definition = $candidate['definition'];
+            return ['id' => (string) $definition['id'], 'family' => (string) $definition['category'], 'score' => $candidate['score']];
+        }, $ranked);
+        $suppressed = [];
+        foreach (CareerEventCatalog::all() as $definition) {
+            $reason = $this->eligibilityReason($definition, $signals, $resolved, $date, $clubId);
+            if ($reason !== null) {
+                $suppressed[] = ['id' => (string) $definition['id'], 'family' => (string) $definition['category'], 'reason' => $reason];
+            }
+        }
+        $pool = array_slice($ranked, 0, min(6, count($ranked)));
+        $selected = $pool === [] ? null : (string) $pool[hexdec(substr(hash('sha256', $sourceKey . '|event-selection'), 0, 8)) % count($pool)]['definition']['id'];
+
+        return [
+            'status' => 'ready',
+            'source_key' => $sourceKey,
+            'priority' => $priority->value,
+            'signals' => $signals,
+            'resolved_count' => count($resolved),
+            'recent' => array_map(static fn (CareerEvent $event): array => ['id' => $event->definition(), 'family' => $event->category(), 'date' => $event->date()->toIsoString()], array_slice($resolved, 0, 5)),
+            'eligible' => $eligible,
+            'suppressed' => $suppressed,
+            'selection_pool' => array_map(static fn (array $candidate): string => (string) $candidate['definition']['id'], $pool),
+            'selected' => $selected,
+        ];
+    }
+
+    /**
      * Create at most one event for a player in a calendar month. The source
      * key remains compatible with DOMAIN-040, while selection now prefers
      * contextual situations over the generic fallback pool.
@@ -92,8 +145,7 @@ final class CareerExperienceService
         if ($clubId === '' && !$isFreeAgent) { return null; }
         $completed = [];
         if (!$isFreeAgent) {
-            $matches = (new MatchRepository($database))->byClub(new ClubId($clubId), $seasonId);
-            $completed = array_values(array_filter($matches, static fn ($match): bool => $match->status() === MatchStatus::Completed && !$match->scheduledDate()->isAfter($date)));
+            $completed = $this->completedMatches($database, $clubId, $seasonId, $date);
             if ($completed === []) { return null; }
         }
         $sourceKey = $id->value() . '|' . $seasonId->value() . '|' . sprintf('%04d-%02d', $date->year(), $date->month());
@@ -202,78 +254,97 @@ final class CareerExperienceService
         }
     }
 
-    /** @param list<CareerEvent> $resolved @param array<string, mixed> $signals */
-    private function selectDefinition(string $sourceKey, CareerPriority $priority, array $signals, array $resolved, SimulationDate $date, string $clubId): ?array
+    /** @param list<CareerEvent> $resolved @param array<string, mixed> $signals @return list<array{definition:array<string,mixed>,score:int,tie:string}> */
+    private function rankedCandidates(string $sourceKey, CareerPriority $priority, array $signals, array $resolved, SimulationDate $date, string $clubId): array
     {
         $candidates = [];
         foreach (CareerEventCatalog::all() as $definition) {
-            if (!$this->eligible($definition, $signals, $resolved, $date, $clubId)) { continue; }
+            if ($this->eligibilityReason($definition, $signals, $resolved, $date, $clubId) !== null) { continue; }
             $score = (int) ($definition['context_weight'] ?? 0);
             if (in_array($priority->value, $definition['priority_categories'] ?? [], true)) { $score += 5; }
             foreach (array_slice($resolved, 0, 3) as $previous) { if ($previous->category() === $definition['category']) { $score -= 3; } }
             $candidates[] = ['definition' => $definition, 'score' => $score, 'tie' => hash('sha256', $sourceKey . '|' . $definition['id'] . '|' . $priority->value)];
         }
-        if ($candidates === []) { return null; }
         usort($candidates, static fn (array $a, array $b): int => ($b['score'] <=> $a['score']) ?: strcmp((string) $a['tie'], (string) $b['tie']));
+        return $candidates;
+    }
+
+    /** @param list<CareerEvent> $resolved @param array<string, mixed> $signals */
+    private function selectDefinition(string $sourceKey, CareerPriority $priority, array $signals, array $resolved, SimulationDate $date, string $clubId): ?array
+    {
+        $candidates = $this->rankedCandidates($sourceKey, $priority, $signals, $resolved, $date, $clubId);
+        if ($candidates === []) { return null; }
         $pool = array_slice($candidates, 0, min(6, count($candidates)));
         return $pool[hexdec(substr(hash('sha256', $sourceKey . '|event-selection'), 0, 8)) % count($pool)]['definition'];
     }
 
     /** @param array<string, mixed> $definition @param list<CareerEvent> $resolved @param array<string, mixed> $signals */
-    private function eligible(array $definition, array $signals, array $resolved, SimulationDate $date, string $clubId): bool
+    private function eligibilityReason(array $definition, array $signals, array $resolved, SimulationDate $date, string $clubId): ?string
     {
         $requirements = is_array($definition['requirements'] ?? null) ? $definition['requirements'] : [];
-        if ($clubId === '' && !isset($requirements['free_agent'])) { return false; }
-        if (($requirements['current_club'] ?? false) === true && $clubId === '') { return false; }
-        if (($requirements['free_agent'] ?? false) === true && $clubId !== '') { return false; }
-        if (isset($requirements['roles']) && !in_array($signals['role'], $requirements['roles'], true)) { return false; }
-        if (isset($requirements['forms']) && !in_array($signals['form'], $requirements['forms'], true)) { return false; }
-        if (isset($requirements['appearances_min']) && $signals['appearances'] < (int) $requirements['appearances_min']) { return false; }
-        if (isset($requirements['starts_min']) && $signals['starts'] < (int) $requirements['starts_min']) { return false; }
-        if (isset($requirements['goals_min']) && $signals['goals'] < (int) $requirements['goals_min']) { return false; }
-        if (isset($requirements['recent_goals_min']) && $signals['recent_goals'] < (int) $requirements['recent_goals_min']) { return false; }
-        if (($requirements['position_competition'] ?? false) === true && !$signals['position_competition']) { return false; }
+        if ($clubId === '' && !isset($requirements['free_agent'])) { return 'requires_current_club'; }
+        if (($requirements['current_club'] ?? false) === true && $clubId === '') { return 'requires_current_club'; }
+        if (($requirements['free_agent'] ?? false) === true && $clubId !== '') { return 'requires_free_agent'; }
+        if (($requirements['active_injury'] ?? false) === true && !($signals['active_injury'] ?? false)) { return 'active_injury'; }
+        if (isset($requirements['roles']) && !in_array($signals['role'], $requirements['roles'], true)) { return 'role'; }
+        if (isset($requirements['forms']) && !in_array($signals['form'], $requirements['forms'], true)) { return 'form'; }
+        if (isset($requirements['appearances_min']) && $signals['appearances'] < (int) $requirements['appearances_min']) { return 'appearances'; }
+        if (isset($requirements['starts_min']) && $signals['starts'] < (int) $requirements['starts_min']) { return 'starts'; }
+        if (isset($requirements['goals_min']) && $signals['goals'] < (int) $requirements['goals_min']) { return 'goals'; }
+        if (isset($requirements['recent_goals_min']) && $signals['recent_goals'] < (int) $requirements['recent_goals_min']) { return 'recent_goals'; }
+        if (($requirements['position_competition'] ?? false) === true && !$signals['position_competition']) { return 'position_competition'; }
         if (isset($requirements['playing_time_mismatch'])) {
             $allowed = is_array($requirements['playing_time_mismatch']) ? $requirements['playing_time_mismatch'] : [$requirements['playing_time_mismatch']];
-            if (!in_array($signals['playing_time_mismatch'] ?? 'insufficient_evidence', $allowed, true)) { return false; }
+            if (!in_array($signals['playing_time_mismatch'] ?? 'insufficient_evidence', $allowed, true)) { return 'playing_time'; }
         }
-        if (($requirements['transfer_request'] ?? null) !== null && $signals['transfer_request'] !== $requirements['transfer_request']) { return false; }
-        if (($requirements['recent_transfer'] ?? false) === true && !$signals['recent_transfer']) { return false; }
-        if (($requirements['contract_expiring'] ?? false) === true && !$signals['contract_expiring']) { return false; }
-        if (($requirements['recent_team_result'] ?? null) !== null && $signals['recent_team_result'] !== $requirements['recent_team_result']) { return false; }
-        if (($requirements['season_phase'] ?? null) !== null && $signals['season_phase'] !== $requirements['season_phase']) { return false; }
-        if (($requirements['competition_pressure'] ?? null) !== null && $signals['competition_pressure'] !== $requirements['competition_pressure']) { return false; }
-        if (($requirements['next_competition_type'] ?? null) !== null && $signals['next_competition_type'] !== $requirements['next_competition_type']) { return false; }
-        if (($requirements['recent_competition_type'] ?? null) !== null && $signals['recent_competition_type'] !== $requirements['recent_competition_type']) { return false; }
-        if (isset($requirements['recent_competition_round_min']) && $signals['recent_competition_round'] < (int) $requirements['recent_competition_round_min']) { return false; }
-        if (isset($requirements['income_min']) && $signals['income'] < (int) $requirements['income_min']) { return false; }
-        if (isset($requirements['wage_income_min']) && $signals['wage_income'] < (int) $requirements['wage_income_min']) { return false; }
-        if (isset($requirements['balance_min']) && $signals['balance'] < (int) $requirements['balance_min']) { return false; }
-        if (isset($requirements['public_profile_min']) && ($signals['public_profile'] ?? 0) < (int) $requirements['public_profile_min']) { return false; }
-        if (isset($requirements['international_profile_min']) && ($signals['international_profile'] ?? 0) < (int) $requirements['international_profile_min']) { return false; }
-        if (isset($requirements['club_standing_min']) && ($signals['club_standing'] ?? 0) < (int) $requirements['club_standing_min']) { return false; }
-        if (isset($requirements['supporter_sentiment']) && ($signals['supporter_sentiment'] ?? '') !== strtolower((string) $requirements['supporter_sentiment'])) { return false; }
-        if (isset($requirements['manager_relationship']) && ($signals['manager_relationship'] ?? '') !== strtolower((string) $requirements['manager_relationship'])) { return false; }
-        if (isset($requirements['relationship_type']) && !in_array((string) $requirements['relationship_type'], $signals['relationship_types'] ?? [], true)) { return false; }
+        if (($requirements['transfer_request'] ?? null) !== null && $signals['transfer_request'] !== $requirements['transfer_request']) { return 'transfer_request'; }
+        if (($requirements['recent_transfer'] ?? false) === true && !$signals['recent_transfer']) { return 'recent_transfer'; }
+        if (($requirements['contract_expiring'] ?? false) === true && !$signals['contract_expiring']) { return 'contract_expiring'; }
+        if (($requirements['recent_team_result'] ?? null) !== null && $signals['recent_team_result'] !== $requirements['recent_team_result']) { return 'team_result'; }
+        if (($requirements['season_phase'] ?? null) !== null && $signals['season_phase'] !== $requirements['season_phase']) { return 'season_phase'; }
+        if (($requirements['career_phase'] ?? null) !== null) {
+            $allowed = is_array($requirements['career_phase']) ? $requirements['career_phase'] : [$requirements['career_phase']];
+            if (!in_array($signals['career_phase'] ?? null, $allowed, true)) { return 'career_phase'; }
+        }
+        if (($requirements['competition_pressure'] ?? null) !== null && $signals['competition_pressure'] !== $requirements['competition_pressure']) { return 'competition_pressure'; }
+        if (($requirements['next_competition_type'] ?? null) !== null && $signals['next_competition_type'] !== $requirements['next_competition_type']) { return 'next_competition'; }
+        if (($requirements['recent_competition_type'] ?? null) !== null && $signals['recent_competition_type'] !== $requirements['recent_competition_type']) { return 'recent_competition'; }
+        if (isset($requirements['recent_competition_round_min']) && $signals['recent_competition_round'] < (int) $requirements['recent_competition_round_min']) { return 'competition_round'; }
+        if (isset($requirements['income_min']) && $signals['income'] < (int) $requirements['income_min']) { return 'income'; }
+        if (isset($requirements['wage_income_min']) && $signals['wage_income'] < (int) $requirements['wage_income_min']) { return 'wage_income'; }
+        if (isset($requirements['balance_min']) && $signals['balance'] < (int) $requirements['balance_min']) { return 'balance'; }
+        if (isset($requirements['public_profile_min']) && ($signals['public_profile'] ?? 0) < (int) $requirements['public_profile_min']) { return 'public_profile'; }
+        if (isset($requirements['international_profile_min']) && ($signals['international_profile'] ?? 0) < (int) $requirements['international_profile_min']) { return 'international_profile'; }
+        if (isset($requirements['club_standing_min']) && ($signals['club_standing'] ?? 0) < (int) $requirements['club_standing_min']) { return 'club_standing'; }
+        if (isset($requirements['supporter_sentiment']) && ($signals['supporter_sentiment'] ?? '') !== strtolower((string) $requirements['supporter_sentiment'])) { return 'supporter_sentiment'; }
+        if (isset($requirements['manager_relationship']) && ($signals['manager_relationship'] ?? '') !== strtolower((string) $requirements['manager_relationship'])) { return 'manager_relationship'; }
+        if (isset($requirements['relationship_type']) && !in_array((string) $requirements['relationship_type'], $signals['relationship_types'] ?? [], true)) { return 'relationship'; }
         if (isset($requirements['financial_context'])) {
             $allowed = is_array($requirements['financial_context']) ? $requirements['financial_context'] : [$requirements['financial_context']];
-            if (!in_array($signals['financial_context'] ?? 'starting_out', $allowed, true)) { return false; }
+            if (!in_array($signals['financial_context'] ?? 'starting_out', $allowed, true)) { return 'financial_context'; }
         }
-        if (isset($requirements['owned_item']) && !isset($signals['owned_item'][(string) $requirements['owned_item']])) { return false; }
-        if (isset($requirements['owned_category']) && !isset($signals['owned_categories'][(string) $requirements['owned_category']])) { return false; }
+        if (isset($requirements['owned_item']) && !isset($signals['owned_item'][(string) $requirements['owned_item']])) { return 'owned_item'; }
+        if (isset($requirements['owned_category']) && !isset($signals['owned_categories'][(string) $requirements['owned_category']])) { return 'owned_category'; }
         if (isset($requirements['owned_effect']) && is_array($requirements['owned_effect'])) {
             $effect = (string) ($requirements['owned_effect']['effect'] ?? '');
             $minimum = (int) ($requirements['owned_effect']['min'] ?? 1);
-            if ($effect === '' || (int) (($signals['owned_effects'] ?? [])[$effect] ?? 0) < $minimum) { return false; }
+            if ($effect === '' || (int) (($signals['owned_effects'] ?? [])[$effect] ?? 0) < $minimum) { return 'owned_effect'; }
         }
-        if (isset($requirements['history_absent']) && $this->hasMemory($resolved, (string) $requirements['history_absent'])) { return false; }
-        foreach ((array) ($requirements['history_absent_any'] ?? []) as $memory) { if ($this->hasMemory($resolved, (string) $memory)) { return false; } }
-        if (isset($requirements['history_present']) && !$this->hasMemory($resolved, (string) $requirements['history_present'])) { return false; }
+        if (isset($requirements['history_absent']) && $this->hasMemory($resolved, (string) $requirements['history_absent'])) { return 'memory_present'; }
+        foreach ((array) ($requirements['history_absent_any'] ?? []) as $memory) { if ($this->hasMemory($resolved, (string) $memory)) { return 'memory_present'; } }
+        if (isset($requirements['history_present']) && !$this->hasMemory($resolved, (string) $requirements['history_present'])) { return 'memory_missing'; }
         $repeatability = (string) ($definition['repeatability'] ?? 'cooldown');
-        if ($repeatability === 'once_per_career' && $this->hasDefinition($resolved, (string) $definition['id'])) { return false; }
-        if ($repeatability === 'once_per_season' && $this->hasDefinitionInSeason($resolved, (string) $definition['id'], (string) ($signals['season_id'] ?? ''))) { return false; }
-        if ($repeatability === 'once_per_club' && $this->hasDefinitionForClub($resolved, (string) $definition['id'], $clubId)) { return false; }
-        return !$this->withinCooldown($resolved, (string) $definition['id'], $date, (int) ($definition['cooldown_days'] ?? 90));
+        if ($repeatability === 'once_per_career' && $this->hasDefinition($resolved, (string) $definition['id'])) { return 'once_per_career'; }
+        if ($repeatability === 'once_per_season' && $this->hasDefinitionInSeason($resolved, (string) $definition['id'], (string) ($signals['season_id'] ?? ''))) { return 'once_per_season'; }
+        if ($repeatability === 'once_per_club' && $this->hasDefinitionForClub($resolved, (string) $definition['id'], $clubId)) { return 'once_per_club'; }
+        return $this->withinCooldown($resolved, (string) $definition['id'], $date, (int) ($definition['cooldown_days'] ?? 90)) ? 'cooldown' : null;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function completedMatches(DatabaseInterface $database, string $clubId, SeasonId $seasonId, SimulationDate $date): array
+    {
+        $matches = (new MatchRepository($database))->byClub(new ClubId($clubId), $seasonId);
+        return array_values(array_filter($matches, static fn ($match): bool => $match->status() === MatchStatus::Completed && !$match->scheduledDate()->isAfter($date)));
     }
 
     /** @param list<CareerEvent> $resolved */
@@ -407,6 +478,8 @@ final class CareerExperienceService
         $financialContext = is_array($finance['financial_context'] ?? null) ? $finance['financial_context'] : [];
         return [
             'season_id' => (string) ($summary['current_season_id'] ?? ''),
+            'career_phase' => (string) ($summary['career_phase'] ?? 'unknown'),
+            'active_injury' => is_array($summary['active_injury'] ?? null),
             'role' => $role, 'form' => $form, 'appearances' => $appearances, 'starts' => $starts,
             'goals' => $goals, 'recent_goals' => $recentGoals,
             'position_competition' => ((int) (($summary['position_competition']['higher_ovr_count'] ?? 0)) > 0),
@@ -426,7 +499,7 @@ final class CareerExperienceService
             'relationship_types' => array_values(array_unique(array_map(static fn (array $relationship): string => (string) ($relationship['type'] ?? ''), $this->social?->relationships($database, $playerId) ?? []))),
             'income' => (int) ($finance['income'] ?? 0), 'wage_income' => (int) ($finance['wage_income'] ?? 0), 'balance' => (int) ($finance['balance'] ?? 0), 'owned_item' => $ownedIds, 'owned_effects' => $ownedEffects, 'owned_categories' => $ownedCategories,
             'financial_context' => (string) ($financialContext['code'] ?? 'starting_out'),
-            'context_keys' => array_values(array_filter([$role, $form, $recentTeamResult, $playingTimeStatus !== 'insufficient_evidence' ? 'playing_time_' . $playingTimeStatus : null, $recentTransfer ? 'recent_transfer' : null, $contractExpiring ? 'contract_expiring' : null, ((int) ($finance['wage_income'] ?? 0)) > 0 ? 'wage_received' : null, $ownedEffects === [] ? null : 'lifestyle_owned', $financialContext['code'] ?? null])),
+            'context_keys' => array_values(array_filter([$role, $form, $recentTeamResult, $phase !== 'unknown' ? 'career_phase_' . $phase : null, is_array($summary['active_injury'] ?? null) ? 'active_injury' : null, $playingTimeStatus !== 'insufficient_evidence' ? 'playing_time_' . $playingTimeStatus : null, $recentTransfer ? 'recent_transfer' : null, $contractExpiring ? 'contract_expiring' : null, ((int) ($finance['wage_income'] ?? 0)) > 0 ? 'wage_received' : null, $ownedEffects === [] ? null : 'lifestyle_owned', $financialContext['code'] ?? null])),
         ];
     }
 }

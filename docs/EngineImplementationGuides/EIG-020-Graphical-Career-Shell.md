@@ -145,3 +145,20 @@ remain the execution owners. After a successful POST, outcome copy is derived
 from the resolved domain opportunity, and bounded decision history reuses that
 opportunity record for Career History/Home. Decision GETs do not simulate or
 mutate gameplay; stale checks and redirect-after-POST remain authoritative.
+
+## P3-013 event variety and read safety
+
+Between-Match event cards remain projections of canonical Career state. The
+shell renders the existing event definition, context, and choices; it does
+not select, reroll, or execute an event while rendering a GET. Event
+resolution is still an explicit one-time POST and continues to redirect to
+the existing Home projection, so Needs Attention, the primary action,
+Contract/movement context, and bounded Recent Story are recalculated from
+canonical state.
+
+The development-only `career:variety` diagnostic is outside the graphical
+runtime. It reuses the Goal scenario fixtures and production event selector
+to compare state-specific eligibility and deterministic suppression.
+Responsive event cards must preserve concise copy, readable choice labels,
+keyboard/focus order, and a tappable action at narrow widths; variety must
+not require a new UI state store or hidden gameplay score.

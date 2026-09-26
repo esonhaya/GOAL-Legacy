@@ -120,3 +120,24 @@ context by the domain owner; no second history ledger is created. Career
 History shows these choices, while Career Home may surface only the most
 useful outcome in its bounded Recent Story. Routine clicks and God Mode audit
 entries remain outside this player-facing history.
+
+## P3-013 Career variety boundary
+
+Career event variety follows the same canonical snapshot already consumed by
+Career Home: role, availability, participation, form, Contract, movement,
+competition context, Club context, finance, and lifecycle phase. A later-phase
+event is eligible only when the existing lifecycle owner reports `veteran` or
+`decline`; it does not assume that a veteran is declining or promise a future
+role. Loan, free-agent, injury, transfer, Contract, and playing-time moments
+remain state-specific and do not create a second decision queue.
+
+`CareerExperienceService::auditEligibility()` is a development-only,
+read-only sampler. It reports eligible definitions, rejection reasons, recent
+suppression, the bounded selection pool, and the deterministic selected item
+by calling the production eligibility/ranking path. `CareerEventCatalog::validate()`
+checks authored IDs, families, copy, choices, canonical focus/priority
+references, requirement keys, and semantic duplicates. Neither diagnostic is
+called by normal Career Home rendering. Resolved choices continue to use the
+existing Career event record, canonical training/priority/finance/social
+owners, and bounded Recent Story/Career History projections; routine event
+cards are not additional history.

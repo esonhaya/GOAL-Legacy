@@ -15,7 +15,7 @@ career stage.
 
 ## Categories
 
-Phase 1 may use training, recovery, teammates, manager, family, friends,
+Phase 1 may use training, recovery, injury, teammates, manager, family, friends,
 social life, media, fans, community, adaptation, career, form, role,
 transfer, contract, season, and Club culture situations. A category is a
 content label; it is not a second simulation system.
@@ -118,6 +118,34 @@ Routine fatigue, recovery, and training completion are not social or News
 stories. Significant Injury and return facts use the existing availability,
 Career History, News, and Pulse routes. Pages remain read-only: recovery is
 owned by simulation time and no page view creates an event.
+
+## P3-013 Variety and replayability
+
+Variety must follow the current football state. Use existing evidence such as
+playing time, role, form, participation, Contract and movement status, loan
+parent/playing Club, availability, competition, Club context, milestones,
+finance context, and lifecycle phase. A later-career situation may be shown
+for an existing `veteran` or `decline` phase, but copy must remain factual and
+must not assume decline, selection, development, transfer success, or a future
+Club outcome.
+
+The production selector is deterministic for the same save state, month,
+priority, seed-derived Match evidence, and resolved history. Recent event
+definitions and families are suppressed through the existing bounded Career
+event history and repeatability policies. Different IDs with equivalent copy,
+choices, and consequences are still semantic duplicates and should be removed
+rather than hidden behind random wording. The development-only variety audit
+is the approved way to inspect eligible and suppressed content; it must not
+become a gameplay dependency.
+
+Choice alternatives must route to existing canonical consumers such as
+training focus, Career priority, PlayerFinanceService, FootballSocialService,
+or durable memory where already supported. Do not add morale, personality,
+manager-trust, fan-approval, or consequence scores. Only significant resolved
+facts belong in Career History or Recent Story; event-card appearances and
+routine training clicks remain transient. Pulse may continue receiving its
+existing downstream facts, but P3-013 adds no Pulse identities, threads, or
+memory.
 
 ## P2-018 Manager and Playing-Time Conversations
 

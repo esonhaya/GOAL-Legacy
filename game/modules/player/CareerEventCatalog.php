@@ -379,7 +379,72 @@ final class CareerEventCatalog
                 self::choice('focus-on-football', 'Keep the focus on football', 'Kept a meaningful rivalry in football perspective', null, null, 'professional', null, null, ['public_profile' => 1, 'history' => true]),
                 self::choice('embrace-the-history', 'Embrace the history of the meeting', 'Embraced the history of a meaningful football rivalry', null, null, 'balanced', null, null, ['public_profile' => 2, 'supporter_score' => 2, 'history' => true]),
             ], ['requires' => ['history_present' => 'rivalry_started', 'history_absent' => 'rivalry_matchday'], 'newsworthy' => true, 'repeatability' => 'once_per_season', 'context_weight' => 14]),
+            self::event('injury-rehab-focus', 'injury', 'Recovery becomes the immediate work', 'An active injury has taken you out of the immediate schedule at {club}. The useful decision now is how to approach the work back.', [
+                self::choice('follow-rehab-plan', 'Follow the rehab plan', 'Followed the existing rehab plan during an injury', null, null, 'recovery'),
+                self::choice('stay-engaged', 'Stay engaged with the group', 'Stayed engaged with the group while recovering from an injury', null, null, 'professional'),
+            ], ['requires' => ['active_injury' => true, 'history_absent' => 'injury_rehab_focus'], 'priority_categories' => ['recovery', 'professional'], 'newsworthy' => false, 'historyworthy' => false, 'repeatability' => 'once_per_career', 'context_weight' => 22]),
+            self::event('late-career-next-phase', 'career', 'The next phase needs a clear focus', 'Your playing Career has entered a later phase. The work now is to decide what you want the next stretch of football to look like.', [
+                self::choice('protect-the-standard', 'Protect the standard', 'Protected the standard during the later phase of a playing Career', 'late_career_standard', 'balanced', 'professional'),
+                self::choice('keep-developing', 'Keep developing', 'Kept developing while shaping the later phase of a playing Career', 'late_career_development', 'physicality', 'development'),
+            ], ['requires' => ['career_phase' => ['veteran', 'decline'], 'history_absent' => 'late_career_standard'], 'priority_categories' => ['professional', 'development'], 'newsworthy' => false, 'repeatability' => 'once_per_career', 'context_weight' => 20]),
         ];
+    }
+
+    /** @return list<string> */
+    public static function validate(): array
+    {
+        $errors = [];
+        $ids = [];
+        $semantic = [];
+        $categories = [
+            'training', 'recovery', 'team', 'teammates', 'family', 'social', 'friends',
+            'lifestyle', 'community', 'media', 'fans', 'adaptation', 'career', 'form',
+            'manager', 'role', 'transfer', 'contract', 'season', 'club_culture', 'financial', 'cup', 'europe',
+            'injury',
+        ];
+        $repeatability = ['cooldown', 'once_per_career', 'once_per_club', 'once_per_season'];
+        $requirements = [
+            'active_injury', 'appearances_min', 'balance_min', 'career_phase', 'club_standing_min', 'competition_pressure',
+            'contract_expiring', 'current_club', 'financial_context', 'forms', 'free_agent', 'goals_min',
+            'history_absent', 'history_absent_any', 'history_present', 'international_profile_min',
+            'manager_relationship', 'next_competition_type', 'owned_category', 'owned_effect',
+            'playing_time_mismatch', 'position_competition', 'public_profile_min', 'recent_competition_round_min',
+            'recent_competition_type', 'recent_goals_min', 'recent_team_result', 'recent_transfer',
+            'relationship_type', 'roles', 'season_phase', 'starts_min', 'supporter_sentiment', 'transfer_request',
+            'wage_income_min',
+        ];
+        $focuses = array_map(static fn (Domain\TrainingFocus $focus): string => $focus->value, Domain\TrainingFocus::cases());
+        $priorities = array_map(static fn (Domain\CareerPriority $priority): string => $priority->value, Domain\CareerPriority::cases());
+        foreach (self::all() as $definition) {
+            $id = trim((string) ($definition['id'] ?? ''));
+            if ($id === '' || isset($ids[$id])) { $errors[] = 'duplicate or empty event id: ' . $id; }
+            $ids[$id] = true;
+            if (!in_array($definition['category'] ?? null, $categories, true)) { $errors[] = $id . ': invalid category'; }
+            if (trim((string) ($definition['title'] ?? '')) === '' || trim((string) ($definition['description'] ?? '')) === '') { $errors[] = $id . ': missing copy'; }
+            if (!in_array($definition['repeatability'] ?? null, $repeatability, true)) { $errors[] = $id . ': invalid repeatability'; }
+            foreach (array_keys((array) ($definition['requirements'] ?? [])) as $requirement) {
+                if (!in_array($requirement, $requirements, true)) { $errors[] = $id . ': unknown requirement ' . $requirement; }
+            }
+            $choiceIds = [];
+            $semanticChoices = [];
+            foreach ((array) ($definition['choices'] ?? []) as $choice) {
+                $choiceId = trim((string) ($choice['id'] ?? ''));
+                if ($choiceId === '' || isset($choiceIds[$choiceId])) { $errors[] = $id . ': duplicate or empty choice id'; }
+                $choiceIds[$choiceId] = true;
+                if (trim((string) ($choice['label'] ?? '')) === '' || trim((string) ($choice['history'] ?? '')) === '') { $errors[] = $id . ': choice copy is incomplete'; }
+                if (isset($choice['focus']) && !in_array($choice['focus'], $focuses, true)) { $errors[] = $id . ': invalid choice focus'; }
+                if (isset($choice['priority']) && !in_array($choice['priority'], $priorities, true)) { $errors[] = $id . ': invalid choice priority'; }
+                if (isset($choice['finance']) && !is_array($choice['finance'])) { $errors[] = $id . ': invalid finance effect'; }
+                if (isset($choice['social']) && !is_array($choice['social'])) { $errors[] = $id . ': invalid social effect'; }
+                $semanticChoices[] = [strtolower((string) ($choice['label'] ?? '')), strtolower((string) ($choice['history'] ?? '')), $choice['focus'] ?? null, $choice['priority'] ?? null, $choice['finance'] ?? null, $choice['social'] ?? null];
+            }
+            if (count($choiceIds) < 2) { $errors[] = $id . ': fewer than two choices'; }
+            $fingerprint = sha1((string) json_encode([strtolower((string) ($definition['category'] ?? '')), strtolower((string) ($definition['title'] ?? '')), strtolower((string) ($definition['description'] ?? '')), $semanticChoices]));
+            if (isset($semantic[$fingerprint])) { $errors[] = $id . ': semantic duplicate of ' . $semantic[$fingerprint]; }
+            $semantic[$fingerprint] = $id;
+        }
+
+        return $errors;
     }
 
     /** @param list<array<string, mixed>> $choices @param array<string, mixed> $requirements */

@@ -146,7 +146,13 @@ final class SqliteSaveStore implements SaveStore
         $saves = [];
         foreach ($files as $file) {
             $saveId = pathinfo($file, PATHINFO_FILENAME);
-            $saves[] = $this->open($saveId);
+            try {
+                $saves[] = $this->open($saveId);
+            } catch (Throwable) {
+                // An unreadable save is omitted from the selectable list. It
+                // is never deleted or repaired implicitly; direct open still
+                // reports the canonical persistence failure to its caller.
+            }
         }
 
         return $saves;

@@ -6,6 +6,9 @@ namespace Goal\Legacy\Web;
 
 use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Core\Persistence\PersistenceException;
+use Goal\Legacy\Core\Persistence\SaveMetadata;
+use Goal\Legacy\Core\Persistence\UnsupportedSaveVersionException;
 use Goal\Legacy\Core\Simulation\SimulationMutation;
 use Goal\Legacy\Core\Simulation\SimulationPermission;
 use Goal\Legacy\Core\Simulation\SimulationToolkit;
@@ -66,7 +69,7 @@ final class WebApplication
 
             return $this->get($query, $session);
         } catch (\Throwable $exception) {
-            return $this->html('GOAL: Legacy — Error', $this->errorPage($exception->getMessage()), null, '', 500, $session);
+            return $this->html('GOAL: Legacy — Error', $this->errorPage($this->friendlyError($exception)), null, '', 500, $session);
         }
     }
 
@@ -75,13 +78,18 @@ final class WebApplication
     {
         $page = (string) ($query['page'] ?? 'menu');
         if ($page === 'action') { return $this->redirect(WebView::url('menu')); }
-        if ($page === 'menu') { return $this->html('Main Menu', $this->mainMenu(), null, '', 200, $session); }
+        if ($page === 'menu') { return $this->html('Main Menu', $this->mainMenu($session), null, '', 200, $session); }
         if ($page === 'new') { return $this->newCareer((string) ($query['step'] ?? 'identity'), $session); }
         if ($page === 'portrait') { return $this->portrait($query, $session); }
         $saveId = $this->saveId($query['save'] ?? null);
         if ($saveId === null) { return $this->redirect(WebView::url('menu')); }
         if (!$this->services->saveStore()->exists($saveId)) {
             $session['web_flash'] = 'That saved career could not be found.';
+            return $this->redirect(WebView::url('menu'));
+        }
+        $metadata = $this->services->saveStore()->open($saveId);
+        if (!$this->canAccessSave($metadata, $session)) {
+            $session['web_flash'] = 'That saved career is not available to this account.';
             return $this->redirect(WebView::url('menu'));
         }
 
@@ -92,10 +100,6 @@ final class WebApplication
         if ($page === 'sandbox' && !$access->canSandbox()) {
             return $this->html('Sandbox', $this->errorPage('Premium Sandbox access is not enabled for this account.'), null, '', 403, $session);
         }
-        if ($page === 'sandbox' && !$access->isDeveloper() && (($metadata = $this->services->saveStore()->open($saveId))->ownerId() !== $access->accountId())) {
-            return $this->html('Sandbox', $this->errorPage('That save is not owned by this account.'), null, '', 403, $session);
-        }
-
         return match ($page) {
             'home' => $this->home($saveId, $session),
             'career' => $this->career($saveId, $session),
@@ -131,6 +135,14 @@ final class WebApplication
     {
         $action = (string) ($post['action'] ?? '');
         try {
+            $draftAction = in_array($action, ['new_identity', 'new_body', 'new_appearance', 'new_profile', 'new_youth_view', 'select_club', 'save_exit'], true);
+            if (!$draftAction && array_key_exists('save', $post)) {
+                $saveId = $this->saveId($post['save']);
+                if ($saveId === null || !$this->services->saveStore()->exists($saveId) || !$this->canAccessSave($this->services->saveStore()->open($saveId), $session)) {
+                    $session['web_flash'] = 'That saved career is not available to this account.';
+                    return $this->redirect(WebView::url('menu'));
+                }
+            }
             return match ($action) {
                 'new_identity' => $this->postIdentity($post, $session),
                 'new_body' => $this->postBody($post, $session),
@@ -167,11 +179,11 @@ final class WebApplication
         } catch (\Throwable $exception) {
             $saveId = $this->saveId($post['save'] ?? null);
             if ($action === 'new_identity' || $action === 'new_body' || $action === 'new_appearance' || $action === 'new_profile') {
-                $session['web_flash'] = $exception->getMessage();
+                $session['web_flash'] = $this->actionError($exception);
                 $step = $action === 'new_identity' ? 'identity' : ($action === 'new_body' ? 'body' : ($action === 'new_appearance' ? 'appearance' : 'profile'));
                 return $this->redirect(WebView::url('new', ['step' => $step]));
             }
-            $session['web_flash'] = $exception->getMessage();
+            $session['web_flash'] = $this->actionError($exception);
             if ($saveId !== null && $this->services->saveStore()->exists($saveId) && str_starts_with($action, 'sandbox')) {
                 return $this->redirect(WebView::url('sandbox', ['save' => $saveId]));
             }
@@ -803,22 +815,31 @@ final class WebApplication
     }
 
     /** @param array<string,mixed> $session */
-    private function mainMenu(): string
+    private function mainMenu(array $session): string
     {
         $cards = '';
         foreach ($this->services->saveStore()->list() as $metadata) {
+            if (!$this->canAccessSave($metadata, $session)) {
+                continue;
+            }
             $saveId = $metadata->id();
             $player = $club = $season = $playerId = null;
+            $available = true;
             try {
                 $menu = $this->menuCareer($saveId);
                 $player = $menu['player']; $playerId = $menu['player_id']; $club = $menu['club']; $season = $menu['season'];
             } catch (\Throwable) {
                 $player = 'Career unavailable';
+                $available = false;
             }
             $portrait = $playerId !== null
                 ? WebView::portrait($this->portraitUrl($saveId, $playerId, 'career', 64), (string) ($player ?? 'Player'), 'portrait portrait-small')
                 : '';
-            $cards .= '<article class="save-card">' . $portrait . '<div class="save-card-copy"><span class="eyebrow">SAVED CAREER</span><h2>' . WebView::e($player ?? $metadata->name()) . '</h2><p>' . WebView::e($club ?? 'Free Agent') . ($season === null ? '' : ' · ' . WebView::e($season)) . '</p></div>' . WebView::link('home', ['save' => $saveId], 'Load Career', 'button button-primary') . '</article>';
+            $action = $available
+                ? WebView::link('home', ['save' => $saveId], 'Load Career', 'button button-primary')
+                : '<span class="muted">Unavailable — choose another Career</span>';
+            $sandbox = $metadata->isSandbox() ? ' · SANDBOX' : '';
+            $cards .= '<article class="save-card">' . $portrait . '<div class="save-card-copy"><span class="eyebrow">SAVED CAREER' . WebView::e($sandbox) . '</span><h2>' . WebView::e($player ?? $metadata->name()) . '</h2><p>' . WebView::e($club ?? 'Free Agent') . ($season === null ? '' : ' · ' . WebView::e($season)) . '</p><small class="muted">Save: ' . WebView::e($saveId) . '</small></div>' . $action . '</article>';
         }
         $body = '<div class="hero hero-menu"><div class="eyebrow">FOOTBALL CAREER SIMULATION</div><h1>GOAL: LEGACY</h1><p>Build your football life, shape your development, and make every season your own.</p><div class="hero-actions">' . WebView::link('new', ['step' => 'identity'], 'New Career', 'button button-primary button-large') . '</div></div>';
         $body .= WebView::section('CONTINUE YOUR STORY', 'Load Career', $cards === '' ? WebView::emptyState('No saved careers yet. Start a new career to enter Youth Camp.') : '<div class="save-list">' . $cards . '</div>');
@@ -2591,6 +2612,30 @@ final class WebApplication
     private function database(string $saveId): DatabaseInterface { return $this->services->saveStore()->openDatabase($saveId); }
     private function requiredSave(array $values): string { $save = $this->saveId($values['save'] ?? null); if ($save === null) { throw new RuntimeException('A valid career is required.'); } return $save; }
     private function saveId(mixed $value): ?string { $save = trim((string) ($value ?? '')); return preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/', $save) === 1 ? $save : null; }
+    /** @param array<string,mixed> $session */
+    private function canAccessSave(SaveMetadata $metadata, array $session): bool
+    {
+        $access = WebAccessContext::fromSession($session);
+
+        return $access->isDeveloper() || $metadata->ownerId() === null || $metadata->ownerId() === $access->accountId();
+    }
+    private function friendlyError(\Throwable $exception): string
+    {
+        if ($exception instanceof UnsupportedSaveVersionException) {
+            return 'This saved career is not compatible with this version. Return to Careers and choose another save.';
+        }
+        if ($exception instanceof PersistenceException || $exception instanceof \PDOException) {
+            return 'This saved career could not be opened. No career data was changed. Return to Careers and choose another save.';
+        }
+
+        return 'We could not complete that request. Return to Careers and try again.';
+    }
+    private function actionError(\Throwable $exception): string
+    {
+        return $exception instanceof PersistenceException || $exception instanceof UnsupportedSaveVersionException || $exception instanceof \PDOException
+            ? $this->friendlyError($exception)
+            : $exception->getMessage();
+    }
     private function portraitUrl(string $saveId, string $playerId, string $context, int $size): string { return WebView::url('portrait', ['save' => $saveId, 'player' => $playerId, 'context' => $context, 'size' => $size]); }
     /** @param array<string, mixed> $projection */
     private function competitionLeaderboardSection(array $projection): string

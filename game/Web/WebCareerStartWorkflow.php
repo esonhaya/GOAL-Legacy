@@ -96,9 +96,8 @@ final class WebCareerStartWorkflow
                 $season->id(),
             );
         } catch (\Throwable $exception) {
-            if ($created) {
-                $path = $this->projectRoot . '/game/saves/' . $request->careerId . '.sqlite';
-                if (is_file($path)) { unlink($path); }
+            if ($created && $store->exists($request->careerId)) {
+                $store->delete($request->careerId);
             }
             throw $exception;
         }

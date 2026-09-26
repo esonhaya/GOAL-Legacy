@@ -221,3 +221,21 @@ development semantics to their canonical services. `P3016CareerJourneyTest`
 uses fixed seed `31601`, a short CM/Regular journey, reload checkpoints, one
 web Match, and two `GoalMatchRunner` fixtures; it is an integration gate, not
 a second gameplay loop or a long-term balance simulation.
+
+## P3-017 save/session boundary
+
+Save identity and metadata remain owned by `SqliteSaveStore`; Career Home and
+the other read models never create a competing save registry. Web save context
+is explicit in validated route/action IDs rather than a silently sticky
+session pointer. Metadata ownership is enforced before an existing-save route
+or mutation is dispatched, while anonymous legacy saves remain readable and
+Developer access remains distinct.
+
+The save list is metadata-first and bounded. A malformed file is skipped from
+selection without implicit deletion or repair. If a user opens one directly,
+the application stops before projecting Career state and gives a concise
+recovery message back to Careers rather than exposing SQLite paths or traces.
+One-use action tokens remain save-scoped; stale or cross-save POSTs are
+rejected before canonical gameplay services can mutate the target. Creation
+rollback uses the storage abstraction, and normal GET/render paths do not
+advance gameplay.

@@ -227,3 +227,28 @@ runtime. It drives these real routes and extracts their rendered tokens while
 bounded deterministic fixtures/checkpoints where a production route cannot
 reliably produce an edge state. It must not calculate outcomes or bypass
 Contract, Match, Training, availability, or progression owners.
+
+## P3-017 save and session reliability
+
+`SqliteSaveStore` is the source of truth for save identity, location, metadata,
+format compatibility, cloning, and deletion. The web shell does not maintain
+a second save registry or a persistent current-save pointer: save context is
+explicitly carried by the validated route/action save ID. A normal account may
+open only metadata with no owner or metadata owned by that account; Developer
+access remains separate. Save IDs are allow-listed before they reach storage.
+
+The main menu reads bounded metadata and presents the stable save ID and
+Sandbox marker. Unreadable files are omitted from the selectable list without
+being deleted or repaired. A direct open of a corrupt or incompatible save
+stops before Career rendering and returns bounded recovery copy with a route
+back to Careers. Missing, unauthorized, or stale save actions redirect to the
+menu. Creation rollback deletes through `SaveStore`, not by reconstructing a
+filesystem path in the web layer.
+
+State-changing actions remain POST-only, use existing CSRF/one-use tokens, and
+redirect after mutation. Save ownership is checked before existing-save POST
+dispatch, while creation draft IDs and Save & Exit remain session actions.
+Refreshes and direct GETs remain read-only for gameplay; selecting a save does
+not advance time or resolve a decision. Normal save rename, delete UI, cloud
+sync, and general backup/version migration are not currently supported by the
+graphical shell and are not implied by this reliability boundary.

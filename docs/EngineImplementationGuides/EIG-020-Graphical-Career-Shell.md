@@ -180,3 +180,18 @@ Refresh is read-only; repeated POST is rejected.
 
 Shell keeps one primary action, semantic status text, mobile stacking; no
 tactics controls, second rating/form system, highlight RNG, or new history.
+
+## P3-015 progression surfaces
+
+The controlled Player Profile now shows the canonical six attributes, current
+OVR, role, derived Career stage, training focus, and bounded recent development
+evidence. Career Home and Training use the same progression projection so
+current state, role context, and retained changes do not diverge. Season Review
+adds recorded non-zero attribute deltas and retained position changes to its
+existing OVR/role summary.
+
+Only exact retained OVR transitions and attribute deltas are displayed;
+missing historical from-values remain missing. Normal Career UI keeps
+potential hidden and has no XP/progress bar or presentation-side progression
+calculation. A no-history state says so plainly. The projection is read-only,
+does not consume RNG, and does not write development snapshots during GET.

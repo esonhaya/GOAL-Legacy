@@ -209,4 +209,26 @@ omitted rather than fabricated. The projection has no Season score, no random
 prose, and no write-on-read path; ordering is stable by Season, competition,
 movement, and canonical source key.
 
+## P3-015 progression experience
+
+Progression presentation consumes canonical Player attributes/OVR,
+`PlayerDevelopmentRepository` history, training focus, role/position history,
+playing-time evidence, lifecycle phase, and Career Outlook. The bounded
+`CareerPresentationService::progressionContext()` projection is shared by
+Career Home, the controlled Player Profile, and Training; Season Review keeps
+its existing Season-scoped projection.
+
+The retained development boundary supports exact OVR before/after values and
+non-zero attribute deltas. When historical attribute snapshots do not exist,
+the shell does not fabricate them. No XP, levels, skill allocation, progress
+bars, hidden score, new potential system, or normal-UI potential disclosure is
+introduced. Career stage describes lifecycle position; Career Outlook describes
+current football situation.
+
+Training, development application, role changes, position development, form,
+and availability remain canonical domain concerns. Presentation only explains
+recorded changes and bounded evidence. Zero-delta records are omitted from
+progress feedback, and Profile/Home/Training/Season Review GET paths remain
+read-only.
+
 END OF DOCUMENT

@@ -175,6 +175,8 @@ final class GraphicalShellTest extends TestCase
             $training = $this->application->handle('GET', '/', ['page' => 'training', 'save' => $save], [], $session);
             self::assertSame(200, $training['status']);
             self::assertStringContainsString('Current football state', $training['body']);
+            self::assertStringContainsString('DEVELOPMENT FEEDBACK', $training['body']);
+            self::assertStringContainsString('No recent attribute or OVR change is retained.', $training['body']);
             $pulseSources = (int) $database->connection()->query('SELECT COUNT(*) FROM pulse_feed_sources')->fetchColumn();
             $pulsePosts = (int) $database->connection()->query('SELECT COUNT(*) FROM pulse_posts')->fetchColumn();
             $pulse = $this->application->handle('GET', '/', ['page' => 'pulse', 'save' => $save], [], $session);
@@ -191,6 +193,10 @@ final class GraphicalShellTest extends TestCase
             self::assertSame(200, $controlled['status']);
             self::assertStringContainsString('CURRENT SEASON', $controlled['body']);
             self::assertStringContainsString('Training focus', $controlled['body']);
+            self::assertStringContainsString('PLAYER DEVELOPMENT', $controlled['body']);
+            self::assertStringContainsString('Current attributes', $controlled['body']);
+            self::assertStringContainsString('Pace', $controlled['body']);
+            self::assertStringContainsString('Career stage', $controlled['body']);
             self::assertStringContainsString('Readiness', $controlled['body']);
             self::assertStringContainsString('ON-PITCH ROLE', $controlled['body']);
             self::assertStringContainsString('Set preferred role', $controlled['body']);

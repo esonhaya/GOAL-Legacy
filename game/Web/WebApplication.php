@@ -959,6 +959,7 @@ final class WebApplication
         $form = (array) ($summary['recent_form'] ?? []);
         $performance = (array) ($summary['season_performance'] ?? []);
         $presentation = new CareerPresentationService($this->services);
+        $progression = $presentation->progressionContext($summary);
         $currentCompetition = is_array($summary['current_competition'] ?? null) ? $summary['current_competition'] : null;
         $currentCompetitionId = (string) ($currentCompetition['id'] ?? '');
         $currentSeasonId = (string) ($summary['current_season_id'] ?? '');
@@ -1091,11 +1092,12 @@ final class WebApplication
         $retired = ($homeContext['header']['career_state'] ?? 'active') === 'retired';
         $mainPanels = $retired
             ? WebView::section('CAREER COMPLETE', 'Your playing Career is closed', '<p>The final playing record is preserved. Explore the Career Legacy, Trophy Room, and Season Reviews below.</p><div class="form-actions">' . WebView::link('legacy', ['save' => $saveId], 'Open Career Legacy', 'button button-primary') . WebView::link('trophies', ['save' => $saveId], 'Trophy Room') . $seasonReviewLink . '</div>')
+                . WebView::section('DEVELOPMENT', 'Final progression context', $this->progressionSection($progression))
                 . WebView::section('FINAL SEASON', $snapshot['summary']['current_season_label'] ?? 'Final Season', $seasonBody)
                 . WebView::section('CLUB', $club['name'] ?? 'Final Club', $clubBody)
                 . WebView::section('INTERNATIONAL DUTY', 'National-team record', $internationalBody)
                 . WebView::section('PULSE', 'Recent football reaction', $pulseBody)
-            : WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $seasonBody) . $loanPanel . $racePanel . $careerMemoryPanel . $captaincyPanel . $setPiecePanel . $recoveryPanel . $disciplinePanel . WebView::section('CLUB SEASON', 'What the Club is trying to achieve', $clubSeasonBody) . WebView::section('READINESS', 'Between Matches', $readinessPanel) . WebView::section('MANAGER / SQUAD STATUS', 'Your place in the team', $managerPanel) . WebView::section('CLUB', $club['name'] ?? 'Free Agent', $clubBody) . WebView::section('INTERNATIONAL DUTY', 'National-team context', $internationalBody) . WebView::section('PUBLIC CONTEXT', 'Football reputation', $socialBody) . WebView::section('PULSE', 'Trending on Pulse', $pulseBody);
+            : WebView::section('CURRENT SEASON', $snapshot['summary']['current_season_label'] ?? 'Current Season', $seasonBody) . WebView::section('DEVELOPMENT', 'What is changing and why', $this->progressionSection($progression, false, WebView::link('training', ['save' => $saveId], 'Open Training', 'button button-secondary'))) . $loanPanel . $racePanel . $careerMemoryPanel . $captaincyPanel . $setPiecePanel . $recoveryPanel . $disciplinePanel . WebView::section('CLUB SEASON', 'What the Club is trying to achieve', $clubSeasonBody) . WebView::section('READINESS', 'Between Matches', $readinessPanel) . WebView::section('MANAGER / SQUAD STATUS', 'Your place in the team', $managerPanel) . WebView::section('CLUB', $club['name'] ?? 'Free Agent', $clubBody) . WebView::section('INTERNATIONAL DUTY', 'National-team context', $internationalBody) . WebView::section('PUBLIC CONTEXT', 'Football reputation', $socialBody) . WebView::section('PULSE', 'Trending on Pulse', $pulseBody);
         $sidePanels = WebView::section('CAREER SITUATION', 'Your direction', $situation) . $careerDirectionPanel . WebView::section('ACTIONS', 'Explore your Career', $actions);
         $body = $profile . WebView::section('NEXT UP', 'Your most important next step', $nextUp, 'career-home-next') . WebView::section('CURRENT STATUS', 'What is happening now', $nowBody) . $attention . $story . '<div class="dashboard-grid"><div class="dashboard-main">' . $mainPanels . '</div><aside class="dashboard-side">' . $sidePanels . '</aside></div>';
 
@@ -1201,9 +1203,25 @@ final class WebApplication
         $competitionRows = $competitionRows === '' ? WebView::emptyState('No completed competition statistics are available.') : $competitionRows;
         $development = '';
         foreach ((array) ($progression['development'] ?? []) as $entry) {
-            if (is_array($entry)) { $development .= '<li><strong>' . WebView::e($entry['date'] ?? 'Recorded') . '</strong> · OVR ' . (int) ($entry['before_ovr'] ?? 0) . ' → ' . (int) ($entry['after_ovr'] ?? 0) . '</li>'; }
+            if (!is_array($entry)) { continue; }
+            $changes = [];
+            foreach ((array) ($entry['attribute_deltas'] ?? []) as $attribute => $delta) {
+                $delta = (int) $delta;
+                if ($delta !== 0) { $changes[] = CareerLabels::value($attribute, (string) $attribute) . ' ' . ($delta > 0 ? '+' : '') . $delta; }
+            }
+            $ovr = array_key_exists('before_ovr', $entry) && array_key_exists('after_ovr', $entry)
+                ? ' · OVR ' . (int) $entry['before_ovr'] . ' → ' . (int) $entry['after_ovr']
+                : '';
+            $development .= '<li><strong>' . WebView::e($entry['date'] ?? 'Recorded') . '</strong>' . $ovr . ($changes === [] ? '' : ' · ' . WebView::e(implode(', ', $changes))) . '</li>';
         }
         $development = $development === '' ? WebView::emptyState('No Season-scoped development change is retained.') : '<ul class="timeline">' . $development . '</ul>';
+        $positionDevelopment = '';
+        foreach ((array) ($progression['position_changes'] ?? []) as $change) {
+            if (is_array($change)) {
+                $positionDevelopment .= '<li><strong>' . WebView::e($change['occurred_date'] ?? 'Recorded') . '</strong> · ' . WebView::e(CareerLabels::position($change['from_position'] ?? null)) . ' → ' . WebView::e(CareerLabels::position($change['to_position'] ?? null)) . '</li>';
+            }
+        }
+        $positionDevelopment = $positionDevelopment === '' ? '' : '<p><strong>Position development</strong></p><ul class="timeline">' . $positionDevelopment . '</ul>';
         $events = '';
         foreach ((array) (($review['events']['movements'] ?? [])) as $event) {
             if (is_array($event)) { $events .= '<li><strong>' . WebView::e($event['date'] ?? 'Recorded') . '</strong> · ' . WebView::e(CareerLabels::value($event['type'] ?? null, 'Club movement')) . ' · ' . WebView::e($event['from_club'] ?? '') . ' → ' . WebView::e($event['to_club'] ?? '') . '</li>'; }
@@ -1242,7 +1260,7 @@ final class WebApplication
         $overview = '<div class="stat-grid"><div class="stat"><span>Club appearances</span><strong>' . (int) ($totals['appearances'] ?? 0) . '</strong></div><div class="stat"><span>Starts</span><strong>' . (int) ($totals['starts'] ?? 0) . '</strong></div><div class="stat"><span>Minutes</span><strong>' . (int) ($totals['minutes'] ?? 0) . '</strong></div><div class="stat"><span>Goals</span><strong>' . (int) ($totals['goals'] ?? 0) . '</strong></div><div class="stat"><span>Assists</span><strong>' . (int) ($totals['assists'] ?? 0) . '</strong></div><div class="stat"><span>Assessment</span><strong>' . WebView::e(CareerLabels::value($performance['classification'] ?? null, 'Insufficient evidence')) . '</strong></div></div><p class="metric-note">' . WebView::e($performance['reason'] ?? 'Assessment uses retained canonical Season evidence.') . '</p>';
         $role = implode(' → ', array_map(static fn (mixed $value): string => CareerLabels::value($value), (array) ($progression['roles'] ?? [])));
         $role = $role === '' ? 'No Season role change retained' : $role;
-        $body .= '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('OVERVIEW', 'What happened', $overview . WebView::section('CLUB JOURNEY', 'Where the Season was played', $clubs)) . WebView::section('STATISTICS', 'Competition breakdown', $competitionRows . '<p class="muted">Totals reconcile from the displayed competition evidence. International statistics remain separate.</p>') . $internationalSection . WebView::section('CAREER PROGRESSION', 'Development and role', '<p><strong>Role:</strong> ' . WebView::e($role) . '</p><p><strong>OVR:</strong> ' . WebView::e(($progression['ovr_before'] ?? '—') . ' → ' . ($progression['ovr_after'] ?? '—')) . '</p>' . $development) . WebView::section('ACHIEVEMENTS', 'Canonical Season facts', $achievements) . '</div><aside class="dashboard-side">' . WebView::section('KEY EVENTS', 'Movement and retained context', $events) . WebView::section('HIGHLIGHTS', 'Selected factual moments', $highlights) . WebView::section('OUTLOOK', 'Only for the current Season', ($review['outlook'] ?? null) === null ? WebView::emptyState('Historical reviews do not rewrite the past with the current outlook.') : '<p>' . WebView::e(CareerLabels::value(((array) $review['outlook'])['category'] ?? null, 'Recorded outlook')) . '</p>') . WebView::section('NEXT', 'Related Career surfaces', WebView::link('trophies', ['save' => $saveId], 'Trophy Room', 'button button-secondary') . WebView::link('career', ['save' => $saveId], 'Career History', 'button button-secondary')) . '</aside></div>';
+        $body .= '<div class="dashboard-grid"><div class="dashboard-main">' . WebView::section('OVERVIEW', 'What happened', $overview . WebView::section('CLUB JOURNEY', 'Where the Season was played', $clubs)) . WebView::section('STATISTICS', 'Competition breakdown', $competitionRows . '<p class="muted">Totals reconcile from the displayed competition evidence. International statistics remain separate.</p>') . $internationalSection . WebView::section('CAREER PROGRESSION', 'Development and role', '<p><strong>Role:</strong> ' . WebView::e($role) . '</p><p><strong>OVR:</strong> ' . WebView::e(($progression['ovr_before'] ?? '—') . ' → ' . ($progression['ovr_after'] ?? '—')) . '</p>' . $development . $positionDevelopment) . WebView::section('ACHIEVEMENTS', 'Canonical Season facts', $achievements) . '</div><aside class="dashboard-side">' . WebView::section('KEY EVENTS', 'Movement and retained context', $events) . WebView::section('HIGHLIGHTS', 'Selected factual moments', $highlights) . WebView::section('OUTLOOK', 'Only for the current Season', ($review['outlook'] ?? null) === null ? WebView::emptyState('Historical reviews do not rewrite the past with the current outlook.') : '<p>' . WebView::e(CareerLabels::value(((array) $review['outlook'])['category'] ?? null, 'Recorded outlook')) . '</p>') . WebView::section('NEXT', 'Related Career surfaces', WebView::link('trophies', ['save' => $saveId], 'Trophy Room', 'button button-secondary') . WebView::link('career', ['save' => $saveId], 'Career History', 'button button-secondary')) . '</aside></div>';
 
         return $this->html('Season Review · ' . (string) ($season['label'] ?? 'Season'), $body, $saveId, 'career', 200, $session);
     }
@@ -1451,6 +1469,66 @@ final class WebApplication
         return $this->html('Squad', $body, $saveId, 'squad', 200, $session);
     }
 
+    /** @param array<string, mixed> $progression */
+    private function progressionSection(array $progression, bool $includeAttributes = false, string $link = ''): string
+    {
+        $current = is_array($progression['current'] ?? null) ? $progression['current'] : [];
+        $stage = is_array($progression['career_stage'] ?? null) ? $progression['career_stage'] : [];
+        $feedback = is_array($progression['feedback'] ?? null) ? $progression['feedback'] : [];
+        $training = is_array($progression['training'] ?? null) ? $progression['training'] : [];
+        $body = '<div class="stat-grid compact">'
+            . WebView::stat('OVR', $current['ovr'] ?? '—')
+            . WebView::stat('Career stage', $stage['label'] ?? 'Active Career')
+            . WebView::stat('Squad role', CareerLabels::value($current['role'] ?? null, 'Not assigned'))
+            . WebView::stat('Development', $feedback['label'] ?? 'No recent recorded change')
+            . '</div><p>' . WebView::e($stage['description'] ?? '') . '</p><p class="muted">' . WebView::e($feedback['explanation'] ?? '') . '</p>';
+        if ($includeAttributes) {
+            $attributeCards = '';
+            foreach ((array) ($current['attributes'] ?? []) as $attribute => $value) {
+                $attributeCards .= WebView::stat(CareerLabels::value($attribute, (string) $attribute), (int) $value);
+            }
+            $body .= '<p><strong>Current attributes</strong></p><div class="stat-grid compact">' . ($attributeCards === '' ? WebView::emptyState('Current attributes are not available.') : $attributeCards) . '</div>';
+        }
+        $focus = (string) ($training['focus_label'] ?? 'No focus selected');
+        $body .= '<p><strong>Training focus:</strong> ' . WebView::e($focus) . '</p>';
+        $roleChange = is_array($progression['role_change'] ?? null) ? $progression['role_change'] : null;
+        if ($roleChange !== null) {
+            $body .= '<p><strong>Recent role change:</strong> ' . WebView::e(CareerLabels::value($roleChange['from'] ?? null)) . ' → ' . WebView::e(CareerLabels::value($roleChange['to'] ?? null)) . ' · ' . WebView::e($roleChange['date'] ?? 'Recorded') . '</p>';
+        }
+        $changeLines = '';
+        foreach ((array) ($progression['recent_changes'] ?? []) as $change) {
+            if (!is_array($change)) { continue; }
+            $line = (string) ($change['date'] ?? 'Recorded') . ' · ' . (string) ($change['source_label'] ?? 'Recorded development');
+            if (array_key_exists('before_ovr', $change) && array_key_exists('after_ovr', $change) && $change['before_ovr'] !== null && $change['after_ovr'] !== null && (int) $change['ovr_delta'] !== 0) {
+                $line .= ' · OVR ' . (int) $change['before_ovr'] . ' → ' . (int) $change['after_ovr'];
+            }
+            $deltas = [];
+            foreach ((array) ($change['attribute_changes'] ?? []) as $attributeChange) {
+                if (is_array($attributeChange)) { $deltas[] = (string) ($attributeChange['label'] ?? 'Attribute') . ' ' . ((int) ($attributeChange['delta'] ?? 0) > 0 ? '+' : '') . (int) ($attributeChange['delta'] ?? 0); }
+            }
+            if ($deltas !== []) { $line .= ' · ' . implode(', ', $deltas); }
+            $changeLines .= '<li>' . WebView::e($line) . '</li>';
+        }
+        $body .= '<p><strong>Recent recorded changes</strong></p>' . ($changeLines === '' ? WebView::emptyState('No recent attribute or OVR change is retained.') : '<ul class="timeline compact-timeline">' . $changeLines . '</ul>');
+        $evidence = [];
+        $playing = is_array($progression['evidence']['playing_time'] ?? null) ? $progression['evidence']['playing_time'] : [];
+        if ((int) ($playing['window'] ?? 0) > 0) {
+            $evidence[] = 'Recent playing time: ' . (int) ($playing['appearances'] ?? 0) . ' appearances, ' . (int) ($playing['minutes'] ?? 0) . ' minutes across ' . (int) $playing['window'] . ' recorded selection' . ((int) $playing['window'] === 1 ? '' : 's') . '.';
+        }
+        $performance = is_array($progression['evidence']['performance'] ?? null) ? $progression['evidence']['performance'] : [];
+        if (($performance['classification'] ?? 'insufficient_evidence') !== 'insufficient_evidence' && ($performance['classification'] ?? '') !== '') {
+            $evidence[] = 'Season performance evidence: ' . CareerLabels::value($performance['classification']) . '.';
+        }
+        $form = is_array($progression['evidence']['form'] ?? null) ? $progression['evidence']['form'] : [];
+        if (($form['classification'] ?? 'insufficient_evidence') !== 'insufficient_evidence' && ($form['classification'] ?? '') !== '') {
+            $evidence[] = 'Recent form evidence: ' . CareerLabels::value($form['classification']) . '.';
+        }
+        $body .= $evidence === [] ? '<p class="muted">Playing time and performance evidence are not yet sufficient for a stronger development explanation.</p>' : '<p><strong>Evidence contributing to development</strong></p><ul class="fixture-list">' . implode('', array_map(static fn (string $line): string => '<li>' . WebView::e($line) . '</li>', $evidence)) . '</ul>';
+        if ($link !== '') { $body .= '<div class="form-actions">' . $link . '</div>'; }
+
+        return $body;
+    }
+
     private function profile(string $saveId, string $playerId, array &$session): array
     {
         if ($playerId === '') { return $this->redirect(WebView::url('squad', ['save' => $saveId])); }
@@ -1487,6 +1565,7 @@ final class WebApplication
             : ($establishedTraits === [] ? '' : '<p><strong>Established</strong></p><ul class="fixture-list">' . $traitRows($establishedTraits) . '</ul>')
                 . ($emergingTraits === [] ? '' : '<p><strong>Emerging</strong></p><ul class="fixture-list">' . $traitRows($emergingTraits) . '</ul>');
         $careerContext = is_array($data['career_context'] ?? null) ? $data['career_context'] : [];
+        $progression = is_array($data['progression'] ?? null) ? $data['progression'] : [];
         $activeLoan = is_array($data['active_loan'] ?? null) ? $data['active_loan'] : null;
         $attachment = is_array($careerContext['attachment'] ?? null) ? $careerContext['attachment'] : [];
         $direction = is_array($careerContext['direction'] ?? null) ? $careerContext['direction'] : [];
@@ -1583,7 +1662,10 @@ final class WebApplication
         }
         $historyBody = $history === '' ? WebView::emptyState('No completed Match history in this Season.') : '<ul class="timeline compact-timeline">' . $history . '</ul>';
         $marketPanel = ($data['controlled'] ?? false) === true && ($data['career_state'] ?? 'active') !== 'retired' ? WebView::section('TRANSFER MARKET', 'Current context', '<p>' . WebView::e($market['label'] ?? 'Unknown') . ' · ' . WebView::e($market['current_club_level'] ?? 'Free Agent') . '</p>' . WebView::link('market', ['save' => $saveId], 'Open Transfer Market', 'button button-secondary')) : '';
-        $body = '<div class="profile-hero profile-hero-profile">' . WebView::portrait($this->portraitUrl($saveId, $playerId, 'club', 256), $player->preferredName(), 'portrait portrait-large') . '<div><div class="eyebrow">PLAYER PROFILE</div><h1>' . WebView::e($player->preferredName()) . '</h1><p>' . WebView::e($data['age'] . ' years · ' . $data['nationality'] . ' · ') . $clubLink . '</p>' . $facts . '</div></div>' . WebView::section('CURRENT SEASON', 'All competitions', $seasonLine . $extras) . $loanPanel . $racePanel . $recoveryPanel . $disciplinePanel . $captaincyPanel . $setPiecePanel . $rolePanel . WebView::section('PLAYING STYLE', 'Evidence-based football identity', $playingStyle) . WebView::section('CAREER CONTEXT', 'Club journey and current direction', $careerContextPanel) . $marketPanel . $cupPanel . $europePanel . $internationalPanel . $socialPanel . $pulsePanel . WebView::section('CAREER TOTALS', 'Recorded career evidence', $careerLine) . $legacyPanel . WebView::section('MATCH HISTORY', 'Recent canonical results', $historyBody) . '<div class="form-actions">' . WebView::link('squad', ['save' => $saveId, 'club' => $club?->id()->value()], 'Back to Squad') . '</div>';
+        $progressionPanel = ($data['controlled'] ?? false) !== true
+            ? ''
+            : WebView::section('PLAYER DEVELOPMENT', 'Current state and recent evidence', $this->progressionSection($progression, true, WebView::link('training', ['save' => $saveId], 'Open Training', 'button button-secondary')));
+        $body = '<div class="profile-hero profile-hero-profile">' . WebView::portrait($this->portraitUrl($saveId, $playerId, 'club', 256), $player->preferredName(), 'portrait portrait-large') . '<div><div class="eyebrow">PLAYER PROFILE</div><h1>' . WebView::e($player->preferredName()) . '</h1><p>' . WebView::e($data['age'] . ' years · ' . $data['nationality'] . ' · ') . $clubLink . '</p>' . $facts . '</div></div>' . WebView::section('CURRENT SEASON', 'All competitions', $seasonLine . $extras) . $progressionPanel . $loanPanel . $racePanel . $recoveryPanel . $disciplinePanel . $captaincyPanel . $setPiecePanel . $rolePanel . WebView::section('PLAYING STYLE', 'Evidence-based football identity', $playingStyle) . WebView::section('CAREER CONTEXT', 'Club journey and current direction', $careerContextPanel) . $marketPanel . $cupPanel . $europePanel . $internationalPanel . $socialPanel . $pulsePanel . WebView::section('CAREER TOTALS', 'Recorded career evidence', $careerLine) . $legacyPanel . WebView::section('MATCH HISTORY', 'Recent canonical results', $historyBody) . '<div class="form-actions">' . WebView::link('squad', ['save' => $saveId, 'club' => $club?->id()->value()], 'Back to Squad') . '</div>';
 
         return $this->html('Player Profile', $body, $saveId, 'squad', 200, $session);
     }
@@ -1914,6 +1996,7 @@ final class WebApplication
     {
         $snapshot = $this->snapshot($saveId, $this->database($saveId));
         $summary = $snapshot['summary'];
+        $progression = (new CareerPresentationService($this->services))->progressionContext($summary);
         if (($summary['career_state'] ?? 'active') === 'retired') {
             return $this->html('Training', '<div class="page-heading"><div><div class="eyebrow">TRAINING & PRIORITIES</div><h1>Career complete</h1><p>Training and active playing priorities are closed after retirement.</p></div></div>' . WebView::section('READ-ONLY', 'Final Career state', WebView::emptyState('Your development record remains available in Career Legacy.')) . '<div class="form-actions">' . WebView::link('legacy', ['save' => $saveId], 'Open Career Legacy', 'button button-primary') . '</div>', $saveId, 'training', 200, $session);
         }
@@ -1941,7 +2024,7 @@ final class WebApplication
         $positionPanel = '<div class="stat-grid compact">' . WebView::stat('Primary', CareerLabels::position($position['primary_position'] ?? null)) . WebView::stat('Secondary', ($position['secondary_positions'] ?? []) === [] ? 'None' : implode(', ', array_map(static fn (mixed $value): string => CareerLabels::position(is_string($value) ? $value : null), (array) $position['secondary_positions']))) . WebView::stat('Progress', ($position['developing_position'] ?? null) === null ? 'No active focus' : ((int) ($position['progress'] ?? 0)) . '%') . '</div><p class="muted">Position development is a medium-term training choice. It uses canonical training blocks and does not change attributes or guarantee selection. Making a completed secondary position primary preserves the Player and attributes while changing future football context.</p>' . ($positionActions === '' ? WebView::emptyState('No adjacent position currently fits this Player profile.') : $positionActions);
         $weakFoot = (array) ($summary['weak_foot_development'] ?? []);
         $weakFootPanel = '<div class="stat-grid compact">' . WebView::stat('Preferred foot', (($summary['player']['preferred_foot'] ?? 'right') === 'left') ? 'Left' : 'Right') . WebView::stat('Weak foot', $weakFoot['label'] ?? 'Derived') . WebView::stat('Progress', isset($weakFoot['progress']) ? ((int) $weakFoot['progress']) . '%' : 'Identity') . '</div><p class="muted">Weak-foot focus uses the same bounded training blocks as other development and competes with position focus. It never changes attributes or readiness by itself.</p>';
-        $body = '<div class="page-heading"><div><div class="eyebrow">TRAINING & PRIORITIES</div><h1>Shape the next block</h1><p>These choices feed the canonical development and readiness systems.</p></div></div>' . WebView::section('READINESS', 'Current football state', $readinessPanel) . WebView::section('POSITION DEVELOPMENT', 'Build another football option', $positionPanel) . WebView::section('FOOTBALL IDENTITY', 'Bounded weak-foot development', $weakFootPanel) . '<div class="two-column"><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_training"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Training focus<select name="focus">' . $focusOptions . '</select></label><p class="muted">Focus influences where existing development progress is directed.</p><button class="button button-primary" type="submit">Save training focus</button></form><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_priority"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Career priority<select name="priority">' . $priorityOptions . '</select></label><p class="muted">Recovery and lifestyle priorities use a light training load; Development uses an intense block; other priorities remain normal.</p><button class="button button-primary" type="submit">Save priority</button></form></div>';
+        $body = '<div class="page-heading"><div><div class="eyebrow">TRAINING & PRIORITIES</div><h1>Shape the next block</h1><p>These choices feed the canonical development and readiness systems.</p></div></div>' . WebView::section('READINESS', 'Current football state', $readinessPanel) . WebView::section('DEVELOPMENT FEEDBACK', 'What the retained evidence says', $this->progressionSection($progression)) . WebView::section('POSITION DEVELOPMENT', 'Build another football option', $positionPanel) . WebView::section('FOOTBALL IDENTITY', 'Bounded weak-foot development', $weakFootPanel) . '<div class="two-column"><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_training"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Training focus<select name="focus">' . $focusOptions . '</select></label><p class="muted">Focus influences where existing development progress is directed.</p><button class="button button-primary" type="submit">Save training focus</button></form><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_priority"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Career priority<select name="priority">' . $priorityOptions . '</select></label><p class="muted">Recovery and lifestyle priorities use a light training load; Development uses an intense block; other priorities remain normal.</p><button class="button button-primary" type="submit">Save priority</button></form></div>';
 
         return $this->html('Training', $body, $saveId, 'training', 200, $session);
     }

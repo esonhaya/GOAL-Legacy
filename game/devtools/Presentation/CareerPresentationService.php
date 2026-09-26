@@ -273,6 +273,108 @@ final class CareerPresentationService
         ];
     }
 
+    /**
+     * Project the bounded progression facts already retained by the Player
+     * and Club owners. Attribute history contains deltas, not historical
+     * attribute snapshots, so this boundary never invents a from-value.
+     * @param array<string, mixed> $summary
+     * @return array<string, mixed>
+     */
+    public function progressionContext(array $summary): array
+    {
+        $player = is_array($summary['player'] ?? null) ? $summary['player'] : [];
+        $attributes = is_array($player['attributes'] ?? null) ? $player['attributes'] : [];
+        $attributeValues = [];
+        foreach (['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physicality'] as $attribute) {
+            if (array_key_exists($attribute, $attributes)) {
+                $attributeValues[$attribute] = (int) $attributes[$attribute];
+            }
+        }
+        $history = array_values(array_filter((array) ($summary['development_history'] ?? []), 'is_array'));
+        usort($history, static fn (array $left, array $right): int => strcmp((string) ($left['date'] ?? '') . (string) ($left['id'] ?? ''), (string) ($right['date'] ?? '') . (string) ($right['id'] ?? '')));
+        $recent = [];
+        $positive = 0;
+        $negative = 0;
+        foreach (array_reverse($history) as $entry) {
+            $attributeChanges = [];
+            foreach ((array) ($entry['attribute_deltas'] ?? []) as $attribute => $delta) {
+                $delta = (int) $delta;
+                if ($delta === 0) { continue; }
+                $attributeChanges[] = ['attribute' => (string) $attribute, 'label' => CareerLabels::value($attribute, (string) $attribute), 'delta' => $delta];
+                $delta > 0 ? ++$positive : ++$negative;
+            }
+            $hasOvrTransition = array_key_exists('before_ovr', $entry) && array_key_exists('after_ovr', $entry);
+            $ovrDelta = $hasOvrTransition ? (int) $entry['after_ovr'] - (int) $entry['before_ovr'] : 0;
+            if ($ovrDelta === 0 && $attributeChanges === []) { continue; }
+            if ($ovrDelta > 0) { ++$positive; }
+            if ($ovrDelta < 0) { ++$negative; }
+            $recent[] = [
+                'date' => (string) ($entry['date'] ?? $entry['occurred_date'] ?? ''),
+                'source' => (string) ($entry['source'] ?? ''),
+                'source_label' => $this->developmentSourceLabel((string) ($entry['source'] ?? '')),
+                'before_ovr' => array_key_exists('before_ovr', $entry) ? (int) $entry['before_ovr'] : null,
+                'after_ovr' => array_key_exists('after_ovr', $entry) ? (int) $entry['after_ovr'] : null,
+                'ovr_delta' => $ovrDelta,
+                'attribute_changes' => $attributeChanges,
+            ];
+            if (count($recent) >= 5) { break; }
+        }
+        $roleHistory = array_values(array_filter((array) ($summary['role_history'] ?? []), 'is_array'));
+        $roleChanges = [];
+        $previousRole = null;
+        foreach ($roleHistory as $entry) {
+            $role = (string) ($entry['role'] ?? '');
+            if ($role === '') { continue; }
+            if ($previousRole !== null && $previousRole !== $role) {
+                $roleChanges[] = [
+                    'from' => $previousRole,
+                    'to' => $role,
+                    'date' => (string) ($entry['occurred_date'] ?? ''),
+                    'season_id' => (string) ($entry['season_id'] ?? ''),
+                ];
+            }
+            $previousRole = $role;
+        }
+        $performance = is_array($summary['latest_season_performance'] ?? null)
+            ? $summary['latest_season_performance']
+            : (is_array($summary['season_performance'] ?? null) ? $summary['season_performance'] : []);
+        $playingTime = is_array($summary['recent_playing_time'] ?? null) ? $summary['recent_playing_time'] : [];
+        $feedback = match (true) {
+            $recent === [] => ['code' => 'no_recorded_change', 'label' => 'No recent recorded change', 'explanation' => 'No attribute or OVR change is retained for this period.'],
+            $positive > 0 && $negative === 0 => ['code' => 'improving', 'label' => 'Improving', 'explanation' => 'Recent recorded development is moving upward.'],
+            $negative > 0 && $positive === 0 => ['code' => 'declining', 'label' => 'Declining', 'explanation' => 'Recent recorded development includes downward changes.'],
+            default => ['code' => 'mixed', 'label' => 'Mixed recent change', 'explanation' => 'Recent records include both upward and downward changes.'],
+        };
+
+        return [
+            'current' => [
+                'ovr' => array_key_exists('current_ovr', $summary) ? (int) $summary['current_ovr'] : (int) ($player['overall_rating'] ?? 0),
+                'attributes' => $attributeValues,
+                'position' => $player['primary_position'] ?? null,
+                'age' => $summary['age'] ?? null,
+                'role' => $summary['current_role'] ?? $summary['squad_role'] ?? null,
+            ],
+            'training' => [
+                'focus' => $summary['training_focus'] ?? null,
+                'focus_label' => CareerLabels::value($summary['training_focus'] ?? null, 'No focus selected'),
+                'position_focus' => is_array($summary['position_development'] ?? null) ? $summary['position_development'] : [],
+            ],
+            'recent_changes' => $recent,
+            'history_count' => count($history),
+            'feedback' => $feedback,
+            'evidence' => [
+                'playing_time' => $playingTime,
+                'performance' => $performance,
+                'form' => is_array($summary['recent_form'] ?? null) ? $summary['recent_form'] : [],
+                'availability' => $summary['availability'] ?? null,
+            ],
+            'role_change' => $roleChanges === [] ? null : $roleChanges[array_key_last($roleChanges)],
+            'role_changes' => $roleChanges,
+            'career_stage' => $this->careerStage($summary),
+            'outlook' => is_array($summary['career_outlook'] ?? null) ? $summary['career_outlook'] : [],
+        ];
+    }
+
     /** @param array<string, mixed> $summary @param array<string, mixed> $discipline @param array<string, mixed> $recovery @param array<string, mixed> $readiness @return array<string, mixed> */
     private function homeAvailability(array $summary, array $discipline, array $recovery, array $readiness, bool $retired): array
     {
@@ -546,6 +648,7 @@ final class CareerPresentationService
         $career = (new CareerPlayerRepository($database))->get($saveId);
         $controlled = $career->playerId()->value() === $playerId;
         $controlledSummary = $controlled ? $this->controlledSummary($database, $saveId) : [];
+        $progression = $controlled ? $this->progressionContext($controlledSummary) : null;
         $recovery = $controlled ? $this->recoveryService()->context($database, $player->id(), $date) : null;
         $discipline = $controlled ? (new PlayerDisciplineService())->context($database, $player->id()) : null;
         if ($controlled) {
@@ -689,6 +792,7 @@ final class CareerPresentationService
             'career_state' => $controlled ? ($controlledSummary['career_state'] ?? $player->careerState()->value) : $player->careerState()->value,
             'career_phase' => $controlled ? ($controlledSummary['career_phase'] ?? null) : null,
             'retirement' => $controlled ? ($controlledSummary['retirement'] ?? null) : null,
+            'progression' => $progression,
         ];
     }
 
@@ -1724,7 +1828,7 @@ final class CareerPresentationService
             'contract_context' => ['parent_club' => $summary['parent_club'] ?? null, 'contracts' => $contracts],
             'statistics' => ['competitions' => $competitionStats, 'totals' => $totals, 'international' => $international, 'reconciles' => $reconciles],
             'performance' => ['classification' => $performance['classification'] ?? 'insufficient_evidence', 'reason' => $performance['reason'] ?? null, 'statistics' => $performance['statistics'] ?? []],
-            'progression' => ['development' => $development, 'ovr_before' => $ovrBefore, 'ovr_after' => $ovrAfter, 'role_history' => $roles, 'roles' => $roleValues, 'position_history' => $positionHistory, 'position_summary' => null],
+            'progression' => ['development' => $development, 'ovr_before' => $ovrBefore, 'ovr_after' => $ovrAfter, 'role_history' => $roles, 'roles' => $roleValues, 'position_history' => $positionHistory, 'position_changes' => $positionHistory, 'position_summary' => null],
             'events' => ['movements' => $movement, 'loans' => array_values(array_filter($movement, static fn (array $row): bool => ($row['type'] ?? '') === 'loan')), 'injuries' => $injuries, 'discipline' => $discipline, 'captaincy' => $captaincy, 'objectives' => $objectives, 'set_pieces' => [], 'set_piece_review' => 'omitted'],
             'achievements' => ['honours' => $honours, 'awards' => $awards, 'records' => $records, 'personal_bests' => $records, 'milestones' => $milestones, 'leaderboards' => $leaderboards],
             'highlights' => $highlights,
@@ -2357,6 +2461,31 @@ final class CareerPresentationService
         }
 
         return CareerLabels::value($form['classification'] ?? null, 'Not available');
+    }
+
+    private function developmentSourceLabel(string $source): string
+    {
+        return match ($source) {
+            'training' => 'Training block',
+            'match' => 'Match evidence',
+            'season_lifecycle' => 'Season transition',
+            default => 'Recorded development',
+        };
+    }
+
+    /** @param array<string, mixed> $summary @return array{code:string,label:string,description:string,phase:string} */
+    private function careerStage(array $summary): array
+    {
+        $phase = (string) ($summary['career_phase'] ?? '');
+
+        return match ($phase) {
+            'retired' => ['code' => 'career_complete', 'label' => 'Career Complete', 'description' => 'The playing Career is complete; the final record remains available.', 'phase' => $phase],
+            'youth' => ['code' => 'early_career', 'label' => 'Early Career', 'description' => 'Building the first senior evidence of the Career.', 'phase' => $phase],
+            'development' => ['code' => 'establishing', 'label' => 'Establishing', 'description' => 'Building a dependable senior role through football evidence.', 'phase' => $phase],
+            'prime', 'experienced' => ['code' => 'established', 'label' => 'Established', 'description' => 'An established Career stage; current role and evidence describe the present chapter.', 'phase' => $phase],
+            'veteran', 'decline' => ['code' => 'veteran', 'label' => 'Veteran', 'description' => 'A veteran Career stage; current form and role determine whether the chapter is holding or changing.', 'phase' => $phase],
+            default => ['code' => 'active_career', 'label' => 'Active Career', 'description' => 'The current Career stage is derived from the recorded lifecycle state.', 'phase' => $phase],
+        };
     }
 
     private function seasonId(array $summary): ?\Goal\Legacy\Modules\World\Domain\SeasonId

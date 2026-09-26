@@ -164,3 +164,25 @@ projection prioritises controlled-player moments and filters headline stats by
 actual deployed position; unused, not-selected, injured, and suspended states
 never receive fabricated ratings. GET/render of pre-Match, Matchday, post-Match,
 and Career Home remains observational and does not write gameplay rows.
+
+## P3-015 progression feedback
+
+`CareerPresentationService::progressionContext()` is the bounded projection
+for current player development feedback. It reuses canonical Player
+attributes/OVR, `PlayerDevelopmentRepository` history, training focus,
+playing-time/performance evidence, role history, position history, lifecycle
+phase, and Career Outlook. Career Home, the controlled Player Profile, and
+Training consume this projection; Season Review remains the Season-scoped
+review owner.
+
+Development history retains exact OVR before/after values and attribute
+deltas. The presentation shows only recorded non-zero changes and never
+invents historical attribute from-values, XP, progress bars, or a hidden
+progression score. Career stage is a derived lifecycle description separate
+from Career Outlook, and normal Career UI does not expose potential.
+
+Role and development execution remain owned by existing domain services.
+Profile, Training, Home, and Season Review reads are observational and do not
+create gameplay rows or snapshots. Significant role/position changes may be
+surfaced through retained history; routine attribute deltas remain transient
+development evidence.

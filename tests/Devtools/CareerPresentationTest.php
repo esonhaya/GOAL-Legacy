@@ -90,6 +90,60 @@ final class CareerPresentationTest extends TestCase
         self::assertStringContainsString('free agent', strtolower($model['next_up']['action']['why']));
     }
 
+    public function testProgressionContextSeparatesCareerStageFromOutlookAndUsesRecordedDeltas(): void
+    {
+        $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);
+        $model = (new CareerPresentationService($services))->progressionContext([
+            'player' => ['attributes' => ['pace' => 72, 'shooting' => 68, 'passing' => 70, 'dribbling' => 71, 'defending' => 50, 'physicality' => 65], 'primary_position' => 'CM'],
+            'current_ovr' => 66, 'current_role' => 'regular', 'career_phase' => 'prime', 'age' => 25,
+            'career_outlook' => ['category' => 'steady_role'], 'training_focus' => 'passing',
+            'development_history' => [
+                ['id' => 'dev-1', 'date' => '2025-01-01', 'source' => 'training', 'before_ovr' => 65, 'after_ovr' => 66, 'attribute_deltas' => ['passing' => 1]],
+                ['id' => 'dev-2', 'date' => '2025-02-01', 'source' => 'season_lifecycle', 'before_ovr' => 66, 'after_ovr' => 65, 'attribute_deltas' => ['physicality' => -1]],
+            ],
+            'role_history' => [
+                ['role' => 'prospect', 'occurred_date' => '2024-08-01', 'season_id' => 'season-2024-25'],
+                ['role' => 'rotation', 'occurred_date' => '2024-12-01', 'season_id' => 'season-2024-25'],
+                ['role' => 'regular', 'occurred_date' => '2025-02-01', 'season_id' => 'season-2024-25'],
+            ],
+            'recent_playing_time' => ['window' => 5, 'appearances' => 4, 'starts' => 3, 'minutes' => 280],
+            'latest_season_performance' => ['classification' => 'strong'],
+            'recent_form' => ['classification' => 'good'],
+        ]);
+
+        self::assertSame('established', $model['career_stage']['code']);
+        self::assertSame('steady_role', $model['outlook']['category']);
+        self::assertSame(66, $model['current']['ovr']);
+        self::assertSame(70, $model['current']['attributes']['passing']);
+        self::assertSame('mixed', $model['feedback']['code']);
+        self::assertSame('passing', $model['training']['focus']);
+        self::assertSame('rotation', $model['role_change']['from']);
+        self::assertSame('regular', $model['role_change']['to']);
+        $deltas = [];
+        foreach ($model['recent_changes'] as $change) {
+            foreach ($change['attribute_changes'] as $attributeChange) {
+                $deltas[] = $attributeChange['delta'];
+            }
+        }
+        self::assertContains(1, $deltas);
+        self::assertContains(-1, $deltas);
+    }
+
+    public function testProgressionContextUsesAnHonestEmptyState(): void
+    {
+        $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);
+        $model = (new CareerPresentationService($services))->progressionContext([
+            'player' => ['attributes' => ['pace' => 60, 'shooting' => 60, 'passing' => 60, 'dribbling' => 60, 'defending' => 60, 'physicality' => 60]],
+            'current_ovr' => 60, 'career_phase' => 'development', 'current_role' => 'prospect',
+            'development_history' => [], 'training_focus' => null,
+        ]);
+
+        self::assertSame('establishing', $model['career_stage']['code']);
+        self::assertSame('no_recorded_change', $model['feedback']['code']);
+        self::assertSame([], $model['recent_changes']);
+        self::assertSame('No focus selected', $model['training']['focus_label']);
+    }
+
     public function testCareerHomeStateMatrixKeepsActiveLimitedAndTransferContextReadable(): void
     {
         $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);

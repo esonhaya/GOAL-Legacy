@@ -136,7 +136,7 @@ final class WebApplication
                 'new_body' => $this->postBody($post, $session),
                 'new_appearance' => $this->postAppearance($post, $session),
                 'new_profile' => $this->postProfile($post, $session),
-                'new_youth_view' => $this->redirect(WebView::url('new', ['step' => 'youth'])),
+                'new_youth_view' => $this->enterYouthCamp($post, $session),
                 'select_club' => $this->selectClub($post, $session),
                 'set_training' => $this->setTraining($post, $session),
                 'set_position_focus' => $this->setPositionFocus($post, $session),
@@ -182,6 +182,7 @@ final class WebApplication
     /** @param array<string,mixed> $post @param array<string,mixed> $session */
     private function postIdentity(array $post, array &$session): array
     {
+        if (!$this->consumeToken($session, 'new_identity', (string) ($post['token'] ?? ''))) { throw new RuntimeException('That identity form is no longer available.'); }
         $save = trim((string) ($post['save'] ?? ''));
         $name = trim((string) ($post['name'] ?? ''));
         $nation = trim((string) ($post['nation'] ?? ''));
@@ -200,6 +201,7 @@ final class WebApplication
     /** @param array<string,mixed> $post @param array<string,mixed> $session */
     private function postBody(array $post, array &$session): array
     {
+        if (!$this->consumeToken($session, 'new_body', (string) ($post['token'] ?? ''))) { throw new RuntimeException('That physical profile form is no longer available.'); }
         $draft = $this->draft($session);
         $height = filter_var($post['height'] ?? null, FILTER_VALIDATE_INT);
         $weight = filter_var($post['weight'] ?? null, FILTER_VALIDATE_INT);
@@ -220,6 +222,8 @@ final class WebApplication
         $mode = (string) ($post['mode'] ?? 'save');
         $catalog = new AvatarCatalog();
         $existingSave = $this->saveId($post['edit_save'] ?? ($draft['existing_save'] ?? null));
+        $tokenKey = $existingSave === null ? 'new_appearance' : 'appearance_' . $existingSave;
+        if (!$this->consumeToken($session, $tokenKey, (string) ($post['token'] ?? ''))) { throw new RuntimeException('That appearance form is no longer available.'); }
         if ($mode === 'preset') {
             $preset = $catalog->preset((string) ($post['preset'] ?? ''));
             if ($preset === null || !is_array($preset['appearance'] ?? null)) { throw new RuntimeException('That Avatar preset is unavailable.'); }
@@ -252,6 +256,7 @@ final class WebApplication
     /** @param array<string,mixed> $post @param array<string,mixed> $session */
     private function postProfile(array $post, array &$session): array
     {
+        if (!$this->consumeToken($session, 'new_profile', (string) ($post['token'] ?? ''))) { throw new RuntimeException('That football profile form is no longer available.'); }
         $draft = $this->draft($session);
         $position = trim((string) ($post['position'] ?? ''));
         $archetype = trim((string) ($post['archetype'] ?? ''));
@@ -290,9 +295,18 @@ final class WebApplication
     }
 
     /** @param array<string,mixed> $post @param array<string,mixed> $session */
+    private function enterYouthCamp(array $post, array &$session): array
+    {
+        if (!$this->consumeToken($session, 'new_youth_view', (string) ($post['token'] ?? ''))) { throw new RuntimeException('That Youth Camp entry is no longer available.'); }
+
+        return $this->redirect(WebView::url('new', ['step' => 'youth']));
+    }
+
+    /** @param array<string,mixed> $post @param array<string,mixed> $session */
     private function setTraining(array $post, array &$session): array
     {
         $saveId = $this->requiredSave($post);
+        if (!$this->consumeToken($session, 'set_training_' . $saveId, (string) ($post['token'] ?? ''))) { throw new RuntimeException('That training focus action is no longer available.'); }
         $database = $this->database($saveId);
         $summary = $this->snapshot($saveId, $database);
         $focus = TrainingFocus::fromInput((string) ($post['focus'] ?? 'balanced'));
@@ -306,9 +320,10 @@ final class WebApplication
     private function setPositionFocus(array $post, array &$session): array
     {
         $saveId = $this->requiredSave($post);
+        $position = (string) ($post['position'] ?? '');
+        if (!$this->consumeToken($session, 'set_position_focus_' . $saveId . '_' . $position, (string) ($post['token'] ?? ''))) { throw new RuntimeException('That position-development action is no longer available.'); }
         $database = $this->database($saveId);
         $snapshot = $this->snapshot($saveId, $database);
-        $position = (string) ($post['position'] ?? '');
         $this->services->playerModule()->service()->positionDevelopmentService()->setFocus($database, (string) $snapshot['summary']['player']['id'], $position, $snapshot['date']);
         $session['web_flash'] = 'Position development focus updated.';
 
@@ -319,6 +334,7 @@ final class WebApplication
     private function cancelPositionFocus(array $post, array &$session): array
     {
         $saveId = $this->requiredSave($post);
+        if (!$this->consumeToken($session, 'cancel_position_focus_' . $saveId, (string) ($post['token'] ?? ''))) { throw new RuntimeException('That position-development action is no longer available.'); }
         $database = $this->database($saveId);
         $snapshot = $this->snapshot($saveId, $database);
         $this->services->playerModule()->service()->positionDevelopmentService()->cancelFocus($database, (string) $snapshot['summary']['player']['id'], $snapshot['date']);
@@ -331,9 +347,10 @@ final class WebApplication
     private function changePrimaryPosition(array $post, array &$session): array
     {
         $saveId = $this->requiredSave($post);
+        $position = (string) ($post['position'] ?? '');
+        if (!$this->consumeToken($session, 'change_primary_position_' . $saveId . '_' . $position, (string) ($post['token'] ?? ''))) { throw new RuntimeException('That primary-position action is no longer available.'); }
         $database = $this->database($saveId);
         $snapshot = $this->snapshot($saveId, $database);
-        $position = (string) ($post['position'] ?? '');
         $this->services->playerModule()->service()->positionDevelopmentService()->changePrimary($database, (string) $snapshot['summary']['player']['id'], $position, $snapshot['date']);
         $session['web_flash'] = 'Primary position changed. Future selection and career context now use the new position.';
 
@@ -344,6 +361,7 @@ final class WebApplication
     private function setOnPitchRole(array $post, array &$session): array
     {
         $saveId = $this->requiredSave($post);
+        if (!$this->consumeToken($session, 'set_on_pitch_role_' . $saveId, (string) ($post['token'] ?? ''))) { throw new RuntimeException('That on-pitch role action is no longer available.'); }
         $database = $this->database($saveId);
         $snapshot = $this->snapshot($saveId, $database);
         (new OnPitchRoleService())->setPreferredRole($database, (string) $snapshot['summary']['player']['id'], (string) ($post['role'] ?? ''));
@@ -356,6 +374,7 @@ final class WebApplication
     private function setPriority(array $post, array &$session): array
     {
         $saveId = $this->requiredSave($post);
+        if (!$this->consumeToken($session, 'set_priority_' . $saveId, (string) ($post['token'] ?? ''))) { throw new RuntimeException('That Career priority action is no longer available.'); }
         $database = $this->database($saveId);
         $snapshot = $this->snapshot($saveId, $database);
         $priority = CareerPriority::fromInput((string) ($post['priority'] ?? 'balanced'));
@@ -837,18 +856,18 @@ final class WebApplication
         if ($step === 'appearance') { $this->ensureDraftAppearance($session); }
         $draft = (array) ($session[self::DRAFT] ?? []);
         $content = match ($step) {
-            'body' => $this->newBodyView($draft),
-            'appearance' => $this->newAppearanceView($draft),
-            'profile' => $this->newProfileView($draft),
-            'review' => $this->newReviewView($draft),
+            'body' => $this->newBodyView($draft, $session),
+            'appearance' => $this->newAppearanceView($draft, $session),
+            'profile' => $this->newProfileView($draft, $session),
+            'review' => $this->newReviewView($draft, $session),
             'youth' => $this->newYouthView($draft, $session),
-            default => $this->newIdentityView($draft),
+            default => $this->newIdentityView($draft, $session),
         };
 
         return $this->html('New Career', $content, null, '', 200, $session);
     }
 
-    private function newIdentityView(array $draft): string
+    private function newIdentityView(array $draft, array &$session): string
     {
         $options = '';
         foreach ($this->services->nationModule()->service()->loadSelected() as $nation) {
@@ -856,20 +875,20 @@ final class WebApplication
             $options .= '<option value="' . WebView::e($nation->id()->value()) . '"' . $selected . '>' . WebView::e($nation->displayName()) . '</option>';
         }
         $body = '<div class="flow-heading"><div class="eyebrow">NEW CAREER · 1 OF 6</div><h1>Identity</h1><p>Start with the player you want to become.</p></div>';
-        $body .= '<form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="new_identity"><label>Save name<input required name="save" value="' . WebView::e($draft['save'] ?? '') . '" placeholder="my-career"></label><label>Player name<input required name="name" value="' . WebView::e($draft['name'] ?? '') . '" placeholder="Alex Rivera"></label><label>Nationality<select name="nation" required>' . $options . '</select></label><div class="form-actions"><a class="button button-secondary" href="' . WebView::e(WebView::url('menu')) . '">Back</a><button class="button button-primary" type="submit">Continue</button></div></form>';
+        $body .= '<form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="new_identity"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'new_identity')) . '"><label>Save name<input required name="save" value="' . WebView::e($draft['save'] ?? '') . '" placeholder="my-career"></label><label>Player name<input required name="name" value="' . WebView::e($draft['name'] ?? '') . '" placeholder="Alex Rivera"></label><label>Nationality<select name="nation" required>' . $options . '</select></label><div class="form-actions"><a class="button button-secondary" href="' . WebView::e(WebView::url('menu')) . '">Back</a><button class="button button-primary" type="submit">Continue</button></div></form>';
 
         return WebView::layout('New Career — Identity', $body, null, '', null);
     }
 
-    private function newBodyView(array $draft): string
+    private function newBodyView(array $draft, array &$session): string
     {
         $body = '<div class="flow-heading"><div class="eyebrow">NEW CAREER · 2 OF 6</div><h1>Body</h1><p>Set the physical profile used by the canonical Player model.</p></div>';
-        $body .= '<form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="new_body"><label>Height <span class="input-unit">cm</span><input type="number" min="120" max="250" name="height" value="' . WebView::e($draft['height'] ?? 180) . '" required></label><label>Weight <span class="input-unit">kg</span><input type="number" min="30" max="200" name="weight" value="' . WebView::e($draft['weight'] ?? 75) . '" required></label><div class="form-actions">' . WebView::link('new', ['step' => 'identity'], 'Back') . '<button class="button button-primary" type="submit">Continue</button></div></form>';
+        $body .= '<form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="new_body"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'new_body')) . '"><label>Height <span class="input-unit">cm</span><input type="number" min="120" max="250" name="height" value="' . WebView::e($draft['height'] ?? 180) . '" required></label><label>Weight <span class="input-unit">kg</span><input type="number" min="30" max="200" name="weight" value="' . WebView::e($draft['weight'] ?? 75) . '" required></label><div class="form-actions">' . WebView::link('new', ['step' => 'identity'], 'Back') . '<button class="button button-primary" type="submit">Continue</button></div></form>';
 
         return WebView::layout('New Career — Body', $body, null, '', null);
     }
 
-    private function newAppearanceView(array $draft): string
+    private function newAppearanceView(array $draft, array &$session): string
     {
         $catalog = new AvatarCatalog();
         $appearance = (array) ($draft['appearance'] ?? []);
@@ -900,12 +919,13 @@ final class WebApplication
         $back = $existing === null ? WebView::link('new', ['step' => 'body'], 'Back') : WebView::link('home', ['save' => $existing], 'Back to Career Home');
         $editHidden = $existing === null ? '' : '<input type="hidden" name="edit_save" value="' . WebView::e($existing) . '">';
         $body = '<div class="flow-heading"><div class="eyebrow">' . $eyebrow . '</div><h1>' . $heading . '</h1><p>Your portrait is cosmetic identity. It never changes football ability or simulation results.</p></div>';
-        $body .= '<div class="creator-layout"><div class="panel creator-preview"><div class="eyebrow">LIVE PREVIEW</div><img data-draft-portrait class="creator-portrait" src="' . WebView::e(WebView::url('portrait', ['draft' => 1, 'size' => 256])) . '" alt="Player portrait"><p class="muted">Change an option to preview it immediately.</p></div><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel creator-controls" data-busy><input type="hidden" name="action" value="new_appearance">' . $editHidden . $controls . '<div class="creator-tools">' . $presets . '<button class="button button-secondary" name="mode" value="randomize">Randomize all</button><select name="category"><option value="hair">Hair</option><option value="face">Face</option><option value="eyes">Eyes</option><option value="nose">Nose</option><option value="mouth">Mouth</option><option value="facial_hair">Facial hair</option></select><button class="button button-secondary" name="mode" value="category">Randomize category</button><button class="button button-secondary" name="mode" value="reset">Reset</button></div><div class="form-actions">' . $back . '<button class="button button-primary" name="mode" value="save" type="submit">' . ($existing === null ? 'Confirm appearance' : 'Save appearance') . '</button></div></form></div>';
+        $tokenKey = $existing === null ? 'new_appearance' : 'appearance_' . $existing;
+        $body .= '<div class="creator-layout"><div class="panel creator-preview"><div class="eyebrow">LIVE PREVIEW</div><img data-draft-portrait class="creator-portrait" src="' . WebView::e(WebView::url('portrait', ['draft' => 1, 'size' => 256])) . '" alt="Player portrait"><p class="muted">Change an option to preview it immediately.</p></div><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel creator-controls" data-busy><input type="hidden" name="action" value="new_appearance"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, $tokenKey)) . '">' . $editHidden . $controls . '<div class="creator-tools">' . $presets . '<button class="button button-secondary" name="mode" value="randomize">Randomize all</button><select name="category"><option value="hair">Hair</option><option value="face">Face</option><option value="eyes">Eyes</option><option value="nose">Nose</option><option value="mouth">Mouth</option><option value="facial_hair">Facial hair</option></select><button class="button button-secondary" name="mode" value="category">Randomize category</button><button class="button button-secondary" name="mode" value="reset">Reset</button></div><div class="form-actions">' . $back . '<button class="button button-primary" name="mode" value="save" type="submit">' . ($existing === null ? 'Confirm appearance' : 'Save appearance') . '</button></div></form></div>';
 
         return WebView::layout('New Career — Avatar Creator', $body, null, '', null);
     }
 
-    private function newProfileView(array $draft): string
+    private function newProfileView(array $draft, array &$session): string
     {
         $positions = ['GK' => 'Goalkeeper', 'CB' => 'Centre Back', 'LB' => 'Left Back', 'RB' => 'Right Back', 'DM' => 'Defensive Midfielder', 'CM' => 'Central Midfielder', 'AM' => 'Attacking Midfielder', 'LW' => 'Left Winger', 'RW' => 'Right Winger', 'ST' => 'Striker'];
         $positionOptions = '';
@@ -915,15 +935,20 @@ final class WebApplication
         foreach ($archetypes as $id => $label) { $archetypeOptions .= '<option value="' . $id . '"' . (($draft['archetype'] ?? '') === $id ? ' selected' : '') . '>' . $label . '</option>'; }
         $footOptions = '';
         foreach (PlayerFoot::cases() as $foot) { $footOptions .= '<option value="' . $foot->value . '"' . (($draft['preferred_foot'] ?? 'right') === $foot->value ? ' selected' : '') . '>' . $foot->label() . '</option>'; }
-        $body = '<div class="flow-heading"><div class="eyebrow">NEW CAREER · 4 OF 6</div><h1>Football Profile</h1><p>Choose the football identity that Youth Camp will evaluate.</p></div><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="new_profile"><input type="hidden" name="seed" value="' . WebView::e($draft['seed'] ?? 24001) . '"><label>Position<select name="position" required>' . $positionOptions . '</select></label><label>Preferred foot<select name="preferred_foot" required>' . $footOptions . '</select></label><label>Development path<select name="archetype" required>' . $archetypeOptions . '</select></label><p class="muted">Weak-foot capability is a bounded Player trait derived from the development path; it is not a creator point-buy.</p><p class="muted">Youth Camp will evaluate this profile against the available Clubs.</p><div class="form-actions">' . WebView::link('new', ['step' => 'appearance'], 'Back') . '<button class="button button-primary" type="submit">Review profile</button></div></form>';
+        $archetypeDescription = match ((string) ($draft['archetype'] ?? 'regular')) {
+            'late_bloomer' => 'Late Bloomer: early progress may be quieter; later development still depends on recorded training and football evidence.',
+            'prodigy' => 'Prodigy: an earlier development path, not a guarantee of selection, role, or future outcome.',
+            default => 'Regular: a balanced development path; actual progress depends on recorded training and football evidence.',
+        };
+        $body = '<div class="flow-heading"><div class="eyebrow">NEW CAREER · 4 OF 6</div><h1>Football Profile</h1><p>Choose the football identity that Youth Camp will evaluate.</p></div><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="new_profile"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'new_profile')) . '"><input type="hidden" name="seed" value="' . WebView::e($draft['seed'] ?? 24001) . '"><label>Position<select name="position" required>' . $positionOptions . '</select></label><label>Preferred foot<select name="preferred_foot" required>' . $footOptions . '</select></label><label>Development path<select name="archetype" required>' . $archetypeOptions . '</select></label><p class="muted"><strong>' . WebView::e(CareerLabels::value($draft['archetype'] ?? 'regular')) . ':</strong> ' . WebView::e($archetypeDescription) . '</p><p class="muted">Weak-foot capability is a bounded Player trait derived from the development path; it is not a creator point-buy.</p><p class="muted">Youth Camp will evaluate this profile against the available Clubs.</p><div class="form-actions">' . WebView::link('new', ['step' => 'appearance'], 'Back') . '<button class="button button-primary" type="submit">Review profile</button></div></form>';
 
         return WebView::layout('New Career — Football Profile', $body, null, '', null);
     }
 
-    private function newReviewView(array $draft): string
+    private function newReviewView(array $draft, array &$session): string
     {
         $player = (array) ($draft['player'] ?? []);
-        $body = '<div class="flow-heading"><div class="eyebrow">NEW CAREER · 5 OF 6</div><h1>Review</h1><p>Everything is ready for Youth Camp.</p></div><div class="panel review-card"><div class="review-avatar"><img class="portrait portrait-large" src="' . WebView::e(WebView::url('portrait', ['draft' => 1, 'size' => 256])) . '" alt="Player portrait"></div><div class="review-facts"><h2>' . WebView::e($draft['name'] ?? '') . '</h2><p>' . WebView::e(CareerLabels::position($draft['position'] ?? null)) . ' · ' . WebView::e(($draft['preferred_foot'] ?? 'right') === 'left' ? 'Left-footed' : 'Right-footed') . ' · ' . WebView::e(CareerLabels::value($draft['archetype'] ?? null)) . '</p><div class="stat-grid compact">' . WebView::stat('Starting OVR', $player['overall_rating'] ?? '—') . WebView::stat('Potential', $player['potential'] ?? '—') . WebView::stat('Weak foot', CareerLabels::value($player['weak_foot'] ?? null, 'Derived')) . WebView::stat('Height', ($draft['height'] ?? '—') . ' cm') . WebView::stat('Weight', ($draft['weight'] ?? '—') . ' kg') . '</div></div></div><div class="form-actions">' . WebView::link('new', ['step' => 'profile'], 'Back') . WebView::form('new_youth_view', 'Enter Youth Camp', [], 'button button-primary', 'data-busy') . '</div>';
+        $body = '<div class="flow-heading"><div class="eyebrow">NEW CAREER · 5 OF 6</div><h1>Review</h1><p>Everything is ready for Youth Camp.</p></div><div class="panel review-card"><div class="review-avatar"><img class="portrait portrait-large" src="' . WebView::e(WebView::url('portrait', ['draft' => 1, 'size' => 256])) . '" alt="Player portrait"></div><div class="review-facts"><h2>' . WebView::e($draft['name'] ?? '') . '</h2><p>' . WebView::e(CareerLabels::position($draft['position'] ?? null)) . ' · ' . WebView::e(($draft['preferred_foot'] ?? 'right') === 'left' ? 'Left-footed' : 'Right-footed') . ' · ' . WebView::e(CareerLabels::value($draft['archetype'] ?? null)) . '</p><div class="stat-grid compact">' . WebView::stat('Starting OVR', $player['overall_rating'] ?? '—') . WebView::stat('Weak foot', CareerLabels::value($player['weak_foot'] ?? null, 'Derived')) . WebView::stat('Height', ($draft['height'] ?? '—') . ' cm') . WebView::stat('Weight', ($draft['weight'] ?? '—') . ' kg') . '</div></div></div><p class="muted">Youth Camp will present Club opportunities from the current football world. It does not guarantee a future role or outcome.</p><div class="form-actions">' . WebView::link('new', ['step' => 'profile'], 'Back') . WebView::form('new_youth_view', 'Enter Youth Camp', ['token' => $this->issueToken($session, 'new_youth_view')], 'button button-primary', 'data-busy') . '</div>';
 
         return WebView::layout('New Career — Review', $body, null, '', null);
     }
@@ -1423,7 +1448,7 @@ final class WebApplication
         $player = (new PlayerRepository($database))->get($career->playerId());
         $appearance = (new PlayerAppearanceService())->getOrGenerate($database, $player, $world->currentDate($worldService->calendar()));
         $session[self::DRAFT] = ['appearance' => $appearance->toArray(), 'existing_save' => $saveId];
-        return $this->html('Update Appearance', $this->newAppearanceView($session[self::DRAFT]), $saveId, 'career', 200, $session);
+        return $this->html('Update Appearance', $this->newAppearanceView($session[self::DRAFT], $session), $saveId, 'career', 200, $session);
     }
 
     private function squad(string $saveId, array &$session, ?string $requestedClubId = null): array
@@ -1624,7 +1649,7 @@ final class WebApplication
         }
         $rolePanel = ($data['controlled'] ?? false) !== true
             ? WebView::section('ON-PITCH ROLE', $onPitchRole['role_label'] ?? 'Derived usage', '<p>' . WebView::e($onPitchRole['role_description'] ?? '') . '</p>')
-            : WebView::section('ON-PITCH ROLE', ($onPitchRole['role_label'] ?? 'Safe default') . ' · ' . CareerLabels::position($player->primaryPosition()->value), '<p>' . WebView::e($onPitchRole['role_description'] ?? '') . ' The role changes action tendencies while you play; it does not change position, selection or rating success.</p><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="choice-panel" data-busy><input type="hidden" name="action" value="set_on_pitch_role"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><div class="choice-list">' . $roleOptions . '</div><button class="button button-secondary" type="submit">Set preferred role</button></form>');
+            : WebView::section('ON-PITCH ROLE', ($onPitchRole['role_label'] ?? 'Safe default') . ' · ' . CareerLabels::position($player->primaryPosition()->value), '<p>' . WebView::e($onPitchRole['role_description'] ?? '') . ' The role changes action tendencies while you play; it does not change position, selection or rating success.</p><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="choice-panel" data-busy><input type="hidden" name="action" value="set_on_pitch_role"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'set_on_pitch_role_' . $saveId)) . '"><div class="choice-list">' . $roleOptions . '</div><button class="button button-secondary" type="submit">Set preferred role</button></form>');
         $clubSeasonPanel = $clubSeason === null ? '' : '<p><strong>Club Season:</strong> ' . WebView::e(CareerLabels::value($clubSeason['expectation'] ?? null)) . ' · ' . WebView::e(CareerLabels::value($clubSeason['progress'] ?? null)) . ' · pressure ' . WebView::e(CareerLabels::value($clubSeason['pressure'] ?? null)) . '</p>';
         $loanPanel = $activeLoan === null ? '' : WebView::section('ACTIVE LOAN', 'Temporary playing registration', '<p><strong>Playing for:</strong> ' . WebView::e($activeLoan['loan_club']['name'] ?? 'Loan Club') . ' · <strong>Parent Contract:</strong> ' . WebView::e($activeLoan['parent_club']['name'] ?? 'Parent Club') . '</p><p><strong>Return:</strong> ' . WebView::e($activeLoan['scheduled_end_date'] ?? 'Season end') . ' · <strong>Expected role:</strong> ' . WebView::e(CareerLabels::value($activeLoan['loan_role'] ?? null)) . '</p>');
         $socialPanel = WebView::section('PUBLIC PROFILE', 'Football context', '<div class="stat-grid compact">' . WebView::stat('Public profile', $social['public_profile_label'] ?? 'Unknown') . WebView::stat('Club standing', $social['club_standing_label'] ?? 'New Arrival') . WebView::stat('Supporters', $social['supporter_sentiment'] ?? 'Neutral') . WebView::stat('Manager', $social['manager_relationship'] ?? 'Professional') . '</div>' . (($data['controlled'] ?? false) === true ? '<p><strong>Football trust:</strong> ' . WebView::e(CareerLabels::value($managerContext['trust_label'] ?? null, 'Not available')) . ' · <strong>Competition:</strong> ' . WebView::e(CareerLabels::value($managerContext['competition_status'] ?? null, 'Not available')) . '</p><p class="muted">' . WebView::e((string) ($managerContext['feedback'] ?? '')) . '</p>' : '') . $clubSeasonPanel . $positionPanel . WebView::link('relationships', ['save' => $saveId], 'Open relationships', 'button button-secondary'));
@@ -2012,19 +2037,19 @@ final class WebApplication
         foreach ((array) ($position['eligible_next_positions'] ?? []) as $candidate) {
             if (!is_array($candidate)) { continue; }
             $value = (string) ($candidate['position'] ?? '');
-            $positionActions .= '<p><strong>' . WebView::e(CareerLabels::position($value)) . '</strong> · eligible development path ' . WebView::form('set_position_focus', 'Develop this position', ['save' => $saveId, 'position' => $value], 'button button-secondary') . '</p>';
+            $positionActions .= '<p><strong>' . WebView::e(CareerLabels::position($value)) . '</strong> · eligible development path ' . WebView::form('set_position_focus', 'Develop this position', ['save' => $saveId, 'position' => $value, 'token' => $this->issueToken($session, 'set_position_focus_' . $saveId . '_' . $value)], 'button button-secondary') . '</p>';
         }
         if (($position['developing_position'] ?? null) !== null) {
-            $positionActions .= '<p><strong>Current focus:</strong> ' . WebView::e(CareerLabels::position($position['developing_position'])) . ' · ' . (int) ($position['progress'] ?? 0) . '% complete ' . WebView::form('cancel_position_focus', 'Cancel focus', ['save' => $saveId], 'button button-secondary') . '</p>';
+            $positionActions .= '<p><strong>Current focus:</strong> ' . WebView::e(CareerLabels::position($position['developing_position'])) . ' · ' . (int) ($position['progress'] ?? 0) . '% complete ' . WebView::form('cancel_position_focus', 'Cancel focus', ['save' => $saveId, 'token' => $this->issueToken($session, 'cancel_position_focus_' . $saveId)], 'button button-secondary') . '</p>';
         } elseif (($position['secondary_positions'] ?? []) !== []) {
             foreach ((array) $position['secondary_positions'] as $secondary) {
-                $positionActions .= WebView::form('change_primary_position', 'Make ' . CareerLabels::position(is_string($secondary) ? $secondary : null) . ' primary', ['save' => $saveId, 'position' => (string) $secondary], 'button button-secondary');
+                $positionActions .= WebView::form('change_primary_position', 'Make ' . CareerLabels::position(is_string($secondary) ? $secondary : null) . ' primary', ['save' => $saveId, 'position' => (string) $secondary, 'token' => $this->issueToken($session, 'change_primary_position_' . $saveId . '_' . $secondary)], 'button button-secondary');
             }
         }
         $positionPanel = '<div class="stat-grid compact">' . WebView::stat('Primary', CareerLabels::position($position['primary_position'] ?? null)) . WebView::stat('Secondary', ($position['secondary_positions'] ?? []) === [] ? 'None' : implode(', ', array_map(static fn (mixed $value): string => CareerLabels::position(is_string($value) ? $value : null), (array) $position['secondary_positions']))) . WebView::stat('Progress', ($position['developing_position'] ?? null) === null ? 'No active focus' : ((int) ($position['progress'] ?? 0)) . '%') . '</div><p class="muted">Position development is a medium-term training choice. It uses canonical training blocks and does not change attributes or guarantee selection. Making a completed secondary position primary preserves the Player and attributes while changing future football context.</p>' . ($positionActions === '' ? WebView::emptyState('No adjacent position currently fits this Player profile.') : $positionActions);
         $weakFoot = (array) ($summary['weak_foot_development'] ?? []);
         $weakFootPanel = '<div class="stat-grid compact">' . WebView::stat('Preferred foot', (($summary['player']['preferred_foot'] ?? 'right') === 'left') ? 'Left' : 'Right') . WebView::stat('Weak foot', $weakFoot['label'] ?? 'Derived') . WebView::stat('Progress', isset($weakFoot['progress']) ? ((int) $weakFoot['progress']) . '%' : 'Identity') . '</div><p class="muted">Weak-foot focus uses the same bounded training blocks as other development and competes with position focus. It never changes attributes or readiness by itself.</p>';
-        $body = '<div class="page-heading"><div><div class="eyebrow">TRAINING & PRIORITIES</div><h1>Shape the next block</h1><p>These choices feed the canonical development and readiness systems.</p></div></div>' . WebView::section('READINESS', 'Current football state', $readinessPanel) . WebView::section('DEVELOPMENT FEEDBACK', 'What the retained evidence says', $this->progressionSection($progression)) . WebView::section('POSITION DEVELOPMENT', 'Build another football option', $positionPanel) . WebView::section('FOOTBALL IDENTITY', 'Bounded weak-foot development', $weakFootPanel) . '<div class="two-column"><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_training"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Training focus<select name="focus">' . $focusOptions . '</select></label><p class="muted">Focus influences where existing development progress is directed.</p><button class="button button-primary" type="submit">Save training focus</button></form><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_priority"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><label>Career priority<select name="priority">' . $priorityOptions . '</select></label><p class="muted">Recovery and lifestyle priorities use a light training load; Development uses an intense block; other priorities remain normal.</p><button class="button button-primary" type="submit">Save priority</button></form></div>';
+        $body = '<div class="page-heading"><div><div class="eyebrow">TRAINING & PRIORITIES</div><h1>Shape the next block</h1><p>These choices feed the canonical development and readiness systems.</p></div></div>' . WebView::section('READINESS', 'Current football state', $readinessPanel) . WebView::section('DEVELOPMENT FEEDBACK', 'What the retained evidence says', $this->progressionSection($progression)) . WebView::section('POSITION DEVELOPMENT', 'Build another football option', $positionPanel) . WebView::section('FOOTBALL IDENTITY', 'Bounded weak-foot development', $weakFootPanel) . '<div class="two-column"><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_training"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'set_training_' . $saveId)) . '"><label>Training focus<select name="focus">' . $focusOptions . '</select></label><p class="muted">Focus influences where existing development progress is directed.</p><button class="button button-primary" type="submit">Save training focus</button></form><form method="post" action="' . WebView::e(WebView::url('action')) . '" class="panel form-panel" data-busy><input type="hidden" name="action" value="set_priority"><input type="hidden" name="save" value="' . WebView::e($saveId) . '"><input type="hidden" name="token" value="' . WebView::e($this->issueToken($session, 'set_priority_' . $saveId)) . '"><label>Career priority<select name="priority">' . $priorityOptions . '</select></label><p class="muted">Recovery and lifestyle priorities use a light training load; Development uses an intense block; other priorities remain normal.</p><button class="button button-primary" type="submit">Save priority</button></form></div>';
 
         return $this->html('Training', $body, $saveId, 'training', 200, $session);
     }

@@ -44,13 +44,15 @@ final class GraphicalShellTest extends TestCase
         $session = [];
         $nation = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test'])
             ->nationModule()->service()->loadSelected()[0]->id()->value();
+        $identityPage = $this->application->handle('GET', '/', ['page' => 'new', 'step' => 'identity'], [], $session);
         $identity = $this->application->handle('POST', '/', [], [
-            'action' => 'new_identity', 'save' => 'web-shell-test', 'name' => 'Web Shell Player', 'nation' => $nation,
+            'action' => 'new_identity', 'save' => 'web-shell-test', 'name' => 'Web Shell Player', 'nation' => $nation, 'token' => $this->tokenFor($identityPage, 'new_identity'),
         ], $session);
         self::assertSame(303, $identity['status']);
 
+        $bodyPage = $this->application->handle('GET', '/', ['page' => 'new', 'step' => 'body'], [], $session);
         $body = $this->application->handle('POST', '/', [], [
-            'action' => 'new_body', 'height' => '180', 'weight' => '75',
+            'action' => 'new_body', 'height' => '180', 'weight' => '75', 'token' => $this->tokenFor($bodyPage, 'new_body'),
         ], $session);
         self::assertSame(303, $body['status']);
 
@@ -106,14 +108,18 @@ final class GraphicalShellTest extends TestCase
         $session = [];
         try {
             $nation = $services->nationModule()->service()->loadSelected()[0]->id()->value();
+            $identityPage = $this->application->handle('GET', '/', ['page' => 'new', 'step' => 'identity'], [], $session);
             $this->application->handle('POST', '/', [], [
-                'action' => 'new_identity', 'save' => $save, 'name' => 'Profile Test Player', 'nation' => $nation,
+                'action' => 'new_identity', 'save' => $save, 'name' => 'Profile Test Player', 'nation' => $nation, 'token' => $this->tokenFor($identityPage, 'new_identity'),
             ], $session);
-            $this->application->handle('POST', '/', [], ['action' => 'new_body', 'height' => '180', 'weight' => '75'], $session);
+            $bodyPage = $this->application->handle('GET', '/', ['page' => 'new', 'step' => 'body'], [], $session);
+            $this->application->handle('POST', '/', [], ['action' => 'new_body', 'height' => '180', 'weight' => '75', 'token' => $this->tokenFor($bodyPage, 'new_body')], $session);
+            $profilePage = $this->application->handle('GET', '/', ['page' => 'new', 'step' => 'profile'], [], $session);
             $this->application->handle('POST', '/', [], [
-                'action' => 'new_profile', 'position' => 'CM', 'archetype' => 'regular', 'seed' => '24004',
+                'action' => 'new_profile', 'position' => 'CM', 'archetype' => 'regular', 'seed' => '24004', 'token' => $this->tokenFor($profilePage, 'new_profile'),
             ], $session);
-            $this->application->handle('POST', '/', [], ['action' => 'new_youth_view'], $session);
+            $reviewPage = $this->application->handle('GET', '/', ['page' => 'new', 'step' => 'review'], [], $session);
+            $this->application->handle('POST', '/', [], ['action' => 'new_youth_view', 'token' => $this->tokenFor($reviewPage, 'new_youth_view')], $session);
             $youth = $this->application->handle('GET', '/', ['page' => 'new', 'step' => 'youth'], [], $session);
             preg_match('/name="club" value="([^"]+)"/', $youth['body'], $clubMatch);
             preg_match('/name="token" value="([^"]+)"/', $youth['body'], $tokenMatch);
@@ -204,7 +210,7 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('Open Trophy Room', $controlled['body']);
             self::assertStringNotContainsString('Potential', $controlled['body']);
             $roleUpdate = $this->application->handle('POST', '/', [], [
-                'action' => 'set_on_pitch_role', 'save' => $save, 'role' => 'box_to_box_midfielder',
+                'action' => 'set_on_pitch_role', 'save' => $save, 'role' => 'box_to_box_midfielder', 'token' => $this->tokenFor($controlled, 'set_on_pitch_role'),
             ], $session);
             self::assertSame(303, $roleUpdate['status']);
             $roleProfile = $this->application->handle('GET', '/', ['page' => 'profile', 'save' => $save, 'player' => $career->playerId()->value()], [], $session);
@@ -318,5 +324,14 @@ final class GraphicalShellTest extends TestCase
             $path = $root . '/game/saves/' . $save . '.sqlite';
             if (is_file($path)) { unlink($path); }
         }
+    }
+
+    /** @param array{body:string} $response */
+    private function tokenFor(array $response, string $action): string
+    {
+        preg_match('/<input type="hidden" name="action" value="' . preg_quote($action, '/') . '">.*?<input type="hidden" name="token" value="([^"]+)"/s', $response['body'], $matches);
+        self::assertNotEmpty($matches[1] ?? null, 'Expected a one-use token for ' . $action . '.');
+
+        return html_entity_decode((string) $matches[1], ENT_QUOTES | ENT_HTML5);
     }
 }

@@ -186,3 +186,38 @@ Profile, Training, Home, and Season Review reads are observational and do not
 create gameplay rows or snapshots. Significant role/position changes may be
 surfaced through retained history; routine attribute deltas remain transient
 development evidence.
+
+## P3-016 early Career journey gate
+
+The production entry path is `new` identity → body → appearance → football
+profile → review → Youth Camp → `select_club`. `WebCareerStartWorkflow`
+creates the isolated save/world preview and `YouthCareerStartService::accept()`
+owns the atomic Career start: one controlled Player reference, Club squad
+membership, registration, active Contract, initial role, finance state, and
+Career/social initialization. The web layer only validates the form and
+redirects after the canonical write.
+
+Creation inputs use the repository's position and archetype identifiers and
+are rejected before a save can be created when invalid. The normal review
+surface shows starting OVR and factual identity, but keeps potential out of
+the player-facing boundary. Archetype copy describes tendencies without
+promising selection, role, development, or future outcomes. One-use form
+tokens protect the creation steps, Youth Camp entry, and the early Training,
+position, priority, and on-pitch-role actions; replayed or tampered POSTs do
+not create duplicate saves or Players.
+
+The first Home is a projection of the initialized save and may legitimately
+show empty Career History, Recent Story, movement, Trophy Room, and retained
+development sections. It does not invent a Match, appearance, milestone, or
+progress claim. Training, Matchday, post-Match, Profile, and History continue
+to read the existing canonical owners and are safe to refresh; POST actions
+redirect and subsequent Home reads recalculate current Club, Contract, role,
+availability, Season facts, progression, and next fixture.
+
+`tests/Support/CareerJourneyRunner` is a bounded test harness for the actual
+`WebApplication` routes. It extracts rendered one-use tokens, invokes normal
+production POSTs, and leaves creation, Match, training, persistence, and
+development semantics to their canonical services. `P3016CareerJourneyTest`
+uses fixed seed `31601`, a short CM/Regular journey, reload checkpoints, one
+web Match, and two `GoalMatchRunner` fixtures; it is an integration gate, not
+a second gameplay loop or a long-term balance simulation.

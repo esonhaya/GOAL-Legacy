@@ -195,3 +195,35 @@ missing historical from-values remain missing. Normal Career UI keeps
 potential hidden and has no XP/progress bar or presentation-side progression
 calculation. A no-history state says so plainly. The projection is read-only,
 does not consume RNG, and does not write development snapshots during GET.
+
+## P3-016 production journey gate
+
+The supported early-Career route is `new` identity, body, appearance, profile,
+review, Youth Camp, and Club selection. `WebCareerStartWorkflow` and
+`YouthCareerStartService` own initialization; the shell does not create a
+second Player, Contract, Club membership, finance state, or Career history.
+After `select_club`, the redirect lands on the same Career Home used by an
+existing save. The initialized read model must agree on controlled Player,
+Club, active Contract, role, Season/date, availability, and finance state.
+
+The creation review intentionally shows starting OVR and factual physical/
+football identity while keeping potential hidden from normal Career UI.
+Archetype descriptions for Late Bloomer, Regular, and Prodigy are bounded
+context, not outcome guarantees. Position and physical input validation stays
+at the canonical request/service boundary. Invalid or tampered inputs leave
+no partially initialized save.
+
+Creation steps, Youth Camp entry, and journey-touched early actions use
+session-scoped one-use tokens. POST handlers consume tokens before canonical
+mutation and use redirect-after-POST; a replayed creation action cannot create
+another save or controlled Player. GET/render paths remain observational,
+including the first Home, Profile, Training, pre-Match, post-Match, and
+History empty states. The existing Matchday route and `CareerContinueCommand`
+remain the only production Match execution path.
+
+The reusable `CareerJourneyRunner` lives in test support rather than the
+runtime. It drives these real routes and extracts their rendered tokens while
+`GoalScenarioBuilder`, `SimulationCheckpoint`, and `GoalMatchRunner` supply
+bounded deterministic fixtures/checkpoints where a production route cannot
+reliably produce an edge state. It must not calculate outcomes or bypass
+Contract, Match, Training, availability, or progression owners.

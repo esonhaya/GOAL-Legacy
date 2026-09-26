@@ -59,6 +59,16 @@ SaveStore fixture before creating a temporary save. Use the lowest validation
 tier that proves a change: micro adapter tests, bounded integration scenarios,
 then the slower longitudinal observatory.
 
+The P3-016 journey gate adds `tests/Support/CareerJourneyRunner` as a thin
+production-route test harness. It drives `WebApplication` creation, Youth
+Camp, Training, and Matchday routes, extracts their one-use form tokens, and
+shares the existing isolated save/checkpoint lifecycle. It is deliberately
+not a `SimulationToolkit` adapter and does not calculate or apply gameplay;
+`YouthCareerStartService`, `CareerContinueCommand`, `MatchService`, and the
+existing development services remain authoritative. Use it for a bounded
+creation-to-early-Career integration check, then use `GoalMatchRunner` or
+scenario fixtures for targeted Match states rather than hand-written loops.
+
 Permission tiers are `PLAYER`, `PREMIUM_SANDBOX`, `DEVELOPER`, and
 `SYSTEM_TEST`. Premium mutations are save-scoped, ownership-checked, audited,
 and mark the save `SANDBOX`; a bounded pre-mutation snapshot is retained.

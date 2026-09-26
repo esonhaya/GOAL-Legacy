@@ -162,3 +162,21 @@ to compare state-specific eligibility and deterministic suppression.
 Responsive event cards must preserve concise copy, readable choice labels,
 keyboard/focus order, and a tappable action at narrow widths; variety must
 not require a new UI state store or hidden gameplay score.
+
+## P3-014 Matchday loop
+
+The graphical Career loop is `Career Home → PRE-MATCH → canonical Match POST
+→ completed Matchday/Post-Match → Career Home`. Pre-Match GET is built from
+`CareerPresentationService::preMatch()` and shows fixture, competition stage,
+home/away, availability/readiness, role, form, and existing fixture context.
+Selection/deployed position are explicitly kickoff facts; no weights/preview
+simulation.
+
+`advance_match` is a fixture-scoped one-use POST with PRG. It checks current
+next fixture and delegates existing `CareerContinueCommand`/`MatchService`
+path. Completed Matchday GET reads canonical selection, minutes, deployment,
+Match events, rating explanation, position-aware stats, bounded consequences.
+Refresh is read-only; repeated POST is rejected.
+
+Shell keeps one primary action, semantic status text, mobile stacking; no
+tactics controls, second rating/form system, highlight RNG, or new history.

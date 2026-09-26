@@ -906,6 +906,85 @@ final class CareerPresentationService
         ];
     }
 
+    /**
+     * Project the controlled Player's pre-Match context without selecting a
+     * squad or consuming Match randomness. Selection is intentionally pending
+     * until the canonical Match execution path confirms it at kickoff.
+     *
+     * @param array<string, mixed>|null $summary
+     * @return array<string, mixed>
+     */
+    public function preMatch(DatabaseInterface $database, GameMatch $match, string $playerId, ?string $controlledClubId = null, ?array $summary = null): array
+    {
+        $players = new PlayerRepository($database);
+        $player = $players->get($playerId);
+        $competition = $this->competitionRecord($database, $match->competitionId());
+        $controlledClubId ??= (string) ($summary['current_club']['id'] ?? '');
+        if ($competition->type() === CompetitionType::International && !in_array($controlledClubId, [$match->homeClubId()->value(), $match->awayClubId()->value()], true)) {
+            $controlledClubId = 'national-team-' . $player->primaryNationId()->value();
+        }
+        if ($controlledClubId === '') {
+            $controlledClubId = $match->homeClubId()->value();
+        }
+
+        $assessment = (new \Goal\Legacy\Modules\Player\PlayerAvailabilityService())->assess($database, $player->id(), $match->scheduledDate());
+        $discipline = (new PlayerDisciplineService())->eligibility($database, $match, $player->id());
+        $availability = $this->preMatchAvailability($assessment, $discipline);
+        $formerClubIds = is_array($summary['career_context']['former_club_ids'] ?? null) ? $summary['career_context']['former_club_ids'] : [];
+        $fixtureContext = (new ClubFixtureContextService())->forMatch(
+            $match,
+            $competition,
+            $this->seasonStakeForMatch((array) $summary, $match->id()->value()),
+            $formerClubIds,
+            $controlledClubId,
+        );
+        $clubIsHome = $controlledClubId === $match->homeClubId()->value();
+        $clubIsAway = $controlledClubId === $match->awayClubId()->value();
+        $role = (string) ($summary['current_role'] ?? $summary['squad_role'] ?? '');
+        $form = is_array($summary['recent_form'] ?? null) ? $summary['recent_form'] : [];
+        $readiness = $assessment->readiness();
+        $onPitchRole = is_array($summary['on_pitch_role'] ?? null) ? $summary['on_pitch_role'] : [];
+        $captaincy = is_array($summary['captaincy'] ?? null) ? $summary['captaincy'] : [];
+        $setPiece = is_array($summary['set_piece_responsibility'] ?? null) ? $summary['set_piece_responsibility'] : [];
+
+        return [
+            'state' => 'pre_match',
+            'match_id' => $match->id()->value(),
+            'competition' => $competition->name(),
+            'competition_type' => $competition->type()->value,
+            'competition_stage' => $fixtureContext['competition']['stage'] ?? null,
+            'date' => $match->scheduledDate()->toIsoString(),
+            'home_club' => $this->teamName($database, $match->homeClubId()->value()),
+            'away_club' => $this->teamName($database, $match->awayClubId()->value()),
+            'controlled_club_id' => $controlledClubId,
+            'home_away' => $clubIsHome ? 'home' : ($clubIsAway ? 'away' : 'neutral'),
+            'fixture_context' => $fixtureContext,
+            'player' => [
+                'id' => $player->id()->value(),
+                'name' => $player->preferredName(),
+                'primary_position' => $player->primaryPosition()->value,
+                'position_label' => CareerLabels::position($player->primaryPosition()->value),
+                'role' => $role,
+                'role_label' => CareerLabels::value($role, 'Squad role not set'),
+                'form' => $form,
+                'form_label' => $this->preMatchFormLabel($form),
+                'readiness' => $readiness,
+                'availability' => $availability,
+                'selection' => [
+                    'code' => $availability['code'] === 'available' || $availability['code'] === 'limited' ? 'pending' : $availability['code'],
+                    'label' => $availability['code'] === 'available' || $availability['code'] === 'limited' ? 'Selection confirmed at kickoff' : $availability['label'],
+                    'explanation' => $availability['code'] === 'available' || $availability['code'] === 'limited'
+                        ? 'The canonical Match selection will confirm Starting XI, bench or not selected at kickoff.'
+                        : $availability['explanation'],
+                ],
+                'on_pitch_role' => $onPitchRole['role_label'] ?? null,
+                'captaincy' => in_array((string) ($captaincy['status'] ?? ''), ['captain', 'vice_captain'], true) ? ($captaincy['label'] ?? null) : null,
+                'set_piece' => ($setPiece['status'] ?? 'none') === 'none' ? null : ($setPiece['label'] ?? null),
+            ],
+            'discipline' => $discipline,
+        ];
+    }
+
     /** @param array<string, mixed> $summary @return array<string, int|string>|null */
     public function clubContext(DatabaseInterface $database, array $summary): ?array
     {
@@ -2245,6 +2324,39 @@ final class CareerPresentationService
         }
 
         return null;
+    }
+
+    /** @param array<string, mixed> $discipline @return array{code:string,label:string,explanation:string} */
+    private function preMatchAvailability(\Goal\Legacy\Modules\Player\Domain\AvailabilityAssessment $assessment, array $discipline): array
+    {
+        if (($discipline['eligible'] ?? true) !== true) {
+            return [
+                'code' => 'suspended',
+                'label' => 'Suspended',
+                'explanation' => (string) ($discipline['reason_label'] ?? 'A competition suspension blocks selection for this fixture.'),
+            ];
+        }
+        if ($assessment->injury() !== null) {
+            return ['code' => 'injured', 'label' => 'Injured', 'explanation' => $assessment->readinessDescription()];
+        }
+        if ($assessment->isUnavailable()) {
+            return ['code' => 'unavailable', 'label' => 'Unavailable', 'explanation' => $assessment->readinessDescription()];
+        }
+        if ($assessment->isLimited()) {
+            return ['code' => 'limited', 'label' => 'Limited', 'explanation' => $assessment->readinessDescription()];
+        }
+
+        return ['code' => 'available', 'label' => 'Available', 'explanation' => $assessment->readinessDescription()];
+    }
+
+    /** @param array<string, mixed> $form */
+    private function preMatchFormLabel(array $form): string
+    {
+        if ((int) ($form['rated_appearances'] ?? 0) < 2 || ($form['classification'] ?? 'insufficient_evidence') === 'insufficient_evidence') {
+            return 'Not enough matches yet';
+        }
+
+        return CareerLabels::value($form['classification'] ?? null, 'Not available');
     }
 
     private function seasonId(array $summary): ?\Goal\Legacy\Modules\World\Domain\SeasonId

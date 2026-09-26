@@ -494,4 +494,22 @@ boundary. Ties use canonical values plus stable factual tie-breakers; the full
 page is Top 10 plus controlled-Player context, with no rank history,
 prediction, global table, or leaderboard persistence.
 
+## P3-014 Matchday presentation boundary
+
+Scheduled-fixture Matchday has a read-only pre-Match projection owned by
+`CareerPresentationService`. It composes existing fixture/competition/Club
+context, `PlayerAvailabilityService`, `PlayerDisciplineService`, readiness,
+role, form, captaincy, and set-piece facts. It does not perform selection,
+deploy position, consume randomness, or execute simulation. Starting/bench/not-
+selected, unavailable, substitution, minutes, deployment, actions, rating,
+and highlights remain canonical completed-Match facts.
+
+Explicit pre-Match POST delegates to existing Career Continue and
+`MatchService::simulateDue()` after validating the exact next fixture. One-use
+tokens and completed-status checks protect stale/duplicate submissions.
+Completed GET reads MatchStoryService and persisted selection/substitution/
+stat rows plus existing Career consequences. Rendering/refresh do not replay
+or create gameplay DML; no second simulator/rating/highlight RNG/position stat
+system.
+
 END OF DOCUMENT

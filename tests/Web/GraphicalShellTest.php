@@ -9,7 +9,6 @@ use Goal\Legacy\Modules\Player\Domain\CareerEvent;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerEventRepository;
 use Goal\Legacy\Modules\Match\Domain\MatchStatus;
-use Goal\Legacy\Modules\Match\Domain\SimulationFidelity;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Web\WebApplication;
 use PHPUnit\Framework\TestCase;
@@ -130,12 +129,31 @@ final class GraphicalShellTest extends TestCase
             self::assertNotNull($clubMembership);
             $fixture = array_values(array_filter($services->matchModule()->service()->repository($database)->byClub($clubMembership->clubId(), new SeasonId('season-2024-25')), static fn ($match): bool => $match->status() === MatchStatus::Scheduled))[0] ?? null;
             self::assertNotNull($fixture);
-            $services->matchModule()->service()->simulate($database, $fixture->id(), SimulationFidelity::Player);
+            $preMatch = $this->application->handle('GET', '/', ['page' => 'matchday', 'save' => $save, 'match' => $fixture->id()->value()], [], $session);
+            self::assertSame(200, $preMatch['status']);
+            self::assertStringContainsString('PRE-MATCH', $preMatch['body']);
+            self::assertStringContainsString('Selection confirmed at kickoff', $preMatch['body']);
+            self::assertStringContainsString('Match position', $preMatch['body']);
+            preg_match('/name="token" value="([^"]+)"/', $preMatch['body'], $advanceToken);
+            self::assertNotEmpty($advanceToken[1] ?? null);
+            $advance = $this->application->handle('POST', '/', [], [
+                'action' => 'advance_match', 'save' => $save, 'match' => $fixture->id()->value(), 'token' => $advanceToken[1],
+            ], $session);
+            self::assertSame(303, $advance['status']);
             $matchPage = $this->application->handle('GET', '/', ['page' => 'matchday', 'save' => $save, 'match' => $fixture->id()->value()], [], $session);
             self::assertSame(200, $matchPage['status']);
             self::assertStringContainsString('MATCH STORY', $matchPage['body']);
             self::assertStringContainsString('RATING EXPLANATION', $matchPage['body']);
             self::assertStringContainsString('YOUR MATCH', $matchPage['body']);
+            $changesBeforeRefresh = (int) $database->connection()->query('SELECT total_changes()')->fetchColumn();
+            $refreshedMatchPage = $this->application->handle('GET', '/', ['page' => 'matchday', 'save' => $save, 'match' => $fixture->id()->value()], [], $session);
+            self::assertSame(200, $refreshedMatchPage['status']);
+            self::assertSame($changesBeforeRefresh, (int) $database->connection()->query('SELECT total_changes()')->fetchColumn());
+            $duplicateAdvance = $this->application->handle('POST', '/', [], [
+                'action' => 'advance_match', 'save' => $save, 'match' => $fixture->id()->value(), 'token' => $advanceToken[1],
+            ], $session);
+            self::assertSame(303, $duplicateAdvance['status']);
+            self::assertSame('completed', (new \Goal\Legacy\Modules\Match\Persistence\MatchRepository($database))->get($fixture->id())->status()->value);
             $invalidMatch = $this->application->handle('GET', '/', ['page' => 'matchday', 'save' => $save, 'match' => 'missing-match'], [], $session);
             self::assertSame(404, $invalidMatch['status']);
             self::assertStringContainsString('No simulation was rerun', $invalidMatch['body']);
@@ -244,7 +262,6 @@ final class GraphicalShellTest extends TestCase
             self::assertSame($leaderboardDmlBefore, (int) $database->connection()->query('SELECT total_changes()')->fetchColumn());
             self::assertSame(200, $competitionPage['status']);
             self::assertStringContainsString('STATISTICAL LEADERS', $competitionPage['body']);
-            self::assertStringContainsString('No completed Player statistics are available yet.', $competitionPage['body']);
             $international = $this->application->handle('GET', '/', ['page' => 'international', 'save' => $save], [], $session);
             self::assertSame(200, $international['status']);
             self::assertStringContainsString('National Teams', $international['body']);

@@ -277,6 +277,29 @@ final class CareerPresentationTest extends TestCase
         }
     }
 
+    public function testPostMatchStatsStayPositionAware(): void
+    {
+        $formatter = new CareerFormatter();
+        $base = [
+            'competition' => 'League', 'date' => '2024-08-01', 'home_club' => 'A', 'away_club' => 'B',
+            'perspective_result' => 'win', 'result' => ['home_goals' => 1, 'away_goals' => 0],
+            'highlights' => [], 'post_match' => ['recent_form' => [], 'season_stats' => []],
+        ];
+        $cases = [
+            ['position' => 'GK', 'stats' => ['saves' => 4, 'shots' => 2], 'present' => 'Saves 4', 'absent' => 'Shots 2'],
+            ['position' => 'CB', 'stats' => ['tackles' => 3, 'shots' => 2], 'present' => 'Tackles 3', 'absent' => 'Shots 2'],
+            ['position' => 'CM', 'stats' => ['passes_attempted' => 20, 'passes_completed' => 17, 'shots' => 2], 'present' => 'Passing 17/20', 'absent' => 'Shots 2'],
+            ['position' => 'ST', 'stats' => ['shots' => 3, 'shots_on_target' => 2, 'tackles' => 2], 'present' => 'Shots 3', 'absent' => 'Tackles 2'],
+        ];
+        foreach ($cases as $case) {
+            $text = implode("\n", $formatter->matchday($base + [
+                'performance' => ['selection_status' => 'starter', 'appeared' => true, 'started' => true, 'minutes' => 90, 'rating' => 7.0] + $case['stats'] + ['position' => $case['position']],
+            ]));
+            self::assertStringContainsString($case['present'], $text);
+            self::assertStringNotContainsString($case['absent'], $text);
+        }
+    }
+
     public function testDecisionAndNewsStayPlayerFacing(): void
     {
         $formatter = new CareerFormatter();

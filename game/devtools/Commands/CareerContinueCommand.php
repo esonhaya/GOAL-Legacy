@@ -12,6 +12,7 @@ use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Devtools\Presentation\CareerFormatter;
 use Goal\Legacy\Devtools\Presentation\CareerLabels;
 use Goal\Legacy\Devtools\Presentation\CareerPresentationService;
+use Goal\Legacy\Modules\Player\CareerExperienceService;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Match\Domain\MatchStatus;
 use Goal\Legacy\Modules\Match\Domain\GameMatch;
@@ -72,6 +73,16 @@ final class CareerContinueCommand implements CommandInterface
                 $this->renderEvent($output, $event->toArray());
                 return 0;
             }
+        }
+        $requestedMatchId = trim((string) ($arguments[1] ?? ''));
+        if ($requestedMatchId !== '') {
+            $next = $summary['next_scheduled_match'] ?? null;
+            if (!is_array($next) || (string) ($next['match_id'] ?? '') !== $requestedMatchId) {
+                throw new RuntimeException('That Match is no longer the next controlled fixture.');
+            }
+            $this->advanceScheduledMatch($database, $saveId, $career->playerId()->value(), $summary, $next, $date, $experience, $output);
+
+            return 0;
         }
         $next = $summary['next_scheduled_match'] ?? null;
         if (is_array($next) && isset($next['date'], $next['match_id']) && $world->currentSeasonId() !== null) {
@@ -166,26 +177,39 @@ final class CareerContinueCommand implements CommandInterface
             $output->write('CONTINUE — no future controlled fixture is scheduled. Review Career actions or wait for the next Season.');
             return 0;
         }
-        $target = SimulationDate::fromIsoString((string) $next['date']);
-        if ($target->isBefore($date)) {
-            throw new RuntimeException('Career Continue found a stale fixture in the past.');
-        }
-        if ($target->toIsoString() !== $date->toIsoString()) {
-            $experience->prepareTraining($database, $career->playerId(), (string) $next['match_id'], $date, $target);
-            $worldService->advanceToDate($database, $saveId, $target);
-        } else {
-            $experience->prepareTraining($database, $career->playerId(), (string) $next['match_id'], $date, $target);
-        }
-        $completed = $this->services->matchModule()->service()->simulateDue($database, $target);
-        $controlledIds = array_values(array_filter([$summary['current_club']['id'] ?? null, ($summary['international']['selected'] ?? false) ? ($summary['international']['team_id'] ?? null) : null], 'is_string'));
-        $controlled = array_values(array_filter($completed, static fn ($match): bool => array_intersect($controlledIds, [$match->homeClubId()->value(), $match->awayClubId()->value()]) !== []));
-        if ($controlled === []) {
-            throw new RuntimeException('Career Continue advanced to a date without completing the controlled Club fixture.');
-        }
-        $match = $controlled[array_key_last($controlled)];
-        $this->renderMatch($database, $saveId, $output, $career->playerId()->value(), $match, $this->controlledTeamId($match, $controlledIds));
+        $this->advanceScheduledMatch($database, $saveId, $career->playerId()->value(), $summary, $next, $date, $experience, $output);
 
         return 0;
+    }
+
+    /** Advance exactly the requested canonical fixture; presentation never simulates a Match. */
+    private function advanceScheduledMatch(DatabaseInterface $database, string $saveId, string $playerId, array $summary, array $next, SimulationDate $date, CareerExperienceService $experience, ConsoleOutputInterface $output): void
+    {
+        $matchId = (string) ($next['match_id'] ?? '');
+        $target = SimulationDate::fromIsoString((string) ($next['date'] ?? ''));
+        if ($matchId === '' || $target->isBefore($date)) {
+            throw new RuntimeException('Career Continue found a stale fixture in the past.');
+        }
+        $experience->prepareTraining($database, $playerId, $matchId, $date, $target);
+        if ($target->toIsoString() !== $date->toIsoString()) {
+            $this->services->worldModule()->service()->advanceToDate($database, $saveId, $target);
+        }
+        $completed = $this->services->matchModule()->service()->simulateDue($database, $target);
+        $match = null;
+        foreach ($completed as $candidate) {
+            if ($candidate->id()->value() === $matchId) {
+                $match = $candidate;
+                break;
+            }
+        }
+        if ($match === null) {
+            throw new RuntimeException('Career Continue did not complete the requested controlled fixture.');
+        }
+        $controlledIds = array_values(array_filter([$summary['current_club']['id'] ?? null, ($summary['international']['selected'] ?? false) ? ($summary['international']['team_id'] ?? null) : null], 'is_string'));
+        if (array_intersect($controlledIds, [$match->homeClubId()->value(), $match->awayClubId()->value()]) === []) {
+            throw new RuntimeException('Career Continue completed a fixture outside the controlled Player context.');
+        }
+        $this->renderMatch($database, $saveId, $output, $playerId, $match, $this->controlledTeamId($match, $controlledIds));
     }
 
     private function renderMatch(DatabaseInterface $database, string $saveId, ConsoleOutputInterface $output, string $playerId, GameMatch $match, ?string $clubId): void

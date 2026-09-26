@@ -147,6 +147,7 @@ final class WebApplication
                 'purchase_lifestyle' => $this->purchaseLifestyle($post, $session),
                 'activate_lifestyle' => $this->activateLifestyle($post, $session),
                 'continue' => $this->continueCareer($post, $session),
+                'advance_match' => $this->advanceMatch($post, $session),
                 'save_exit' => $this->saveExit($session),
                 'resolve_event' => $this->resolveEvent($post, $session),
                 'resolve_decision' => $this->resolveDecision($post, $session),
@@ -410,9 +411,19 @@ final class WebApplication
             $session['web_flash'] = 'That Continue action has already been handled.';
             return $this->redirect(WebView::url('home', ['save' => $saveId]));
         }
+        $database = $this->database($saveId);
+        $snapshot = $this->snapshot($saveId, $database);
+        if (($snapshot['summary']['pending_decisions'] ?? []) !== []) { return $this->redirect(WebView::url('decision', ['save' => $saveId])); }
+        $careerId = (new CareerPlayerRepository($database))->get($saveId)->playerId()->value();
+        if ($this->services->playerModule()->service()->careerExperienceService()->pendingEvent($database, $careerId) !== null) {
+            return $this->redirect(WebView::url('event', ['save' => $saveId]));
+        }
+        $next = $snapshot['summary']['next_scheduled_match'] ?? null;
+        if (is_array($next) && isset($next['match_id'])) {
+            return $this->redirect(WebView::url('matchday', ['save' => $saveId, 'match' => (string) $next['match_id']]));
+        }
         $output = new BufferedConsoleOutput();
         (new CareerContinueCommand($this->services))->execute([$saveId], $output);
-        $database = $this->database($saveId);
         $snapshot = $this->snapshot($saveId, $database);
         if (($snapshot['summary']['pending_decisions'] ?? []) !== []) { return $this->redirect(WebView::url('decision', ['save' => $saveId])); }
         $careerId = (new CareerPlayerRepository($database))->get($saveId)->playerId()->value();
@@ -426,6 +437,34 @@ final class WebApplication
         $session['web_flash'] = $output->messages()[0] ?? 'Career updated.';
 
         return $this->redirect(WebView::url('home', ['save' => $saveId]));
+    }
+
+    /** @param array<string,mixed> $post @param array<string,mixed> $session */
+    private function advanceMatch(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        $matchId = trim((string) ($post['match'] ?? ''));
+        if ($matchId === '' || strlen($matchId) > 128 || !$this->consumeToken($session, 'advance_match_' . $saveId . '_' . $matchId, (string) ($post['token'] ?? ''))) {
+            throw new RuntimeException('That Match advance action is no longer available.');
+        }
+        $database = $this->database($saveId);
+        $snapshot = $this->snapshot($saveId, $database);
+        $next = $snapshot['summary']['next_scheduled_match'] ?? null;
+        if (!is_array($next) || (string) ($next['match_id'] ?? '') !== $matchId) {
+            throw new RuntimeException('That Match is no longer the next controlled fixture.');
+        }
+        try {
+            $match = (new MatchRepository($database))->get($matchId);
+        } catch (\Throwable) {
+            throw new RuntimeException('That Match is no longer available in this Career.');
+        }
+        if ($match->status() !== MatchStatus::Scheduled) {
+            throw new RuntimeException('That Match has already been resolved.');
+        }
+        $output = new BufferedConsoleOutput();
+        (new CareerContinueCommand($this->services))->execute([$saveId, $matchId], $output);
+
+        return $this->redirect(WebView::url('matchday', ['save' => $saveId, 'match' => $matchId]));
     }
 
     /** @param array<string,mixed> $post @param array<string,mixed> $session */
@@ -2076,10 +2115,21 @@ final class WebApplication
         } catch (\Throwable) {
             return $this->html('Match unavailable', $this->errorPage('That Match is no longer available in this Career. No simulation was rerun.'), $saveId, 'home', 404, $session);
         }
-        if ($match->status() !== MatchStatus::Completed) {
-            return $this->html('Match unavailable', $this->errorPage('This Match has not been completed yet. Return to Career Home for the next action.'), $saveId, 'home', 409, $session);
+        $presentation = new CareerPresentationService($this->services);
+        if ($match->status() === MatchStatus::Scheduled) {
+            $next = $snapshot['summary']['next_scheduled_match'] ?? null;
+            if (!is_array($next) || (string) ($next['match_id'] ?? '') !== $matchId) {
+                return $this->html('Match unavailable', $this->errorPage('That Match is not the next controlled fixture. Return to Career Home for the current Matchday.'), $saveId, 'home', 409, $session);
+            }
+            $controlledClubId = (string) ($next['controlled_team_id'] ?? (((array) ($snapshot['summary']['current_club'] ?? []))['id'] ?? ''));
+            $view = $presentation->preMatch($database, $match, $career->playerId()->value(), $controlledClubId, $snapshot['summary']);
+
+            return $this->html('Pre-Match', $this->preMatchPage($saveId, $matchId, $view, $session), $saveId, 'home', 200, $session);
         }
-        $view = (new CareerPresentationService($this->services))->matchday($database, $match, $career->playerId()->value(), (string) (((array) ($snapshot['summary']['current_club'] ?? []))['id'] ?? ''));
+        if ($match->status() !== MatchStatus::Completed) {
+            return $this->html('Match unavailable', $this->errorPage('This Match is not available for presentation. Return to Career Home for the current Matchday.'), $saveId, 'home', 409, $session);
+        }
+        $view = $presentation->matchday($database, $match, $career->playerId()->value(), (string) (((array) ($snapshot['summary']['current_club'] ?? []))['id'] ?? ''));
         $performance = (array) ($view['performance'] ?? []); $result = (array) ($view['result'] ?? []);
         $cupResolution = is_array($view['cup_resolution'] ?? null) ? $view['cup_resolution'] : null;
         $europeResolution = is_array($view['europe_resolution'] ?? null) ? $view['europe_resolution'] : null;
@@ -2111,7 +2161,7 @@ final class WebApplication
                 $cupContext .= '<p class="metric-note">' . WebView::e((string) $fixtureContext['relationship_name']) . '</p>';
             }
         }
-        $stats = ''; foreach (['goals' => 'Goals', 'assists' => 'Assists', 'shots' => 'Shots', 'shots_on_target' => 'Shots on target', 'passes_completed' => 'Passes completed', 'passes_attempted' => 'Passes attempted', 'tackles' => 'Tackles', 'interceptions' => 'Interceptions', 'blocks' => 'Blocks', 'saves' => 'Saves', 'yellow_cards' => 'Yellow cards', 'red_cards' => 'Red cards'] as $key => $label) { if (array_key_exists($key, $performance) && $performance[$key] !== null) { $stats .= WebView::stat($label, $performance[$key]); } }
+        $stats = $this->matchStatsHtml($performance);
         $highlights = ''; foreach ((array) ($view['highlights'] ?? []) as $line) { $highlights .= '<li>' . WebView::e($line) . '</li>'; }
         $playerMoments = ''; foreach ($this->playerMomentLines((array) ($performance['player_highlight_facts'] ?? [])) as $line) { $playerMoments .= '<li>' . WebView::e($line) . '</li>'; }
         $explanation = (array) ($performance['rating_explanation'] ?? []); $factors = ''; foreach (array_merge(array_map(static fn (string $line): string => '+ ' . $line, (array) ($explanation['positive'] ?? [])), array_map(static fn (string $line): string => '− ' . $line, (array) ($explanation['negative'] ?? []))) as $line) { $factors .= '<li>' . WebView::e($line) . '</li>'; }
@@ -2133,6 +2183,93 @@ final class WebApplication
         $body = '<div class="match-header"><div class="eyebrow">MATCHDAY · ' . WebView::e($view['competition'] ?? '') . '</div><p>' . WebView::e($view['date'] ?? '') . '</p><div class="scoreline"><strong>' . WebView::e($view['home_club'] ?? '') . '</strong><span>' . WebView::e($result['home_goals'] ?? 0) . ' — ' . WebView::e($result['away_goals'] ?? 0) . '</span><strong>' . WebView::e($view['away_club'] ?? '') . '</strong></div><div class="result-badge">' . WebView::e(strtoupper((string) ($view['perspective_result'] ?? 'result'))) . '</div>' . $cupContext . '</div><div class="match-grid"><div>' . WebView::section('YOUR MATCH', (string) ($performance['player_name'] ?? 'Player'), $yourMatch) . $landmarkPanel . $comebackPanel . $ratingPanel . WebView::section('YOUR MOMENTS', 'Player impact', $playerMoments === '' ? WebView::emptyState('No decisive Player moments recorded.') : '<ul class="fixture-list">' . $playerMoments . '</ul>') . WebView::section('MATCH STORY', 'Canonical timeline', $highlights === '' ? WebView::emptyState('No highlights recorded.') : '<ul class="fixture-list">' . $highlights . '</ul>') . '</div><aside>' . WebView::section('POST-MATCH', 'Updated context', $this->postMatch($postMatch)) . WebView::section('CAREER IMPACT', 'What changed', $impactHtml) . '</aside></div><div class="form-actions">' . WebView::link('home', ['save' => $saveId], 'Career Home', 'button button-primary') . WebView::link('training', ['save' => $saveId], 'Training') . '</div>';
 
         return $this->html('Matchday', $body, $saveId, 'home', 200, $session);
+    }
+
+    /** @param array<string,mixed> $view @param array<string,mixed> $session */
+    private function preMatchPage(string $saveId, string $matchId, array $view, array &$session): string
+    {
+        $player = is_array($view['player'] ?? null) ? $view['player'] : [];
+        $availability = is_array($player['availability'] ?? null) ? $player['availability'] : [];
+        $selection = is_array($player['selection'] ?? null) ? $player['selection'] : [];
+        $fixture = is_array($view['fixture_context'] ?? null) ? $view['fixture_context'] : [];
+        $fixtureLabel = (string) ($view['competition_stage'] ?? $view['competition'] ?? 'Fixture');
+        if (($fixture['display_label'] ?? null) !== null) {
+            $fixtureLabel .= ' · ' . (string) $fixture['display_label'];
+        }
+        $contextLines = [];
+        if (($fixture['relationship_name'] ?? null) !== null) {
+            $contextLines[] = (string) $fixture['relationship_name'];
+        }
+        if (($fixture['former_club'] ?? null) !== null) {
+            $contextLines[] = 'Facing a former Club';
+        }
+        if (($fixture['season_stakes'] ?? null) !== null) {
+            $contextLines[] = 'Club Season stakes are part of this fixture';
+        }
+        $contextPanel = $contextLines === []
+            ? WebView::emptyState('No additional rivalry or Season context recorded for this fixture.')
+            : '<ul class="fixture-list">' . implode('', array_map(static fn (string $line): string => '<li>' . WebView::e($line) . '</li>', $contextLines)) . '</ul>';
+        $homeAway = match ((string) ($view['home_away'] ?? 'neutral')) {
+            'home' => 'Home fixture',
+            'away' => 'Away fixture',
+            default => 'International fixture',
+        };
+        $role = CareerLabels::value($player['role'] ?? null, 'Squad role not set');
+        $position = CareerLabels::position($player['primary_position'] ?? null);
+        $captaincy = ($player['captaincy'] ?? null) === null ? '' : '<p class="result-badge">' . WebView::e($player['captaincy']) . '</p>';
+        $setPiece = ($player['set_piece'] ?? null) === null ? '' : '<p class="result-badge">' . WebView::e($player['set_piece']) . '</p>';
+        $advance = WebView::form('advance_match', 'Advance to Match', ['save' => $saveId, 'match' => $matchId, 'token' => $this->issueToken($session, 'advance_match_' . $saveId . '_' . $matchId)], 'button button-primary button-large', 'data-busy');
+        $playerBody = '<div class="stat-grid compact">'
+            . WebView::stat('Availability', $availability['label'] ?? 'Not available')
+            . WebView::stat('Selection', $selection['label'] ?? 'Confirmed at kickoff')
+            . WebView::stat('Squad role', $role)
+            . WebView::stat('Recent form', $player['form_label'] ?? 'Not available')
+            . WebView::stat('Position', $position)
+            . WebView::stat('Match position', 'Confirmed at kickoff')
+            . '</div><p>' . WebView::e($availability['explanation'] ?? '') . '</p><p class="muted">' . WebView::e($selection['explanation'] ?? '') . '</p>'
+            . (($player['on_pitch_role'] ?? null) === null ? '' : '<p><strong>On-pitch role:</strong> ' . WebView::e($player['on_pitch_role']) . '</p>')
+            . $captaincy . $setPiece;
+        $body = '<div class="match-header"><div class="eyebrow">PRE-MATCH · ' . WebView::e($view['competition'] ?? 'Competition') . '</div><h1>' . WebView::e($view['date'] ?? '') . '</h1><p class="metric-note">' . WebView::e($fixtureLabel) . ' · ' . WebView::e($homeAway) . '</p><div class="scoreline"><strong>' . WebView::e($view['home_club'] ?? '') . '</strong><span>vs</span><strong>' . WebView::e($view['away_club'] ?? '') . '</strong></div></div><div class="match-grid"><div>' . WebView::section('YOUR MATCH', (string) ($player['name'] ?? 'Player'), $playerBody) . WebView::section('FIXTURE CONTEXT', 'Why this Match matters', $contextPanel) . '</div><aside>' . WebView::section('NEXT STEP', 'The canonical Match is ready', '<p>Match selection and deployed position are confirmed at kickoff. Your performance will be read from the completed Match facts.</p>' . $advance) . WebView::section('READINESS', 'Before kickoff', '<div class="split-list"><p><span>Readiness</span><strong>' . WebView::e(CareerLabels::value($player['readiness']['label'] ?? null, 'Ready')) . '</strong></p><p><span>Workload</span><strong>' . WebView::e(CareerLabels::value($player['readiness']['workload']['label'] ?? null, 'Normal')) . '</strong></p><p><span>Recent minutes</span><strong>' . (int) ($player['readiness']['workload']['recent_minutes'] ?? 0) . '</strong></p></div></aside></div><div class="form-actions">' . WebView::link('home', ['save' => $saveId], 'Back to Career Home') . '</div>');
+
+        return $body;
+    }
+
+    /** @param array<string,mixed> $performance */
+    private function matchStatsHtml(array $performance): string
+    {
+        if (($performance['appeared'] ?? false) !== true) {
+            return '';
+        }
+        $position = (string) ($performance['position'] ?? '');
+        $fields = match ($position) {
+            'GK' => ['goals' => 'Goals', 'assists' => 'Assists', 'saves' => 'Saves', 'clean_sheets' => 'Clean sheet', 'passes' => 'Passing', 'cards' => 'Cards'],
+            'CB', 'LB', 'RB' => ['goals' => 'Goals', 'assists' => 'Assists', 'tackles' => 'Tackles', 'interceptions' => 'Interceptions', 'blocks' => 'Blocks', 'passes' => 'Passing', 'clean_sheets' => 'Clean sheet', 'cards' => 'Cards'],
+            'DM', 'CM', 'AM' => ['goals' => 'Goals', 'assists' => 'Assists', 'passes' => 'Passing', 'tackles' => 'Tackles', 'interceptions' => 'Interceptions', 'cards' => 'Cards'],
+            default => ['goals' => 'Goals', 'assists' => 'Assists', 'shots' => 'Shots', 'shots_on_target' => 'Shots on target', 'passes' => 'Passing', 'cards' => 'Cards'],
+        };
+        $html = '';
+        foreach ($fields as $key => $label) {
+            if ($key === 'passes') {
+                if ((int) ($performance['passes_attempted'] ?? 0) > 0) {
+                    $html .= WebView::stat($label, (int) ($performance['passes_completed'] ?? 0) . '/' . (int) $performance['passes_attempted']);
+                }
+                continue;
+            }
+            if ($key === 'cards') {
+                $yellow = (int) ($performance['yellow_cards'] ?? 0);
+                $red = (int) ($performance['red_cards'] ?? 0);
+                if ($yellow > 0 || $red > 0) {
+                    $html .= WebView::stat($label, $yellow . 'Y/' . $red . 'R');
+                }
+                continue;
+            }
+            $value = (int) ($performance[$key] ?? 0);
+            if ($value > 0) {
+                $html .= WebView::stat($label, $value);
+            }
+        }
+
+        return $html;
     }
 
     private function portrait(array $query, array $session): array
@@ -2164,7 +2301,7 @@ final class WebApplication
 
     private function postMatch(array $post): string
     {
-        $stats = (array) ($post['season_stats'] ?? []); $form = (array) ($post['recent_form'] ?? []); $performance = (array) ($post['performance'] ?? []); $readiness = (array) ($post['readiness'] ?? []); $workload = is_array($readiness['workload'] ?? null) ? $readiness['workload'] : []; $manager = (array) ($post['manager_context'] ?? []); $impact = (array) (($post['career_impact'] ?? [])['items'] ?? []); $impactText = $impact === [] ? 'No material change recorded' : implode(' · ', array_slice(array_map('strval', $impact), 0, 2)); $participation = (string) ($performance['participation_label'] ?? 'Not available'); if (($performance['substitution_on_minute'] ?? null) !== null) { $participation .= ' · Entered ' . (int) $performance['substitution_on_minute'] . "'"; } if (($performance['substitution_off_minute'] ?? null) !== null) { $participation .= ' · Left ' . (int) $performance['substitution_off_minute'] . "'"; } if (($performance['substitution_reason_label'] ?? null) !== null) { $participation .= ' · ' . (string) $performance['substitution_reason_label']; } return '<div class="split-list"><p><span>Match performance</span><strong>' . WebView::e($performance['performance_label'] ?? 'No rating') . '</strong></p><p><span>Participation</span><strong>' . WebView::e($participation) . '</strong></p><p><span>Recent form</span><strong>' . WebView::e($this->formLabel($form)) . '</strong></p><p><span>Readiness after Match</span><strong>' . WebView::e(CareerLabels::value($readiness['label'] ?? null, 'Ready')) . '</strong></p><p><span>Workload</span><strong>' . WebView::e(CareerLabels::value($workload['label'] ?? null, 'Normal')) . '</strong></p><p><span>Recent minutes</span><strong>' . (int) ($workload['recent_minutes'] ?? 0) . '</strong></p><p><span>Selection context</span><strong>' . WebView::e($manager['selection_context'] ?? 'Role and availability apply') . '</strong></p><p><span>Season average</span><strong>' . WebView::e($this->rating($stats['average_match_rating'] ?? null)) . '</strong></p><p><span>League position</span><strong>' . WebView::e($post['club_position'] ?? 'Not available') . '</strong></p><p><span>Career impact</span><strong>' . WebView::e($impactText) . '</strong></p></div>';
+        $stats = (array) ($post['season_stats'] ?? []); $form = (array) ($post['recent_form'] ?? []); $performance = (array) ($post['performance'] ?? []); $readiness = (array) ($post['readiness'] ?? []); $workload = is_array($readiness['workload'] ?? null) ? $readiness['workload'] : []; $manager = (array) ($post['manager_context'] ?? []); $impact = (array) (($post['career_impact'] ?? [])['items'] ?? []); $impactText = $impact === [] ? 'No material change recorded' : implode(' · ', array_slice(array_map('strval', $impact), 0, 2)); $participation = (string) ($performance['participation_label'] ?? 'Not available'); if (($performance['substitution_on_minute'] ?? null) !== null) { $participation .= ' · Entered ' . (int) $performance['substitution_on_minute'] . "'"; } if (($performance['substitution_off_minute'] ?? null) !== null) { $participation .= ' · Left ' . (int) $performance['substitution_off_minute'] . "'"; } if (($performance['substitution_reason_label'] ?? null) !== null) { $participation .= ' · ' . (string) $performance['substitution_reason_label']; } $position = ($performance['position_label'] ?? null) ?? CareerLabels::position($performance['position'] ?? null); return '<div class="split-list"><p><span>Match performance</span><strong>' . WebView::e($performance['performance_label'] ?? 'No rating') . '</strong></p><p><span>Participation</span><strong>' . WebView::e($participation) . '</strong></p><p><span>Position</span><strong>' . WebView::e($position ?? 'Not deployed') . '</strong></p><p><span>Recent form</span><strong>' . WebView::e($this->formLabel($form)) . '</strong></p><p><span>Readiness after Match</span><strong>' . WebView::e(CareerLabels::value($readiness['label'] ?? null, 'Ready')) . '</strong></p><p><span>Workload</span><strong>' . WebView::e(CareerLabels::value($workload['label'] ?? null, 'Normal')) . '</strong></p><p><span>Recent minutes</span><strong>' . (int) ($workload['recent_minutes'] ?? 0) . '</strong></p><p><span>Selection context</span><strong>' . WebView::e($manager['selection_context'] ?? 'Role and availability apply') . '</strong></p><p><span>Season average</span><strong>' . WebView::e($this->rating($stats['average_match_rating'] ?? null)) . '</strong></p><p><span>League position</span><strong>' . WebView::e($post['club_position'] ?? 'Not available') . '</strong></p><p><span>Career impact</span><strong>' . WebView::e($impactText) . '</strong></p></div>';
     }
 
     /** @param list<array<string, mixed>> $facts @return list<string> */

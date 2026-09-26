@@ -141,3 +141,26 @@ called by normal Career Home rendering. Resolved choices continue to use the
 existing Career event record, canonical training/priority/finance/social
 owners, and bounded Recent Story/Career History projections; routine event
 cards are not additional history.
+
+## P3-014 Matchday continuity
+
+Career Home Continue now stops at the existing `matchday` route for the next
+scheduled controlled fixture. `CareerPresentationService::preMatch()` projects
+fixture, competition/stage, home/away, canonical availability, readiness,
+role, recent form, and existing rivalry/Season-stakes facts. It does not select
+a squad, consume Match randomness, or promise Starting XI, bench, deployed
+position, minutes, or performance; those facts are confirmed only by canonical
+Match execution.
+
+The pre-Match POST is a one-use fixture-scoped action. It validates that the
+fixture is still the next controlled scheduled Match, then delegates to
+`CareerContinueCommand` and `MatchService::simulateDue()`. Completed Match
+selection, substitutions, deployment, statistics, rating, availability,
+discipline, development, form, milestones, and competition consequences keep
+existing owners. Stale/replayed POST cannot simulate twice.
+
+Completed Matchday reads use `MatchStoryService` and persisted facts. The web
+projection prioritises controlled-player moments and filters headline stats by
+actual deployed position; unused, not-selected, injured, and suspended states
+never receive fabricated ratings. GET/render of pre-Match, Matchday, post-Match,
+and Career Home remains observational and does not write gameplay rows.

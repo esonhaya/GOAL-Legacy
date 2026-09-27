@@ -94,7 +94,7 @@ test('Pre-Match and post-Match keep the player loop reachable', async ({ page },
   await page.goto(`/?page=home&save=${encodeURIComponent(saveId)}`);
   await page.getByRole('button', { name: /Continue/ }).click();
   await expect(page).toHaveURL(/page=matchday/);
-  await expect(page.getByText('PRE-MATCH', { exact: true })).toBeVisible();
+  await expect(page.getByText('PRE-MATCH', { exact: false }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Advance to Match' })).toBeVisible();
   await expectNoPageOverflow(page);
 

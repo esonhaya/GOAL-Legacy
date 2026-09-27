@@ -7,3 +7,7 @@
 !/game/logs/.gitkeep
 !/game/saves/.gitkeep
 /storage/cache/*
+/node_modules/
+/playwright-report/
+/release-screenshots/
+/test-results/

@@ -1,0 +1,132 @@
+name: GOAL verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: goal-verification-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COMPOSER_ALLOW_SUPERUSER: '1'
+
+jobs:
+  fast:
+    name: Fast PHP gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, dom, xml, pdo_sqlite, sqlite3, intl, zip
+          coverage: none
+
+      - name: Prepare locked path dependency
+        run: bash scripts/ci/prepare-path-dependencies.sh
+
+      - name: Install locked Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Check PHP syntax
+        run: bash scripts/ci/php-syntax.sh
+
+      - name: Run focused web hardening tests
+        run: vendor/bin/phpunit tests/Web/P3017SaveReliabilityTest.php tests/Web/P3018UiHardeningTest.php
+
+  canonical:
+    name: Canonical PHP regression
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
+    needs: fast
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, dom, xml, pdo_sqlite, sqlite3, intl, zip
+          coverage: none
+
+      - name: Prepare locked path dependency
+        run: bash scripts/ci/prepare-path-dependencies.sh
+
+      - name: Install locked Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Run canonical PHPUnit regression
+        run: composer test
+
+  browser:
+    name: Browser smoke (${{ matrix.project }})
+    if: ${{ needs.fast.result == 'success' && (github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    needs: fast
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, mobile]
+    env:
+      CI: 'true'
+      GOAL_BROWSER_RUN_ID: ${{ github.run_id }}
+      GOAL_BROWSER_PROJECT: ${{ matrix.project }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, dom, xml, pdo_sqlite, sqlite3, intl, zip
+          coverage: none
+
+      - name: Prepare locked path dependency
+        run: bash scripts/ci/prepare-path-dependencies.sh
+
+      - name: Install locked Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install browser test dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Validate browser configuration
+        run: node --check playwright.config.js
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser smoke tests
+        run: npm run test:browser -- --project="$GOAL_BROWSER_PROJECT"
+
+      - name: Upload browser diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: goal-browser-artifacts-${{ matrix.project }}-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+            release-screenshots/
+          if-no-files-found: ignore
+          retention-days: 7

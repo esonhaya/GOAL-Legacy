@@ -1,0 +1,14 @@
+{
+  "name": "goal-legacy-browser-verification",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test:browser": "playwright test",
+    "test:browser:list": "playwright test --list"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

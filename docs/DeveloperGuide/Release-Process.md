@@ -199,5 +199,39 @@ v1.0.0
 
 ---
 
-End of Document
+# Automated Verification
 
+The repository workflow in `.github/workflows/ci.yml` provides three bounded
+verification paths:
+
+- **Fast PHP gate** runs syntax checks and the focused web hardening tests on
+  pull requests and pushes to `main`.
+- **Canonical PHP regression** runs the authoritative `composer test` command
+  on `main` pushes and on manual `workflow_dispatch` runs.
+- **Browser smoke** starts the real PHP application, creates an isolated
+  Career through the production creation flow, and checks a small desktop and
+  mobile Playwright surface set. It uses Chromium only and does not expose a
+  test-only production route.
+
+The browser fixture owns only saves named with the `p3019-browser-` prefix and
+uses the normal web forms and canonical services. Browser failures retain the
+Playwright report, failure screenshots, and traces where generated; successful
+release screens are a small diagnostic sample. Artifacts are retained for
+seven days and must contain only synthetic CI state.
+
+Developers with Node and Chromium installed can run the browser suite with:
+
+```sh
+npm ci
+npm run test:browser
+```
+
+The browser project is intentionally not a visual-golden test. Its mobile
+assertions cover semantic access, primary actions, and page-level overflow;
+GitHub Actions supplies the browser-capable environment. The local Termux
+environment may therefore report browser execution as unavailable while PHP
+verification remains runnable locally.
+
+---
+
+End of Document

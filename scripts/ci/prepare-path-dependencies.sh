@@ -5,12 +5,7 @@ project_root="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 dependency_root="${project_root}/../BoardPrep-Doctor"
 required_commit="10ed9d1192f33c75bcfff2d4cf0539f8a2843b86"
 dependency_url="https://github.com/esonhaya/haya-doctor.git"
-dependency_token="${HAYA_DOCTOR_GIT_TOKEN:-}"
-
-if [ "${CI:-}" = "true" ] && [ -z "${dependency_token}" ]; then
-    printf 'CI requires HAYA_DOCTOR_GIT_TOKEN to read the locked private path dependency.\n' >&2
-    exit 1
-fi
+published_ref="refs/tags/goal-legacy-locked-10ed9d1"
 
 if [ -d "${dependency_root}/.git" ]; then
     current_commit="$(git -C "${dependency_root}" rev-parse HEAD)"
@@ -36,11 +31,11 @@ else
     git -C "${dependency_root}" remote set-url origin "${dependency_url}"
 fi
 
-if [ -n "${dependency_token}" ]; then
-    authorization="$(printf 'x-access-token:%s' "${dependency_token}" | base64 | tr -d '\r\n')"
-    git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${authorization}" \
-        -C "${dependency_root}" fetch --depth=1 origin "${required_commit}"
-else
-    git -C "${dependency_root}" fetch --depth=1 origin "${required_commit}"
+git -C "${dependency_root}" fetch --depth=1 origin "${published_ref}"
+fetched_commit="$(git -C "${dependency_root}" rev-parse FETCH_HEAD^{commit})"
+if [ "${fetched_commit}" != "${required_commit}" ]; then
+    printf 'Published Haya Doctor ref %s resolved to %s; expected %s.\n' \
+        "${published_ref}" "${fetched_commit}" "${required_commit}" >&2
+    exit 1
 fi
-git -C "${dependency_root}" checkout --detach FETCH_HEAD >/dev/null
+git -C "${dependency_root}" checkout --detach "${required_commit}" >/dev/null

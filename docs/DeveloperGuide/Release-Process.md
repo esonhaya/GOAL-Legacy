@@ -219,12 +219,11 @@ Playwright report, failure screenshots, and traces where generated; successful
 release screens are a small diagnostic sample. Artifacts are retained for
 seven days and must contain only synthetic CI state.
 
-CI also prepares the locked private Haya Doctor path dependency without
-changing the Composer architecture. Configure the repository secret
-`HAYA_DOCTOR_TOKEN` with read access to `esonhaya/haya-doctor`; the workflow
-falls back to its repository token only when repository settings explicitly
-grant that token access. The token is used only for the dependency fetch and
-is not a production or browser-test credential.
+CI also prepares the locked Haya Doctor path dependency without changing the
+Composer architecture. Haya Doctor is public, and the preparation script
+fetches its published `goal-legacy-locked-10ed9d1` ref anonymously, then
+verifies that it resolves to the exact SHA recorded in `composer.lock`.
+There are no dependency credentials or production secrets involved.
 
 Developers with Node and Chromium installed can run the browser suite with:
 

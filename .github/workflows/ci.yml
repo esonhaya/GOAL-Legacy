@@ -15,7 +15,6 @@ concurrency:
 
 env:
   COMPOSER_ALLOW_SUPERUSER: '1'
-  HAYA_DOCTOR_GIT_TOKEN: ${{ secrets.HAYA_DOCTOR_TOKEN || github.token }}
 
 jobs:
   fast:

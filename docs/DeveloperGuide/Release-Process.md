@@ -240,4 +240,62 @@ verification remains runnable locally.
 
 ---
 
+# P3-021 Phase 3 Release Candidate Gate
+
+P3-021 is the Phase 3 integration and release-candidate gate. It composes
+existing canonical tests and deterministic tooling; it does not add gameplay
+rules or repeat the full P3-020 performance matrix.
+
+## Release baseline
+
+- Baseline HEAD: `4217b2a75aa9d75b15cfb2ae0c0b9eef301d94ef`
+- Protected untracked documents: the three DeveloperGuide documents present at
+  the gate (`Architecture-Freeze-Integration-Roadmap.md`,
+  `File-Replacement-Policy.md`, and `Major-Document-Generation-Policy.md`).
+- Composer lock and vendor Haya Doctor reference:
+  `10ed9d1192f33c75bcfff2d4cf0539f8a2843b86`.
+- No production implementation change was required by the gate.
+
+## Deterministic journey matrix
+
+| Journey | Canonical evidence | Result |
+| --- | --- | --- |
+| A — first football loop | `P3016CareerJourneyTest`, `P3014MatchdayPresentationTest` | PASS |
+| B — adversity and decisions | `P3009SimulationLabTest`, `P3010CareerLabTest`, `P2026InjuryRecoveryTest`, `P3017SaveReliabilityTest` | PASS |
+| C — Season and movement | `career:multi-season-audit --lifecycle-only --seasons=1`, `P2038CareerLifecycleIntegrationTest`, `CareerPacingObservatoryTest` | PASS |
+| D — mature Career | `LATE_CAREER` scenario, `P3013CareerVarietyTest`, P3-020 AGE3/AGE5 evidence | PASS |
+| E — Career closure | `P2016CareerLifecycleTest`, `CareerPresentationTest`, `CareerAchievementSummaryTest` | PASS |
+
+Journey A uses the production `WebApplication` creation flow and real Match
+POST. Scenario setup uses `GoalScenarioBuilder`, `GoalScenarioCatalog`,
+`GoalMatchRunner`, and canonical lifecycle services. No test reimplements
+selection, development, transfer, Contract, rollover, or retirement rules.
+
+## Local gate evidence
+
+- PHP syntax: PASS across `game/` and `tests/`.
+- Focused local runs: 65 test executions, 506 assertions, zero failures. The
+  batches intentionally overlap a small amount of reusable regression
+  coverage.
+- Haya Doctor, core self-check, and Career self-check: PASS.
+- Bounded lifecycle audit: `reload_failures=none`, `unclubbed_active=0`,
+  `squad_min=25`, `squad_max=25`.
+- Representative SQLite read-only probe: `integrity_check=ok`, FK rows `0`.
+- Normal GET/read projections: no gameplay DML; action tokens and ownership
+  remain save-scoped and one-use.
+
+P3-020 watch items are carried forward without implementation work: AGE5
+Profile approximately 5.4 seconds / 4,139 queries, AGE5 save approximately
+102 MB / 272,049 rows, and save growth approximately 17.8 MB per Season.
+They remain release-acceptable while usable, reloadable, and integrity-clean;
+P3-021 does not classify them as blockers.
+
+Local Composer and Chromium/Playwright are unavailable in this Termux image.
+Remote GitHub Actions is authoritative for locked dependency installation,
+Fast PHP, canonical PHP, the real PHP server, and desktop/mobile Chromium
+artifacts. The final P3-021 CI run and release status are recorded here after
+the release commit is observed remotely.
+
+---
+
 End of Document

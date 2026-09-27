@@ -208,16 +208,16 @@ verification paths:
   pull requests and pushes to `main`.
 - **Canonical PHP regression** runs the authoritative `composer test` command
   on `main` pushes and on manual `workflow_dispatch` runs.
-- **Browser smoke** starts the real PHP application, creates an isolated
-  Career through the production creation flow, and checks a small desktop and
-  mobile Playwright surface set. It uses Chromium only and does not expose a
-  test-only production route.
+- **Browser smoke** starts the real PHP application, prepares one isolated
+  Career through the canonical Career-start workflow, and checks the normal
+  creation form plus a small desktop and mobile Playwright surface set. It
+  uses Chromium only and does not expose a test-only production route.
 
 The browser fixture owns only saves named with the `p3019-browser-` prefix and
-uses the normal web forms and canonical services. Browser failures retain the
-Playwright report, failure screenshots, and traces where generated; successful
-release screens are a small diagnostic sample. Artifacts are retained for
-seven days and must contain only synthetic CI state.
+uses canonical services rather than hand-written SQLite state. Browser
+failures retain the Playwright report, failure screenshots, and traces where
+generated; successful release screens are a small diagnostic sample. Artifacts
+are retained for seven days and must contain only synthetic CI state.
 
 CI also prepares the locked Haya Doctor path dependency without changing the
 Composer architecture. Haya Doctor is public, and the preparation script

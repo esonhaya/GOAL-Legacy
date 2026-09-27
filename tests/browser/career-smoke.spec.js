@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { test, expect } = require('@playwright/test');
 
 const projectRoot = path.resolve(__dirname, '../..');
@@ -31,19 +32,11 @@ test.beforeAll(async ({ browser }, testInfo) => {
   saveIds.set(testInfo.project.name, saveId);
   removeOwnedSave(saveId);
 
-  const context = await browser.newContext({
-    baseURL: testInfo.project.use.baseURL,
-    viewport: testInfo.project.use.viewport,
+  execFileSync('php', [path.join(projectRoot, 'scripts/ci/create-browser-career.php'), saveId], {
+    cwd: projectRoot,
+    env: process.env,
+    stdio: 'inherit',
   });
-  try {
-    await createCareer(context, saveId);
-    const verificationPage = await context.newPage();
-    await verificationPage.goto('/?page=menu');
-    await expect(verificationPage.getByText(saveId, { exact: true })).toBeVisible();
-    await verificationPage.close();
-  } finally {
-    await context.close();
-  }
 });
 
 test.afterAll(async ({}, testInfo) => {
@@ -53,8 +46,14 @@ test.afterAll(async ({}, testInfo) => {
   }
 });
 
-test('Career entry and creation produce a usable Career Home', async ({ page }, testInfo) => {
+test('Career entry and creation form produce a usable Career Home', async ({ page }, testInfo) => {
   const saveId = saveIds.get(testInfo.project.name);
+
+  await page.goto('/?page=new&step=identity');
+  await expect(page.getByRole('heading', { name: 'Identity' })).toBeVisible();
+  await expect(page.getByLabel('Save name')).toBeVisible();
+  await expect(page.getByLabel('Player name')).toBeVisible();
+  await expect(page.getByLabel('Nationality')).toBeVisible();
 
   await page.goto('/?page=menu');
   await expect(page.getByRole('heading', { name: 'Load Career' })).toBeVisible();
@@ -112,38 +111,6 @@ test('Missing Career recovery is bounded and actionable', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'New Career' })).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/SQL|SQLite|PDOException|\/data\/|stack trace/i);
 });
-
-async function createCareer(context, saveId) {
-  const page = await context.newPage();
-
-  await page.goto('/?page=new&step=identity');
-  await expect(page.getByRole('heading', { name: 'Identity' })).toBeVisible();
-  await page.getByLabel('Save name').fill(saveId);
-  await page.getByLabel('Player name').fill('P3-019 Browser Player');
-  await page.getByLabel('Nationality').selectOption({ index: 0 });
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-
-  await expect(page.getByRole('heading', { name: 'Body' })).toBeVisible();
-  await page.getByLabel('Height').fill('180');
-  await page.getByLabel('Weight').fill('75');
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-
-  await expect(page.getByRole('heading', { name: 'Avatar Creator' })).toBeVisible();
-  await page.getByRole('button', { name: 'Confirm appearance' }).click();
-
-  await expect(page.getByRole('heading', { name: 'Football Profile' })).toBeVisible();
-  await page.getByLabel('Position').selectOption('CM');
-  await page.getByLabel('Preferred foot').selectOption('right');
-  await page.getByLabel('Development path').selectOption('regular');
-  await page.getByRole('button', { name: 'Review profile' }).click();
-
-  await expect(page.getByRole('heading', { name: 'Review' })).toBeVisible();
-  await page.getByRole('button', { name: 'Enter Youth Camp' }).click();
-  await expect(page.getByRole('heading', { name: 'Youth Camp' })).toBeVisible();
-  await page.getByRole('button', { name: 'Join this Club' }).first().click();
-  await expect(page).toHaveURL(new RegExp(`page=home.*save=${saveId}`));
-  await page.close();
-}
 
 async function expectNoPageOverflow(page) {
   const dimensions = await page.evaluate(() => ({

@@ -37,6 +37,10 @@ test.beforeAll(async ({ browser }, testInfo) => {
   });
   try {
     await createCareer(context, saveId);
+    const verificationPage = await context.newPage();
+    await verificationPage.goto('/?page=menu');
+    await expect(verificationPage.getByText(saveId, { exact: true })).toBeVisible();
+    await verificationPage.close();
   } finally {
     await context.close();
   }

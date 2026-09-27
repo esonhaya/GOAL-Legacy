@@ -52,7 +52,7 @@ final class Domain040Test extends TestCase
         self::assertSame(CareerPriority::Balanced, $experience->priority($database, $player->id()));
         self::assertSame(CareerPriority::Development, $experience->setPriority($database, $player->id(), CareerPriority::Development, $date));
         self::assertSame(TrainingFocus::Passing, $experience->setTrainingFocus($database, $player->id(), TrainingFocus::Passing, $date));
-        $summary = (new PlayerCareerProgressionQuery($services->clubModule()->service())->summary($database, $player->id(), $date, $season->id()));
+        $summary = (new PlayerCareerProgressionQuery($services->clubModule()->service()))->summary($database, $player->id(), $date, $season->id());
         self::assertSame('development', $summary['priority']);
         self::assertSame('passing', $summary['training_focus']);
     }

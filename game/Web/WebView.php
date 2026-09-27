@@ -40,7 +40,7 @@ final class WebView
         if ($saveId !== null) {
             $items = [
                 'home' => ['Career Home', 'home'],
-                'career' => ['Career', 'career'],
+                'career' => ['Career History', 'career'],
                 'legacy' => ['Legacy', 'legacy'],
                 'trophies' => ['Trophy Room', 'trophies'],
                 'market' => ['Transfer Market', 'market'],
@@ -56,7 +56,8 @@ final class WebView
             ];
             foreach ($items as $key => [$label, $page]) {
                 $class = $active === $key ? 'nav-link active' : 'nav-link';
-                $navigation .= '<a class="' . $class . '" href="' . self::e(self::url($page, ['save' => $saveId])) . '">' . self::e($label) . '</a>';
+                $current = $active === $key ? ' aria-current="page"' : '';
+                $navigation .= '<a class="' . $class . '" href="' . self::e(self::url($page, ['save' => $saveId])) . '"' . $current . '>' . self::e($label) . '</a>';
             }
         }
         $flashHtml = $flash === null || trim($flash) === '' ? '' : '<div class="flash" role="status">' . self::e($flash) . '</div>';
@@ -64,8 +65,9 @@ final class WebView
 
         return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<title>' . self::e($title) . ' · GOAL: Legacy</title><link rel="stylesheet" href="/assets/app.css"></head><body>'
-            . '<header class="topbar"><div class="topbar-inner">' . $back . '<nav class="main-nav">' . $navigation . '</nav></div></header>'
-            . '<main class="page-shell">' . $flashHtml . $content . '</main>'
+            . '<a class="skip-link" href="#main-content">Skip to main content</a>'
+            . '<header class="topbar"><div class="topbar-inner">' . $back . '<nav class="main-nav" aria-label="Career navigation">' . $navigation . '</nav></div></header>'
+            . '<main id="main-content" class="page-shell">' . $flashHtml . $content . '</main>'
             . '<script>
                 document.querySelectorAll("form[data-busy]").forEach(function(form){form.addEventListener("submit",function(){var button=form.querySelector("button[type=submit]");if(button){button.disabled=true;button.textContent="Working...";}});});
                 function updateDraftPortrait(){var image=document.querySelector("[data-draft-portrait]");if(!image){return;}var spec={};document.querySelectorAll("[data-appearance-field]").forEach(function(field){spec[field.dataset.appearanceField]=field.value;});var encoded=btoa(JSON.stringify(spec));image.src="/?page=portrait&draft=1&size=256&spec="+encodeURIComponent(encoded)+"&v="+Date.now();}

@@ -2752,7 +2752,8 @@ final class WebApplication
             unset($session['web_flash']);
             if ($flash !== null && trim($flash) !== '') {
                 $flashHtml = '<div class="flash" role="status">' . WebView::e($flash) . '</div>';
-                $body = str_replace('<main class="page-shell">', '<main class="page-shell">' . $flashHtml, $body, $count);
+                $mainOpen = '<main id="main-content" class="page-shell">';
+                $body = str_replace($mainOpen, $mainOpen . $flashHtml, $body, $count);
                 if ($count === 0) { $body = str_replace('<main class="page-shell">', '<main class="page-shell">' . $flashHtml, $body); }
             }
 

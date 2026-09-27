@@ -239,3 +239,28 @@ One-use action tokens remain save-scoped; stale or cross-save POSTs are
 rejected before canonical gameplay services can mutate the target. Creation
 rollback uses the storage abstraction, and normal GET/render paths do not
 advance gameplay.
+
+## P3-018 responsive and accessible shell boundary
+
+`WebView::layout()` and `game/public/assets/app.css` remain the shared owner of
+normal Career page structure. The shell provides one labelled Career
+navigation landmark, a skip link to the single main landmark, and
+`aria-current="page"` for the active destination. The navigation label uses
+`Career History` for the existing History route; route ownership and primary
+Career actions are unchanged.
+
+Player-facing forms continue to use native labels and controls, POST actions,
+CSRF/one-use tokens, and redirect-after-POST. State-changing controls remain
+buttons/forms, while navigation remains links. Focus-visible styling is
+preserved for links, buttons, native fields, and visually-hidden decision
+radios; selected, warning, availability, and result states retain textual
+labels rather than depending on color alone.
+
+The responsive contract is structural: panels and action cards may wrap,
+long Club/competition/player values may break within their owning column,
+scorelines use shrinkable grid tracks, and data tables remain inside the
+existing bounded horizontal-scroll wrapper. No gameplay read model, query
+owner, action token, or mutation path is changed by responsive presentation.
+Structural DOM/CSS regression tests cover these guarantees. Browser screenshot
+and formal contrast audits remain environment-dependent and are not implied by
+the structural tests.

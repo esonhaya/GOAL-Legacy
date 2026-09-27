@@ -252,3 +252,27 @@ Refreshes and direct GETs remain read-only for gameplay; selecting a save does
 not advance time or resolve a decision. Normal save rename, delete UI, cloud
 sync, and general backup/version migration are not currently supported by the
 graphical shell and are not implied by this reliability boundary.
+
+## P3-018 release UI hardening
+
+`WebView::layout()` is the normal player-facing shell boundary. It emits the
+shared header/navigation, a skip link, one `main#main-content` landmark, and
+the active route's `aria-current="page"` marker. `app.css` owns responsive
+reflow and focus-visible treatment; it does not add a component framework or
+change the graphical shell's visual language.
+
+Responsive rules keep normal pages usable at narrow widths: action/save cards,
+profile and match content can shrink or stack; long football names wrap inside
+their panels; scoreline tracks can shrink; and the existing table-scroll
+wrapper remains the bounded alternative for wide statistical tables. The
+navigation itself may scroll horizontally because it is a bounded destination
+strip, not a whole-page overflow requirement.
+
+Accessibility conventions are native-first: headings remain page content,
+navigation is represented by links, mutations remain POST forms with buttons,
+creation/decision/training controls remain labelled native inputs, and focus
+is visible for keyboard users. Important state continues to use text or
+semantic context in addition to color. `P3018UiHardeningTest` covers the
+shared landmarks, form semantics, mutation method, focus/wrapping hooks, and
+responsive CSS contract. These tests are structural; browser screenshots and
+formal WCAG contrast measurement require a rendering environment.

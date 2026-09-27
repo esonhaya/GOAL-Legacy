@@ -96,7 +96,7 @@ final class PlayerDevelopmentService
     /** @param list<\Goal\Legacy\Modules\Match\Domain\PlayerMatchStat>|null $stats */
     public function applyMatchInTransaction(DatabaseInterface $database, GameMatch $match, ?array $stats = null, bool $persistHistory = true): array
     {
-        $players = $stats ?? new PlayerMatchStatRepository($database)->byMatch($match->id());
+        $players = $stats ?? (new PlayerMatchStatRepository($database))->byMatch($match->id());
         $results = [];
         foreach ($players as $stat) {
             if (!$stat->appeared() || $stat->minutes() < 1) {

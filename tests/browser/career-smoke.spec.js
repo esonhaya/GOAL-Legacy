@@ -57,8 +57,10 @@ test('Career entry and creation form produce a usable Career Home', async ({ pag
 
   await page.goto('/?page=menu');
   await expect(page.getByRole('heading', { name: 'Load Career' })).toBeVisible();
-  await expect(page.getByText(saveId, { exact: true })).toBeVisible();
-  await page.locator('article.save-card').filter({ hasText: saveId }).getByRole('link', { name: 'Load Career' }).click();
+  const saveCard = page.locator('article.save-card').filter({ hasText: saveId });
+  await expect(saveCard).toHaveCount(1);
+  await expect(saveCard).toBeVisible();
+  await saveCard.getByRole('link', { name: 'Load Career' }).click();
 
   await expect(page.getByRole('main')).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('P3-019 Browser Player');

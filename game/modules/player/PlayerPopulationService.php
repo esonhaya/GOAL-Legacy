@@ -371,7 +371,7 @@ final class PlayerPopulationService
         $weight = ($heightBase > 180 ? 76 : 70) + $this->index($key . '|weight', 17) - 8;
         $playerId = ($idPrefix ?? 'npc-v' . self::GENERATION_VERSION . '-' . $club->id()->value() . '-') . str_pad((string) $ordinal, 2, '0', STR_PAD_LEFT);
 
-        return new PlayerCreationService($nations)->create(new PlayerCreationRequest(
+        return (new PlayerCreationService($nations))->create(new PlayerCreationRequest(
             $playerId,
             $first,
             $last,

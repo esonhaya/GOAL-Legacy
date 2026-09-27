@@ -9,5 +9,21 @@ esac
 [ "${syntax_jobs}" -gt 8 ] && syntax_jobs=8
 [ "${syntax_jobs}" -lt 1 ] && syntax_jobs=1
 
+lint_file() {
+    local file="$1"
+    local output
+    local status
+
+    output="$(php -l "${file}" 2>&1)"
+    status=$?
+    printf '%s\n' "${output}"
+    if [ "${status}" -ne 0 ]; then
+        printf '::error file=%s::PHP syntax check failed with exit code %s.\n' "${file}" "${status}" >&2
+        return "${status}"
+    fi
+}
+
+export -f lint_file
+
 find "${project_root}/game" "${project_root}/tests" -type f -name '*.php' -print0 \
-    | xargs -0 -n1 -P "${syntax_jobs}" php -l
+    | xargs -0 -n1 -P "${syntax_jobs}" bash -c 'lint_file "$1"' bash

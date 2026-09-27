@@ -12,6 +12,7 @@ module.exports = defineConfig({
   outputDir: 'test-results',
   reporter: [
     ['list'],
+    ...(process.env.GITHUB_ACTIONS ? [['github']] : []),
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
   ],
   use: {

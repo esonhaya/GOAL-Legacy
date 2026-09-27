@@ -20,6 +20,20 @@ interface SaveStore
 
     public function delete(string $saveId): void;
 
+    /** Return the configured storage root without exposing it to players. */
+    public function storageDirectory(): string;
+
+    /** Return the canonical save file size plus known SQLite sidecars. */
+    public function size(string $saveId): int;
+
+    /**
+     * Reclaim SQLite free pages at an explicit maintenance boundary.
+     *
+     * @param (callable(DatabaseInterface):array<string,mixed>)|null $semanticCheckpoint
+     * @return array<string, mixed>
+     */
+    public function compact(string $saveId, ?callable $semanticCheckpoint = null): array;
+
     /** @return list<SaveMetadata> */
     public function list(): array;
 }

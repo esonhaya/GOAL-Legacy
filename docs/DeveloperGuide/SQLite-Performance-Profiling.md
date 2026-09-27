@@ -99,3 +99,130 @@ Reuse the generated JSON/checkpoints when comparing ages; do not regenerate a
 five-season Career repeatedly. No timing threshold should be added to PHPUnit:
 environment-dependent timings are reported as evidence and classified as
 `HEALTHY`, `WATCH`, `MATERIAL_BOTTLENECK`, or `CLEAR_DEFECT`.
+
+## P4-001 mobile storage foundation
+
+P4-001 separates storage lifecycle work from historical gameplay compaction.
+It does not delete Match statistics, highlights, Season history, registrations,
+memberships, role history, or development history. Those families remain in the
+save until their active and historical consumers are traced in a later batch.
+
+### Ownership classes
+
+The configured `game/saves` root is the only canonical save root. A file is
+automatically actionable only when its location and convention identify it:
+
+| Class | Evidence and policy |
+| --- | --- |
+| `NORMAL_CAREER_SAVE` | Valid `core_save_metadata`, `sandbox=false`, canonical `<id>.sqlite`. |
+| `SANDBOX_SAVE` | Valid metadata with `sandbox=true`; `sandbox_source_id` is informational and does not create a delete cascade. |
+| `TEMP_TEST_SAVE` | Private temporary directory with a repository-owned `goal-legacy-*` convention, or an exact `.career-preview-*` directory. |
+| `TEMP_SIMULATION_SAVE` | Scenario, multi-season, observatory, or season-audit owned temporary directory. |
+| `BROWSER_TEST_SAVE` | Valid canonical save whose fixture ID starts with `p3019-browser-`. |
+| `RECOVERY_SNAPSHOT` / `SANDBOX_SNAPSHOT` | Reserved explicit classes; there are no external snapshot files in the current implementation. Existing Sandbox snapshots are save-owned database state. |
+| `DIAGNOSTIC_ARTIFACT` | P3-020 probe directories and other exact diagnostic conventions. |
+| `UNKNOWN_EXTERNAL` | Corrupt/unreadable SQLite, arbitrary sidecar, symlink, path, or file without a known convention. Never automatically deleted. |
+
+`OwnedArtifactCleanup` accepts no arbitrary glob. It validates the storage
+root, rejects symlinks, and removes only exact GOAL-owned sidecars or stale
+owned directories. Its explicit maintenance call is bounded by root and age;
+normal GET rendering never invokes it. Browser fixtures retain their own exact
+prefix guard and cleanup. Simulation Lab, ScenarioFixture, the P3-020
+performance probe, and the multi-season audit share the same owned-directory
+cleanup boundary and all keep cleanup in `finally` paths.
+
+### Career and Sandbox lifecycle
+
+Save management exposes the metadata name, last-updated value, measured file
+size, Sandbox marker, `Delete Career`/`Delete Sandbox`, and `Optimize Storage`.
+Deletion is a confirmation page followed by a one-use CSRF/action-token POST.
+The server validates the save ID, opens canonical metadata, checks account
+ownership, then deletes the canonical SQLite file and only the exact SQLite
+sidecars associated with that validated ID. A GET cannot delete. A missing
+save is an idempotent no-op at the store boundary; a replayed web token is
+rejected. Source Careers and Sandbox children are independent: deleting one
+does not cascade to the other. Unknown nearby files survive.
+
+The `storage:inspect` developer command is the deliberate maintenance
+boundary for inventory, attribution, bounded orphan cleanup, and optional
+compaction. It may be run with a save ID, `--cleanup`, or `--compact=<id>`.
+No storage cleanup or `VACUUM` occurs on a save list, Career Home, Profile, or
+History GET.
+
+### Attribution evidence
+
+`StorageInventory` reports canonical and owned temporary artifacts without
+claiming ownership of the rest of the OS temporary directory. For the save
+root it reports normal/Sandbox/browser/unknown counts and owned/unknown bytes.
+`SqliteStorageAttribution` reports SQLite-native values for a representative
+save:
+
+- file size, page size, page count, freelist count, used-page approximation,
+  free-page approximation, journal mode, auto-vacuum, integrity, and FK checks;
+- row count for every application table;
+- `dbstat` page bytes, payload/unused bytes, database percentage, and index
+  bytes when the runtime exposes `dbstat`; otherwise the report says
+  `UNAVAILABLE` rather than inventing precision;
+- growth classification, known consumers, and retention class.
+
+The P4-001 retention map currently classifies the largest known families as:
+
+| Family | Current consumers | Retention class |
+| --- | --- | --- |
+| Registrations | Competition eligibility and transfer logic during active Seasons | `ACTIVE_REQUIRED` |
+| Squad memberships | Active squad, movement, selection, Career History | `PLAYER_HISTORY_REQUIRED` |
+| Role history | Profile and progression history | `PLAYER_HISTORY_REQUIRED` |
+| Development history | Training feedback, Profile, Career History | `PLAYER_HISTORY_REQUIRED` |
+| Match records/highlights/selections | Match loading, Match Story, saved history/audit | `WORLD_HISTORY_REQUIRED` |
+| Match player statistics | Profile, Career History, Trophy/records aggregation | `PLAYER_HISTORY_REQUIRED` |
+| Season and competition statistics | Profile, leaders, awards, Trophy/records | `PLAYER_HISTORY_REQUIRED` / `WORLD_HISTORY_REQUIRED` |
+| Career events/awards/honours/records | Decisions, Pulse/news, Legacy and Trophy Room | `PLAYER_HISTORY_REQUIRED` |
+| Pulse sources/posts/threads | Pulse/news rendering and deduplication | `WORLD_HISTORY_REQUIRED` |
+
+Unknown tables are reported as `UNKNOWN_CONSUMER`. For every later candidate,
+P4-002/P4-003 must still answer who writes it, active-season use, finalization
+use, Career History/Profile/Trophy/leaderboard/award/Pulse/development use,
+contract/transfer use, derivability, NPC summarization safety, and whether
+controlled-player evidence needs richer retention. P4-001 provides the map;
+it does not perform destructive historical compaction.
+
+### Physical reclamation boundary
+
+Deleting rows and shrinking the file are separate operations. `SqliteSaveStore`
+captures file/page/freelist/integrity/FK metrics, runs SQLite `VACUUM` only on
+an explicitly requested canonical save, and reopens it through the canonical
+metadata path before reporting success. It refuses an unknown/corrupt save and
+an active transaction; SQLite's busy timeout/locking remains the concurrency
+boundary. It is never called during Match simulation, Season processing, a
+normal GET, or after every small deletion. A failed operation is reported as a
+maintenance failure and is not reported as a successful optimized save.
+
+The player-facing Optimize Storage action supplies a read-only canonical
+semantic checkpoint containing controlled Player, Club, Contract/loan, role,
+availability, Season/date, and Career-history projections. The store compares
+that checkpoint before and after `VACUUM` and reports `PRESERVED`; an incomplete
+metadata-only file uses a bounded metadata checkpoint and is not allowed to
+initialize gameplay schema as a side effect.
+
+The P4-001 fixture deliberately creates and removes non-gameplay diagnostic
+rows to produce free pages, then proves:
+
+```text
+FILE_SIZE_AFTER < FILE_SIZE_BEFORE
+integrity_check=ok before and after
+foreign_key_violations=0 before and after
+metadata/semantic checkpoint unchanged
+canonical SaveStore reopen=PASS
+```
+
+The measured reduction is not a gameplay target. P3-020 remains the official
+healthy long-career baseline: AGE5 `102010880` bytes, approximately `17.8 MB`
+per Season, and the old Profile watch of about `5.4 s`/`4139` queries. Phase 4
+directional targets are AGE5 `<=40 MB`, stretch `25–30 MB`, and steady growth
+`<=5 MB`/Season (stretch `<=3 MB`/Season); P4-001 does not enforce them.
+
+Next safe candidates are the largest `dbstat`-measured historical families
+whose consumers are proven, with controlled-player evidence retained richer
+than NPC evidence where the product contract permits it. No P4-001 operation
+changes match simulation, season simulation, formulas, balance, or gameplay
+fidelity.

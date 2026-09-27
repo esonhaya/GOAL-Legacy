@@ -8,6 +8,7 @@ use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Bootstrap\Bootstrap;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Core\Persistence\JsonSerializer;
+use Goal\Legacy\Core\Persistence\OwnedArtifactCleanup;
 use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Core\Persistence\SqlProfiler;
 use Goal\Legacy\Core\Persistence\SqliteSaveStore;
@@ -239,14 +240,7 @@ final class CareerPerformanceProbe
             if ($actionStore->exists($sourceId)) {
                 $actionStore->delete($sourceId);
             }
-            foreach (glob($directory . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
-                if (is_file($file)) {
-                    unlink($file);
-                }
-            }
-            if (is_dir($directory)) {
-                rmdir($directory);
-            }
+            OwnedArtifactCleanup::removeOwnedDirectory($directory, 'goal-legacy-p3020-');
         }
     }
 

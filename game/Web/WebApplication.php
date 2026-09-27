@@ -8,8 +8,10 @@ use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Core\Persistence\PersistenceException;
 use Goal\Legacy\Core\Persistence\SaveMetadata;
+use Goal\Legacy\Core\Persistence\SaveDeletionException;
 use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Core\Persistence\SqlProfiler;
+use Goal\Legacy\Core\Persistence\StorageMaintenanceException;
 use Goal\Legacy\Core\Persistence\UnsupportedSaveVersionException;
 use Goal\Legacy\Core\Simulation\SimulationMutation;
 use Goal\Legacy\Core\Simulation\SimulationPermission;
@@ -105,6 +107,7 @@ final class WebApplication
             return $this->html('Sandbox', $this->errorPage('Premium Sandbox access is not enabled for this account.'), null, '', 403, $session);
         }
         return match ($page) {
+            'delete' => $this->deleteConfirmation($saveId, $metadata, $session),
             'home' => $this->home($saveId, $session),
             'career' => $this->career($saveId, $session),
             'season-review' => $this->seasonReview($saveId, isset($query['season']) ? (string) $query['season'] : null, $session),
@@ -165,6 +168,8 @@ final class WebApplication
                 'continue' => $this->continueCareer($post, $session),
                 'advance_match' => $this->advanceMatch($post, $session),
                 'save_exit' => $this->saveExit($session),
+                'delete_save' => $this->deleteSave($post, $session),
+                'optimize_storage' => $this->optimizeStorage($post, $session),
                 'resolve_event' => $this->resolveEvent($post, $session),
                 'resolve_decision' => $this->resolveDecision($post, $session),
                 'counter_contract' => $this->counterContract($post, $session),
@@ -533,6 +538,70 @@ final class WebApplication
     }
 
     /** @param array<string,mixed> $post @param array<string,mixed> $session */
+    private function deleteSave(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        if (!$this->consumeToken($session, 'delete_save_' . $saveId, (string) ($post['token'] ?? ''))) {
+            throw new RuntimeException('That deletion confirmation has expired.');
+        }
+        if ((string) ($post['confirm'] ?? '') !== '1') {
+            throw new RuntimeException('Confirm the irreversible Career deletion before continuing.');
+        }
+        $metadata = $this->saveStore()->open($saveId);
+        if (!$this->canAccessSave($metadata, $session)) {
+            throw new RuntimeException('That saved career is not available to this account.');
+        }
+        $this->saveStore()->delete($saveId);
+        unset($session['web_tokens']['delete_save_' . $saveId], $session['web_tokens']['optimize_storage_' . $saveId]);
+        $session['web_flash'] = $metadata->isSandbox() ? 'Sandbox deleted.' : 'Career deleted.';
+
+        return $this->redirect(WebView::url('menu'));
+    }
+
+    /** @param array<string,mixed> $post @param array<string,mixed> $session */
+    private function optimizeStorage(array $post, array &$session): array
+    {
+        $saveId = $this->requiredSave($post);
+        if (!$this->consumeToken($session, 'optimize_storage_' . $saveId, (string) ($post['token'] ?? ''))) {
+            throw new RuntimeException('That storage maintenance action has expired.');
+        }
+        $this->saveStore()->compact($saveId, fn (DatabaseInterface $database): array => $this->storageSemanticCheckpoint($saveId, $database));
+        $session['web_flash'] = 'Storage optimization completed. Career progress was unchanged.';
+
+        return $this->redirect(WebView::url('menu'));
+    }
+
+    /** @return array<string,mixed> */
+    private function storageSemanticCheckpoint(string $saveId, DatabaseInterface $database): array
+    {
+        foreach (['career_player_references', 'player_records', 'world_records', 'season_records'] as $table) {
+            if (!$this->tableExists($database, $table)) {
+                return ['metadata' => $this->saveStore()->open($saveId)->toArray(), 'state_scope' => 'metadata_only'];
+            }
+        }
+        $snapshot = $this->snapshot($saveId, $database);
+        $summary = (array) ($snapshot['summary'] ?? []);
+
+        return [
+            'controlled_player' => (array) ($summary['player'] ?? []),
+            'club' => $summary['current_club'] ?? null,
+            'contract' => $summary['current_contract'] ?? null,
+            'loan' => $summary['active_loan'] ?? null,
+            'role' => $summary['current_role'] ?? ($summary['squad_role'] ?? null),
+            'availability' => $summary['availability'] ?? null,
+            'season' => $summary['current_season_id'] ?? null,
+            'date' => isset($snapshot['date']) && $snapshot['date'] instanceof SimulationDate ? $snapshot['date']->toIsoString() : null,
+            'career_history' => [
+                'life' => $summary['career_life_history'] ?? [],
+                'movement' => $summary['movement_history'] ?? [],
+                'development' => $summary['recent_development'] ?? [],
+                'roles' => $summary['role_history'] ?? [],
+                'stats' => $summary['career_stats'] ?? [],
+            ],
+        ];
+    }
+
+    /** @param array<string,mixed> $post @param array<string,mixed> $session */
     private function resolveEvent(array $post, array &$session): array
     {
         $saveId = $this->requiredSave($post);
@@ -839,11 +908,17 @@ final class WebApplication
             $portrait = $playerId !== null
                 ? WebView::portrait($this->portraitUrl($saveId, $playerId, 'career', 64), (string) ($player ?? 'Player'), 'portrait portrait-small')
                 : '';
+            $size = $this->saveStore()->size($saveId);
             $action = $available
                 ? WebView::link('home', ['save' => $saveId], 'Load Career', 'button button-primary')
                 : '<span class="muted">Unavailable — choose another Career</span>';
             $sandbox = $metadata->isSandbox() ? ' · SANDBOX' : '';
-            $cards .= '<article class="save-card">' . $portrait . '<div class="save-card-copy"><span class="eyebrow">SAVED CAREER' . WebView::e($sandbox) . '</span><h2>' . WebView::e($player ?? $metadata->name()) . '</h2><p>' . WebView::e($club ?? 'Free Agent') . ($season === null ? '' : ' · ' . WebView::e($season)) . '</p><small class="muted">Save: ' . WebView::e($saveId) . '</small></div>' . $action . '</article>';
+            $deleteLabel = $metadata->isSandbox() ? 'Delete Sandbox' : 'Delete Career';
+            $management = WebView::link('delete', ['save' => $saveId], $deleteLabel, 'button button-secondary')
+                . WebView::form('optimize_storage', 'Optimize Storage', ['save' => $saveId, 'token' => $this->issueToken($session, 'optimize_storage_' . $saveId)], 'button button-secondary', 'data-busy');
+            $updated = (new \DateTimeImmutable($metadata->updatedAt()))->format('Y-m-d H:i');
+            $details = '<small class="muted">Save: ' . WebView::e($saveId) . ' · Last updated: ' . WebView::e($updated) . ' · Size: ' . WebView::e($this->formatBytes($size)) . '</small>';
+            $cards .= '<article class="save-card">' . $portrait . '<div class="save-card-copy"><span class="eyebrow">SAVED CAREER' . WebView::e($sandbox) . '</span><h2>' . WebView::e($player ?? $metadata->name()) . '</h2><p>' . WebView::e($club ?? 'Free Agent') . ($season === null ? '' : ' · ' . WebView::e($season)) . '</p>' . $details . '</div><div class="save-card-actions">' . $action . $management . '</div></article>';
         }
         $body = '<div class="hero hero-menu"><div class="eyebrow">FOOTBALL CAREER SIMULATION</div><h1>GOAL: LEGACY</h1><p>Build your football life, shape your development, and make every season your own.</p><div class="hero-actions">' . WebView::link('new', ['step' => 'identity'], 'New Career', 'button button-primary button-large') . '</div></div>';
         $body .= WebView::section('CONTINUE YOUR STORY', 'Load Career', $cards === '' ? WebView::emptyState('No saved careers yet. Start a new career to enter Youth Camp.') : '<div class="save-list">' . $cards . '</div>');
@@ -851,10 +926,25 @@ final class WebApplication
         return WebView::layout('Main Menu', $body, null, '', null);
     }
 
+    /** @param array<string,mixed> $session */
+    private function deleteConfirmation(string $saveId, SaveMetadata $metadata, array &$session): array
+    {
+        $label = $metadata->isSandbox() ? 'Sandbox' : 'Career';
+        $body = '<div class="flow-heading"><div class="eyebrow">SAVE MANAGEMENT</div><h1>Delete ' . WebView::e($label) . '?</h1><p>This action permanently removes <strong>' . WebView::e($metadata->name()) . '</strong> and its canonical save file.</p></div>';
+        $body .= WebView::section('IRREVERSIBLE ACTION', 'Confirm deletion', '<p>Career progress, world history, and saved records in this file cannot be recovered after deletion. Other Careers and the source Career remain untouched.</p><div class="form-actions">' . WebView::link('menu', [], 'Cancel', 'button button-secondary') . WebView::form('delete_save', 'Delete ' . $label, ['save' => $saveId, 'confirm' => '1', 'token' => $this->issueToken($session, 'delete_save_' . $saveId)], 'button button-primary', 'data-busy') . '</div>');
+
+        return $this->html('Delete ' . $label, $body, null, '', 200, $session);
+    }
+
     /** Lightweight saved-career metadata; avoids advancing the shared world clock while listing saves. */
     private function menuCareer(string $saveId): array
     {
         $database = $this->database($saveId);
+        foreach (['career_player_references', 'player_records', 'world_records', 'season_records', 'club_squad_memberships', 'club_records'] as $table) {
+            if (!$this->tableExists($database, $table)) {
+                throw new RuntimeException('Career metadata is incomplete.');
+            }
+        }
         $career = (new CareerPlayerRepository($database))->get($saveId);
         $player = (new PlayerRepository($database))->get($career->playerId());
         $worldService = $this->services->worldModule()->service();
@@ -872,6 +962,14 @@ final class WebApplication
             'club' => $club?->canonicalName() ?? 'Free Agent',
             'season' => $season?->label(),
         ];
+    }
+
+    private function tableExists(DatabaseInterface $database, string $table): bool
+    {
+        $statement = $database->connection()->prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = :name");
+        $statement->execute(['name' => $table]);
+
+        return $statement->fetchColumn() !== false;
     }
 
     /** @param array<string,mixed> $session */
@@ -2626,6 +2724,12 @@ final class WebApplication
     }
     private function friendlyError(\Throwable $exception): string
     {
+        if ($exception instanceof SaveDeletionException) {
+            return 'Career deletion did not complete cleanly. Check the Careers list before trying again.';
+        }
+        if ($exception instanceof StorageMaintenanceException) {
+            return 'Storage optimization could not be completed. Career progress was not changed.';
+        }
         if ($exception instanceof UnsupportedSaveVersionException) {
             return 'This saved career is not compatible with this version. Return to Careers and choose another save.';
         }
@@ -2743,6 +2847,17 @@ final class WebApplication
         };
     }
     private function rating(mixed $value): string { return $value === null || $value === '' ? 'Not available' : number_format((float) $value, 1); }
+    private function formatBytes(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes . ' B';
+        }
+        if ($bytes < 1024 * 1024) {
+            return number_format($bytes / 1024, 1) . ' KB';
+        }
+
+        return number_format($bytes / (1024 * 1024), 1) . ' MB';
+    }
     private function money(int $amount): string { return 'GC ' . number_format($amount); }
     private function financeType(string $type): string { return match ($type) { 'opening_balance' => 'Career start', 'wage' => 'Wage', 'purchase' => 'Purchase', 'event_income' => 'Career event income', 'event_expense' => 'Career event expense', default => 'Finance activity' }; }
     private function effectLabel(string $effect): string { return match ($effect) { 'recovery_support' => 'Recovery support', 'training_support' => 'Training support', 'lifestyle_event_weight' => 'Lifestyle context', 'professional_event_weight' => 'Professional context', 'media_event_weight' => 'Media context', 'community_event_weight' => 'Community context', 'travel_convenience' => 'Travel convenience', default => 'Career context' }; }

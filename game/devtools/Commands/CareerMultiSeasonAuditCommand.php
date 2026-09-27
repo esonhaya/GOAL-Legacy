@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Goal\Legacy\Core\Bootstrap\Bootstrap;
 use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\JsonSerializer;
+use Goal\Legacy\Core\Persistence\OwnedArtifactCleanup;
 use Goal\Legacy\Core\Persistence\SaveMetadata;
 use Goal\Legacy\Core\Persistence\SqliteSaveStore;
 use Goal\Legacy\Core\Persistence\SqlProfiler;
@@ -913,8 +914,6 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
 
     private function removeStorage(string $directory): void
     {
-        if (!is_dir($directory)) { return; }
-        foreach (glob($directory . '/*') ?: [] as $file) { if (is_file($file)) { unlink($file); } }
-        rmdir($directory);
+        OwnedArtifactCleanup::removeOwnedDirectory($directory);
     }
 }

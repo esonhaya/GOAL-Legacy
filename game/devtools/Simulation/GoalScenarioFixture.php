@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Goal\Legacy\Devtools\Simulation;
 
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
+use Goal\Legacy\Core\Persistence\OwnedArtifactCleanup;
 use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
 use Goal\Legacy\Modules\World\Domain\SeasonId;
-use RuntimeException;
 
 /** An explicitly owned, isolated save used by Simulation Lab scenarios. */
 final class GoalScenarioFixture
@@ -44,16 +44,6 @@ final class GoalScenarioFixture
     public function close(): void
     {
         unset($this->database);
-        if (!is_dir($this->directory)) {
-            return;
-        }
-        foreach (glob($this->directory . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
-            if (is_file($file) && !unlink($file)) {
-                throw new RuntimeException(sprintf('Unable to clean owned scenario artifact "%s".', $file));
-            }
-        }
-        if (!rmdir($this->directory)) {
-            throw new RuntimeException(sprintf('Unable to clean owned scenario directory "%s".', $this->directory));
-        }
+        OwnedArtifactCleanup::removeOwnedDirectory($this->directory, 'goal-legacy-scenario-');
     }
 }

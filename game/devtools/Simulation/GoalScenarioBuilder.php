@@ -7,6 +7,7 @@ namespace Goal\Legacy\Devtools\Simulation;
 use DateTimeImmutable;
 use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\JsonSerializer;
+use Goal\Legacy\Core\Persistence\OwnedArtifactCleanup;
 use Goal\Legacy\Core\Persistence\SaveMetadata;
 use Goal\Legacy\Core\Persistence\SqliteSaveStore;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
@@ -212,8 +213,6 @@ final class GoalScenarioBuilder
 
     private function removeOwnedDirectory(string $directory): void
     {
-        if (!is_dir($directory)) { return; }
-        foreach (glob($directory . DIRECTORY_SEPARATOR . '*') ?: [] as $file) { if (is_file($file)) { unlink($file); } }
-        rmdir($directory);
+        OwnedArtifactCleanup::removeOwnedDirectory($directory, 'goal-legacy-scenario-');
     }
 }

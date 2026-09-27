@@ -37,7 +37,8 @@ else
 fi
 
 if [ -n "${dependency_token}" ]; then
-    git -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer ${dependency_token}" \
+    authorization="$(printf 'x-access-token:%s' "${dependency_token}" | base64 | tr -d '\r\n')"
+    git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${authorization}" \
         -C "${dependency_root}" fetch --depth=1 origin "${required_commit}"
 else
     git -C "${dependency_root}" fetch --depth=1 origin "${required_commit}"

@@ -31,7 +31,10 @@ test.beforeAll(async ({ browser }, testInfo) => {
   saveIds.set(testInfo.project.name, saveId);
   removeOwnedSave(saveId);
 
-  const context = await browser.newContext({ viewport: testInfo.project.use.viewport });
+  const context = await browser.newContext({
+    baseURL: testInfo.project.use.baseURL,
+    viewport: testInfo.project.use.viewport,
+  });
   try {
     await createCareer(context, saveId);
   } finally {

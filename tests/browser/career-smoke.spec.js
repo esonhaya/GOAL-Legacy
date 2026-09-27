@@ -65,7 +65,7 @@ test('Career entry and creation form produce a usable Career Home', async ({ pag
   await expect(page.getByRole('main')).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('P3-019 Browser Player');
   await expect(page.getByRole('navigation', { name: 'Career navigation' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Training', exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Training', exact: true })).toBeVisible();
   await expect(page.locator('a[aria-current="page"]')).toHaveText('Career Home');
   await expectNoPageOverflow(page);
   await saveReleaseScreenshot(page, testInfo, 'career-home');
@@ -75,7 +75,7 @@ test('Training remains labelled, interactive, and returns to Home', async ({ pag
   const saveId = saveIds.get(testInfo.project.name);
 
   await page.goto(`/?page=home&save=${encodeURIComponent(saveId)}`);
-  await page.getByRole('link', { name: 'Training', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Training', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Shape the next block' })).toBeVisible();
   await page.getByLabel('Training focus').selectOption('passing');
   await page.getByRole('button', { name: 'Save training focus' }).click();

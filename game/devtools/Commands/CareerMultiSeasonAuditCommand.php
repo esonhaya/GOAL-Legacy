@@ -15,6 +15,7 @@ use Goal\Legacy\Core\Persistence\SqlProfileReporter;
 use Goal\Legacy\Core\Persistence\SqliteQueryPlanExplainer;
 use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
+use Goal\Legacy\Devtools\Performance\CareerPerformanceProbe;
 use Goal\Legacy\Modules\Club\Domain\ClubId;
 use Goal\Legacy\Modules\Club\Domain\ClubSquadMembership;
 use Goal\Legacy\Modules\Club\Domain\SquadRole;
@@ -73,6 +74,7 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         }
         $requested = $this->argumentInt($arguments, '--seasons=', 3);
         $seed = $this->argumentInt($arguments, '--seed=', 13003);
+        $performancePath = $this->argumentValue($arguments, '--performance-json=', '');
         $lifecycleOnly = in_array('--lifecycle-only', $arguments, true);
         $minimumSeasons = $lifecycleOnly ? 1 : 3;
         if ($requested < $minimumSeasons || $requested > ($lifecycleOnly ? 10 : 5)) {
@@ -85,7 +87,10 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         try {
             [$store, $database, $season, $world] = $this->initialize($directory, $seed);
             $population = $this->services->playerModule()->service()->populationService()->populate($database, $season, $seed);
-            $players = $lifecycleOnly ? [] : $this->installControlledPlayers($database, $season);
+            $performanceMode = $performancePath !== '';
+            $players = $lifecycleOnly
+                ? []
+                : ($performanceMode ? ['fringe' => $this->installPerformancePlayer($database, $season, $seed)] : $this->installControlledPlayers($database, $season));
             if ($lifecycleOnly) {
                 $profiler = in_array('--profile-sql', $arguments, true) ? new SqlProfiler() : null;
                 if ($profiler !== null) {
@@ -101,6 +106,19 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
             $matchService = $this->services->matchModule()->service();
             $this->generateSeasonFixtures($database, $matchService, $competitionIds, $season);
 
+            $performanceProbe = $performancePath === '' ? null : new CareerPerformanceProbe($this->services, dirname(__DIR__, 3));
+            $performanceStates = [];
+            if ($performanceProbe !== null) {
+                $performanceStates['AGE0'] = $performanceProbe->capture(
+                    $database,
+                    $store,
+                    self::SAVE_ID,
+                    $directory . '/' . self::SAVE_ID . '.sqlite',
+                    $players['fringe']->id()->value(),
+                    0,
+                );
+            }
+
             $seasonReports = [];
             $saveSizes = ['initial' => filesize($directory . '/' . self::SAVE_ID . '.sqlite') ?: 0];
             $reloadChecks = [];
@@ -113,12 +131,22 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
                 if ($matches === []) { throw new RuntimeException('No fixtures exist for ' . $season->id()->value() . '.'); }
                 $this->simulateSeason($store, $database, $matchService, $matches, $season, $reloadChecks);
 
-                if ($seasonNumber === 1) { $movementMetrics = $this->movementAudit($database, $season, $players, $movement); }
+                if ($seasonNumber === 1 && !$performanceMode) { $movementMetrics = $this->movementAudit($database, $season, $players, $movement); }
 
                 $database = $this->advanceAndReload($store, $database, $season->endDate()->addDays(1), $reloadChecks, 'season-' . $seasonNumber . '-boundary');
                 $season = $this->services->worldModule()->service()->seasonRepository($database)->get($season->id());
                 $seasonReports[] = $this->seasonMetrics($database, $competitionIds, $season, $directory);
                 $saveSizes['season_' . $seasonNumber] = filesize($directory . '/' . self::SAVE_ID . '.sqlite') ?: 0;
+                if ($performanceProbe !== null && in_array($seasonNumber, [1, 3, 5], true)) {
+                    $performanceStates['AGE' . $seasonNumber] = $performanceProbe->capture(
+                        $database,
+                        $store,
+                        self::SAVE_ID,
+                        $directory . '/' . self::SAVE_ID . '.sqlite',
+                        $players['fringe']->id()->value(),
+                        $seasonNumber,
+                    );
+                }
 
                 if ($seasonNumber < $requested) {
                     $nextId = new SeasonId(sprintf('season-%04d-%02d', $season->startDate()->year() + 1, ($season->startDate()->year() + 2) % 100));
@@ -138,6 +166,27 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
             $populationMetrics = $this->populationMetrics($database, $finalSeason, $population, $directory);
             $careerMetrics = $this->careerMetrics($database, $players, $finalSeason);
             $this->writeReport($output, $requested, $seed, $seasonReports, $populationMetrics, $careerMetrics, $movementMetrics, $saveSizes, $reloadChecks);
+            if ($performanceProbe !== null) {
+                $performanceDirectory = dirname($performancePath);
+                if (!is_dir($performanceDirectory) && !mkdir($performanceDirectory, 0775, true) && !is_dir($performanceDirectory)) {
+                    throw new RuntimeException('Unable to create performance report directory: ' . $performanceDirectory);
+                }
+                $report = [
+                    'command' => 'career:multi-season-audit --performance-json',
+                    'seed' => $seed,
+                    'requested_seasons' => $requested,
+                    'controlled_player' => $players['fringe']->id()->value(),
+                    'states' => $performanceStates,
+                ];
+                if (file_put_contents($performancePath, json_encode($report, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT)) === false) {
+                    throw new RuntimeException('Unable to write performance report: ' . $performancePath);
+                }
+                $output->write(sprintf('PERFORMANCE_GATE path=%s states=%s', $performancePath, implode(',', array_keys($performanceStates))));
+                foreach ($performanceStates as $label => $state) {
+                    $save = (array) ($state['save'] ?? []);
+                    $output->write(sprintf('PERFORMANCE_STATE label=%s age=%d player_age=%d save_bytes=%d rows=%d relevant_rows=%d capture_ms=%.2f', $label, (int) ($state['career_age'] ?? 0), (int) ($state['player_age'] ?? 0), (int) ($save['bytes'] ?? 0), (int) ($save['total_rows'] ?? 0), (int) ($save['relevant_history_rows'] ?? 0), (float) ($state['capture_time_ms'] ?? 0.0)));
+                }
+            }
 
             return 0;
         } catch (Throwable $exception) {
@@ -669,6 +718,38 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         return $players;
     }
 
+    /** Install one real save-scoped Career for production WebApplication reads. */
+    private function installPerformancePlayer($database, Season $season, int $seed): Player
+    {
+        $playerService = $this->services->playerModule()->service();
+        $player = $playerService->create(new PlayerCreationRequest(
+            'p3020-player',
+            'P3-020',
+            'Performance Player',
+            'P3-020 Performance Player',
+            '2005-01-01',
+            'england',
+            [],
+            'england',
+            ['england'],
+            180,
+            75,
+            'CM',
+            92,
+            'regular',
+            $seed,
+            new PlayerAttributeSet(70, 70, 70, 70, 70, 70),
+        ));
+        $clubId = new ClubId('arsenal');
+        $membership = new ClubSquadMembership($clubId, $player->id(), $season->id(), SquadRole::Prospect);
+        $playerService->initializeCareer($database, $player, new CareerPlayerReference(new CareerId(self::SAVE_ID), $player->id(), SimulationDate::fromIsoString('2024-07-31')), $membership);
+        $contracts = $this->services->contractModule()->service();
+        $contracts->save($database, $contracts->create(new ContractCreationRequest(new ContractId('p3020-player-contract'), $player->id(), $clubId, SimulationDate::fromIsoString('2024-07-31'), SimulationDate::fromIsoString('2030-06-30'), 100, SimulationDate::fromIsoString('2024-07-31'))));
+        $this->services->competitionModule()->service()->registrationRepository($database)->register(new PlayerRegistration($season->id(), new CompetitionId(self::CAREER_COMPETITION), $clubId, $player->id()));
+
+        return $player;
+    }
+
     /** @param list<string> $competitionIds */
     private function generateSeasonFixtures($database, $matchService, array $competitionIds, Season $season): void
     {
@@ -700,14 +781,33 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
     /** @param list<object> $matches @param list<string> $reloadChecks */
     private function simulateSeason($store, &$database, $matchService, array $matches, Season $season, array &$reloadChecks): void
     {
-        $dates = [];
-        foreach ($matches as $match) { $dates[$match->scheduledDate()->toIsoString()] = $match->scheduledDate(); }
-        $dates = array_values($dates);
-        $midpoint = intdiv(count($dates), 2);
-        foreach ($dates as $index => $date) {
+        // Season rollover validates every scheduled competition owned by the
+        // World, not only the primary league passed by the audit caller. Cup
+        // and European rounds are also scheduled lazily after their preceding
+        // round completes, so refresh the canonical scheduled set after every
+        // Match date rather than taking a one-time league-only date snapshot.
+        $initialScheduled = array_values(array_filter(
+            $this->allMatchesForSeason($database, $season),
+            static fn ($match): bool => $match->status() === MatchStatus::Scheduled,
+        ));
+        $midpoint = max(1, intdiv(count($initialScheduled), 2));
+        $processedDates = 0;
+        $reloaded = false;
+        while (true) {
+            $scheduled = array_values(array_filter(
+                $this->allMatchesForSeason($database, $season),
+                static fn ($match): bool => $match->status() === MatchStatus::Scheduled,
+            ));
+            if ($scheduled === []) { break; }
+            usort($scheduled, static fn ($left, $right): int => $left->scheduledDate()->compareTo($right->scheduledDate()) ?: strcmp($left->id()->value(), $right->id()->value()));
+            $date = $scheduled[0]->scheduledDate();
             $this->services->worldModule()->service()->advanceToDate($database, self::SAVE_ID, $date);
             $matchService->simulateDue($database, $date);
-            if ($index + 1 === $midpoint) { $database = $this->advanceAndReload($store, $database, $date, $reloadChecks, $season->id()->value() . '-midseason'); }
+            ++$processedDates;
+            if (!$reloaded && $processedDates >= $midpoint) {
+                $database = $this->advanceAndReload($store, $database, $date, $reloadChecks, $season->id()->value() . '-midseason');
+                $reloaded = true;
+            }
         }
     }
 

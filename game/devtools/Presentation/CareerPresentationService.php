@@ -888,7 +888,10 @@ final class CareerPresentationService
     /** @return array<string, mixed> */
     private function controlledSummary(DatabaseInterface $database, string $saveId): array
     {
-        return $this->snapshot($database, $saveId)['summary'];
+        // Player Profile builds its own legacy projection below. Avoid
+        // materializing the same durable Career legacy twice on this read
+        // path while retaining the shared canonical summary/context.
+        return $this->snapshot($database, $saveId, false)['summary'];
     }
 
     /**

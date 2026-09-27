@@ -56,3 +56,46 @@ This preserves failure rollback while avoiding repeated hot-path
 
 Profiling is developer-only, disabled by default, bounded in memory, and does
 not add a cache, ORM, second persistence layer, or simulation clock.
+
+## P3-020 production Career gate
+
+P3-020 measures player-facing production paths and persistent save growth. It
+is deliberately separate from the P3-007 longitudinal simulation observatory:
+P3-007 measures simulation-engine cost, while this gate measures the real
+`WebApplication` read/action paths and the SQLite state those paths reopen.
+P3-019 provides the remote CI/browser release checks; it is not a substitute
+for this age-and-storage measurement.
+
+Run one bounded deterministic gate with the existing canonical multi-season
+runner:
+
+```text
+php game/devtools/console.php career:multi-season-audit \
+  --seasons=5 --seed=3020 \
+  --performance-json="$(php -r 'echo sys_get_temp_dir();')/goal-p3020.json"
+```
+
+The command captures `AGE0`, `AGE1`, `AGE3`, and `AGE5` at season boundaries,
+then measures a warmup plus two real production GET requests for Career Home,
+Profile, Training, Career History, Trophy Room, and available context pages.
+It records wall time, SQL calls, DML/data-version changes, response status,
+SQLite size/row growth, integrity/FK checks, duplicate primary-key groups, and
+the largest tables. A small owned copy is used for the training action probe;
+the Match action uses the canonical command path and proves its write through
+the save data version. The probe is read-only apart from those explicit action
+copies and cleans only its own temporary files.
+
+The JSON output is diagnostic evidence, not a hard millisecond test. A normal
+GET must have zero gameplay DML. Durable Match/stat/history growth is classified
+as expected linear or event-driven growth; only duplicated, orphaned,
+diagnostic, or otherwise unbounded ephemeral state is a storage defect. A
+release blocker requires a reproducible write-on-read change, integrity/data
+corruption, or material player-facing latency with an identified root cause.
+Do not optimize merely because an older Career is numerically slower.
+
+The output path must be writable by the local shell. On Termux, `sys_get_temp_dir()`
+may be under the writable application temp directory rather than `/tmp`.
+Reuse the generated JSON/checkpoints when comparing ages; do not regenerate a
+five-season Career repeatedly. No timing threshold should be added to PHPUnit:
+environment-dependent timings are reported as evidence and classified as
+`HEALTHY`, `WATCH`, `MATERIAL_BOTTLENECK`, or `CLEAR_DEFECT`.

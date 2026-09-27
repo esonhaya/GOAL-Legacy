@@ -47,6 +47,7 @@ final class P2009InternationalFootballTest extends TestCase
         $international = $services->internationalCompetitions();
 
         self::assertCount(7, $services->nationalTeams()->teams($database));
+        self::assertLessThanOrEqual(100, max(array_column($services->nationalTeams()->teams($database), 'strength')));
         self::assertSame(6, (int) $database->connection()->query("SELECT COUNT(*) FROM international_competition_entries WHERE competition_id = 'world-championship' AND season_id = 'season-2024-25'")->fetchColumn());
         self::assertCount(6, $fixtures);
         self::assertSame(161, (int) $database->connection()->query("SELECT COUNT(*) FROM international_team_squads WHERE season_id = 'season-2024-25'")->fetchColumn());

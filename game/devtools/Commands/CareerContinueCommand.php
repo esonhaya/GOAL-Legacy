@@ -7,6 +7,7 @@ namespace Goal\Legacy\Devtools\Commands;
 use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Core\Persistence\SaveStore;
+use Goal\Legacy\Core\Persistence\SqlProfiler;
 use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Devtools\Presentation\CareerFormatter;
@@ -26,7 +27,7 @@ use Goal\Legacy\Modules\World\SeasonCompactionService;
 /** Advance one controlled-career meaningful stop through canonical services. */
 final class CareerContinueCommand implements CommandInterface
 {
-    public function __construct(public readonly CoreServices $services, private readonly ?SaveStore $saveStore = null)
+    public function __construct(public readonly CoreServices $services, private readonly ?SaveStore $saveStore = null, private readonly ?SqlProfiler $sqlProfiler = null)
     {
     }
 
@@ -38,7 +39,7 @@ final class CareerContinueCommand implements CommandInterface
     {
         $saveId = trim((string) ($arguments[0] ?? ''));
         if ($saveId === '') { $output->error('Usage: career:continue <save-id>'); return 1; }
-        $database = ($this->saveStore ?? $this->services->saveStore())->openDatabase($saveId);
+        $database = ($this->saveStore ?? $this->services->saveStore())->openDatabase($saveId, $this->sqlProfiler);
         $worldService = $this->services->worldModule()->service();
         $world = $worldService->load($database, $saveId);
         $career = (new CareerPlayerRepository($database))->get($saveId);

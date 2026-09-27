@@ -248,7 +248,10 @@ final class NationalTeamService
             }
         }
         $coverage = count(array_filter($groups, static fn (array $group): bool => $group !== [])) * 2;
-        $strength = (int) round($total / count($chosen)) + $coverage;
+        // TeamStrength is a bounded gameplay value. A strong selected pool
+        // plus positional coverage can otherwise exceed the domain limit and
+        // make a later international Match throw during long Careers.
+        $strength = min(100, max(0, (int) round($total / count($chosen)) + $coverage));
         $database->connection()->prepare('UPDATE ' . self::TEAMS . ' SET strength = :strength WHERE id = :id')->execute(['strength' => $strength, 'id' => $teamId]);
     }
 

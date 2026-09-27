@@ -8,6 +8,8 @@ use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Core\Persistence\DatabaseInterface;
 use Goal\Legacy\Core\Persistence\PersistenceException;
 use Goal\Legacy\Core\Persistence\SaveMetadata;
+use Goal\Legacy\Core\Persistence\SaveStore;
+use Goal\Legacy\Core\Persistence\SqlProfiler;
 use Goal\Legacy\Core\Persistence\UnsupportedSaveVersionException;
 use Goal\Legacy\Core\Simulation\SimulationMutation;
 use Goal\Legacy\Core\Simulation\SimulationPermission;
@@ -53,6 +55,8 @@ final class WebApplication
     public function __construct(
         private readonly CoreServices $services,
         private readonly string $projectRoot,
+        private readonly ?SaveStore $saveStore = null,
+        private readonly ?SqlProfiler $sqlProfiler = null,
     ) {
     }
 
@@ -83,11 +87,11 @@ final class WebApplication
         if ($page === 'portrait') { return $this->portrait($query, $session); }
         $saveId = $this->saveId($query['save'] ?? null);
         if ($saveId === null) { return $this->redirect(WebView::url('menu')); }
-        if (!$this->services->saveStore()->exists($saveId)) {
+        if (!$this->saveStore()->exists($saveId)) {
             $session['web_flash'] = 'That saved career could not be found.';
             return $this->redirect(WebView::url('menu'));
         }
-        $metadata = $this->services->saveStore()->open($saveId);
+        $metadata = $this->saveStore()->open($saveId);
         if (!$this->canAccessSave($metadata, $session)) {
             $session['web_flash'] = 'That saved career is not available to this account.';
             return $this->redirect(WebView::url('menu'));
@@ -138,7 +142,7 @@ final class WebApplication
             $draftAction = in_array($action, ['new_identity', 'new_body', 'new_appearance', 'new_profile', 'new_youth_view', 'select_club', 'save_exit'], true);
             if (!$draftAction && array_key_exists('save', $post)) {
                 $saveId = $this->saveId($post['save']);
-                if ($saveId === null || !$this->services->saveStore()->exists($saveId) || !$this->canAccessSave($this->services->saveStore()->open($saveId), $session)) {
+                if ($saveId === null || !$this->saveStore()->exists($saveId) || !$this->canAccessSave($this->saveStore()->open($saveId), $session)) {
                     $session['web_flash'] = 'That saved career is not available to this account.';
                     return $this->redirect(WebView::url('menu'));
                 }
@@ -184,10 +188,10 @@ final class WebApplication
                 return $this->redirect(WebView::url('new', ['step' => $step]));
             }
             $session['web_flash'] = $this->actionError($exception);
-            if ($saveId !== null && $this->services->saveStore()->exists($saveId) && str_starts_with($action, 'sandbox')) {
+            if ($saveId !== null && $this->saveStore()->exists($saveId) && str_starts_with($action, 'sandbox')) {
                 return $this->redirect(WebView::url('sandbox', ['save' => $saveId]));
             }
-            return $this->redirect($saveId === null || !$this->services->saveStore()->exists($saveId) ? WebView::url('menu') : WebView::url('home', ['save' => $saveId]));
+            return $this->redirect($saveId === null || !$this->saveStore()->exists($saveId) ? WebView::url('menu') : WebView::url('home', ['save' => $saveId]));
         }
     }
 
@@ -199,7 +203,7 @@ final class WebApplication
         $name = trim((string) ($post['name'] ?? ''));
         $nation = trim((string) ($post['nation'] ?? ''));
         if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/', $save) !== 1) { throw new RuntimeException('Choose a save name using letters, numbers, hyphens, or underscores.'); }
-        if ($this->services->saveStore()->exists($save)) { throw new RuntimeException('That save name is already in use.'); }
+        if ($this->saveStore()->exists($save)) { throw new RuntimeException('That save name is already in use.'); }
         if ($name === '' || strlen($name) > 80) { throw new RuntimeException('Enter a player name between 1 and 80 characters.'); }
         if ($this->services->nationModule()->service()->loadSelected() === []) { throw new RuntimeException('No Nations are available for a new career.'); }
         $valid = array_map(static fn ($item): string => $item->id()->value(), $this->services->nationModule()->service()->loadSelected());
@@ -454,7 +458,7 @@ final class WebApplication
             return $this->redirect(WebView::url('matchday', ['save' => $saveId, 'match' => (string) $next['match_id']]));
         }
         $output = new BufferedConsoleOutput();
-        (new CareerContinueCommand($this->services))->execute([$saveId], $output);
+        (new CareerContinueCommand($this->services, $this->saveStore(), $this->sqlProfiler))->execute([$saveId], $output);
         $snapshot = $this->snapshot($saveId, $database);
         if (($snapshot['summary']['pending_decisions'] ?? []) !== []) { return $this->redirect(WebView::url('decision', ['save' => $saveId])); }
         $careerId = (new CareerPlayerRepository($database))->get($saveId)->playerId()->value();
@@ -493,7 +497,7 @@ final class WebApplication
             throw new RuntimeException('That Match has already been resolved.');
         }
         $output = new BufferedConsoleOutput();
-        (new CareerContinueCommand($this->services))->execute([$saveId, $matchId], $output);
+        (new CareerContinueCommand($this->services, $this->saveStore(), $this->sqlProfiler))->execute([$saveId, $matchId], $output);
 
         return $this->redirect(WebView::url('matchday', ['save' => $saveId, 'match' => $matchId]));
     }
@@ -818,7 +822,7 @@ final class WebApplication
     private function mainMenu(array $session): string
     {
         $cards = '';
-        foreach ($this->services->saveStore()->list() as $metadata) {
+        foreach ($this->saveStore()->list() as $metadata) {
             if (!$this->canAccessSave($metadata, $session)) {
                 continue;
             }
@@ -2609,7 +2613,8 @@ final class WebApplication
         $draft = $session[self::DRAFT] ?? null; if (!is_array($draft)) { throw new RuntimeException('Start a new career first.'); } return $draft;
     }
 
-    private function database(string $saveId): DatabaseInterface { return $this->services->saveStore()->openDatabase($saveId); }
+    private function saveStore(): SaveStore { return $this->saveStore ?? $this->services->saveStore(); }
+    private function database(string $saveId): DatabaseInterface { return $this->saveStore()->openDatabase($saveId, $this->sqlProfiler); }
     private function requiredSave(array $values): string { $save = $this->saveId($values['save'] ?? null); if ($save === null) { throw new RuntimeException('A valid career is required.'); } return $save; }
     private function saveId(mixed $value): ?string { $save = trim((string) ($value ?? '')); return preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/', $save) === 1 ? $save : null; }
     /** @param array<string,mixed> $session */

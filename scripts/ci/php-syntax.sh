@@ -18,7 +18,8 @@ lint_file() {
     status=$?
     printf '%s\n' "${output}"
     if [ "${status}" -ne 0 ]; then
-        printf '::error file=%s::PHP syntax check failed with exit code %s.\n' "${file}" "${status}" >&2
+        diagnostic="$(printf '%s' "${output}" | tr '\r\n' '  ')"
+        printf '::error file=%s::PHP syntax check failed with exit code %s: %s\n' "${file}" "${status}" "${diagnostic}" >&2
         return "${status}"
     fi
 }

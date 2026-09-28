@@ -169,7 +169,7 @@ test('Pre-Match and post-Match keep the player loop reachable', async ({ page },
 
   const trophyUrl = `/?page=trophies&save=${encodeURIComponent(saveId)}`;
   await page.goto(trophyUrl);
-  await expect(page.getByText('TROPHY ROOM', { exact: true })).toBeVisible();
+  await expect(page.getByText('TROPHY ROOM · CAREER RECORDS', { exact: true })).toBeVisible();
   await expect(page.getByText('CAREER RECORDS', { exact: true })).toBeVisible();
   await expect(page.getByText('PERSONAL BESTS', { exact: true })).toBeVisible();
   await expect(page.getByText('No Club honours yet.', { exact: true })).toBeVisible();

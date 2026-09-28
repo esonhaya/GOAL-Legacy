@@ -188,6 +188,58 @@ th { color: var(--muted); font-size: .75rem; letter-spacing: .06em; text-transfo
 .lifestyle-card small { color: var(--blue); font-weight: 700; }
 .lifestyle-action { min-width: 150px; display: grid; gap: 7px; justify-items: end; }
 
+/* P5-001: the Career shell keeps the same visual language on every surface. */
+html { overflow-x: hidden; scroll-behavior: smooth; }
+body { overflow-x: hidden; background: radial-gradient(circle at 50% -10%, #ffffff 0, var(--page) 44rem); }
+.app-body { min-height: 100vh; }
+.topbar-inner { width: min(1180px, calc(100% - 32px)); gap: 18px; }
+.brand-area { display: flex; align-items: center; gap: 10px; min-width: max-content; }
+.brand-context { padding-left: 10px; border-left: 1px solid rgba(255,255,255,.25); color: #9fb3d3; font-size: .68rem; font-weight: 850; letter-spacing: .15em; }
+.main-nav { flex: 1 1 auto; justify-content: flex-end; min-width: 0; overflow: visible; }
+.nav-link, .nav-more summary { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; }
+.nav-more { position: relative; color: #cbd6e8; }
+.nav-more summary { padding: 9px 12px; cursor: pointer; list-style: none; white-space: nowrap; font-size: .92rem; }
+.nav-more summary::-webkit-details-marker { display: none; }
+.nav-more summary::after { content: '▾'; margin-left: 7px; color: #9fb3d3; font-size: .75rem; }
+.nav-more[open] summary, .nav-more.active summary, .nav-more summary:hover { background: rgba(255,255,255,.12); color: #fff; }
+.nav-more-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 8; display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 3px; width: min(390px, calc(100vw - 24px)); padding: 8px; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; background: var(--navy); box-shadow: 0 18px 36px rgba(4, 15, 31, .28); }
+.nav-more-menu .nav-link { justify-content: flex-start; }
+.page-shell { width: min(1180px, calc(100% - 32px)); min-width: 0; padding-top: 28px; }
+.page-shell > * { max-width: 100%; min-width: 0; }
+.career-identity { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18px; margin-bottom: 18px; padding: 14px 18px; border: 1px solid #d8e2ef; border-radius: 14px; background: rgba(255,255,255,.86); box-shadow: 0 5px 18px rgba(20,36,62,.035); }
+.career-identity-copy { display: grid; grid-template-columns: auto minmax(0, auto) minmax(0, 1fr); align-items: baseline; gap: 8px 12px; min-width: 0; }
+.career-identity-copy .eyebrow { grid-column: 1 / -1; }
+.career-identity-name { min-width: 0; overflow-wrap: anywhere; font-size: 1.12rem; letter-spacing: -.015em; }
+.career-identity-meta { min-width: 0; overflow-wrap: anywhere; color: var(--muted); font-size: .9rem; }
+.career-identity-facts { display: flex; align-items: stretch; gap: 18px; }
+.identity-fact { display: grid; gap: 1px; min-width: 58px; }
+.identity-fact small { color: var(--muted); font-size: .68rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.identity-fact strong { overflow-wrap: anywhere; font-size: .94rem; }
+.page-heading { display: flex; align-items: center; justify-content: space-between; gap: 22px; }
+.page-heading > div { min-width: 0; }
+.page-heading > .portrait { flex: 0 0 auto; }
+.panel { box-shadow: 0 7px 22px rgba(20,36,62,.045); }
+.panel h2 { letter-spacing: -.015em; }
+.button { min-height: 44px; }
+.button-large { min-height: 52px; }
+.inline-form { min-width: 0; }
+.inline-form .button { min-width: 44px; }
+.form-actions { row-gap: 9px; }
+.career-home-next { border-width: 2px; box-shadow: 0 10px 24px rgba(43,98,198,.08); }
+.career-home-next .button-primary { box-shadow: 0 8px 16px rgba(43,98,198,.18); }
+.feedback-banner { display: flex; align-items: flex-start; gap: 9px; }
+.feedback-banner::before { content: 'i'; display: inline-grid; place-items: center; flex: 0 0 auto; width: 20px; height: 20px; border: 1px solid currentColor; border-radius: 50%; font-size: .75rem; font-weight: 900; }
+.table-scroll { max-width: 100%; border-radius: 10px; overscroll-behavior-inline: contain; scrollbar-color: #b8c6d9 transparent; }
+.table-scroll:focus-within { outline: 2px solid rgba(43,98,198,.35); outline-offset: 2px; }
+table { max-width: none; }
+.choice-card span { min-height: 58px; display: flex; flex-direction: column; justify-content: center; }
+.empty-state { border: 1px dashed #cbd6e5; }
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
+
 @media (max-width: 900px) {
     .dashboard-grid, .match-grid, .creator-layout { grid-template-columns: 1fr; }
     .creator-preview { position: static; }
@@ -195,9 +247,24 @@ th { color: var(--muted); font-size: .75rem; letter-spacing: .06em; text-transfo
 }
 @media (max-width: 640px) {
     .topbar-inner, .page-shell { width: min(100% - 20px, 1240px); }
-    .topbar-inner { display: block; padding: 12px 0 0; }
-    .main-nav { margin-top: 8px; }
+    .topbar-inner { display: block; padding: 10px 0 0; }
+    .brand-area { justify-content: space-between; }
+    .main-nav { justify-content: flex-start; margin-top: 7px; padding: 5px 0 8px; gap: 3px; overflow: visible; }
+    .main-nav > .nav-link, .main-nav > .nav-more { flex: 1 1 auto; }
+    .main-nav > .nav-link { padding-inline: 8px; font-size: 0; }
+    .main-nav > .nav-link[href*="page=home"]::after { content: 'Home'; }
+    .main-nav > .nav-link[href*="page=profile"]::after { content: 'Profile'; }
+    .main-nav > .nav-link[href*="page=training"]::after { content: 'Training'; }
+    .main-nav > .nav-link[href*="page=career"]::after { content: 'History'; }
+    .main-nav > .nav-link::after { font-size: .82rem; }
+    .nav-more summary { padding-inline: 8px; font-size: .82rem; }
+    .nav-more-menu { right: 0; grid-template-columns: 1fr 1fr; }
     .page-shell { padding-top: 22px; }
+    .career-identity { grid-template-columns: 1fr; gap: 12px; padding: 14px; }
+    .career-identity-copy { grid-template-columns: 1fr; gap: 3px; }
+    .career-identity-copy .eyebrow { margin-bottom: 2px; }
+    .career-identity-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .identity-fact { min-width: 0; padding: 8px; border-radius: 8px; background: #f4f7fb; }
     .profile-hero, .review-card, .save-card, .opportunity-card { align-items: flex-start; flex-direction: column; }
     .portrait-large { width: 140px; height: 140px; }
     .stat-grid, .stat-grid.compact, .two-column, .creator-controls, .creator-tools { grid-template-columns: repeat(2, minmax(0,1fr)); }
@@ -207,16 +274,25 @@ th { color: var(--muted); font-size: .75rem; letter-spacing: .06em; text-transfo
     .scoreline span { font-size: 2rem; }
     .scoreline strong { font-size: .9rem; overflow-wrap: anywhere; }
     .panel { padding: 16px; }
+    .page-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
+    .page-heading > .portrait { order: -1; width: 96px; height: 96px; }
     .attention-item { align-items: flex-start; flex-direction: column; }
     .attention-item .button { width: 100%; }
     .save-card > .button, .opportunity-card > .inline-form, .save-card > .inline-form,
     .opportunity-card > .inline-form .button, .save-card > .inline-form .button { width: 100%; }
+    .action-grid > .button, .action-grid > .inline-form, .action-grid > .inline-form .button { width: 100%; }
 }
 @media (max-width: 390px) {
-    .stat-grid, .stat-grid.compact, .creator-controls, .creator-tools { grid-template-columns: 1fr; }
+    .stat-grid, .stat-grid.compact { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .creator-controls, .creator-tools { grid-template-columns: 1fr; }
     .action-grid { grid-template-columns: 1fr; }
     .action-grid .button-large { grid-column: auto; }
     .squad-grid { grid-template-columns: 1fr; }
     .lifestyle-card { align-items: flex-start; flex-direction: column; }
     .lifestyle-action { width: 100%; min-width: 0; justify-items: start; }
+    .stat { padding: 10px; }
+    .stat strong { font-size: 1.08rem; }
+    .match-header { padding: 20px 14px; }
+    .scoreline strong { font-size: .78rem; }
+    .scoreline span { font-size: 1.7rem; }
 }

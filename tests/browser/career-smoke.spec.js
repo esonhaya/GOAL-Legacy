@@ -66,8 +66,12 @@ test('Career entry and creation form produce a usable Career Home', async ({ pag
   await expect(page.getByRole('heading', { level: 1 })).toContainText('P3-019 Browser Player');
   await expect(page.getByRole('navigation', { name: 'Career navigation' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Training', exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Profile', exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Career History', exact: true })).toBeVisible();
+  await expect(page.locator('[data-career-identity]')).toBeVisible();
   await expect(page.locator('a[aria-current="page"]')).toHaveText('Career Home');
   await expectNoPageOverflow(page);
+  await assertResponsiveWidths(page, `/?page=home&save=${encodeURIComponent(saveId)}`);
   await saveReleaseScreenshot(page, testInfo, 'career-home');
 });
 
@@ -97,6 +101,7 @@ test('Pre-Match and post-Match keep the player loop reachable', async ({ page },
   await expect(page.getByText('PRE-MATCH', { exact: false }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Advance to Match' })).toBeVisible();
   await expectNoPageOverflow(page);
+  await saveReleaseScreenshot(page, testInfo, 'pre-match');
 
   await page.getByRole('button', { name: 'Advance to Match' }).click();
   await expect(page).toHaveURL(/page=matchday/);
@@ -104,6 +109,18 @@ test('Pre-Match and post-Match keep the player loop reachable', async ({ page },
   await expect(page.getByRole('link', { name: 'Career Home', exact: true }).first()).toBeVisible();
   await expectNoPageOverflow(page);
   await saveReleaseScreenshot(page, testInfo, 'post-match');
+
+  await page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Profile', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('P3-019 Browser Player');
+  await expect(page.locator('[data-career-identity]')).toBeVisible();
+  await expectNoPageOverflow(page);
+  await saveReleaseScreenshot(page, testInfo, 'profile');
+
+  await page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Career History', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'P3-019 Browser Player' })).toBeVisible();
+  await expect(page.locator('[data-career-identity]')).toBeVisible();
+  await expectNoPageOverflow(page);
+  await saveReleaseScreenshot(page, testInfo, 'career-history');
 });
 
 test('Missing Career recovery is bounded and actionable', async ({ page }) => {
@@ -120,6 +137,22 @@ async function expectNoPageOverflow(page) {
     scrollWidth: document.documentElement.scrollWidth,
   }));
   expect(dimensions.scrollWidth, 'the page itself must not overflow horizontally').toBeLessThanOrEqual(dimensions.clientWidth + 1);
+}
+
+async function assertResponsiveWidths(page, url) {
+  const originalViewport = page.viewportSize();
+  for (const viewport of [
+    { width: 360, height: 800 },
+    { width: 390, height: 844 },
+    { width: 412, height: 915 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(url);
+    await expectNoPageOverflow(page);
+    await expect(page.getByRole('main')).toBeVisible();
+  }
+  await page.setViewportSize(originalViewport);
+  await page.goto(url);
 }
 
 async function saveReleaseScreenshot(page, testInfo, surface) {

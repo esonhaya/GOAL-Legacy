@@ -37,6 +37,28 @@ final class P3018UiHardeningTest extends TestCase
         self::assertCount(1, $xpath->query('//main[@id="main-content"]//h1'));
     }
 
+    public function testCareerShellKeepsPrimaryDestinationsAndIdentityTogether(): void
+    {
+        $identity = WebView::careerIdentity([
+            'name' => 'Shell Player',
+            'club' => 'Example FC',
+            'position' => 'CM',
+            'age' => 19,
+            'ovr' => 64,
+            'role' => 'Regular',
+            'status' => 'Active',
+        ]);
+        $dom = $this->dom(WebView::layout('Profile', $identity . '<h1>Shell Player</h1>', 'ui-hardening', 'profile'));
+        $xpath = new DOMXPath($dom);
+
+        self::assertCount(1, $xpath->query('//section[@data-career-identity and @aria-label="Career identity"]'));
+        self::assertCount(1, $xpath->query('//nav[@aria-label="Career navigation"]//a[normalize-space(.)="Profile" and @aria-current="page"]'));
+        self::assertCount(1, $xpath->query('//nav[@aria-label="Career navigation"]//a[normalize-space(.)="Training"]'));
+        self::assertCount(1, $xpath->query('//nav[@aria-label="Career navigation"]//a[normalize-space(.)="Career History"]'));
+        self::assertCount(1, $xpath->query('//details[contains(@class,"nav-more")]'));
+        self::assertStringContainsString('Shell Player', $dom->saveHTML() ?: '');
+    }
+
     public function testCreationPageUsesOneHeadingNativeLabelsAndPostForms(): void
     {
         $session = [];
@@ -88,6 +110,9 @@ final class P3018UiHardeningTest extends TestCase
         self::assertStringContainsString('.table-scroll { overflow-x: auto; }', $css);
         self::assertStringContainsString('@media (max-width: 640px)', $css);
         self::assertStringContainsString('@media (max-width: 390px)', $css);
+        self::assertStringContainsString('min-height: 44px', $css);
+        self::assertStringContainsString('@media (prefers-reduced-motion: reduce)', $css);
+        self::assertStringContainsString('.career-identity', $css);
     }
 
     private function dom(string $html): DOMDocument

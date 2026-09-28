@@ -29,9 +29,21 @@ final class PlayerSeasonPerformanceService
         $aggregates = [];
         $clubsByPlayer = [];
         $detailedPlayers = [];
+        $controlled = $this->controlledPlayers($database);
+        $compactRows = (new PlayerSeasonStatisticsRepository($database))->bySeason($season);
+        $compactPlayers = [];
+        foreach ($compactRows as $row) {
+            $compactPlayers[(string) $row['player_id']] = true;
+        }
         $ratings = new PlayerMatchRatingService();
-        (new PlayerMatchStatRepository($database))->eachCompletedSeasonRatingEvidence($season, function (array $row) use (&$aggregates, &$clubsByPlayer, &$detailedPlayers, $ratings): void {
+        (new PlayerMatchStatRepository($database))->eachCompletedSeasonRatingEvidence($season, function (array $row) use (&$aggregates, &$clubsByPlayer, &$detailedPlayers, $ratings, $controlled, $compactPlayers): void {
             $playerId = $row['player_id'];
+            // A relevant-world Match may retain raw NPC detail for Match
+            // Story, while the complete Season aggregate is the canonical
+            // lifecycle input. Controlled Players remain raw/high fidelity.
+            if ($controlled !== [] && !isset($controlled[$playerId]) && isset($compactPlayers[$playerId])) {
+                return;
+            }
             $detailedPlayers[$playerId] = true;
             if (!isset($aggregates[$playerId])) {
                 $aggregates[$playerId] = $this->emptyAggregate(null, 0);
@@ -52,7 +64,7 @@ final class PlayerSeasonPerformanceService
         // World-only Matches intentionally do not retain per-Player stat
         // lines. Their canonical participation/performance signal is kept in
         // the one-row-per-Player/Club/Season aggregate instead.
-        foreach ((new PlayerSeasonStatisticsRepository($database))->bySeason($season) as $row) {
+        foreach ($compactRows as $row) {
             $playerId = (string) $row['player_id'];
             // A controlled-Player Match is always full fidelity. Avoid
             // counting an aggregate if a legacy or mixed save also contains
@@ -87,8 +99,26 @@ final class PlayerSeasonPerformanceService
         new PlayerRepository($database);
         $expected = (new MatchRepository($database))->completedCountsByClub($season);
         $evidence = (new PlayerMatchStatRepository($database))->completedSeasonRatingEvidence($season, $id);
+        $controlled = $this->controlledPlayers($database);
+        $aggregateRows = (new PlayerSeasonStatisticsRepository($database))->byPlayerSeason($id->value(), $season);
+        if ($controlled !== [] && !isset($controlled[$id->value()]) && $aggregateRows !== []) {
+            $aggregate = $this->emptyAggregate(null, 0);
+            $clubs = [];
+            foreach ($aggregateRows as $row) {
+                $clubs[(string) $row['club_id']] = true;
+                $aggregate['appearances'] += (int) $row['appearances'];
+                $aggregate['starts'] += (int) $row['starts'];
+                $aggregate['minutes'] += (int) $row['minutes'];
+                $aggregate['goals'] += (int) $row['goals'];
+                $aggregate['rating_total'] += (float) $row['rating_total'];
+                $aggregate['rated_appearances'] += (int) $row['rated_appearances'];
+            }
+            $aggregate['expected_matches'] = max(array_map(static fn (string $club): int => $expected[$club] ?? 0, array_keys($clubs)) ?: [0]);
+            $aggregate['average_match_rating'] = $aggregate['rated_appearances'] === 0 ? null : $aggregate['rating_total'] / $aggregate['rated_appearances'];
+
+            return $this->build($aggregate);
+        }
         if ($evidence === []) {
-            $aggregateRows = (new PlayerSeasonStatisticsRepository($database))->byPlayerSeason($id->value(), $season);
             if ($aggregateRows !== []) {
                 $aggregate = $this->emptyAggregate(null, 0);
                 $clubs = [];
@@ -114,6 +144,23 @@ final class PlayerSeasonPerformanceService
         // Club context remains useful to callers, but the assessment itself is
         // player + season scoped so a transfer cannot discard earlier Matches.
         return $this->build($this->aggregate($evidence, $expected));
+    }
+
+    /** @return array<string, bool> */
+    private function controlledPlayers(DatabaseInterface $database): array
+    {
+        $statement = $database->connection()->prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'career_player_references'");
+        $statement->execute();
+        if ($statement->fetchColumn() === false) {
+            return [];
+        }
+
+        $players = [];
+        foreach ($database->connection()->query('SELECT player_id FROM career_player_references')->fetchAll(\PDO::FETCH_COLUMN) as $playerId) {
+            $players[(string) $playerId] = true;
+        }
+
+        return $players;
     }
 
     /** @param list<array{player_id:string,club_id:string,position:string,stat:\Goal\Legacy\Modules\Match\Domain\PlayerMatchStat}> $evidence @param array<string,int> $expectedByClub @return array<string,int|float|null> */
@@ -153,7 +200,10 @@ final class PlayerSeasonPerformanceService
         $goals = (int) $aggregate['goals'];
         $expectedMatches = (int) $aggregate['expected_matches'];
         $ratedAppearances = (int) $aggregate['rated_appearances'];
-        $average = $aggregate['average_match_rating'];
+        // Compact Season aggregates persist a summed REAL. Normalize the
+        // derived rating at the same precision exposed to callers so raw and
+        // compact evidence cannot cross a threshold due to float residue.
+        $average = $aggregate['average_match_rating'] === null ? null : round((float) $aggregate['average_match_rating'], 2);
         $appearanceShare = $expectedMatches > 0 ? min(1.0, $appearances / $expectedMatches) : 0.0;
         $startShare = $expectedMatches > 0 ? min(1.0, $starts / $expectedMatches) : 0.0;
         $minutesShare = $expectedMatches > 0 ? min(1.0, $minutes / ($expectedMatches * 90)) : 0.0;

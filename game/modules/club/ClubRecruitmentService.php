@@ -470,8 +470,23 @@ final class ClubRecruitmentService
                 return $usage;
             }
             $aggregates = (new PlayerSeasonStatisticsRepository($database))->bySeason((string) $previousId);
+            $controlled = [];
+            $careerReferences = $database->connection()->prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'career_player_references'");
+            $careerReferences->execute();
+            if ($careerReferences->fetchColumn() !== false) {
+                foreach ($database->connection()->query('SELECT player_id FROM career_player_references')->fetchAll(\PDO::FETCH_COLUMN) as $playerId) {
+                    $controlled[(string) $playerId] = true;
+                }
+            }
             foreach ($aggregates as $row) {
                 $playerId = (string) $row['player_id'];
+                // Protected relevant Matches may leave partial NPC detail.
+                // The compact Season aggregate is the complete world signal;
+                // controlled Players keep their rich raw evidence.
+                if (!isset($controlled[$playerId])) {
+                    $usage[$playerId] = ['appearances' => (int) $row['appearances'], 'starts' => (int) $row['starts'], 'minutes' => (int) $row['minutes']];
+                    continue;
+                }
                 if (isset($usage[$playerId])) {
                     continue;
                 }

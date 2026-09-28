@@ -33,6 +33,7 @@ final class CareerCompactCommand implements CommandInterface
         $world = $worldService->load($database, $saveId);
         $compactor = new SeasonCompactionService();
         $count = 0;
+        $physicalCompactionRecommended = false;
         foreach ($worldService->seasonRepository($database)->all() as $season) {
             if ($season->status() !== SeasonStatus::Completed) {
                 continue;
@@ -44,8 +45,14 @@ final class CareerCompactCommand implements CommandInterface
             $result = $compactor->compact($database, $season->id(), $next->startDate()->toIsoString());
             if (($result['compacted'] ?? false) === true) {
                 ++$count;
+                $physicalCompactionRecommended = $physicalCompactionRecommended || (bool) ($result['physical_compaction_recommended'] ?? false);
                 $output->write(sprintf('COMPACTED %s: stats=%d selections=%d evaluations=%d development=%d availability=%d.', $season->label(), $result['stats'], $result['selections'], $result['evaluations'], $result['development'], $result['availability']));
             }
+        }
+        unset($database);
+        if ($physicalCompactionRecommended) {
+            $physical = $this->services->saveStore()->compact($saveId);
+            $output->write(sprintf('PHYSICAL COMPACTION save=%s before=%d after=%d reclaimed=%d duration_ms=%.3f integrity=%s fk=%d.', $saveId, $physical['before']['file_size_bytes'], $physical['after']['file_size_bytes'], $physical['bytes_reclaimed'], $physical['duration_ms'], $physical['after']['integrity_check'], $physical['after']['foreign_key_violations']));
         }
         $output->write(sprintf('CAREER COMPACTION — %d completed Season(s) processed for %s.', $count, $world->id()->value()));
 

@@ -273,10 +273,27 @@ final class NationalTeamService
     private function formScores(DatabaseInterface $database): array
     {
         try {
-            $rows = $database->connection()->query('SELECT player_id, AVG(evaluation_score) score FROM career_match_evaluations GROUP BY player_id')->fetchAll(PDO::FETCH_ASSOC);
+            $totals = [];
+            $summaryExists = $database->connection()->prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'player_form_summaries'");
+            $summaryExists->execute();
+            if ($summaryExists->fetchColumn() !== false) {
+                foreach ($database->connection()->query('SELECT player_id, SUM(evaluation_count) AS evaluation_count, SUM(evaluation_total) AS evaluation_total FROM player_form_summaries GROUP BY player_id')->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                    $totals[(string) $row['player_id']] = ['count' => (int) $row['evaluation_count'], 'total' => (int) $row['evaluation_total']];
+                }
+            }
+            foreach ($database->connection()->query('SELECT player_id, COUNT(*) AS evaluation_count, SUM(evaluation_score) AS evaluation_total FROM career_match_evaluations GROUP BY player_id')->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $playerId = (string) $row['player_id'];
+                $totals[$playerId] ??= ['count' => 0, 'total' => 0];
+                $totals[$playerId]['count'] += (int) $row['evaluation_count'];
+                $totals[$playerId]['total'] += (int) $row['evaluation_total'];
+            }
         } catch (\PDOException) { return []; }
         $result = [];
-        foreach ($rows as $row) { $result[(string) $row['player_id']] = (float) $row['score']; }
+        foreach ($totals as $playerId => $total) {
+            if ($total['count'] > 0) {
+                $result[$playerId] = $total['total'] / $total['count'];
+            }
+        }
 
         return $result;
     }

@@ -23,7 +23,7 @@ final class P2001SaveCompactionTest extends TestCase
         self::assertSame(1, $result['selections']);
         self::assertSame(1, $result['evaluations']);
         self::assertSame(1, $result['development']);
-        self::assertSame(2, $result['availability']);
+        self::assertSame(1, $result['availability']);
         self::assertSame(1, (int) $database->connection()->query('SELECT COUNT(*) FROM player_season_statistics')->fetchColumn());
         self::assertSame(1, (int) $database->connection()->query("SELECT goals FROM player_season_statistics WHERE player_id = 'npc-1'")->fetchColumn());
         self::assertSame(1, (int) $database->connection()->query("SELECT COUNT(*) FROM match_player_stats WHERE player_id = 'controlled-1'")->fetchColumn());
@@ -33,7 +33,8 @@ final class P2001SaveCompactionTest extends TestCase
         self::assertSame(1, (int) $database->connection()->query("SELECT evaluation_count FROM player_form_summaries WHERE player_id = 'npc-1' AND club_id = 'club-1'")->fetchColumn());
         self::assertSame(1, (int) $database->connection()->query("SELECT COUNT(*) FROM player_development_history WHERE player_id = 'controlled-1'")->fetchColumn());
         self::assertSame(0, (int) $database->connection()->query("SELECT COUNT(*) FROM player_development_history WHERE player_id = 'npc-1'")->fetchColumn());
-        self::assertSame(0, (int) $database->connection()->query('SELECT COUNT(*) FROM player_availability_sources')->fetchColumn());
+        self::assertSame(1, (int) $database->connection()->query('SELECT COUNT(*) FROM player_availability_sources')->fetchColumn());
+        self::assertSame(1, (int) $database->connection()->query("SELECT COUNT(*) FROM player_availability_sources WHERE player_id = 'controlled-1'")->fetchColumn());
         self::assertSame('ok', $database->connection()->query('PRAGMA integrity_check')->fetchColumn());
 
         self::assertFalse((new SeasonCompactionService())->compact($database, 'season-2024-25', '2025-08-01')['compacted']);
@@ -43,6 +44,8 @@ final class P2001SaveCompactionTest extends TestCase
     {
         $connection = $database->connection();
         $connection->exec('CREATE TABLE career_player_references (career_id TEXT PRIMARY KEY, player_id TEXT NOT NULL UNIQUE, start_date TEXT NOT NULL)');
+        $connection->exec('CREATE TABLE season_records (id TEXT PRIMARY KEY, status TEXT NOT NULL)');
+        $connection->exec("INSERT INTO season_records VALUES ('season-2024-25', 'completed')");
         $connection->exec('CREATE TABLE player_records (id TEXT PRIMARY KEY, primary_position TEXT NOT NULL)');
         $connection->exec('CREATE TABLE match_records (id TEXT PRIMARY KEY, season_id TEXT NOT NULL, status TEXT NOT NULL)');
         $connection->exec('CREATE TABLE match_player_stats (match_id TEXT NOT NULL, player_id TEXT NOT NULL, club_id TEXT NOT NULL, appeared INTEGER NOT NULL, started INTEGER NOT NULL, minutes INTEGER NOT NULL, goals INTEGER NOT NULL, assists INTEGER NOT NULL, shots INTEGER NOT NULL, shots_on_target INTEGER NOT NULL, saves INTEGER NOT NULL, clean_sheets INTEGER NOT NULL, tackles INTEGER NOT NULL, interceptions INTEGER NOT NULL, blocks INTEGER NOT NULL, passes_attempted INTEGER NOT NULL, passes_completed INTEGER NOT NULL, fouls_committed INTEGER NOT NULL, yellow_cards INTEGER NOT NULL, red_cards INTEGER NOT NULL, PRIMARY KEY (match_id, player_id))');

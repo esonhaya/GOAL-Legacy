@@ -226,3 +226,80 @@ whose consumers are proven, with controlled-player evidence retained richer
 than NPC evidence where the product contract permits it. No P4-001 operation
 changes match simulation, season simulation, formulas, balance, or gameplay
 fidelity.
+
+## P4-002 historical world retention
+
+P4-002 makes the first row-aware historical retention reduction. The canonical
+owner is `SeasonCompactionService`, invoked at the safe completed-Season to
+next-Season boundary by `CareerContinueCommand`. `CareerCompactCommand` invokes
+the same owner for older completed Seasons and performs one explicit physical
+compaction after the logical work when the threshold recommends it. A normal
+GET never invokes either operation.
+
+The retention contract is three-tiered:
+
+| Tier | Durable representation |
+| --- | --- |
+| A — controlled Player | Rich Match, Season, development, availability, movement, contract, role, award, trophy, milestone, and Career-history evidence remains. |
+| B — player-relevant world | Finalized Match facts and detail for Matches involving the controlled Player's Season Club remain available; existing Season/competition aggregates and movement/competition records remain authoritative. |
+| C — background world | Replay-only NPC Match detail is removed after finalization; existing Season/competition aggregates and form summaries carry the minimum durable performance facts. |
+
+The targeted families are `match_player_stats`,
+`match_player_selections`, `match_highlights`, `match_substitutions`,
+`career_match_evaluations`, `player_development_history`, and
+`player_availability_sources`. `match_records` is never removed. A Match is
+protected when its home or away Club has a current-Season squad membership for
+the controlled Player, so Match Story and player-relevant context do not lose
+their source facts. NPC rows in unrelated finalized Matches are eligible.
+
+The consumer map for the targeted families is:
+
+| Family | Active consumer | Post-Season consumer | P4-002 representation |
+| --- | --- | --- | --- |
+| Match stats/selections | selection, availability, Club recruitment, Match lifecycle | performance, Profile, leaders, records | existing Season/competition aggregates for background NPCs; rich rows for controlled/relevant Matches |
+| Highlights/substitutions | Match Story and integrity | controlled/relevant Match history | retain protected Matches; remove background replay detail |
+| Match evaluations | development/form feedback, national-team selection | form summary | retain the newest two NPC evaluations per Player/Club and fold older rows into existing `player_form_summaries`; readers merge both fidelity boundaries |
+| Development history | development and feedback | controlled Career history | retain controlled Player history; remove expired NPC history once the next Season boundary is reached |
+| Availability sources | selection and availability | controlled history where consumed | retain controlled Player sources; remove expired NPC sources |
+| Season/competition stats | active performance and awards | Profile, leaders, records, Trophy Room | retained; these are the durable background summary boundary |
+
+Registrations, memberships, role history, contracts, `player_records`,
+`match_records`, Season/competition outcomes, awards, records, and controlled
+Player detail are deliberately deferred. They have active or historical
+consumers whose P4-002 evidence is not sufficient for destructive removal.
+This is why the batch does not claim that a whole table is one retention tier.
+P4-003 candidates are registrations/membership operational history after
+movement summaries are proven complete, NPC role/development residue not used
+by future selection, and any remaining large world indexes or detail families
+identified by a fresh byte-first attribution report.
+
+### Compaction safety and idempotency
+
+Logical compaction requires a persisted `season_records` row with
+`status=completed`, all Match rows for that Season to be `completed`, and all
+persisted Competition rows for that Season to be `completed` when that table is
+present. It captures row/page/freelist and targeted `dbstat` measurements,
+materializes missing background Season aggregates through the existing
+`player_season_statistics` boundary, then deletes eligible rows inside one
+canonical transaction. `save_compaction_seasons` is the durable idempotency
+marker. A repeated run returns an idempotent result and makes no further
+semantic change. A failure rolls back the marker, aggregates, and deletions
+together.
+
+Logical row removal and physical file reclamation remain separate. Physical
+`VACUUM` is recommended only when the post-logical freelist is at least 1 MiB
+or at least 10% of database pages. It is never run inside the Season
+transaction, Match simulation, Season finalization, or normal rendering.
+`SqliteSaveStore` performs the explicit VACUUM with integrity/FK checks and a
+canonical reopen. P4-002's deterministic integration fixture proves material
+(at least 50%) reduction in targeted eligible detail bytes, file shrinkage,
+`integrity_check=ok`, zero FK violations, unchanged controlled-player/world
+checkpoints, idempotency, rollback, and continued canonical reads. It does not
+claim an AGE5 result; P4-004 remains the authoritative longitudinal gate.
+
+The production readers for Season performance and competition statistics use
+the existing compact aggregates for background NPCs and retain detailed
+evidence for controlled Players. This prevents a mixed save that retains raw
+detail for Match Story from double-counting an NPC's Season performance. No
+formula, Match result, Season result, transfer rule, or simulation behavior is
+changed.

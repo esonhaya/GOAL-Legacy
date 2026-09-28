@@ -29,11 +29,20 @@ final class CompetitionStatisticsQuery
         $detailedKeys = [];
         $ratings = new PlayerMatchRatingService();
         $detailedEvidence = (new PlayerMatchStatRepository($database, false))->completedCompetitionRatingEvidence($season, $competitionId);
+        $compact = (new PlayerCompetitionStatisticsRepository($database, false))->byCompetitionSeason($competitionId, $season);
+        $compactByKey = [];
+        foreach ($compact as $row) {
+            $compactByKey[(string) $row['player_id'] . '|' . (string) $row['club_id']] = $row;
+        }
+        $controlled = $this->controlledPlayers($database);
         $playerIds = [];
         foreach ($detailedEvidence as $evidence) {
+            $key = (string) $evidence['player_id'] . '|' . (string) $evidence['club_id'];
+            if ($controlled !== [] && !isset($controlled[(string) $evidence['player_id']]) && isset($compactByKey[$key])) {
+                continue;
+            }
             $playerIds[(string) $evidence['player_id']] = true;
         }
-        $compact = (new PlayerCompetitionStatisticsRepository($database, false))->byCompetitionSeason($competitionId, $season);
         foreach ($compact as $row) {
             $playerIds[(string) $row['player_id']] = true;
         }
@@ -48,6 +57,9 @@ final class CompetitionStatisticsQuery
             $playerId = (string) $evidence['player_id'];
             $clubId = (string) $evidence['club_id'];
             $key = $playerId . '|' . $clubId;
+            if ($controlled !== [] && !isset($controlled[$playerId]) && isset($compactByKey[$key])) {
+                continue;
+            }
             $position = $players[$playerId] ?? (string) $evidence['position'];
             $result[$key] ??= $this->emptyAggregate($playerId, $clubId, $position);
             $stat = $evidence['stat'];
@@ -129,5 +141,22 @@ final class CompetitionStatisticsQuery
             'rating_total' => 0.0,
             'average_match_rating' => null,
         ];
+    }
+
+    /** @return array<string, bool> */
+    private function controlledPlayers(DatabaseInterface $database): array
+    {
+        $statement = $database->connection()->prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'career_player_references'");
+        $statement->execute();
+        if ($statement->fetchColumn() === false) {
+            return [];
+        }
+
+        $players = [];
+        foreach ($database->connection()->query('SELECT player_id FROM career_player_references')->fetchAll(\PDO::FETCH_COLUMN) as $playerId) {
+            $players[(string) $playerId] = true;
+        }
+
+        return $players;
     }
 }

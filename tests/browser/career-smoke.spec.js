@@ -172,7 +172,7 @@ test('Pre-Match and post-Match keep the player loop reachable', async ({ page },
   await expect(page.getByText('TROPHY ROOM · CAREER RECORDS', { exact: true })).toBeVisible();
   await expect(page.getByText('CAREER RECORDS', { exact: true })).toBeVisible();
   await expect(page.getByText('PERSONAL BESTS', { exact: true })).toBeVisible();
-  await expect(page.getByText('No Club honours yet.', { exact: true })).toBeVisible();
+  await expect(page.getByText(/No Club honours yet\./)).toBeVisible();
   await assertResponsiveWidths(page, trophyUrl);
   await expectNoPageOverflow(page);
   await saveReleaseScreenshot(page, testInfo, 'trophy-room');

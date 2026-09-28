@@ -326,6 +326,34 @@ table { max-width: none; }
 .career-highlight-list span { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
 .career-highlight-list small { color: var(--muted); text-align: right; }
 
+/* P5-004: contract and movement decisions share one readable hierarchy. */
+.career-decision-hub { border-color: #cbdcfb; background: linear-gradient(180deg, #fff, #f8fbff); }
+.decision-hub-grid { display: grid; gap: 14px; }
+.decision-hub-block { min-width: 0; padding-top: 13px; border-top: 1px solid var(--line); }
+.decision-hub-block:first-child { padding-top: 0; border-top: 0; }
+.decision-hub-block > .eyebrow { margin-bottom: 8px; }
+.decision-hub-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 11px 12px; border: 1px solid #efd58f; border-radius: 10px; background: var(--soft-gold); }
+.decision-hub-item > div { min-width: 0; }
+.decision-hub-item strong, .decision-hub-status strong { overflow-wrap: anywhere; }
+.decision-hub-item p, .decision-hub-status p { margin: 3px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+.decision-hub-status { display: grid; gap: 2px; min-width: 0; padding: 10px 12px; border-radius: 10px; background: #f4f7fb; }
+.decision-hub-status + .decision-hub-status { margin-top: 8px; }
+.decision-hub-status + .inline-form { margin-top: 9px; }
+.decision-hub-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.decision-hub-list li { min-width: 0; padding: 9px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.decision-hub-list li:last-child { border-bottom: 0; }
+.decision-hub-list small { display: block; margin-top: 3px; color: var(--muted); }
+.decision-hub-outlook { background: rgba(255,255,255,.7); }
+.market-offer-list { display: grid; gap: 8px; }
+.market-offer { display: grid; gap: 3px; min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.market-offer strong, .market-offer span, .market-offer small { overflow-wrap: anywhere; }
+.market-offer span, .market-offer small { color: var(--muted); }
+.offer-facts { overflow-wrap: anywhere; }
+.decision-offer-card .button { margin-top: 6px; }
+.career-movement-item { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 8px; align-items: baseline; min-width: 0; }
+.career-movement-item > span:last-child { overflow-wrap: anywhere; }
+.career-movement-type { color: var(--blue); font-size: .76rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+
 @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
@@ -375,6 +403,9 @@ table { max-width: none; }
     .career-season-assessment { max-width: 100%; }
     .career-highlight-list li { grid-template-columns: 1fr; gap: 3px; }
     .career-highlight-list small { text-align: left; }
+    .decision-hub-item { align-items: flex-start; flex-direction: column; }
+    .decision-hub-item .button, .decision-hub-block > .inline-form, .decision-hub-block > .inline-form .button { width: 100%; }
+    .career-movement-item { grid-template-columns: 1fr; gap: 2px; }
     .save-card > .button, .opportunity-card > .inline-form, .save-card > .inline-form,
     .opportunity-card > .inline-form .button, .save-card > .inline-form .button { width: 100%; }
     .action-grid > .button, .action-grid > .inline-form, .action-grid > .inline-form .button { width: 100%; }

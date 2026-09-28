@@ -182,6 +182,9 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('NEEDS ATTENTION', $home['body']);
             self::assertStringContainsString('RECENT STORY', $home['body']);
             self::assertStringContainsString('Player Profile', $home['body']);
+            self::assertStringContainsString('CAREER DECISION HUB', $home['body']);
+            self::assertStringContainsString('UNDER CONTRACT', strtoupper($home['body']));
+            self::assertStringContainsString('CAREER OUTLOOK', $home['body']);
             self::assertStringNotContainsString('No active Club manager', $home['body']);
             $training = $this->application->handle('GET', '/', ['page' => 'training', 'save' => $save], [], $session);
             self::assertSame(200, $training['status']);
@@ -199,6 +202,9 @@ final class GraphicalShellTest extends TestCase
             $market = $this->application->handle('GET', '/', ['page' => 'market', 'save' => $save], [], $session);
             self::assertSame(200, $market['status']);
             self::assertStringContainsString('TRANSFER MARKET', $market['body']);
+            self::assertStringContainsString('CAREER DECISION HUB', $market['body']);
+            self::assertStringContainsString('CURRENT STATUS', $market['body']);
+            self::assertStringContainsString('CAREER OUTLOOK', $market['body']);
             self::assertStringContainsString('Market stature', $market['body']);
             $controlled = $this->application->handle('GET', '/', ['page' => 'profile', 'save' => $save, 'player' => $career->playerId()->value()], [], $session);
             self::assertSame(200, $controlled['status']);
@@ -216,6 +222,7 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('Set preferred role', $controlled['body']);
             self::assertStringContainsString('PLAYING STYLE', $controlled['body']);
             self::assertStringContainsString('Open Trophy Room', $controlled['body']);
+            self::assertStringContainsString('CAREER DECISION HUB', $controlled['body']);
             self::assertStringNotContainsString('Potential', $controlled['body']);
             $roleUpdate = $this->application->handle('POST', '/', [], [
                 'action' => 'set_on_pitch_role', 'save' => $save, 'role' => 'box_to_box_midfielder', 'token' => $this->tokenFor($controlled, 'set_on_pitch_role'),

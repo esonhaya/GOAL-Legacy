@@ -147,6 +147,17 @@ test('Pre-Match and post-Match keep the player loop reachable', async ({ page },
   await expectNoPageOverflow(page);
   await saveReleaseScreenshot(page, testInfo, 'career-history');
 
+  const marketUrl = `/?page=market&save=${encodeURIComponent(saveId)}`;
+  await page.goto(marketUrl);
+  await expect(page.getByRole('heading', { name: 'Contract & career mobility' })).toBeVisible();
+  await expect(page.getByText('CAREER DECISION HUB', { exact: true })).toBeVisible();
+  await expect(page.getByText('CURRENT STATUS', { exact: true })).toBeVisible();
+  await expect(page.getByText('CAREER OUTLOOK', { exact: true })).toBeVisible();
+  await expect(page.getByText('No actionable transfer offers are currently available.')).toBeVisible();
+  await expectNoPageOverflow(page);
+  await assertResponsiveWidths(page, marketUrl);
+  await saveReleaseScreenshot(page, testInfo, 'career-decisions');
+
   await page.goto(`/?page=season-review&save=${encodeURIComponent(saveId)}`);
   await expect(page.getByRole('heading', { name: 'No completed Season review' })).toBeVisible();
   await expect(page.getByText('CAREER REVIEW', { exact: true })).toBeVisible();

@@ -272,7 +272,210 @@ final class CareerPresentationService
             'contract' => $contractProjection,
             'movement' => $movement,
             'loan' => $loan,
+            'decision_hub' => $this->careerDecisionHub($summary, $date),
             'quick_links' => $this->homeQuickLinks($summary, $retired),
+        ];
+    }
+
+    /**
+     * Assemble the player-facing contract and movement hub from the existing
+     * Career summary. This is deliberately a read-only projection: domain
+     * eligibility, outlook classification, and decision semantics stay with
+     * their canonical services.
+     *
+     * @param array<string, mixed> $summary
+     * @return array<string, mixed>
+     */
+    public function careerDecisionHub(array $summary, ?SimulationDate $date = null): array
+    {
+        $club = is_array($summary['current_club'] ?? null) ? $summary['current_club'] : null;
+        $contract = is_array($summary['current_contract'] ?? null) ? $summary['current_contract'] : null;
+        $loan = is_array($summary['active_loan'] ?? null) ? $summary['active_loan'] : null;
+        $outlook = is_array($summary['career_outlook'] ?? null) ? $summary['career_outlook'] : [];
+        $request = is_array($summary['transfer_request'] ?? null) ? $summary['transfer_request'] : [];
+        $pending = array_values(array_filter((array) ($summary['pending_decisions'] ?? []), 'is_array'));
+        $availableActions = array_values(array_filter((array) ($summary['available_actions'] ?? []), 'is_array'));
+        $contractProjection = $this->homeContract($contract, $date);
+        $contractStatus = (string) ($contract['status'] ?? '');
+        $hasContractDecision = false;
+        foreach ($pending as $decision) {
+            if (($decision['type'] ?? null) === 'contract_renewal') {
+                $hasContractDecision = true;
+                break;
+            }
+        }
+        $contractOutlook = (string) ($outlook['contract_outlook'] ?? '');
+        $contractCode = 'active';
+        $contractLabel = 'Under contract';
+        $contractExplanation = 'Your current Club and Contract are active.';
+        if ($contract === null || $club === null) {
+            $contractCode = 'free_agent';
+            $contractLabel = 'Free agent';
+            $contractExplanation = 'No active Club and Contract are recorded for the current Career state.';
+        } elseif ($contractStatus !== '' && $contractStatus !== 'active') {
+            $contractCode = $contractStatus;
+            $contractLabel = CareerLabels::value($contractStatus, 'Contract status');
+            $contractExplanation = 'Your Contract is not currently marked active.';
+        } elseif ($hasContractDecision || $contractOutlook === 'pending_decision') {
+            $contractCode = 'renewal_available';
+            $contractLabel = 'Renewal decision available';
+            $contractExplanation = 'A Contract decision is waiting for your response.';
+        } elseif ($contractOutlook === 'approaching_decision') {
+            $contractCode = 'expiring';
+            $contractLabel = 'Contract expiring';
+            $contractExplanation = 'Your Contract is approaching its recorded end date.';
+        }
+
+        $requestStatus = (string) ($request['status'] ?? 'none');
+        $canRequest = false;
+        $canWithdraw = false;
+        foreach ($availableActions as $action) {
+            if (($action['type'] ?? null) === 'request_transfer') { $canRequest = true; }
+            if (($action['type'] ?? null) === 'withdraw_transfer_request') { $canWithdraw = true; }
+        }
+        $requestActive = $requestStatus === 'requested';
+        $requestProjection = [
+            'status' => $requestStatus === '' ? 'none' : $requestStatus,
+            'active' => $requestActive,
+            'season_id' => $request['season_id'] ?? null,
+            'label' => $requestActive ? 'Transfer request active' : 'No active transfer request',
+            'explanation' => $requestActive
+                ? 'Your request is active, but it does not guarantee an offer.'
+                : ($canRequest ? 'A transfer request is available from your current Career state.' : 'No transfer request can be made from the current Career state.'),
+            'can_request' => $canRequest,
+            'can_withdraw' => $canWithdraw,
+            'action' => $canWithdraw ? 'withdraw_transfer' : ($canRequest ? 'request_transfer' : null),
+        ];
+
+        $openById = [];
+        foreach ((array) ($summary['open_opportunities'] ?? []) as $opportunity) {
+            if (is_array($opportunity) && isset($opportunity['id'])) {
+                $openById[(string) $opportunity['id']] = $opportunity;
+            }
+        }
+        $required = [];
+        foreach ($pending as $decision) {
+            $type = (string) ($decision['type'] ?? 'career_decision');
+            $opportunity = $openById[(string) ($decision['id'] ?? '')] ?? [];
+            $context = is_array($opportunity['context'] ?? null) ? $opportunity['context'] : [];
+            $kind = (string) ($context['decision_kind'] ?? $type);
+            $label = match ($type) {
+                'contract_renewal' => 'Contract decision',
+                'transfer_interest' => 'Transfer opportunity',
+                'loan' => 'Loan decision',
+                'retirement' => 'Retirement decision',
+                default => CareerLabels::value($kind, 'Career decision'),
+            };
+            $options = array_values(array_filter((array) ($decision['options'] ?? $context['options'] ?? []), 'is_array'));
+            $destination = null;
+            foreach ($options as $option) {
+                $destination = $option['target_club_name'] ?? $option['club']['name'] ?? null;
+                if (is_string($destination) && trim($destination) !== '') { break; }
+            }
+            $required[] = [
+                'id' => $decision['id'] ?? null,
+                'type' => $type,
+                'kind' => $kind,
+                'label' => $label,
+                'status' => $decision['status'] ?? 'open',
+                'created_date' => $decision['created_date'] ?? null,
+                'expiry_date' => $decision['expiry_date'] ?? null,
+                'options_count' => count($options),
+                'destination' => $destination,
+                'action_label' => 'Review ' . strtolower($label),
+            ];
+        }
+
+        $guidance = array_values(array_filter((array) ($outlook['guidance'] ?? []), 'is_array'));
+        $firstGuidance = $guidance[0] ?? [];
+        $outlookLabel = trim((string) ($outlook['label'] ?? ''));
+        $outlookExplanation = trim((string) ($firstGuidance['message'] ?? ''));
+        if ($outlookLabel === '') {
+            $outlookLabel = CareerLabels::value($outlook['category'] ?? null, 'Not available');
+        }
+        if ($outlookExplanation === '') {
+            $outlookExplanation = 'Your outlook follows the latest recorded Career evidence.';
+        }
+        $evidence = [];
+        $outlookEvidence = is_array($outlook['evidence'] ?? null) ? $outlook['evidence'] : [];
+        foreach ([
+            'role' => 'Squad role',
+            'performance' => 'Recent performance',
+            'manager_trust' => 'Manager trust',
+            'playing_time_status' => 'Playing time',
+        ] as $key => $label) {
+            $value = $outlookEvidence[$key] ?? null;
+            if ($value === null || $value === '') { continue; }
+            $evidence[] = ['label' => $label, 'value' => CareerLabels::value($value, (string) $value)];
+        }
+
+        $recent = [];
+        foreach ((array) ($summary['movement_history'] ?? []) as $movement) {
+            if (!is_array($movement)) { continue; }
+            $type = (string) ($movement['type'] ?? 'movement');
+            $from = trim((string) ($movement['from_club'] ?? ''));
+            $to = trim((string) ($movement['to_club'] ?? ($movement['club']['name'] ?? '')));
+            $headline = match ($type) {
+                'transfer' => trim(($from === '' ? 'Club' : $from) . ' → ' . ($to === '' ? 'Club' : $to)),
+                'loan' => trim(($from === '' ? 'Parent Club' : $from) . ' → ' . ($to === '' ? 'Loan Club' : $to)),
+                'loan_return' => trim(($from === '' ? 'Loan Club' : $from) . ' → ' . ($to === '' ? 'Parent Club' : $to)),
+                default => CareerLabels::value($type, 'Club movement'),
+            };
+            $recent[] = [
+                'date' => $movement['date'] ?? 'Recorded',
+                'type' => $type,
+                'label' => match ($type) {
+                    'transfer' => 'Transfer',
+                    'loan' => 'Loan',
+                    'loan_return' => 'Loan return',
+                    default => CareerLabels::value($type, 'Club movement'),
+                },
+                'headline' => $headline,
+            ];
+        }
+        foreach ((array) ($summary['decision_history'] ?? []) as $decision) {
+            if (!is_array($decision) || trim((string) ($decision['story'] ?? '')) === '') { continue; }
+            $recent[] = ['date' => $decision['date'] ?? 'Recorded', 'type' => 'decision', 'label' => 'Career decision', 'headline' => (string) $decision['story']];
+        }
+        usort($recent, static fn (array $left, array $right): int => strcmp((string) ($right['date'] ?? '') . (string) ($right['headline'] ?? ''), (string) ($left['date'] ?? '') . (string) ($left['headline'] ?? '')));
+
+        return [
+            'contract' => [
+                'code' => $contractCode,
+                'status' => $contractStatus === '' ? null : $contractStatus,
+                'label' => $contractLabel,
+                'explanation' => $contractExplanation,
+                'club' => $contractProjection['club'] ?? ($club['name'] ?? null),
+                'end_date' => $contractProjection['end_date'] ?? null,
+                'remaining_days' => $contractProjection['remaining_days'] ?? null,
+                'role' => $summary['current_role'] ?? $summary['squad_role'] ?? null,
+                'renewal_state' => $hasContractDecision ? 'decision_available' : $contractOutlook,
+            ],
+            'transfer_request' => $requestProjection,
+            'loan' => [
+                'active' => $loan !== null,
+                'label' => $loan === null ? null : 'On loan',
+                'loan_club' => $loan['loan_club']['name'] ?? null,
+                'parent_club' => $loan['parent_club']['name'] ?? ($summary['parent_club']['name'] ?? null),
+                'return_date' => $loan['scheduled_end_date'] ?? null,
+                'status' => $loan['status'] ?? null,
+            ],
+            'action_required' => $required,
+            'action_required_count' => count($required),
+            'outlook' => [
+                'category' => $outlook['category'] ?? null,
+                'label' => $outlookLabel,
+                'explanation' => $outlookExplanation,
+                'guidance' => $guidance,
+                'action_type' => $firstGuidance['action_type'] ?? null,
+                'evidence' => $evidence,
+            ],
+            'current' => [
+                'club' => $club['name'] ?? null,
+                'role' => $summary['current_role'] ?? $summary['squad_role'] ?? null,
+                'career_state' => $summary['career_state'] ?? 'active',
+            ],
+            'recent_outcomes' => array_slice($recent, 0, 4),
         ];
     }
 
@@ -874,6 +1077,7 @@ final class CareerPresentationService
             'priority' => $controlled ? $controlledSummary['priority'] ?? null : null,
             'contract' => $controlled ? $controlledSummary['current_contract'] ?? null : null,
             'active_loan' => $controlled ? $controlledSummary['active_loan'] ?? null : null,
+            'decision_hub' => $controlled ? $this->careerDecisionHub($controlledSummary, $date) : null,
             'market' => $market,
             'career_state' => $controlled ? ($controlledSummary['career_state'] ?? $player->careerState()->value) : $player->careerState()->value,
             'career_phase' => $controlled ? ($controlledSummary['career_phase'] ?? null) : null,

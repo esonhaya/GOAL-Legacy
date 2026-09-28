@@ -169,6 +169,57 @@ final class CareerPresentationTest extends TestCase
         self::assertSame('REQUIRED_DECISION', $retirement['next_up']['action']['priority']);
     }
 
+    public function testCareerDecisionHubKeepsContractRequestOutlookAndLoanStatesDistinct(): void
+    {
+        $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);
+        $presentation = new CareerPresentationService($services);
+        $stable = [
+            'player' => ['id' => 'player-1', 'preferred_name' => 'Alex Rivera'],
+            'career_state' => 'active', 'current_role' => 'regular',
+            'current_club' => ['name' => 'Arsenal'],
+            'current_contract' => ['status' => 'active', 'club' => ['name' => 'Arsenal'], 'end_date' => '2026-06-30'],
+            'transfer_request' => ['status' => 'none'],
+            'available_actions' => [['type' => 'request_transfer']],
+            'career_outlook' => [
+                'category' => 'good_situation', 'label' => 'Good situation',
+                'guidance' => [['message' => 'Your current role and opportunity are stable.', 'action_type' => null]],
+                'evidence' => ['role' => 'regular', 'performance' => 'strong'],
+            ],
+        ];
+        $model = $presentation->careerDecisionHub($stable, SimulationDate::fromIsoString('2025-01-01'));
+
+        self::assertSame('Under contract', $model['contract']['label']);
+        self::assertSame('Arsenal', $model['contract']['club']);
+        self::assertTrue($model['transfer_request']['can_request']);
+        self::assertFalse($model['transfer_request']['active']);
+        self::assertSame([], $model['action_required']);
+        self::assertSame('Good situation', $model['outlook']['label']);
+        self::assertSame('Regular', $model['outlook']['evidence'][0]['value']);
+
+        $pending = $stable;
+        $pending['pending_decisions'] = [[
+            'id' => 'opportunity-1', 'type' => 'contract_renewal', 'status' => 'open',
+            'expiry_date' => '2025-06-30', 'options' => [['kind' => 'renew_current_club']],
+        ]];
+        $pending['open_opportunities'] = [[
+            'id' => 'opportunity-1', 'context' => ['decision_kind' => 'contract_boundary'],
+        ]];
+        $pendingModel = $presentation->careerDecisionHub($pending);
+        self::assertSame('Renewal decision available', $pendingModel['contract']['label']);
+        self::assertSame('Contract decision', $pendingModel['action_required'][0]['label']);
+        self::assertSame(1, $pendingModel['action_required'][0]['options_count']);
+
+        $requested = $stable;
+        $requested['transfer_request'] = ['status' => 'requested', 'season_id' => 'season-1'];
+        $requested['available_actions'] = [['type' => 'withdraw_transfer_request']];
+        $requested['active_loan'] = ['loan_club' => ['name' => 'Loan Club'], 'parent_club' => ['name' => 'Arsenal'], 'scheduled_end_date' => '2025-06-30'];
+        $requestedModel = $presentation->careerDecisionHub($requested);
+        self::assertTrue($requestedModel['transfer_request']['active']);
+        self::assertSame('withdraw_transfer', $requestedModel['transfer_request']['action']);
+        self::assertTrue($requestedModel['loan']['active']);
+        self::assertSame('Loan Club', $requestedModel['loan']['loan_club']);
+    }
+
     public function testDecisionChoiceContextSeparatesKnownTermsFromUncertainFootballOutcomes(): void
     {
         $services = (new Bootstrap())->create(dirname(__DIR__, 2), ['APP_ENV' => 'test']);

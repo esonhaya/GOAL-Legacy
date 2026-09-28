@@ -132,6 +132,7 @@ test('Pre-Match and post-Match keep the player loop reachable', async ({ page },
   await expect(page.locator('[data-career-identity]')).toBeVisible();
   await expect(page.getByText('CURRENT PLAYER', { exact: true })).toBeVisible();
   await expect(page.getByText('DEVELOPMENT SIGNAL', { exact: true })).toBeVisible();
+  await expect(page.getByText('CAREER DECISION HUB', { exact: true })).toBeVisible();
   await expectNoPageOverflow(page);
   await saveReleaseScreenshot(page, testInfo, 'profile');
 
@@ -158,11 +159,33 @@ test('Pre-Match and post-Match keep the player loop reachable', async ({ page },
   await assertResponsiveWidths(page, marketUrl);
   await saveReleaseScreenshot(page, testInfo, 'career-decisions');
 
-  await page.goto(`/?page=season-review&save=${encodeURIComponent(saveId)}`);
+  const seasonReviewUrl = `/?page=season-review&save=${encodeURIComponent(saveId)}`;
+  await page.goto(seasonReviewUrl);
   await expect(page.getByRole('heading', { name: 'No completed Season review' })).toBeVisible();
   await expect(page.getByText('CAREER REVIEW', { exact: true })).toBeVisible();
+  await assertResponsiveWidths(page, seasonReviewUrl);
   await expectNoPageOverflow(page);
   await saveReleaseScreenshot(page, testInfo, 'season-review');
+
+  const trophyUrl = `/?page=trophies&save=${encodeURIComponent(saveId)}`;
+  await page.goto(trophyUrl);
+  await expect(page.getByText('TROPHY ROOM', { exact: true })).toBeVisible();
+  await expect(page.getByText('CAREER RECORDS', { exact: true })).toBeVisible();
+  await expect(page.getByText('PERSONAL BESTS', { exact: true })).toBeVisible();
+  await expect(page.getByText('No Club honours yet.', { exact: true })).toBeVisible();
+  await assertResponsiveWidths(page, trophyUrl);
+  await expectNoPageOverflow(page);
+  await saveReleaseScreenshot(page, testInfo, 'trophy-room');
+
+  const homeUrl = `/?page=home&save=${encodeURIComponent(saveId)}`;
+  await page.goto(homeUrl);
+  await expect(page.getByText('NEXT UP', { exact: true })).toBeVisible();
+  await expect(page.locator('.career-home-next .button-primary')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('[data-career-identity]')).toBeVisible();
+  await expect(page.getByText('NEXT UP', { exact: true })).toBeVisible();
+  await assertResponsiveWidths(page, homeUrl);
+  await expectNoPageOverflow(page);
 });
 
 test('Missing Career recovery is bounded and actionable', async ({ page }) => {

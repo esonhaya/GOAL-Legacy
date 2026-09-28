@@ -22,7 +22,7 @@ use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
 use Goal\Legacy\Modules\World\Domain\SeasonStatus;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use RuntimeException;
-use Goal\Legacy\Modules\World\SeasonCompactionService;
+use Goal\Legacy\Modules\World\SeasonArchiveService;
 
 /** Advance one controlled-career meaningful stop through canonical services. */
 final class CareerContinueCommand implements CommandInterface
@@ -165,8 +165,15 @@ final class CareerContinueCommand implements CommandInterface
                 $nextSeason = $worldService->seasonRollover()?->nextSeason($season);
                 if ($nextSeason !== null) {
                     $worldService->advanceToDate($database, $saveId, $nextSeason->startDate());
-                    (new SeasonCompactionService())->compact($database, $season->id(), $nextSeason->startDate()->toIsoString());
-                    $output->write(sprintf('SEASON ROLLOVER — %s is now active.', $nextSeason->label()));
+                    $archive = (new SeasonArchiveService())->archive($database, $season->id(), $nextSeason->id(), $nextSeason->startDate()->toIsoString());
+                    $output->write(sprintf(
+                        'SEASON ROLLOVER — %s is now active; archival removed registrations=%d memberships=%d role_history=%d contracts=%d.',
+                        $nextSeason->label(),
+                        (int) ($archive['registrations'] ?? 0),
+                        (int) ($archive['memberships'] ?? 0),
+                        (int) ($archive['role_history'] ?? 0),
+                        (int) ($archive['contracts'] ?? 0),
+                    ));
                     $snapshot = (new CareerPresentationService($this->services))->snapshot($database, $saveId);
                     $presentation = new CareerPresentationService($this->services);
                     foreach ((new CareerFormatter())->rollover($presentation->rolloverSummary($snapshot['summary'], $season->id()->value())) as $line) {

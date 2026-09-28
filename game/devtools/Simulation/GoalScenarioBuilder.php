@@ -17,6 +17,7 @@ use Goal\Legacy\Modules\Competition\Domain\CompetitionId;
 use Goal\Legacy\Modules\Competition\Domain\PlayerRegistration;
 use Goal\Legacy\Modules\Contract\Domain\ContractCreationRequest;
 use Goal\Legacy\Modules\Contract\Domain\ContractId;
+use Goal\Legacy\Modules\Match\Persistence\MatchRepository;
 use Goal\Legacy\Modules\Transfer\Domain\Transfer;
 use Goal\Legacy\Modules\Transfer\Domain\TransferExecutionTerms;
 use Goal\Legacy\Modules\Transfer\Domain\TransferId;
@@ -91,6 +92,40 @@ final class GoalScenarioBuilder
         } catch (\Throwable $exception) {
             unset($database);
             $this->removeOwnedDirectory($directory);
+            throw $exception;
+        }
+    }
+
+    /**
+     * Build the smallest reusable production-path archive fixture: one
+     * populated completed Season followed by an active successor. The Match
+     * service, World rollover, recruitment, and registration lifecycle remain
+     * authoritative; this helper only orchestrates them for diagnostics/tests.
+     */
+    public function buildFinalizedSeasonWithActiveSuccessor(int $seed = 4004): GoalScenarioFixture
+    {
+        $fixture = $this->build('CONTRACT_LONG_TERM', $seed);
+        try {
+            $database = $fixture->database();
+            $worldService = $this->services->worldModule()->service();
+            $matchService = $this->services->matchModule()->service();
+            $matches = (new MatchRepository($database))->byCompetition('premier-league', $fixture->seasonId());
+            usort($matches, static fn ($left, $right): int => $left->scheduledDate()->compareTo($right->scheduledDate()) ?: strcmp($left->id()->value(), $right->id()->value()));
+            foreach ($matches as $match) {
+                $worldService->advanceToDate($database, $fixture->saveId(), $match->scheduledDate());
+                $matchService->simulateDue($database, $match->scheduledDate());
+            }
+            $season = $worldService->seasonRepository($database)->get($fixture->seasonId());
+            $worldService->advanceToDate($database, $fixture->saveId(), $season->endDate()->addDays(1));
+            $next = $worldService->seasonRollover()?->nextSeason($season);
+            if ($next === null) {
+                throw new RuntimeException('The archive fixture could not derive its successor Season.');
+            }
+            $worldService->advanceToDate($database, $fixture->saveId(), $next->startDate());
+
+            return $fixture;
+        } catch (\Throwable $exception) {
+            $fixture->close();
             throw $exception;
         }
     }

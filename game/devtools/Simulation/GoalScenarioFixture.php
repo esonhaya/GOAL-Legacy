@@ -41,6 +41,12 @@ final class GoalScenarioFixture
         $this->database = $this->store->openDatabase($this->saveId);
     }
 
+    /** Release the canonical connection before an explicit SQLite maintenance operation. */
+    public function release(): void
+    {
+        unset($this->database);
+    }
+
     public function close(): void
     {
         unset($this->database);

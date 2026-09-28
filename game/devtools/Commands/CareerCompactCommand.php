@@ -8,6 +8,7 @@ use Goal\Legacy\Core\Bootstrap\CoreServices;
 use Goal\Legacy\Devtools\CommandInterface;
 use Goal\Legacy\Devtools\ConsoleOutputInterface;
 use Goal\Legacy\Modules\World\Domain\SeasonStatus;
+use Goal\Legacy\Modules\World\SeasonArchiveService;
 use Goal\Legacy\Modules\World\SeasonCompactionService;
 
 /** Maintenance entry point for upgrading an older completed-season save. */
@@ -32,6 +33,7 @@ final class CareerCompactCommand implements CommandInterface
         $worldService = $this->services->worldModule()->service();
         $world = $worldService->load($database, $saveId);
         $compactor = new SeasonCompactionService();
+        $archiver = new SeasonArchiveService();
         $count = 0;
         $physicalCompactionRecommended = false;
         foreach ($worldService->seasonRepository($database)->all() as $season) {
@@ -42,11 +44,14 @@ final class CareerCompactCommand implements CommandInterface
             if ($next === null) {
                 continue;
             }
-            $result = $compactor->compact($database, $season->id(), $next->startDate()->toIsoString());
-            if (($result['compacted'] ?? false) === true) {
+            $result = $world->currentSeasonId()?->value() === $next->id()->value()
+                ? $archiver->archive($database, $season->id(), $next->id(), $next->startDate()->toIsoString())
+                : $compactor->compact($database, $season->id(), $next->startDate()->toIsoString());
+            if (($result['compacted'] ?? $result['archived'] ?? false) === true) {
                 ++$count;
                 $physicalCompactionRecommended = $physicalCompactionRecommended || (bool) ($result['physical_compaction_recommended'] ?? false);
-                $output->write(sprintf('COMPACTED %s: stats=%d selections=%d evaluations=%d development=%d availability=%d.', $season->label(), $result['stats'], $result['selections'], $result['evaluations'], $result['development'], $result['availability']));
+                $historical = is_array($result['historical_compaction'] ?? null) ? $result['historical_compaction'] : [];
+                $output->write(sprintf('COMPACTED %s: stats=%d selections=%d evaluations=%d development=%d availability=%d registrations=%d memberships=%d role_history=%d contracts=%d.', $season->label(), (int) ($result['stats'] ?? $historical['stats'] ?? 0), (int) ($result['selections'] ?? $historical['selections'] ?? 0), (int) ($result['evaluations'] ?? $historical['evaluations'] ?? 0), (int) ($result['development'] ?? $historical['development'] ?? 0), (int) ($result['availability'] ?? $historical['availability'] ?? 0), (int) ($result['registrations'] ?? 0), (int) ($result['memberships'] ?? 0), (int) ($result['role_history'] ?? 0), (int) ($result['contracts'] ?? 0)));
             }
         }
         unset($database);

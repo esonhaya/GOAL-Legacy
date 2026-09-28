@@ -436,3 +436,81 @@ optimization target. The AGE5 controlled Career/Profile/History/Trophy reads,
 league champions/standings, Match results, SaveStore reopen checks, and the
 P4-002 semantic tests remained valid. No gameplay formulas, Match engine,
 Season results, or world content were changed.
+
+## P4-004 end-of-Season archival
+
+P4-004 adds the end-of-Season `SeasonArchiveService` boundary. The production
+ordering is: complete the old Season, resolve its competition/world outcomes,
+activate the successor, then archive the old Season. Archival is rejected when
+the old Season is not `completed`, the successor is not `active`, the World
+does not point at the successor, historical Matches/Competitions are not
+complete, successor squads are absent, or the canonical controlled-player
+reference is absent. It is never called from a normal GET, Match simulation, or
+an active Season-finalization transaction.
+
+The storage contract is deliberately row-aware:
+
+| State | Durable representation |
+| --- | --- |
+| Active Season | Full operational registrations, squads, contracts, role/development state, Match detail, and current indexes. |
+| Completed Season | Existing Season/competition aggregates, Career History, movement, awards, trophies, records, and durable world outcomes. Replay-only detail is not a second archive. |
+| Controlled Player | Rich historical registrations, memberships, role/development/contract/movement evidence, Season/Career statistics, and any existing player-facing Match facts. |
+| NPC/world | Old operational registrations and role transitions are removable after successor activation; expired NPC contracts are removable only when unreferenced by movement and loans; same-Club NPC memberships remain when tenure is still a gameplay input. |
+| Match evidence | P4-002 removes obsolete NPC detail; `match_records`, Season/competition summaries, controlled/relevant history, and durable outcomes remain. P4-004 does not remove background Match records without a separate consumer proof. |
+
+The consumer audit found that registrations feed active eligibility, Season
+activation, movement, and transfer/loan validation; memberships feed current
+squads plus captaincy/set-piece tenure; role history is consumed by controlled
+progression/profile; and Contracts remain operational or are referenced by
+movement. Accordingly the canonical P4-004 deletion unit removes old
+non-controlled registrations, old NPC role history, and old NPC memberships
+only when a same-Club successor membership is not needed. Expired NPC Contracts
+are guarded against movement references and active loans; no eligible rows
+were present in the representative fixture. Controlled-player rows are never
+selected by these predicates. P4-002 remains the nested owner for NPC Match
+detail, development evidence, evaluations, and availability sources.
+
+`save_archival_seasons` is the minimal idempotency marker. The P4-004 logical
+deletion unit and marker insert share one canonical transaction; a failure
+rolls back the family deletions. A second call returns `idempotent=true` and
+zero new rows. Physical reclamation remains separate: the existing P4-001
+SaveStore VACUUM boundary runs only after the logical transaction when free
+space is at least 1 MiB or 10% of pages, then verifies integrity, FK count,
+semantic state, and canonical reopen.
+
+### P4-004 representative evidence
+
+The reusable `GoalScenarioBuilder::buildFinalizedSeasonWithActiveSuccessor`
+fixture uses canonical World, Match, rollover, squad, registration, and
+production persistence services. It does not implement Match or Season
+formulas. Its completed Season and active successor measured:
+
+| Metric | Before | After logical archive | After VACUUM |
+| --- | ---: | ---: | ---: |
+| File bytes | 28,110,848 | 28,131,328 | 18,812,928 |
+| Rows removed | — | 15,968 P4-004 + 4,195 P4-002 | — |
+| Physical reclamation | — | — | 9,318,400 bytes |
+| Integrity / FK | `ok` / 0 | checked | `ok` / 0 |
+
+The targeted registration/membership/role/Contract family footprint fell from
+12,886,016 to 9,924,608 attributed bytes. Registration rows fell by 10,700,
+role-history rows by 5,223, and memberships by 45; the controlled player,
+standings, historical Match result, NPC Season aggregate, next-Season
+eligibility, canonical next Match result, and SaveStore checkpoint were
+preserved. The second archive removed zero rows. The bounded next-Match result
+matched an untouched owned comparison save. The integration test also proved
+transaction rollback with an injected archive failure and verified Home,
+Profile, History, and Trophy reads performed zero DML.
+
+P4-004 is a material finalized-Season reduction, not an AGE5 replacement
+measurement. The authoritative longitudinal trajectory remains P4-003:
+AGE5 `74,829,824` bytes and `12.36 MB`/Season post-AGE0 versus P3-020's
+`102,010,880` bytes and `17.8 MB`/Season. A fresh final Phase 4 longitudinal
+gate is still required. Its one primary follow-up target is the remaining
+`player_competition_registrations` footprint (including its indexes), but only
+after current-season, movement, and controlled-player consumers are shown to
+be replaceable by existing durable history. Contracts, memberships, role and
+development history, Match core/detail, Season/competition statistics,
+player records, and Pulse/news remain consumer-deferred where the evidence is
+not yet sufficient. No Match result, simulation formula, world population,
+competition, or player-facing Career history was reduced.

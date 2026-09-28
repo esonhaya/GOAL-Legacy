@@ -148,8 +148,11 @@ final class GraphicalShellTest extends TestCase
             self::assertSame(303, $advance['status']);
             $matchPage = $this->application->handle('GET', '/', ['page' => 'matchday', 'save' => $save, 'match' => $fixture->id()->value()], [], $session);
             self::assertSame(200, $matchPage['status']);
+            self::assertStringContainsString('FINAL RESULT', $matchPage['body']);
+            self::assertStringContainsString('PLAYER STATUS', $matchPage['body']);
+            self::assertStringContainsString('Not selected', $matchPage['body']);
+            self::assertStringNotContainsString('RATING EXPLANATION', $matchPage['body']);
             self::assertStringContainsString('MATCH STORY', $matchPage['body']);
-            self::assertStringContainsString('RATING EXPLANATION', $matchPage['body']);
             self::assertStringContainsString('YOUR MATCH', $matchPage['body']);
             $changesBeforeRefresh = (int) $database->connection()->query('SELECT total_changes()')->fetchColumn();
             $refreshedMatchPage = $this->application->handle('GET', '/', ['page' => 'matchday', 'save' => $save, 'match' => $fixture->id()->value()], [], $session);
@@ -173,6 +176,8 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('Workload', $home['body']);
             self::assertStringContainsString('Trophy Room', $home['body']);
             self::assertStringContainsString('NEXT UP', $home['body']);
+            self::assertStringContainsString('RECENT RESULT', $home['body']);
+            self::assertStringContainsString('Review Match', $home['body']);
             self::assertStringContainsString('CURRENT STATUS', $home['body']);
             self::assertStringContainsString('NEEDS ATTENTION', $home['body']);
             self::assertStringContainsString('RECENT STORY', $home['body']);

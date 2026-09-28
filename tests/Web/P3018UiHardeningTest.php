@@ -113,6 +113,10 @@ final class P3018UiHardeningTest extends TestCase
         self::assertStringContainsString('min-height: 44px', $css);
         self::assertStringContainsString('@media (prefers-reduced-motion: reduce)', $css);
         self::assertStringContainsString('.career-identity', $css);
+        self::assertStringContainsString('.recent-result-card', $css);
+        self::assertStringContainsString('.match-status-card', $css);
+        self::assertStringContainsString('.match-contribution-stats', $css);
+        self::assertStringContainsString('.post-match-next', $css);
     }
 
     private function dom(string $html): DOMDocument

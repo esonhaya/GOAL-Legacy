@@ -27,6 +27,7 @@ use Goal\Legacy\Modules\Player\Persistence\CareerOpportunityRepository;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
 use Goal\Legacy\Modules\Player\Persistence\PlayerRepository;
 use Goal\Legacy\Modules\Player\Domain\PlayerId;
+use Goal\Legacy\Modules\Player\Domain\PlayerPosition;
 use Goal\Legacy\Modules\Player\CareerRecoveryService;
 use Goal\Legacy\Modules\Player\PlayerDisciplineService;
 use Goal\Legacy\Modules\Player\PlayerCareerProgressionQuery;
@@ -138,9 +139,10 @@ final class CareerPresentationService
      * @param array<string, mixed>|null $nextMatch
      * @return array<string, mixed>
      */
-    public function careerHome(array $summary, SimulationDate $date, ?array $nextMatch = null): array
+    public function careerHome(array $summary, SimulationDate $date, ?array $nextMatch = null, ?array $recentMatch = null): array
     {
         $model = $this->homeContext($summary, $nextMatch, $date);
+        $model['recent_match'] = $recentMatch;
         $model['recent_story'] = $this->homeRecentStory($summary);
 
         return $model;
@@ -255,6 +257,7 @@ final class CareerPresentationService
                 'action' => $primary,
                 'fixture' => $nextMatch,
             ],
+            'recent_match' => null,
             'current_status' => $status,
             'playing_status' => $playing,
             'season_snapshot' => $season,
@@ -271,6 +274,89 @@ final class CareerPresentationService
             'loan' => $loan,
             'quick_links' => $this->homeQuickLinks($summary, $retired),
         ];
+    }
+
+    /**
+     * Project the latest completed controlled fixture for Career Home.
+     * Selection, result, and Player statistics remain canonical Match facts;
+     * this method only assembles the compact read model needed after review.
+     * @param array<string, mixed> $summary
+     * @return array<string, mixed>|null
+     */
+    public function recentMatch(DatabaseInterface $database, array $summary): ?array
+    {
+        $player = is_array($summary['player'] ?? null) ? $summary['player'] : [];
+        $playerId = (string) ($player['id'] ?? '');
+        if ($playerId === '') {
+            return null;
+        }
+        $matches = new MatchRepository($database);
+        $stats = new PlayerMatchStatRepository($database);
+        $ratings = new PlayerMatchRatingService();
+        foreach ((array) ($summary['recent_selection'] ?? []) as $selection) {
+            if (!is_array($selection) || !is_string($selection['match_id'] ?? null)) {
+                continue;
+            }
+            try {
+                $match = $matches->get((string) $selection['match_id']);
+            } catch (\Throwable) {
+                continue;
+            }
+            if ($match->status() !== MatchStatus::Completed || $match->result() === null) {
+                continue;
+            }
+            $clubId = (string) ($selection['club_id'] ?? '');
+            $result = $match->result();
+            $homeGoals = $result->homeGoals();
+            $awayGoals = $result->awayGoals();
+            $controlledGoals = $clubId === $match->homeClubId()->value() ? $homeGoals : $awayGoals;
+            $opponentGoals = $clubId === $match->homeClubId()->value() ? $awayGoals : $homeGoals;
+            $perspectiveResult = $controlledGoals === $opponentGoals ? 'DRAW' : ($controlledGoals > $opponentGoals ? 'WIN' : 'LOSS');
+            $stat = null;
+            foreach ($stats->byMatch($match->id()) as $candidate) {
+                if ($candidate->playerId()->value() === $playerId) {
+                    $stat = $candidate;
+                    break;
+                }
+            }
+            $selectionStatus = (string) ($selection['status'] ?? 'not_selected');
+            $participationCode = match ($selectionStatus) {
+                'starter' => 'starter',
+                'bench' => $stat?->appeared() ? 'substitute' : 'unused_substitute',
+                'unavailable' => 'unavailable',
+                'suspended' => 'suspended',
+                default => 'not_selected',
+            };
+            $participation = match ($participationCode) {
+                'starter' => 'Started',
+                'substitute' => 'Substitute appearance',
+                'unused_substitute' => 'Unused substitute',
+                'unavailable' => 'Unavailable',
+                'suspended' => 'Suspended',
+                default => 'Not selected',
+            };
+            $competition = $this->competitionRecord($database, $match->competitionId());
+
+            return [
+                'match_id' => $match->id()->value(),
+                'date' => $match->scheduledDate()->toIsoString(),
+                'competition' => $competition->name(),
+                'home_club' => $this->teamName($database, $match->homeClubId()->value()),
+                'away_club' => $this->teamName($database, $match->awayClubId()->value()),
+                'home_goals' => $homeGoals,
+                'away_goals' => $awayGoals,
+                'result' => $perspectiveResult,
+                'participation' => $participation,
+                'participation_code' => $participationCode,
+                'appeared' => $stat?->appeared() ?? false,
+                'minutes' => $stat?->appeared() ? $stat->minutes() : null,
+                'rating' => $stat?->appeared() ? $ratings->rate($stat, PlayerPosition::fromInput((string) ($player['primary_position'] ?? 'CM'))) : null,
+                'goals' => $stat?->goals() ?? 0,
+                'assists' => $stat?->assists() ?? 0,
+            ];
+        }
+
+        return null;
     }
 
     /**

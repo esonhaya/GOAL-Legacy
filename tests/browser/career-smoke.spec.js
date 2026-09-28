@@ -68,6 +68,7 @@ test('Career entry and creation form produce a usable Career Home', async ({ pag
   await expect(page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Training', exact: true })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Profile', exact: true })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Career History', exact: true })).toBeVisible();
+  await expect(page.getByText('NEXT UP', { exact: true })).toBeVisible();
   await expect(page.locator('[data-career-identity]')).toBeVisible();
   await expect(page.locator('a[aria-current="page"]')).toHaveText('Career Home');
   await expectNoPageOverflow(page);
@@ -99,16 +100,32 @@ test('Pre-Match and post-Match keep the player loop reachable', async ({ page },
   await page.getByRole('button', { name: /Continue/ }).click();
   await expect(page).toHaveURL(/page=matchday/);
   await expect(page.getByText('PRE-MATCH', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('PLAYER STATUS', { exact: true })).toBeVisible();
+  await expect(page.getByText('FIXTURE CONTEXT', { exact: true })).toBeVisible();
+  await expect(page.getByText('NEXT STEP', { exact: true })).toBeVisible();
+  await expect(page.locator('.scoreline')).toContainText('vs');
   await expect(page.getByRole('button', { name: 'Advance to Match' })).toBeVisible();
   await expectNoPageOverflow(page);
   await saveReleaseScreenshot(page, testInfo, 'pre-match');
 
   await page.getByRole('button', { name: 'Advance to Match' }).click();
   await expect(page).toHaveURL(/page=matchday/);
+  await expect(page.getByText('FINAL RESULT', { exact: false }).first()).toBeVisible();
+  await expect(page.locator('[data-match-result]')).toBeVisible();
+  await expect(page.getByText('PLAYER STATUS', { exact: true })).toBeVisible();
   await expect(page.getByText('YOUR MATCH', { exact: true })).toBeVisible();
+  await expect(page.getByText('CAREER IMPACT', { exact: true })).toBeVisible();
+  await expect(page.locator('.post-match-next')).toContainText('Next step');
   await expect(page.getByRole('link', { name: 'Career Home', exact: true }).first()).toBeVisible();
   await expectNoPageOverflow(page);
   await saveReleaseScreenshot(page, testInfo, 'post-match');
+
+  await page.getByRole('link', { name: 'Career Home', exact: true }).first().click();
+  await expect(page).toHaveURL(/page=home/);
+  await expect(page.getByText('RECENT RESULT', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Review Match', exact: true })).toBeVisible();
+  await expectNoPageOverflow(page);
+  await saveReleaseScreenshot(page, testInfo, 'career-home-after-match');
 
   await page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Profile', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('P3-019 Browser Player');

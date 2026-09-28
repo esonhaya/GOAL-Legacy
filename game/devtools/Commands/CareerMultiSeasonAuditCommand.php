@@ -52,6 +52,7 @@ use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use Goal\Legacy\Modules\World\Domain\World;
 use Goal\Legacy\Modules\World\Domain\WorldId;
+use Goal\Legacy\Modules\World\SeasonCompactionService;
 use RuntimeException;
 use Throwable;
 
@@ -109,6 +110,9 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
 
             $performanceProbe = $performancePath === '' ? null : new CareerPerformanceProbe($this->services, dirname(__DIR__, 3));
             $performanceStates = [];
+            $checkpointRuntimes = [];
+            $compactionReports = [];
+            $longitudinalStarted = hrtime(true);
             if ($performanceProbe !== null) {
                 $performanceStates['AGE0'] = $performanceProbe->capture(
                     $database,
@@ -118,6 +122,7 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
                     $players['fringe']->id()->value(),
                     0,
                 );
+                $checkpointRuntimes['AGE0'] = round((hrtime(true) - $longitudinalStarted) / 1_000_000, 2);
             }
 
             $seasonReports = [];
@@ -136,6 +141,32 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
 
                 $database = $this->advanceAndReload($store, $database, $season->endDate()->addDays(1), $reloadChecks, 'season-' . $seasonNumber . '-boundary');
                 $season = $this->services->worldModule()->service()->seasonRepository($database)->get($season->id());
+                $compaction = [];
+                if ($performanceProbe !== null) {
+                    $nextId = new SeasonId(sprintf('season-%04d-%02d', $season->startDate()->year() + 1, ($season->startDate()->year() + 2) % 100));
+                    $next = $this->services->worldModule()->service()->seasonRepository($database)->get($nextId);
+                    $compaction = $this->compactCompletedSeason($store, $database, $season, $next);
+                    $compactionReports['SEASON_' . $seasonNumber] = $compaction;
+                    if ($seasonNumber === $requested) {
+                        $secondRun = (new SeasonCompactionService())->compact(
+                            $database,
+                            $season->id(),
+                            $next->startDate()->toIsoString(),
+                        );
+                        $compactionReports['SEASON_' . $seasonNumber]['second_run'] = [
+                            'idempotent' => (bool) ($secondRun['idempotent'] ?? false),
+                            'logical_rows_removed' => (int) ($secondRun['logical_rows_removed'] ?? 0),
+                        ];
+                    }
+                    $output->write(sprintf(
+                        'STORAGE_COMPACTION season=%s logical_rows=%d physical=%s reclaimed=%d duration_ms=%.2f',
+                        $season->id()->value(),
+                        (int) ($compaction['logical_rows_removed'] ?? 0),
+                        ($compaction['physical']['executed'] ?? false) ? 'YES' : 'NO',
+                        (int) ($compaction['physical']['bytes_reclaimed'] ?? 0),
+                        (float) ($compaction['duration_ms'] ?? 0.0),
+                    ));
+                }
                 $seasonReports[] = $this->seasonMetrics($database, $competitionIds, $season, $directory);
                 $saveSizes['season_' . $seasonNumber] = filesize($directory . '/' . self::SAVE_ID . '.sqlite') ?: 0;
                 if ($performanceProbe !== null && in_array($seasonNumber, [1, 3, 5], true)) {
@@ -146,7 +177,9 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
                         $directory . '/' . self::SAVE_ID . '.sqlite',
                         $players['fringe']->id()->value(),
                         $seasonNumber,
+                        $compaction,
                     );
+                    $checkpointRuntimes['AGE' . $seasonNumber] = round((hrtime(true) - $longitudinalStarted) / 1_000_000, 2);
                 }
 
                 if ($seasonNumber < $requested) {
@@ -178,6 +211,9 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
                     'requested_seasons' => $requested,
                     'controlled_player' => $players['fringe']->id()->value(),
                     'states' => $performanceStates,
+                    'compaction_reports' => $compactionReports,
+                    'runtime_ms' => $checkpointRuntimes,
+                    'total_runtime_ms' => round((hrtime(true) - $longitudinalStarted) / 1_000_000, 2),
                 ];
                 if (file_put_contents($performancePath, json_encode($report, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT)) === false) {
                     throw new RuntimeException('Unable to write performance report: ' . $performancePath);
@@ -186,6 +222,9 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
                 foreach ($performanceStates as $label => $state) {
                     $save = (array) ($state['save'] ?? []);
                     $output->write(sprintf('PERFORMANCE_STATE label=%s age=%d player_age=%d save_bytes=%d rows=%d relevant_rows=%d capture_ms=%.2f', $label, (int) ($state['career_age'] ?? 0), (int) ($state['player_age'] ?? 0), (int) ($save['bytes'] ?? 0), (int) ($save['total_rows'] ?? 0), (int) ($save['relevant_history_rows'] ?? 0), (float) ($state['capture_time_ms'] ?? 0.0)));
+                }
+                foreach ($checkpointRuntimes as $label => $runtime) {
+                    $output->write(sprintf('STORAGE_RUNTIME checkpoint=%s elapsed_ms=%.2f', $label, $runtime));
                 }
             }
 
@@ -821,6 +860,43 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
         $worldReloaded = $this->services->worldModule()->service()->load($database, self::SAVE_ID);
         $reloadChecks[$label] = $worldAfter->toArray() === $worldReloaded->toArray();
         return $database;
+    }
+
+    /** @return array<string, mixed> */
+    private function compactCompletedSeason($store, &$database, Season $completed, Season $next): array
+    {
+        $started = hrtime(true);
+        $logical = (new SeasonCompactionService())->compact(
+            $database,
+            $completed->id(),
+            $next->startDate()->toIsoString(),
+        );
+        $physical = [
+            'executed' => false,
+            'bytes_reclaimed' => 0,
+            'duration_ms' => 0.0,
+            'before' => [],
+            'after' => [],
+        ];
+        if (($logical['physical_compaction_recommended'] ?? false) === true) {
+            unset($database);
+            $physicalResult = $store->compact(self::SAVE_ID);
+            $physical = [
+                'executed' => true,
+                'bytes_reclaimed' => (int) ($physicalResult['bytes_reclaimed'] ?? 0),
+                'percent_reclaimed' => (float) ($physicalResult['percent_reclaimed'] ?? 0.0),
+                'duration_ms' => (float) ($physicalResult['duration_ms'] ?? 0.0),
+                'before' => $physicalResult['before'] ?? [],
+                'after' => $physicalResult['after'] ?? [],
+                'semantic_checkpoint' => $physicalResult['semantic_checkpoint'] ?? 'NOT_REQUESTED',
+            ];
+            $database = $store->openDatabase(self::SAVE_ID);
+        }
+
+        return array_merge($logical, [
+            'physical' => $physical,
+            'duration_ms' => round((hrtime(true) - $started) / 1_000_000, 2),
+        ]);
     }
 
     /** @param list<string> $competitionIds */

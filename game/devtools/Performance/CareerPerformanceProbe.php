@@ -11,6 +11,7 @@ use Goal\Legacy\Core\Persistence\JsonSerializer;
 use Goal\Legacy\Core\Persistence\OwnedArtifactCleanup;
 use Goal\Legacy\Core\Persistence\SaveStore;
 use Goal\Legacy\Core\Persistence\SqlProfiler;
+use Goal\Legacy\Core\Persistence\SqliteStorageAttribution;
 use Goal\Legacy\Core\Persistence\SqliteSaveStore;
 use Goal\Legacy\Devtools\Presentation\CareerPresentationService;
 use Goal\Legacy\Modules\Player\Persistence\CareerPlayerRepository;
@@ -44,6 +45,7 @@ final class CareerPerformanceProbe
         string $savePath,
         string $playerId,
         int $seasonsCompleted,
+        array $compaction = [],
     ): array {
         $started = hrtime(true);
         $summary = $this->summary($database, $saveId);
@@ -65,10 +67,13 @@ final class CareerPerformanceProbe
         return [
             'career_age' => $seasonsCompleted === 0 ? 0 : $seasonsCompleted,
             'player_age' => $player->ageAt($currentDate),
+            'season' => $world->currentSeasonId()?->value(),
+            'date' => $currentDate->toIsoString(),
             'seasons_completed' => $seasonsCompleted,
             'current_club' => $club['name'] ?? 'Free Agent',
             'current_role' => $summary['current_role'] ?? null,
             'save' => $snapshot,
+            'compaction' => $compaction,
             'read_paths' => $reads,
             'actions' => $actions,
             'capture_time_ms' => round((hrtime(true) - $started) / 1_000_000, 2),
@@ -248,6 +253,7 @@ final class CareerPerformanceProbe
     private function saveSnapshot(DatabaseInterface $database, string $savePath): array
     {
         $connection = $database->connection();
+        $attribution = (new SqliteStorageAttribution())->inspectConnection($connection, $savePath);
         $tables = $connection->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
         $rows = [];
         foreach ($tables as $table) {
@@ -267,17 +273,22 @@ final class CareerPerformanceProbe
 
         return [
             'bytes' => (int) (filesize($savePath) ?: 0),
-            'page_count' => (int) $connection->query('PRAGMA page_count')->fetchColumn(),
-            'page_size' => (int) $connection->query('PRAGMA page_size')->fetchColumn(),
-            'freelist_pages' => (int) $connection->query('PRAGMA freelist_count')->fetchColumn(),
+            'page_count' => $attribution['page_count'],
+            'page_size' => $attribution['page_size'],
+            'freelist_pages' => $attribution['freelist_count'],
+            'used_approx_bytes' => $attribution['used_approx_bytes'],
+            'free_approx_bytes' => $attribution['free_approx_bytes'],
             'table_count' => count($rows),
             'total_rows' => array_sum($rows),
             'relevant_history_rows' => $relevantRows,
             'largest_tables' => array_slice($rows, 0, 12, true),
+            'largest_tables_by_bytes' => array_slice($attribution['tables'], 0, 12),
+            'largest_indexes_by_bytes' => array_slice($attribution['indexes'], 0, 10),
             'rows' => $rows,
+            'storage_attribution' => $attribution,
             'duplicate_primary_key_groups' => $duplicateGroups,
-            'foreign_key_violations' => $foreignKeyViolations,
-            'integrity' => (string) $connection->query('PRAGMA integrity_check')->fetchColumn(),
+            'foreign_key_violations' => $attribution['foreign_key_violations'] ?? $foreignKeyViolations,
+            'integrity' => $attribution['integrity_check'] ?? (string) $connection->query('PRAGMA integrity_check')->fetchColumn(),
         ];
     }
 

@@ -303,3 +303,136 @@ evidence for controlled Players. This prevents a mixed save that retains raw
 detail for Match Story from double-counting an NPC's Season performance. No
 formula, Match result, Season result, transfer rule, or simulation behavior is
 changed.
+
+## P4-003 post-compaction longitudinal storage gate
+
+P4-003 extends the existing `career:multi-season-audit --performance-json`
+runner. With `--seed=3020 --seasons=5`, it creates one comparable Career and
+captures external AGE0, AGE1, AGE3, and AGE5 JSON checkpoints. Each checkpoint
+contains the player age/Season/date/Club/role, file/page/freelist metrics,
+SQLite integrity/FK results, row counts, full `dbstat` table/index attribution,
+read-path timing/query/DML samples, and the compaction result for the completed
+Season immediately before it. The report is written outside the save and is
+removed with the owned run artifacts after inspection.
+
+The performance-gate runner invokes the canonical `SeasonCompactionService`
+after each completed Season, then invokes canonical `SqliteSaveStore::compact`
+when the P4-002 1 MiB/10% freelist threshold recommends physical reclamation.
+It closes and reopens the save around VACUUM, captures all five boundary
+results, and reruns the AGE5 eligible Season compaction once. The second run
+returned `idempotent=true` and `logical_rows_removed=0`.
+
+### SEED=3020 measured trajectory
+
+| Checkpoint | Player age | Date | File bytes | Rows | Pages | Freelist | Integrity/FK |
+| --- | ---: | --- | ---: | ---: | ---: | ---: | --- |
+| AGE0 | 19 | 2024-07-31 | 13,021,184 | 37,167 | 3,179 | 0 | `ok` / 0 |
+| AGE1 | 20 | 2025-06-01 | 20,176,896 | 62,566 | 4,926 | 0 | `ok` / 0 |
+| AGE3 | 22 | 2027-06-01 | 48,062,464 | 144,507 | 11,734 | 0 | `ok` / 0 |
+| AGE5 | 24 | 2029-06-01 | 74,829,824 | 221,095 | 18,269 | 0 | `ok` / 0 |
+
+The starting state is apples-to-apples with P3-020: the same seed, runner,
+population, initial Career installation, AGE0 bytes, and AGE0 rows were
+reproduced. P4-003 adds completed-Season logical compaction and thresholded
+physical VACUUM after AGE0; therefore the post-AGE0 comparison is the
+post-compaction trajectory rather than an unmodified reproduction.
+
+Against P3-020, the byte comparison is:
+
+| Checkpoint | P3-020 bytes | P4-003 bytes | Saved | Reduction |
+| --- | ---: | ---: | ---: | ---: |
+| AGE0 | 13,021,184 | 13,021,184 | 0 | 0% |
+| AGE1 | 23,314,432 | 20,176,896 | 3,137,536 | 13.46% |
+| AGE3 | 63,299,584 | 48,062,464 | 15,237,120 | 24.07% |
+| AGE5 | 102,010,880 | 74,829,824 | 27,181,056 | 26.65% |
+
+Rows changed from `37,167 → 62,566 → 144,507 → 221,095`. Relative to the
+P3-020 row baseline, AGE1 saved 4,167 rows, AGE3 saved 27,485, and AGE5 saved
+50,954. The measured post-AGE0 growth is:
+
+```text
+AGE0_TO_AGE1                 7,155,712 bytes / 7.16 MB
+AGE1_TO_AGE3                 13,942,784 bytes / Season / 13.94 MB
+AGE3_TO_AGE5                 13,383,680 bytes / Season / 13.38 MB
+AVERAGE_POST_AGE0            12,361,728 bytes / Season / 12.36 MB
+P3-020_ENDPOINT_AVERAGE      17,797,939 bytes / Season / 17.80 MB
+GROWTH_REDUCTION             30.54%
+```
+
+P4-002 therefore provides a material reduction, but the AGE5 `<=40 MB` and
+steady-state `<=5 MB/Season` targets are not yet achieved. The run completed
+1,900 Matches, preserved the controlled Player at Arsenal, and produced no
+reload failures.
+
+### Compaction effectiveness
+
+| Completed Season | Logical rows removed | Target bytes before → after | Physical bytes reclaimed |
+| --- | ---: | ---: | ---: |
+| 2024/25 | 4,213 | 5,181,440 → 3,911,680 | 3,178,496 |
+| 2025/26 | 11,462 | 9,572,352 → 6,455,296 | 6,975,488 |
+| 2026/27 | 11,200 | 10,821,632 → 7,798,784 | 7,606,272 |
+| 2027/28 | 11,353 | 12,386,304 → 9,334,784 | 8,404,992 |
+| 2028/29 | 11,387 | 14,049,280 → 11,018,240 | 9,117,696 |
+
+Totals were 49,615 logical rows and 35,282,944 physical bytes across five
+threshold-approved VACUUM operations. Every physical result reported
+`integrity_check=ok`, zero FK violations, and zero freelist pages afterward.
+The threshold behaved sensibly: each logical compaction created approximately
+1.27–3.12 MiB of free pages, so the 1 MiB byte threshold—not an artificially
+low ratio—triggered physical reclamation.
+
+The production Career generated almost exclusively controlled-Club detailed
+Match evidence. Consequently, P4-002 removed highlights, older evaluations,
+and NPC development rows, while Match stats/selections/substitutions were
+protected by the player-relevant Match rule. This is evidence that further
+blanket Match-detail deletion would not explain the remaining growth.
+
+### AGE5 attribution
+
+Termux exposed SQLite `dbstat`. AGE5 used 74,829,824 database bytes, of which
+31,604,736 bytes (42.24%) were indexes. The largest table-plus-index families
+were:
+
+| Family | Table/index bytes | Main evidence |
+| --- | ---: | --- |
+| Player registrations | 15,138,816 | 53,506 rows; three registration indexes total 11,378,688 bytes |
+| Squad role history | 8,593,408 | 32,578 rows; player-history index 3,514,368 bytes |
+| Contracts | 5,455,872 | 14,689 rows; status/club/expiry indexes |
+| Squad memberships | 5,136,384 | 29,414 rows; club/player indexes |
+| Competition statistics | 3,796,992 | 15,221 durable aggregate rows |
+| Match selections | 2,928,640 | 9,789 protected/current-detail rows and indexes |
+| Season statistics | 1,732,608 | 12,585 durable summary rows |
+
+The top AGE5 indexes were `idx_player_registration_club`,
+`idx_player_registration_competition`, `idx_player_registration_player`,
+`idx_club_squad_role_history_player`, the three Contract status/expiry indexes,
+the two squad indexes, and the two competition-statistics indexes. No index
+was dropped: all remain candidates for a separate query-plan-backed review.
+
+### Consumer decision
+
+The single next target is `player_competition_registrations`. It is the
+largest measured family at 15,138,816 bytes including indexes and grows with
+each Season. Its confirmed consumers are active Match eligibility,
+Season activation, population registration, transfers/loans, and registration
+validation against current squad/Contract state. Historical deletion is not
+safe yet because `byPlayer()` and movement/registration paths still expose
+all Seasons and the required Career-history replacement has not been proven.
+
+P4-003 does not modify registrations. The proposed future boundary is after
+Season finalization and movement/eligibility work, retaining current-season,
+controlled-player, and player-relevant registrations while replacing or
+summarizing only proven historical operational rows. This is one target for a
+future batch, not authorization for speculative deletion. Role history,
+memberships, Contracts, player records, and indexes remain deferred.
+
+### Longitudinal health
+
+Career Home, Profile, Training, Career History, and Trophy Room returned HTTP
+200 at AGE5 with `DML=0` and zero `data_version` changes. AGE5 Profile measured
+5,649.91 ms and 3,819 queries versus the P3-020 watch of approximately
+5,399 ms and 4,139 queries; this is classified `SIMILAR`, not a P4-003
+optimization target. The AGE5 controlled Career/Profile/History/Trophy reads,
+league champions/standings, Match results, SaveStore reopen checks, and the
+P4-002 semantic tests remained valid. No gameplay formulas, Match engine,
+Season results, or world content were changed.

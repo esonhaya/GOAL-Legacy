@@ -146,6 +146,12 @@ test('Pre-Match and post-Match keep the player loop reachable', async ({ page },
   await expect(page.locator('[data-season-status="current"]')).toBeVisible();
   await expectNoPageOverflow(page);
   await saveReleaseScreenshot(page, testInfo, 'career-history');
+
+  await page.goto(`/?page=season-review&save=${encodeURIComponent(saveId)}`);
+  await expect(page.getByRole('heading', { name: 'No completed Season review' })).toBeVisible();
+  await expect(page.getByText('CAREER REVIEW', { exact: true })).toBeVisible();
+  await expectNoPageOverflow(page);
+  await saveReleaseScreenshot(page, testInfo, 'season-review');
 });
 
 test('Missing Career recovery is bounded and actionable', async ({ page }) => {

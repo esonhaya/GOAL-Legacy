@@ -249,16 +249,11 @@ table { max-width: none; }
     .topbar-inner, .page-shell { width: min(100% - 20px, 1240px); }
     .topbar-inner { display: block; padding: 10px 0 0; }
     .brand-area { justify-content: space-between; }
-    .main-nav { justify-content: flex-start; margin-top: 7px; padding: 5px 0 8px; gap: 3px; overflow: visible; }
+    .main-nav { justify-content: flex-start; margin-top: 7px; padding: 5px 0 8px; gap: 3px; overflow-x: auto; overflow-y: hidden; }
     .main-nav > .nav-link, .main-nav > .nav-more { flex: 1 1 auto; }
-    .main-nav > .nav-link { padding-inline: 8px; font-size: 0; }
-    .main-nav > .nav-link[href*="page=home"]::after { content: 'Home'; }
-    .main-nav > .nav-link[href*="page=profile"]::after { content: 'Profile'; }
-    .main-nav > .nav-link[href*="page=training"]::after { content: 'Training'; }
-    .main-nav > .nav-link[href*="page=career"]::after { content: 'History'; }
-    .main-nav > .nav-link::after { font-size: .82rem; }
+    .main-nav > .nav-link { padding-inline: 8px; font-size: .82rem; }
     .nav-more summary { padding-inline: 8px; font-size: .82rem; }
-    .nav-more-menu { right: 0; grid-template-columns: 1fr 1fr; }
+    .nav-more-menu { position: fixed; top: 108px; right: 10px; grid-template-columns: 1fr 1fr; width: min(390px, calc(100vw - 20px)); }
     .page-shell { padding-top: 22px; }
     .career-identity { grid-template-columns: 1fr; gap: 12px; padding: 14px; }
     .career-identity-copy { grid-template-columns: 1fr; gap: 3px; }

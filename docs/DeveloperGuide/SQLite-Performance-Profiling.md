@@ -514,3 +514,97 @@ development history, Match core/detail, Season/competition statistics,
 player records, and Pulse/news remain consumer-deferred where the evidence is
 not yet sufficient. No Match result, simulation formula, world population,
 competition, or player-facing Career history was reduced.
+
+## P4-005 final long-career storage gate
+
+P4-005 reused the P4-003 `career:multi-season-audit` and
+`CareerPerformanceProbe` with `SEED=3020`, one continuous Career, and five
+completed Seasons. The performance path now activates and reloads the
+successor before calling `SeasonArchiveService`; this makes the long audit use
+the same P4-004 archive-safe boundary as production Career continuation.
+`SeasonArchiveService` invokes P4-002 detail compaction, then the existing
+threshold-aware SaveStore VACUUM is performed outside the logical transaction.
+
+### Final trajectory
+
+| Checkpoint | Player age | Current Season | File bytes | Rows | Pages | Freelist | Integrity/FK |
+| --- | ---: | --- | ---: | ---: | ---: | ---: | --- |
+| AGE0 | 19 | 2024/25 | 13,021,184 | 37,167 | 3,179 | 0 | `ok` / 0 |
+| AGE1 | 20 | 2025/26 | 18,694,144 | 59,433 | 4,564 | 0 | `ok` / 0 |
+| AGE3 | 22 | 2027/28 | 32,768,000 | 103,889 | 8,000 | 0 | `ok` / 0 |
+| AGE5 | 24 | 2029/30 | 45,096,960 | 143,067 | 11,010 | 0 | `ok` / 0 |
+
+AGE0 is byte/row identical to P3-020. Compared with P3-020, P4-005 saves
+`4,620,288` / `19.82%` at AGE1, `30,531,584` / `48.23%` at AGE3, and
+`56,913,920` / `55.79%` at AGE5. Compared with P4-003, it saves
+`1,482,752` / `7.35%`, `15,294,464` / `31.82%`, and `29,732,864` /
+`39.73%` at those same checkpoints. Row savings versus P4-003 are 3,133,
+40,618, and 78,028.
+
+The measured byte growth is:
+
+```text
+AGE0_TO_AGE1              5,672,960 bytes / 5.67 MB
+AGE1_TO_AGE3              7,036,928 bytes / Season / 7.04 MB
+AGE3_TO_AGE5              6,164,480 bytes / Season / 6.16 MB
+AVERAGE_POST_AGE0        8,018,944 bytes / Season / 8.02 MB
+```
+
+P4-005 is a material improvement over P3-020's approximately `17.8 MB` /
+Season and P4-003's `12.36 MB` / Season. The later-career `6.16 MB` / Season
+rate is close to, but does not meet, the directional `5 MB` target. AGE5 is
+`45.10 MB`, so the `40 MB` primary target and `30 MB` stretch target are not
+achieved.
+
+### Archival and health evidence
+
+All five completed Seasons have both `save_compaction_seasons` and
+`save_archival_seasons` markers. Cumulative logical removal was `49,615`
+P4-002 detail rows plus `92,321` P4-004 lifecycle rows. P4-004 removed
+`53,491` registrations, `1,097` memberships, `27,908` role-history rows, and
+`9,825` expired/unreferenced NPC Contracts. Five threshold-approved VACUUMs
+reclaimed `67,276,800` bytes in total. The AGE5 second execution returned both
+P4-002 and P4-004 idempotent with zero additional rows.
+
+The audit completed 1,900 Matches, recorded 11 successful reload checks with
+no failures, and reported a healthy World. Career Home, Profile, Training,
+Career History, and Trophy Room all returned HTTP 200 with zero DML and zero
+`data_version` delta. AGE5 Profile measured `5,559.85 ms` / `3,655` queries,
+classified `SIMILAR` to P3-020/P4-003 rather than optimized in this batch.
+P4-001/P4-002/P4-004 focused suites and the CareerContinue simulation smoke
+remained green. No run-specific save directories or clones remained; the
+machine-readable JSON was emitted outside the repository as an intentional
+diagnostic artifact.
+
+### AGE5 attribution and final decision
+
+Termux exposed SQLite `dbstat`. AGE5 index bytes totalled `17,657,856`
+(`39.16%` of the database). The largest table-plus-index families were:
+
+| Family | Rows | Table/index bytes | Database share |
+| --- | ---: | ---: | ---: |
+| Squad memberships | 31,173 | 5,402,624 | 11.98% |
+| Match detail | 20,878 | 5,251,072 | 11.64% |
+| Competition statistics | 15,221 | 3,796,992 | 8.42% |
+| Registrations | 10,715 | 3,207,168 | 7.11% |
+| Match core | 3,395 | 1,998,848 | 4.43% |
+| Contracts | 5,170 | 1,994,752 | 4.42% |
+| Season statistics | 12,585 | 1,732,608 | 3.84% |
+| Development history | 4,995 | 1,380,352 | 3.06% |
+| Role history | 4,976 | 1,355,776 | 3.01% |
+| Player records | 5,896 | 1,294,336 | 2.87% |
+| Pulse/news | 1,438 | 1,261,568 | 2.80% |
+
+The top indexes were the two squad-membership indexes, the two competition-
+statistics indexes, Match-selection order/player indexes, three registration
+indexes, the Season-statistics player index, role-history player index,
+development-history date index, and Contract player/status and club/status
+indexes. No index was dropped.
+
+The largest remaining family is `club_squad_memberships` at `5,402,624`
+bytes including indexes. It remains `PLAYER_HISTORY_REQUIRED` because current
+squad, movement, selection, captaincy, set-piece, and Career-history readers
+still consume it. It is the single evidence-backed future investigation, not
+an automatic P4-006 deletion authorization. Given the material reduction and
+the absence of integrity/gameplay regressions, no additional storage rewrite
+is justified by P4-005 alone.

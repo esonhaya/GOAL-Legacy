@@ -52,7 +52,7 @@ use Goal\Legacy\Modules\World\Domain\SeasonId;
 use Goal\Legacy\Modules\World\Domain\SimulationDate;
 use Goal\Legacy\Modules\World\Domain\World;
 use Goal\Legacy\Modules\World\Domain\WorldId;
-use Goal\Legacy\Modules\World\SeasonCompactionService;
+use Goal\Legacy\Modules\World\SeasonArchiveService;
 use RuntimeException;
 use Throwable;
 
@@ -145,23 +145,30 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
                 if ($performanceProbe !== null) {
                     $nextId = new SeasonId(sprintf('season-%04d-%02d', $season->startDate()->year() + 1, ($season->startDate()->year() + 2) % 100));
                     $next = $this->services->worldModule()->service()->seasonRepository($database)->get($nextId);
+                    $database = $this->advanceAndReload($store, $database, $next->startDate(), $reloadChecks, 'season-' . $seasonNumber . '-start');
+                    $next = $this->services->worldModule()->service()->seasonRepository($database)->get($next->id());
+                    if ($next->status()->value !== 'active') { throw new RuntimeException('Archive successor did not activate: ' . $next->id()->value()); }
                     $compaction = $this->compactCompletedSeason($store, $database, $season, $next);
                     $compactionReports['SEASON_' . $seasonNumber] = $compaction;
                     if ($seasonNumber === $requested) {
-                        $secondRun = (new SeasonCompactionService())->compact(
+                        $secondRun = (new SeasonArchiveService())->archive(
                             $database,
                             $season->id(),
+                            $next->id(),
                             $next->startDate()->toIsoString(),
                         );
                         $compactionReports['SEASON_' . $seasonNumber]['second_run'] = [
-                            'idempotent' => (bool) ($secondRun['idempotent'] ?? false),
+                            'archival_idempotent' => (bool) ($secondRun['idempotent'] ?? false),
+                            'historical_compaction_idempotent' => (bool) (($secondRun['historical_compaction']['idempotent'] ?? false)),
                             'logical_rows_removed' => (int) ($secondRun['logical_rows_removed'] ?? 0),
+                            'p4_002_logical_rows_removed' => (int) ($secondRun['historical_compaction']['logical_rows_removed'] ?? 0),
                         ];
                     }
                     $output->write(sprintf(
-                        'STORAGE_COMPACTION season=%s logical_rows=%d physical=%s reclaimed=%d duration_ms=%.2f',
+                        'STORAGE_ARCHIVE season=%s p4_002_rows=%d archival_rows=%d physical=%s reclaimed=%d duration_ms=%.2f',
                         $season->id()->value(),
-                        (int) ($compaction['logical_rows_removed'] ?? 0),
+                        (int) ($compaction['p4_002_logical_rows_removed'] ?? 0),
+                        (int) ($compaction['p4_004_logical_rows_removed'] ?? 0),
                         ($compaction['physical']['executed'] ?? false) ? 'YES' : 'NO',
                         (int) ($compaction['physical']['bytes_reclaimed'] ?? 0),
                         (float) ($compaction['duration_ms'] ?? 0.0),
@@ -185,7 +192,9 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
                 if ($seasonNumber < $requested) {
                     $nextId = new SeasonId(sprintf('season-%04d-%02d', $season->startDate()->year() + 1, ($season->startDate()->year() + 2) % 100));
                     $next = $this->services->worldModule()->service()->seasonRepository($database)->get($nextId);
-                    $database = $this->advanceAndReload($store, $database, $next->startDate(), $reloadChecks, 'season-' . ($seasonNumber + 1) . '-start');
+                    if ($performanceProbe === null) {
+                        $database = $this->advanceAndReload($store, $database, $next->startDate(), $reloadChecks, 'season-' . ($seasonNumber + 1) . '-start');
+                    }
                     $season = $this->services->worldModule()->service()->seasonRepository($database)->get($next->id());
                     if ($season->status()->value !== 'active') { throw new RuntimeException('Next Season did not activate: ' . $season->id()->value()); }
                 }
@@ -866,11 +875,14 @@ final class CareerMultiSeasonAuditCommand implements CommandInterface
     private function compactCompletedSeason($store, &$database, Season $completed, Season $next): array
     {
         $started = hrtime(true);
-        $logical = (new SeasonCompactionService())->compact(
+        $logical = (new SeasonArchiveService())->archive(
             $database,
             $completed->id(),
+            $next->id(),
             $next->startDate()->toIsoString(),
         );
+        $logical['p4_002_logical_rows_removed'] = (int) ($logical['historical_compaction']['logical_rows_removed'] ?? 0);
+        $logical['p4_004_logical_rows_removed'] = (int) ($logical['logical_rows_removed'] ?? 0);
         $physical = [
             'executed' => false,
             'bytes_reclaimed' => 0,

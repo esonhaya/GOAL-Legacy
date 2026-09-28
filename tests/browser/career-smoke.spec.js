@@ -130,12 +130,20 @@ test('Pre-Match and post-Match keep the player loop reachable', async ({ page },
   await page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Profile', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('P3-019 Browser Player');
   await expect(page.locator('[data-career-identity]')).toBeVisible();
+  await expect(page.getByText('CURRENT PLAYER', { exact: true })).toBeVisible();
+  await expect(page.getByText('DEVELOPMENT SIGNAL', { exact: true })).toBeVisible();
   await expectNoPageOverflow(page);
   await saveReleaseScreenshot(page, testInfo, 'profile');
 
   await page.getByRole('navigation', { name: 'Career navigation' }).getByRole('link', { name: 'Career History', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'P3-019 Browser Player' })).toBeVisible();
   await expect(page.locator('[data-career-identity]')).toBeVisible();
+  await expect(page.getByText('CAREER STORY', { exact: true })).toBeVisible();
+  await expect(page.getByText('CAREER ARC', { exact: true })).toBeVisible();
+  await expect(page.getByText('SEASON HISTORY', { exact: true })).toBeVisible();
+  await expect(page.getByText('DEVELOPMENT HISTORY', { exact: true })).toBeVisible();
+  await expect(page.getByText('CAREER HIGHLIGHTS', { exact: true })).toBeVisible();
+  await expect(page.locator('[data-season-status="current"]')).toBeVisible();
   await expectNoPageOverflow(page);
   await saveReleaseScreenshot(page, testInfo, 'career-history');
 });

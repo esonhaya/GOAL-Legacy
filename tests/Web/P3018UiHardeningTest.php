@@ -117,6 +117,10 @@ final class P3018UiHardeningTest extends TestCase
         self::assertStringContainsString('.match-status-card', $css);
         self::assertStringContainsString('.match-contribution-stats', $css);
         self::assertStringContainsString('.post-match-next', $css);
+        self::assertStringContainsString('.profile-facts', $css);
+        self::assertStringContainsString('.progression-change-list', $css);
+        self::assertStringContainsString('.career-season-card', $css);
+        self::assertStringContainsString('.career-highlight-list', $css);
     }
 
     private function dom(string $html): DOMDocument

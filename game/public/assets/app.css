@@ -252,6 +252,80 @@ table { max-width: none; }
 .choice-card span { min-height: 58px; display: flex; flex-direction: column; justify-content: center; }
 .empty-state { border: 1px dashed #cbd6e5; }
 
+/* P5-003: progression and history read as one player story while still
+   consuming only the canonical, compact-safe presentation projections. */
+.profile-facts { display: grid; gap: 16px; }
+.profile-facts-group { padding-top: 4px; }
+.profile-facts-group + .profile-facts-group { padding-top: 16px; border-top: 1px solid var(--line); }
+.profile-facts-group > .eyebrow { margin-bottom: 8px; }
+.profile-facts-note { margin: 10px 0 0; color: var(--muted); font-size: .86rem; }
+.progression-story { display: grid; gap: 16px; }
+.progression-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 15px; border: 1px solid #d9e4fb; border-radius: 12px; background: #f8fbff; }
+.progression-summary p { margin: 4px 0 0; color: var(--muted); }
+.progression-feedback { display: block; margin-top: 3px; font-size: 1.15rem; }
+.progression-feedback-improving { color: #287a55; }
+.progression-feedback-declining { color: #a33c3c; }
+.progression-feedback-mixed { color: #946514; }
+.progression-ovr { min-width: 72px; padding-left: 14px; border-left: 1px solid #cbdcfb; text-align: right; }
+.progression-ovr span, .progression-context span, .progression-role-change small { display: block; color: var(--muted); font-size: .78rem; }
+.progression-ovr strong { display: block; margin-top: 2px; font-size: 1.7rem; }
+.progression-facts { margin: 0; }
+.progression-stage-note { margin: 0; color: var(--muted); }
+.progression-subsection { padding-top: 14px; border-top: 1px solid var(--line); }
+.progression-subsection > .eyebrow { margin-bottom: 8px; }
+.progression-context { display: grid; gap: 10px; }
+.progression-context > p { display: flex; justify-content: space-between; gap: 12px; margin: 0; }
+.progression-context > p strong { text-align: right; }
+.progression-role-change { display: grid; gap: 2px; padding: 11px 12px; border-radius: 10px; background: #f7f9fc; }
+.progression-change-list, .career-story-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.progression-change { min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.progression-change-top, .career-development-line { display: flex; justify-content: space-between; gap: 12px; min-width: 0; }
+.progression-change-top strong, .progression-change-top time, .career-development-line time { overflow-wrap: anywhere; }
+.progression-change-top time, .career-development-line time { color: var(--muted); font-size: .8rem; }
+.progression-change-values { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 5px; color: var(--muted); font-size: .9rem; }
+.progression-change-values strong { color: var(--ink); }
+.progression-change[data-change-direction="positive"] .progression-change-values strong { color: #287a55; }
+.progression-change[data-change-direction="negative"] .progression-change-values strong { color: #a33c3c; }
+.story-evidence { margin-top: 0; }
+.story-label { margin: 14px 0 5px; color: var(--blue); font-size: .72rem; font-weight: 800; letter-spacing: .14em; }
+.season-review-story { border-color: #cbdcfb; background: linear-gradient(180deg, #fff, #f8fbff); }
+.season-story-lead { display: grid; gap: 4px; }
+.season-story-lead strong { font-size: 1.45rem; }
+.season-story-lead p { max-width: 760px; margin: 0; color: var(--muted); }
+.season-story-facts, .career-arc-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.season-story-facts span, .career-arc-facts span { min-width: 0; padding: 11px 12px; border-radius: 10px; background: #f4f7fb; }
+.season-story-facts small, .career-arc-facts small { display: block; color: var(--muted); font-size: .75rem; }
+.season-story-facts strong, .career-arc-facts strong { display: block; margin-top: 3px; overflow-wrap: anywhere; }
+.season-overview-stats { margin-bottom: 4px; }
+.season-role-history { margin-top: 0; }
+.career-story-heading { margin-bottom: 20px; }
+.career-arc-lead { max-width: 760px; margin: 0; color: var(--muted); }
+.career-season-list { display: grid; gap: 12px; }
+.career-season-card { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.career-season-current { border-color: #cbdcfb; background: #f8fbff; }
+.career-season-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.career-season-card h3 { margin: 3px 0; font-size: 1.2rem; }
+.career-season-card p { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
+.career-season-assessment { flex: 0 1 auto; max-width: 48%; padding: 6px 9px; border-radius: 999px; background: var(--soft-gold); color: #76520b; font-size: .78rem; font-weight: 800; text-align: center; }
+.career-season-meta { display: flex; flex-wrap: wrap; gap: 16px; margin: 14px 0 10px; }
+.career-season-meta span { display: grid; gap: 2px; min-width: 110px; }
+.career-season-meta small { color: var(--muted); font-size: .75rem; }
+.career-season-meta strong { overflow-wrap: anywhere; }
+.career-season-stats { margin-top: 10px; }
+.career-season-stats .stat { padding: 10px; }
+.career-season-stats .stat strong { font-size: 1.05rem; }
+.career-season-card-action { margin-top: 12px; }
+.career-story-item { min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.career-story-item small { display: block; margin-top: 4px; color: var(--muted); overflow-wrap: anywhere; }
+.career-story-item-change { border-color: #cbdcfb; background: #f8fbff; }
+.story-change-label { margin-left: 6px; color: var(--blue); font-size: .7rem; letter-spacing: .08em; }
+.career-highlight-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.career-highlight-list li { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.career-highlight-list li:last-child { border-bottom: 0; }
+.career-highlight-list strong { color: var(--blue); font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; }
+.career-highlight-list span { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
+.career-highlight-list small { color: var(--muted); text-align: right; }
+
 @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
@@ -292,6 +366,15 @@ table { max-width: none; }
     .attention-item .button { width: 100%; }
     .recent-result-top { flex-direction: column; }
     .recent-result-top .result-badge { justify-self: start; }
+    .progression-summary { grid-template-columns: 1fr; }
+    .progression-ovr { padding: 9px 0 0; border-top: 1px solid #cbdcfb; border-left: 0; text-align: left; }
+    .progression-context > p { align-items: flex-start; flex-direction: column; gap: 2px; }
+    .progression-context > p strong { text-align: left; }
+    .season-story-facts, .career-arc-facts { grid-template-columns: 1fr; }
+    .career-season-card-head { flex-direction: column; }
+    .career-season-assessment { max-width: 100%; }
+    .career-highlight-list li { grid-template-columns: 1fr; gap: 3px; }
+    .career-highlight-list small { text-align: left; }
     .save-card > .button, .opportunity-card > .inline-form, .save-card > .inline-form,
     .opportunity-card > .inline-form .button, .save-card > .inline-form .button { width: 100%; }
     .action-grid > .button, .action-grid > .inline-form, .action-grid > .inline-form .button { width: 100%; }

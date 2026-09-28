@@ -206,6 +206,9 @@ final class GraphicalShellTest extends TestCase
             self::assertStringContainsString('Training focus', $controlled['body']);
             self::assertStringContainsString('PLAYER DEVELOPMENT', $controlled['body']);
             self::assertStringContainsString('Current attributes', $controlled['body']);
+            self::assertStringContainsString('CURRENT PLAYER', $controlled['body']);
+            self::assertStringContainsString('FOOTBALL IDENTITY', $controlled['body']);
+            self::assertStringContainsString('DEVELOPMENT SIGNAL', $controlled['body']);
             self::assertStringContainsString('Pace', $controlled['body']);
             self::assertStringContainsString('Career stage', $controlled['body']);
             self::assertStringContainsString('Readiness', $controlled['body']);
@@ -220,6 +223,14 @@ final class GraphicalShellTest extends TestCase
             self::assertSame(303, $roleUpdate['status']);
             $roleProfile = $this->application->handle('GET', '/', ['page' => 'profile', 'save' => $save, 'player' => $career->playerId()->value()], [], $session);
             self::assertStringContainsString('Box-to-Box Midfielder', $roleProfile['body']);
+            $careerHistory = $this->application->handle('GET', '/', ['page' => 'career', 'save' => $save], [], $session);
+            self::assertSame(200, $careerHistory['status']);
+            self::assertStringContainsString('CAREER STORY', $careerHistory['body']);
+            self::assertStringContainsString('CAREER ARC', $careerHistory['body']);
+            self::assertStringContainsString('SEASON HISTORY', $careerHistory['body']);
+            self::assertStringContainsString('DEVELOPMENT HISTORY', $careerHistory['body']);
+            self::assertStringContainsString('CAREER HIGHLIGHTS', $careerHistory['body']);
+            self::assertStringContainsString('data-season-status="current"', $careerHistory['body']);
             $legacy = $this->application->handle('GET', '/', ['page' => 'legacy', 'save' => $save], [], $session);
             self::assertSame(200, $legacy['status']);
             self::assertStringContainsString('CAREER LEGACY', $legacy['body']);
